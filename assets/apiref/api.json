@@ -811,6 +811,7 @@
 "name": "getKeyframeTimes",
 "sig": "getKeyframeTimes(layerId: string, attrId: string): void",
 "live": true,
+"note": "Returns an array of frame numbers (the types file says void; Cavalry 2.7.2 returns int[]).",
 "url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
 },
 {
@@ -987,6 +988,7 @@
 "name": "getAnimatedAttributes",
 "sig": "getAnimatedAttributes(layerId: string): string[]",
 "live": true,
+"note": "Returns the attribute ids that have keyframes, e.g. ['position.x', 'opacity'].",
 "url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
 },
 {

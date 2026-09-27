@@ -12,5 +12,7 @@
   "api.newScene": "Discards unsaved changes without asking. `cav scene new` refuses when the open scene has unsaved changes.",
   "api.render": "Blocking. Render queue items have filePath, fileName, frameRange [start,end], resolutionScale. `cav render` wraps this and muxes audio with ffmpeg.",
   "api.set": "api.set(layer, {attr: value}). Vector attributes take [x, y]. Colours take '#rrggbb'. Comp: resolution, fps, startFrame, endFrame, backgroundColor, motionBlur.",
-  "api.setInFrame": "A group's in/out frames hide all its children: a clean way to cut between scenes."
+  "api.setInFrame": "A group's in/out frames hide all its children: a clean way to cut between scenes.",
+  "api.getKeyframeTimes": "Returns an array of frame numbers (the types file says void; Cavalry 2.7.2 returns int[]).",
+  "api.getAnimatedAttributes": "Returns the attribute ids that have keyframes, e.g. ['position.x', 'opacity']."
 }

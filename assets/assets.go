@@ -11,3 +11,6 @@ var HelpersJS []byte
 
 //go:embed apiref/api.json
 var APIRef []byte
+
+//go:embed apiref/layertypes.json
+var LayerTypes []byte
