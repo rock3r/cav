@@ -1,4 +1,4 @@
-// cav-bridge VERSION 0.1.0
+// cav-bridge VERSION 0.2.0
 //
 // HTTP request/response bridge between the `cav` CLI and Cavalry.
 // Runs inside Cavalry as a UI script: Scripts menu -> cav-bridge.
@@ -27,7 +27,7 @@
 //   (or that polled after another job replaced the GET payload) can still read it.
 //   Job code runs inside a function, so `return` sends a value back.
 
-var BRIDGE_VERSION = '0.1.0'
+var BRIDGE_VERSION = '0.2.0'
 var MIN_CAVALRY_VERSION = '2.4.0'
 var HOST = '127.0.0.1'
 var PORT = 8723
@@ -124,9 +124,31 @@ function preload(request, logs) {
 	return want
 }
 
+// Best effort only: code can still reach these through saved references.
+var RESTRICTED_APIS = ['runProcess', 'runDetachedProcess']
+
+function restrict(on) {
+	var saved = {}
+	if (!on) {
+		return function () {}
+	}
+	RESTRICTED_APIS.forEach(function (name) {
+		saved[name] = api[name]
+		api[name] = function () {
+			throw new Error('cav-bridge: api.' + name + ' is disabled for relayed jobs')
+		}
+	})
+	return function () {
+		for (var name in saved) {
+			api[name] = saved[name]
+		}
+	}
+}
+
 function execute(request) {
 	var logs = []
 	var restore = captureConsole(logs)
+	var unrestrict = restrict(!!request.restricted)
 	var started = Date.now()
 	var response = { type: 'result', id: String(request.id), ok: true, value: null, logs: logs, error: null }
 	try {
@@ -141,6 +163,7 @@ function execute(request) {
 			where: errorLine(err),
 		}
 	} finally {
+		unrestrict()
 		restore()
 	}
 	response.ms = Date.now() - started

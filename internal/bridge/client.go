@@ -35,6 +35,8 @@ type Request struct {
 	File           string `json:"file,omitempty"`
 	Preload        string `json:"preload,omitempty"`
 	PreloadVersion string `json:"preloadVersion,omitempty"`
+	// Restricted asks the bridge to disable process-launching APIs during the job.
+	Restricted bool `json:"restricted,omitempty"`
 }
 
 // Result is what the bridge returns for one job.
