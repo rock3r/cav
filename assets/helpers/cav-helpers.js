@@ -79,6 +79,11 @@
 		}
 	}
 
+	// Convenience alias: output shows up in cav run.
+	cav.log = function () {
+		console.log.apply(console, arguments)
+	}
+
 	cav.find = function (name) {
 		var ids = api.getCompLayers(false)
 		for (var i = 0; i < ids.length; i++) {

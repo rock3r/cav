@@ -81,6 +81,8 @@ const (
 	StateQueued  State = "queued"
 	StateRunning State = "running"
 	StateDone    State = "done"
+	// StateBusy means Cavalry has not answered for a while; the job is probably still working.
+	StateBusy State = "busy"
 )
 
 var (
@@ -190,6 +192,7 @@ func (c *Client) Wait(ctx context.Context, id string, timeout time.Duration, onS
 	}
 	jobFile := filepath.Join(config.JobsDir(), id+".json")
 	var lastSeen = time.Now()
+	warnedBusy := false
 	for i := 0; ; i++ {
 		if r, ok := readResultFile(jobFile); ok {
 			set(StateDone)
@@ -215,8 +218,13 @@ func (c *Client) Wait(ctx context.Context, id string, timeout time.Duration, onS
 					}
 				}
 			}
-		} else if time.Since(lastSeen) > 15*time.Second {
+		} else if time.Since(lastSeen) > 120*time.Second {
+			// Cavalry cannot answer while a native operation blocks it (for example deleting
+			// hundreds of layers), so only give up after a long silence.
 			return nil, fmt.Errorf("%w (job %s). Cavalry may have crashed or the bridge window was closed. %s", ErrLost, id, unavailableHint)
+		} else if time.Since(lastSeen) > 10*time.Second && onState != nil && !warnedBusy {
+			warnedBusy = true
+			onState(StateBusy)
 		}
 		if time.Now().After(deadline) {
 			return nil, fmt.Errorf("%w: job %s is %s after %s", ErrStillRunning, id, state, timeout)

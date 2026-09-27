@@ -265,5 +265,6 @@ var commandHints = map[string]string{
 	"bpm":        "use `cav beats <audio>`",
 	"search":     "use `cav api <words>` (API) or `cav docs <words>` (docs)",
 	"wait":       "use `cav job wait <id>`",
+	"jobs":       "use `cav job wait <id>` (the id is printed when a run takes longer than its timeout)",
 	"pro":        "cav.pro(type) is a helper for scripts: cav run -e \"return cav.pro('glowFilter')\"",
 }

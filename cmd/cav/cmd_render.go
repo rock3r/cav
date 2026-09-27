@@ -274,6 +274,9 @@ func cmdRender(a *app, args []string) error {
 	if *out == "" {
 		*out = filepath.Join(outDir(), safeName(st.Comp.Name)+".mp4")
 	}
+	if ext := strings.ToLower(filepath.Ext(*out)); ext != ".mp4" {
+		return usageErr("cav render writes MP4 video; for single images use `cav frame <n> -o file.png`, for a review use `cav sheet`")
+	}
 	absOut, _ := filepath.Abs(*out)
 	if err := os.MkdirAll(filepath.Dir(absOut), 0o755); err != nil {
 		return err

@@ -140,6 +140,9 @@ func (a *app) waitJob(c *bridge.Client, out *jobOutcome, timeout time.Duration, 
 		if progress && !a.json && s == bridge.StateRunning {
 			fmt.Fprintf(os.Stderr, "cav: job %s running\n", out.id)
 		}
+		if !a.json && s == bridge.StateBusy {
+			fmt.Fprintf(os.Stderr, "cav: Cavalry is busy (not answering); still waiting for job %s\n", out.id)
+		}
 	}
 	res, err := c.Wait(context.Background(), out.id, timeout, onState)
 	if err != nil {
