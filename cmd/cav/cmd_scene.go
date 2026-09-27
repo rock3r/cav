@@ -395,3 +395,17 @@ func cmdLayer(a *app, args []string) error {
 	})
 	return nil
 }
+
+func init() {
+	register(command{
+		name:    "status",
+		args:    "",
+		summary: "Show the bridge, the open scene and the active comp.",
+		run: func(a *app, args []string) error {
+			if c := bridgeCheck(a); !c.OK {
+				return fail(exitUnavailable, "bridge: "+c.Detail, c.Fix)
+			}
+			return sceneInfo(a)
+		},
+	})
+}

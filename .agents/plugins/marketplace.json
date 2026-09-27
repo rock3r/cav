@@ -1,0 +1,20 @@
+{
+  "name": "cavalry-skill",
+  "interface": {
+    "displayName": "Cavalry"
+  },
+  "plugins": [
+    {
+      "name": "cavalry",
+      "source": {
+        "source": "local",
+        "path": "./plugins/cavalry"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_USE"
+      },
+      "category": "Design"
+    }
+  ]
+}

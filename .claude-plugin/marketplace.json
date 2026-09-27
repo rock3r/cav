@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "cavalry-skill",
+  "owner": {
+    "name": "Sebastiano Poggi"
+  },
+  "description": "Cavalry motion design for coding agents: the cav CLI skill.",
+  "plugins": [
+    {
+      "name": "cavalry",
+      "source": "./plugins/cavalry",
+      "description": "Build professional, beat-synced motion graphics in Cavalry from the shell with the cav CLI.",
+      "category": "Design",
+      "tags": ["cavalry", "motion-design", "animation"]
+    }
+  ]
+}

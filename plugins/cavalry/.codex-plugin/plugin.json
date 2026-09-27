@@ -1,0 +1,18 @@
+{
+  "name": "cavalry",
+  "version": "0.1.0",
+  "description": "Build professional, beat-synced motion graphics in Cavalry from the shell with the cav CLI.",
+  "author": {
+    "name": "Sebastiano Poggi"
+  },
+  "homepage": "https://github.com/rock3r/cavalry-skill#readme",
+  "repository": "https://github.com/rock3r/cavalry-skill",
+  "license": "MIT",
+  "keywords": ["cavalry", "motion-design", "animation", "motion-graphics", "video"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Cavalry",
+    "shortDescription": "Motion graphics in Cavalry via the cav CLI",
+    "category": "Design"
+  }
+}

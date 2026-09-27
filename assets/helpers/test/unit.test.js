@@ -30,6 +30,8 @@ function mockEnv() {
 			return layers[l] ? layers[l].attrs[a] : undefined
 		},
 		getActiveComp: () => 'compNode#1',
+		getFrame: () => 0,
+		setFrame: () => {},
 		parent: (c, p) => calls.push(['parent', c, p]),
 		rename: () => {},
 		setStroke: () => {},

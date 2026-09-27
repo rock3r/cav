@@ -538,12 +538,22 @@
 	//@ cav.shake(l, f, amp=20, dur=18, seed=1)  decaying shake; put it on a group ("rig") so it adds up
 	//@ cav.punch(l, f, amount=0.08, dur=12)   quick scale bump for beat accents
 	//@ cav.stagger(layers, f, step, fn)       calls fn(layer, frame, index) with frame = f + i*step
+	// The value of an attribute at frame f (api.get reads at the playhead).
+	function valueAt(l, attr, f) {
+		var cur = api.getFrame()
+		api.setFrame(Math.round(f))
+		var v = api.get(l, attr)
+		api.setFrame(cur)
+		return v
+	}
+	cav.valueAt = valueAt
+
 	cav.fadeIn = function (l, f, dur) {
 		return cav.tween(l, 'opacity', f, f + (dur || 10), 0, 100, 'out')
 	}
 
 	cav.fadeOut = function (l, f, dur) {
-		var cur = api.get(l, 'opacity')
+		var cur = valueAt(l, 'opacity', f)
 		return cav.tween(l, 'opacity', f, f + (dur || 10), cur > 0 ? cur : 100, 0, 'in')
 	}
 
@@ -556,7 +566,7 @@
 	cav.slideIn = function (l, f, o) {
 		o = o || {}
 		var dur = o.dur || 18
-		var p = api.get(l, 'position')
+		var p = valueAt(l, 'position', f)
 		var dx = o.dx || 0, dy = o.dy === undefined ? -60 : o.dy
 		cav.tween(l, 'position', f, f + dur, [p.x + dx, p.y + dy], [p.x, p.y], o.ease || 'outExpo')
 		if (o.fade !== false) cav.tween(l, 'opacity', f, f + Math.max(4, Math.round(dur * 0.6)), 0, 100, 'out')
@@ -566,7 +576,7 @@
 	cav.slideOut = function (l, f, o) {
 		o = o || {}
 		var dur = o.dur || 14
-		var p = api.get(l, 'position')
+		var p = valueAt(l, 'position', f)
 		var dx = o.dx || 0, dy = o.dy === undefined ? 60 : o.dy
 		cav.tween(l, 'position', f, f + dur, [p.x, p.y], [p.x + dx, p.y + dy], o.ease || 'inBack')
 		if (o.fade !== false) cav.tween(l, 'opacity', f + Math.round(dur * 0.4), f + dur, 100, 0, 'in')
@@ -578,8 +588,8 @@
 		var dur = o.dur || 18
 		var bb = api.getBoundingBox(l, false)
 		var from = o.from || 'left'
-		var sc = api.get(l, 'scale')
-		var p = api.get(l, 'position')
+		var sc = valueAt(l, 'scale', f)
+		var p = valueAt(l, 'position', f)
 		// Move the pivot to the edge we grow from, and move the position to keep the layer in place.
 		var px = from === 'left' ? -bb.width / 2 : from === 'right' ? bb.width / 2 : 0
 		var py = from === 'bottom' ? -bb.height / 2 : from === 'top' ? bb.height / 2 : 0
@@ -610,7 +620,7 @@
 		amp = amp === undefined ? 20 : amp
 		dur = dur || 18
 		var r = cav.rng(seed || 1)
-		var p = api.get(l, 'position')
+		var p = valueAt(l, 'position', f)
 		var keys = [[f - 1, [p.x, p.y]]]
 		for (var t = f; t < f + dur; t += 2) {
 			var k = amp * Math.pow(1 - (t - f) / dur, 2)
@@ -623,7 +633,7 @@
 	cav.punch = function (l, f, amount, dur) {
 		amount = amount === undefined ? 0.08 : amount
 		dur = dur || 12
-		var s = api.get(l, 'scale')
+		var s = valueAt(l, 'scale', f)
 		return cav.key(l, 'scale', [
 			[f - 1, [s.x, s.y]],
 			[f, [s.x * (1 + amount), s.y * (1 + amount)], 'outCubic'],
@@ -776,7 +786,7 @@
 		o = o || {}
 		var step = o.step === undefined ? 2 : o.step, dur = o.dur || 18, dy = o.dy === undefined ? -80 : o.dy
 		return cav.stagger(gl.chars, f, step, function (c, fr) {
-			var p = api.get(c, 'position')
+			var p = valueAt(c, 'position', fr)
 			cav.tween(c, 'position', fr, fr + dur, [p.x, p.y + dy], [p.x, p.y], o.ease || 'outBack')
 			if (o.rotate) cav.tween(c, 'rotation', fr, fr + dur, o.rotate, 0, 'outCubic')
 			if (o.fade !== false) cav.tween(c, 'opacity', fr, fr + Math.max(3, Math.round(dur / 2)), 0, 100, 'out')
