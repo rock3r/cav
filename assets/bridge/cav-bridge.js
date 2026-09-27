@@ -1,4 +1,4 @@
-// cav-bridge VERSION 0.2.0
+// cav-bridge VERSION 0.3.0
 //
 // HTTP request/response bridge between the `cav` CLI and Cavalry.
 // Runs inside Cavalry as a UI script: Scripts menu -> cav-bridge.
@@ -27,7 +27,7 @@
 //   (or that polled after another job replaced the GET payload) can still read it.
 //   Job code runs inside a function, so `return` sends a value back.
 
-var BRIDGE_VERSION = '0.2.0'
+var BRIDGE_VERSION = '0.3.0'
 var MIN_CAVALRY_VERSION = '2.4.0'
 var HOST = '127.0.0.1'
 var PORT = 8723
@@ -72,15 +72,62 @@ function jsonSafe(value) {
 	}
 }
 
-// Line number of the failing statement inside the job's code, when the engine reports it.
+// Line number of the failing statement inside the job's own code. Frames from the job
+// read "eval at execute"; frames from the helper library read "eval at preload" (or none).
 function errorLine(err) {
 	var stack = String((err && err.stack) || '')
-	var m = stack.match(/<anonymous>:(\d+):(\d+)/) || stack.match(/eval[^\n]*?:(\d+):(\d+)/)
+	var m = stack.match(/eval at execute[^\n]*<anonymous>:(\d+):(\d+)/)
 	if (!m) {
 		return null
 	}
 	return { line: Number(m[1]) - 1, column: Number(m[2]) }
 }
+
+function describeArgs(args) {
+	var parts = []
+	for (var i = 0; i < args.length && i < 4; i++) {
+		var text
+		try {
+			text = JSON.stringify(args[i])
+		} catch (err) {
+			text = String(args[i])
+		}
+		if (text === undefined) {
+			text = String(args[i])
+		}
+		parts.push(text.length > 80 ? text.slice(0, 77) + '...' : text)
+	}
+	return parts.join(', ')
+}
+
+// Errors thrown by Cavalry's native functions have no stack, so the caller cannot see
+// which call failed or on which line. Wrap every api function once: a native error is
+// thrown again as a JavaScript error that names the call and carries the caller's stack.
+function wrapApi() {
+	if (api.__cavWrapped) {
+		return
+	}
+	for (var name in api) {
+		var fn = api[name]
+		if (typeof fn !== 'function' || /^[A-Z]/.test(name)) {
+			continue
+		}
+		;(function (name, fn) {
+			api[name] = function () {
+				try {
+					return fn.apply(api, arguments)
+				} catch (err) {
+					if (err && err.stack) {
+						throw err
+					}
+					throw new Error(String(err && err.message ? err.message : err) + ' (in api.' + name + '(' + describeArgs(arguments) + '))')
+				}
+			}
+		})(name, fn)
+	}
+	api.__cavWrapped = true
+}
+wrapApi()
 
 function captureConsole(logs) {
 	var original = {}

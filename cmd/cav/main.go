@@ -102,6 +102,9 @@ func (a *app) dispatch(args []string) int {
 			return a.finish(err)
 		}
 	}
+	if hint, ok := commandHints[args[0]]; ok {
+		return a.finish(&cliError{code: exitError, msg: fmt.Sprintf("unknown command %q", args[0]), hint: hint})
+	}
 	return a.finish(usageErr("unknown command %q", args[0]))
 }
 
@@ -221,7 +224,7 @@ Run "cav help <command>" for details.
 `)
 }
 
-var helpOrder = []string{"setup", "doctor", "status", "run", "job", "scene", "tree", "layer", "frame", "sheet", "render", "beats", "api", "docs", "helpers", "relay", "version", "update"}
+var helpOrder = []string{"setup", "doctor", "status", "run", "job", "scene", "tree", "layer", "frame", "sheet", "check", "render", "beats", "api", "docs", "helpers", "relay", "version", "update"}
 
 func order(name string) int {
 	for i, n := range helpOrder {
@@ -240,3 +243,27 @@ func firstLine(s string) string {
 }
 
 var longHelp = map[string]string{}
+
+// Commands that agents guess, mapped to the command that does the job.
+var commandHints = map[string]string{
+	"find":       "use `cav tree` to see ids and names; inside scripts use cav.find('name')",
+	"bbox":       "use `cav layer <id>`: it prints the bounding box, transform and keys",
+	"inspect":    "use `cav layer <id>` or `cav tree`",
+	"info":       "use `cav status` or `cav scene info`",
+	"layers":     "use `cav tree`",
+	"ls":         "use `cav tree`",
+	"list":       "use `cav tree`",
+	"exec":       "use `cav run <file.js>` or `cav run -e '<code>'`",
+	"eval":       "use `cav run -e '<code>'`",
+	"script":     "use `cav run <file.js>`",
+	"save":       "use `cav scene save <file.cv>`",
+	"new":        "use `cav scene new`",
+	"open":       "use `cav scene open <file.cv>`",
+	"screenshot": "use `cav frame <n>` (one PNG) or `cav sheet` (a contact sheet)",
+	"preview":    "use `cav sheet` (a contact sheet) or `cav frame <n>`",
+	"export":     "use `cav render -o out.mp4`",
+	"bpm":        "use `cav beats <audio>`",
+	"search":     "use `cav api <words>` (API) or `cav docs <words>` (docs)",
+	"wait":       "use `cav job wait <id>`",
+	"pro":        "cav.pro(type) is a helper for scripts: cav run -e \"return cav.pro('glowFilter')\"",
+}

@@ -188,12 +188,26 @@
 		return /(^|\.)(materialColor|strokeColor|backgroundColor|color|Color)$/.test(attr)
 	}
 
-	function checkLayer(layer, fn) {
+	// Layer arguments may be an id string, or an object from cav.glyphs / cav.duplicator-style
+	// helpers that carries its layer as .group or .id.
+	function lid(layer, fn) {
+		if (layer && typeof layer === 'object') {
+			if (typeof layer.group === 'string') return layer.group
+			if (typeof layer.id === 'string') return layer.id
+		}
 		if (typeof layer !== 'string' || !api.layerExists(layer)) fail(fn + ': layer ' + JSON.stringify(layer) + ' does not exist (use the id a create helper returned, e.g. "basicShape#3")')
+		return layer
+	}
+	cav.id = function (layer) {
+		return lid(layer, 'cav.id')
+	}
+
+	function checkLayer(layer, fn) {
+		return lid(layer, fn)
 	}
 
 	cav.key = function (layer, attr, keys) {
-		checkLayer(layer, 'cav.key')
+		layer = checkLayer(layer, 'cav.key')
 		attr = ALIAS[attr] || attr
 		if (!keys || !keys.length || !Array.isArray(keys[0])) fail('cav.key(layer, attr, keys): keys must be [[frame, value, ease?], ...]')
 		keys.forEach(function (k) {
@@ -292,10 +306,22 @@
 		return l
 	}
 
+	var PAIR_TYPES = { double2: 1, int2: 1 }
 	cav.attr = function (layer, d) {
-		checkLayer(layer, 'cav.attr')
+		layer = checkLayer(layer, 'cav.attr')
 		var out = {}
-		for (var k in d) out[ALIAS[k] || k] = d[k]
+		for (var k in d) {
+			var key = ALIAS[k] || k
+			var v = d[k]
+			// A single number on a two-value attribute sets it to (0, 0) without an error.
+			if (typeof v === 'number') {
+				try {
+					var def = api.getAttributeDefinition(layer, key)
+					if (def && PAIR_TYPES[def.type]) v = [v, v]
+				} catch (e) {}
+			}
+			out[key] = v
+		}
 		try {
 			api.set(layer, out)
 		} catch (e) {
@@ -309,10 +335,10 @@
 
 	cav.set = function (l, o) {
 		o = o || {}
-		checkLayer(l, 'cav.set')
+		l = checkLayer(l, 'cav.set')
 		if (o.name) api.rename(l, o.name)
 		if (o.parent) {
-			checkLayer(o.parent, 'cav.set parent')
+			o.parent = checkLayer(o.parent, 'cav.set parent')
 			api.parent(l, o.parent)
 			// api.parent keeps the world transform; reset the local transform.
 			if (o.x === undefined) o.x = 0
@@ -344,7 +370,8 @@
 			var st = o.stroke
 			var sd = { 'stroke.strokeColor': st.color || '#ffffff', 'stroke.width': st.width === undefined ? 2 : st.width }
 			if (st.cap !== undefined) sd['stroke.capStyle'] = st.cap === 'round' ? 1 : st.cap === 'square' ? 2 : st.cap
-			if (st.dash) sd['stroke.dashPattern'] = st.dash
+			// dashPattern is a string such as "12, 8".
+			if (st.dash) sd['stroke.dashPattern'] = Array.isArray(st.dash) ? st.dash.join(', ') : String(st.dash)
 			if (st.trim) sd['stroke.trim'] = true
 			api.set(l, sd)
 		}
@@ -378,7 +405,8 @@
 	cav.polygon = function (name, sides, r, o) {
 		o = o || {}
 		var l = primitive('polygon', name)
-		api.set(l, { 'generator.sides': sides, 'generator.radius': r, 'material.materialColor': o.fill || '#ffffff' })
+		// generator.radius is a double2: one number would silently set it to (0, 0).
+		api.set(l, { 'generator.sides': sides, 'generator.radius': [r, r], 'material.materialColor': o.fill || '#ffffff' })
 		return cav.set(l, o)
 	}
 
@@ -494,7 +522,7 @@
 	//@ cav.order(layer, below)          put layer directly below another layer in the stack
 	//@ cav.connect(from, fromAttr, to, toAttr)   api.connect with a clear error
 	cav.filter = function (layer, type, attrs) {
-		checkLayer(layer, 'cav.filter')
+		layer = checkLayer(layer, 'cav.filter')
 		var f = cav.create(type, api.getNiceName(layer) + ' ' + type)
 		if (attrs) cav.attr(f, attrs)
 		api.connect(f, 'id', layer, 'filters')
@@ -506,8 +534,8 @@
 	}
 
 	cav.mask = function (maskShape, target) {
-		checkLayer(maskShape, 'cav.mask')
-		checkLayer(target, 'cav.mask')
+		maskShape = checkLayer(maskShape, 'cav.mask')
+		target = checkLayer(target, 'cav.mask')
 		api.connect(maskShape, 'id', target, 'masks')
 		return target
 	}
@@ -518,8 +546,8 @@
 	}
 
 	cav.connect = function (from, fromAttr, to, toAttr) {
-		checkLayer(from, 'cav.connect')
-		checkLayer(to, 'cav.connect')
+		from = checkLayer(from, 'cav.connect')
+		to = checkLayer(to, 'cav.connect')
 		try {
 			api.connect(from, fromAttr, to, toAttr)
 		} catch (e) {
@@ -541,6 +569,7 @@
 	//@ cav.stagger(layers, f, step, fn)       calls fn(layer, frame, index) with frame = f + i*step
 	// The value of an attribute at frame f (api.get reads at the playhead).
 	function valueAt(l, attr, f) {
+		l = lid(l, 'cav.valueAt')
 		var cur = api.getFrame()
 		api.setFrame(Math.round(f))
 		var v = api.get(l, attr)
@@ -550,21 +579,25 @@
 	cav.valueAt = valueAt
 
 	cav.fadeIn = function (l, f, dur) {
+		l = lid(l, 'cav.fadeIn')
 		return cav.tween(l, 'opacity', f, f + (dur || 10), 0, 100, 'out')
 	}
 
 	cav.fadeOut = function (l, f, dur) {
+		l = lid(l, 'cav.fadeOut')
 		var cur = valueAt(l, 'opacity', f)
 		return cav.tween(l, 'opacity', f, f + (dur || 10), cur > 0 ? cur : 100, 0, 'in')
 	}
 
 	cav.pop = function (l, f, o) {
+		l = lid(l, 'cav.pop')
 		o = o || {}
 		var dur = o.dur || 14
 		return cav.tween(l, 'scale', f, f + dur, o.from === undefined ? 0 : o.from, o.to === undefined ? 1 : o.to, o.ease || 'outBack')
 	}
 
 	cav.slideIn = function (l, f, o) {
+		l = lid(l, 'cav.slideIn')
 		o = o || {}
 		var dur = o.dur || 18
 		var p = valueAt(l, 'position', f)
@@ -575,6 +608,7 @@
 	}
 
 	cav.slideOut = function (l, f, o) {
+		l = lid(l, 'cav.slideOut')
 		o = o || {}
 		var dur = o.dur || 14
 		var p = valueAt(l, 'position', f)
@@ -585,6 +619,7 @@
 	}
 
 	cav.wipeIn = function (l, f, o) {
+		l = lid(l, 'cav.wipeIn')
 		o = o || {}
 		var dur = o.dur || 18
 		var bb = api.getBoundingBox(l, false)
@@ -601,7 +636,7 @@
 	}
 
 	cav.drawOn = function (l, f, dur, ease) {
-		checkLayer(l, 'cav.drawOn')
+		l = checkLayer(l, 'cav.drawOn')
 		api.set(l, { 'stroke.trim': true, 'stroke.trimStart': 0 })
 		return cav.tween(l, 'stroke.trimEnd', f, f + (dur || 30), 0, 100, ease || 'inOutCubic')
 	}
@@ -618,6 +653,7 @@
 	}
 
 	cav.shake = function (l, f, amp, dur, seed) {
+		l = lid(l, 'cav.shake')
 		amp = amp === undefined ? 20 : amp
 		dur = dur || 18
 		var r = cav.rng(seed || 1)
@@ -632,6 +668,7 @@
 	}
 
 	cav.punch = function (l, f, amount, dur) {
+		l = lid(l, 'cav.punch')
 		amount = amount === undefined ? 0.08 : amount
 		dur = dur || 12
 		var s = valueAt(l, 'scale', f)
@@ -643,6 +680,8 @@
 	}
 
 	cav.stagger = function (layers, f, step, fn) {
+		if (layers && !Array.isArray(layers) && Array.isArray(layers.chars)) layers = layers.chars
+		if (!Array.isArray(layers)) fail('cav.stagger(layers, f, step, fn): layers must be an array of layer ids (or a cav.glyphs result)')
 		var n = 0
 		for (var i = 0; i < layers.length; i++) {
 			if (!layers[i]) continue
@@ -720,6 +759,7 @@
 	}
 
 	cav.zoomThrough = function (rig, f0, f1, target, o) {
+		rig = lid(rig, 'cav.zoomThrough')
 		o = o || {}
 		var s1 = o.scale || 12
 		var ease = cav.E[o.ease || 'inExpo']
@@ -843,7 +883,7 @@
 
 	cav.duplicator = function (name, source, o) {
 		o = o || {}
-		checkLayer(source, 'cav.duplicator')
+		source = checkLayer(source, 'cav.duplicator')
 		var type = o.type || 'grid'
 		if (!DIST[type]) fail('cav.duplicator type must be one of: ' + Object.keys(DIST).join(', '))
 		var d = cav.create('duplicator', name)
@@ -883,7 +923,7 @@
 
 	cav.staggerTime = function (target, spread, o) {
 		o = o || {}
-		checkLayer(target, 'cav.staggerTime')
+		target = checkLayer(target, 'cav.staggerTime')
 		var st = cav.create('stagger', api.getNiceName(target) + ' stagger')
 		// shapeTimeOffset shows each copy at frame + value, so later copies need negative values.
 		// Stagger sorts minimum/maximum, so the direction comes from the sign of strength.
@@ -894,7 +934,7 @@
 
 	cav.textCascade = function (text, f, o) {
 		o = o || {}
-		checkLayer(text, 'cav.textCascade')
+		text = checkLayer(text, 'cav.textCascade')
 		var dur = o.dur || 16, step = o.step === undefined ? 3 : o.step
 		var sm = cav.create('subMesh', api.getNiceName(text) + ' letters')
 		var ease = o.ease || 'outBack'
@@ -920,7 +960,7 @@
 
 	cav.counter = function (text, f0, f1, from, to, o) {
 		o = o || {}
-		checkLayer(text, 'cav.counter')
+		text = checkLayer(text, 'cav.counter')
 		var sg = cav.create('stringGenerator', api.getNiceName(text) + ' number')
 		api.set(sg, { 'generator.precision': o.decimals || 0, 'generator.length': 1, prefix: o.prefix || '', suffix: o.suffix || '' })
 		cav.key(sg, 'generator.number', [[f0, from, o.ease || 'outCubic'], [f1, to]])
@@ -930,7 +970,7 @@
 
 	cav.oscillate = function (layer, attr, o) {
 		o = o || {}
-		checkLayer(layer, 'cav.oscillate')
+		layer = checkLayer(layer, 'cav.oscillate')
 		var osc = cav.create('oscillator', api.getNiceName(layer) + ' oscillator')
 		api.set(osc, { minimum: o.min === undefined ? -10 : o.min, maximum: o.max === undefined ? 10 : o.max, frequency: o.freq || 1, stagger: o.stagger === undefined ? 1 : o.stagger })
 		cav.connect(osc, 'id', layer, ALIAS[attr] || attr)
@@ -939,7 +979,7 @@
 
 	cav.wiggle = function (layer, attr, o) {
 		o = o || {}
-		checkLayer(layer, 'cav.wiggle')
+		layer = checkLayer(layer, 'cav.wiggle')
 		var nz = cav.create('noise', api.getNiceName(layer) + ' wiggle')
 		var d = { 'generator.minimum': o.min === undefined ? -10 : o.min, 'generator.maximum': o.max === undefined ? 10 : o.max, 'generator.frequency': o.freq || 1 }
 		if (o.seed !== undefined) d['generator.seed'] = o.seed
@@ -950,7 +990,7 @@
 
 	cav.gradient = function (layer, colors, o) {
 		o = o || {}
-		checkLayer(layer, 'cav.gradient')
+		layer = checkLayer(layer, 'cav.gradient')
 		if (!colors || colors.length < 2) fail('cav.gradient needs at least two colours')
 		colors.forEach(cav.rgb)
 		var g = cav.create('gradientShader', api.getNiceName(layer) + ' gradient')
@@ -980,12 +1020,12 @@
 	//@ cav.bbox(layer)   world bounding box {left, right, top, bottom, width, height, centre}
 	//@ cav.keys(layer)   {attr: [frames]} for every animated attribute
 	cav.bbox = function (l) {
-		checkLayer(l, 'cav.bbox')
+		l = checkLayer(l, 'cav.bbox')
 		return api.getBoundingBox(l, true)
 	}
 
 	cav.keys = function (l) {
-		checkLayer(l, 'cav.keys')
+		l = checkLayer(l, 'cav.keys')
 		var out = {}
 		api.getAnimatedAttributes(l).forEach(function (a) {
 			out[a] = api.getKeyframeTimes(l, a)

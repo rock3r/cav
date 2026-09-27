@@ -30,8 +30,9 @@ cav doctor
 3. **Write the build as script files** in the project (e.g. `build/01_title.js`), one scene section per file, and run them with `cav run build/01_title.js`. Files can be fixed and re-run. Start each file with `cav.clear()` only if it builds the whole comp; otherwise delete just its own group.
 4. **Review after every file**: `cav sheet` renders 12 frames spread over the comp into `renders/sheet.png`. Open the image and check it. `cav sheet 0-240:20` for a range, `cav sheet 30,60,90` for a list, `--bpm 120` to see beat numbers.
 5. **Fix numbers, not guesses**: `cav tree` (layer ids and structure), `cav layer <id>` (position, bbox, keys).
-6. **Save**: `cav scene save scenes/<name>.cv`.
-7. **Render**: `cav render -o renders/final.mp4 [--audio music.wav]`. Check the frame count it prints.
+6. **Check**: `cav check` lists still stretches, text too small to read, layers outside the frame and empty frames at the start or end. Fix every finding, or say why it is intended.
+7. **Save**: `cav scene save scenes/<name>.cv`.
+8. **Render**: `cav render -o renders/final.mp4 [--audio music.wav]`. Check the frame count it prints.
 
 ## 3. Writing scripts
 
@@ -68,6 +69,7 @@ Rules that keep scripts working:
 |---|---|---|
 | `api.create`/`api.primitive` put the new layer next to the current selection | Layers end up inside the wrong group and never render | Use `cav.*` create helpers (they clear the selection) |
 | `api.parent` keeps the world transform | Children get odd offsets and scales | Use `cav.set(layer, {parent: g, x, y})` or re-set position/scale after parenting |
+| One number on a two-value attribute (`generator.radius`, `generator.dimensions`, `amount`) | Silently becomes (0, 0): the shape vanishes | Pass `[x, y]`; `cav.attr` expands single numbers for you |
 | Hex strings in colour keyframes | No keys are made | `cav.key(l, 'fill', [[0, '#ff0000'], [10, '#0000ff']])` splits channels for you |
 | String keyframes on `text` | Ignored | One layer per letter (`cav.glyphs`) or several text layers you fade between |
 | Opacity is clamped to 0-100 | Overshoot easings do nothing on opacity | Use overshoot (`outBack`, `spring`) on position, scale, rotation |
@@ -97,6 +99,8 @@ Read `references/motion-recipes.md` before a creative task. Short version:
 - **Overlap and stagger**: elements arrive 2-6 frames apart, not all at once (`cav.stagger`, `cav.cascade`).
 - **Anticipation and overshoot**: wind up before a big move (`inBack`), land with a small overshoot (`outBack`, `spring`).
 - **Hierarchy**: one hero element per moment. Big bold headline, small kicker, lots of empty space. Keep text inside 90 % of the frame.
+- **Readable sizes at 1080p**: headlines 100-180 px, names 56-72 px, labels 30-40 px, nothing under 28 px. Secondary text in light grey (`#c3cad8`) on dark, never mid grey.
+- **Use the whole duration**: end on a finished frame (a held lockup or the last exit ending near the last frame), not on seconds of empty screen.
 - **Timing at 60 fps**: small moves 12-20 frames, big moves 20-40, holds long enough to read (about 1 s per 3 words).
 - **Impacts**: `cav.flash`, `cav.ring`, `cav.burst`, `cav.shake` on a top-level rig group, all on the same frame.
 - **Transitions**: zoom-through (`cav.zoomThrough`), wipes, masks, a flash on the cut. Cut between sections with group in/out frames.
@@ -105,6 +109,7 @@ Read `references/motion-recipes.md` before a creative task. Short version:
 ## 7. Done checklist
 
 - [ ] `cav sheet` reviewed after the last change: nothing missing, clipped, overlapping by mistake, or off-screen.
+- [ ] `cav check` shows no findings you have not fixed or explained.
 - [ ] Every moving element has easing; hits land on beat frames when there is music.
 - [ ] Scene saved with `cav scene save`; final MP4 rendered with `cav render` and the frame count matches.
 - [ ] Tell the user the file paths, and what you could not check (for example: you cannot hear the music).

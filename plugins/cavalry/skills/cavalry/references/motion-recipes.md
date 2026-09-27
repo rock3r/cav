@@ -23,7 +23,9 @@ the numbers, run it with `cav run`, and check it with `cav sheet`. Frames assume
 - **Palette**: one dark background, one light text colour, one or two accents. Examples:
   `#0b0d12 / #f5f7fa / #ff4d2e`, `#101820 / #fefae0 / #2ec4b6 / #ffbf69`, `#1b1033 / #ffffff / #7b5cff / #36f1cd`.
 - **Type**: one bold display font for headlines (`Inter` Black/Bold), one mono or regular font for
-  small labels. Headlines 100-180 px at 1080p; labels 28-40 px. Letter spacing 0 to -2 for big
+  small labels. Headlines 100-180 px at 1080p; names 56-72 px; labels 30-40 px. **Nothing under
+  28 px at 1080p**: it is unreadable on a phone. Secondary text needs contrast too: light grey
+  (`#c3cad8`) on dark, not mid grey. Letter spacing 0 to -2 for big
   bold words; +4 to +10 for small upper-case kickers.
 - **Layout**: keep text inside the middle 90 % (title safe). Align things to a few shared x/y lines.
   One focal point at a time.
@@ -129,9 +131,9 @@ cav.flash(b.bar(4), { dur: 6, peak: 70 })
 
 ```js
 var lt = cav.group('lower_third', { x: c.left + 120, y: c.bottom + 170, in: 30, out: 300 })
-var barA = cav.rect('lt_bar', 12, 90, { parent: lt, fill: '#ff4d2e', x: 0 })
-var name = cav.text('lt_name', 'Ada Lovelace', 56, { parent: lt, align: 'left', x: 36, y: 18 })
-var role = cav.text('lt_role', 'FIRST PROGRAMMER', 26, { parent: lt, align: 'left', x: 38, y: -30, style: 'Medium', spacing: 6, color: '#aab3c5' })
+var barA = cav.rect('lt_bar', 12, 110, { parent: lt, fill: '#ff4d2e', x: 0 })
+var name = cav.text('lt_name', 'Ada Lovelace', 64, { parent: lt, align: 'left', x: 36, y: 22 })
+var role = cav.text('lt_role', 'FIRST PROGRAMMER', 32, { parent: lt, align: 'left', x: 38, y: -32, style: 'Medium', spacing: 5, color: '#c3cad8' })
 cav.wipeIn(barA, 30, { from: 'bottom', dur: 14 })
 cav.slideIn(name, 36, { dx: -40, dy: 0, dur: 20 })
 cav.slideIn(role, 42, { dx: -40, dy: 0, dur: 20 })

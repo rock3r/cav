@@ -10,6 +10,8 @@ already handles the trap.
 | `api.create` / `api.primitive` add the layer next to the current selection. | Whole groups end up nested in a hidden group and never render. | Call `api.select([])` before and after every create. | all `cav.*` create helpers |
 | `api.parent(child, parent)` keeps the child's world transform. | The child gets a compensating position and scale (for example `-95` and `1.282`). | Set position, scale and rotation again after parenting. | `cav.set(l, {parent})` |
 | Y points up; (0,0) is the comp centre. | Text at `y: 300` sits in the upper half. | Use `cav.comp()` edges: `top`, `bottom`, `left`, `right`. | `cav.comp()` |
+| One number on a two-value (`double2`) attribute, e.g. `api.set(poly, {'generator.radius': 100})`. | The value silently becomes (0, 0); the shape has no size. | Pass `[100, 100]`. | `cav.attr`, `cav.polygon` |
+| `stroke.dashPattern` is a string. | An array throws `type must be string, but is array`. | `'12, 8'` (dash, gap). | `o.stroke.dash` accepts both |
 | `pivot` moves the layer so the pivot point sits at `position`. | Layer jumps when you change the pivot. | Move `position` by the same amount (times scale). | `cav.wipeIn` |
 | `api.reorder(a, b)` puts `a` below `b`. | A background ends up in front. | Reorder relative to the layer you want to sit under. | `cav.order(a, b)` |
 | Group in/out frames hide all children. | Children vanish outside the group's range. | Use this on purpose to cut between sections. | `o.in`, `o.out` |

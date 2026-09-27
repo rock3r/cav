@@ -101,9 +101,10 @@ func guardUnsaved(a *app, force bool) error {
 		Path    string `json:"path"`
 		Layers  int    `json:"layers"`
 	}
-	if err := a.jsCall(`return {unsaved: api.sceneHasUnsavedChanges(), path: api.getSceneFilePath(), layers: api.getAllSceneLayers().length}`, time.Minute, &st); err != nil {
+	if err := a.jsCall(`return {unsaved: api.sceneHasUnsavedChanges(), path: api.getSceneFilePath(), layers: api.getAllSceneLayers().filter(function (id) { return api.getLayerType(id) !== 'compNode' }).length}`, time.Minute, &st); err != nil {
 		return err
 	}
+	// An untitled scene with no layers holds no work, even if Cavalry flags it as changed.
 	if st.Unsaved && (st.Path != "" || st.Layers > 0) {
 		name := st.Path
 		if name == "" {
