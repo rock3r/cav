@@ -2,7 +2,7 @@
 # Install or update the cav CLI on macOS, then run `cav setup`.
 #   curl -fsSL https://raw.githubusercontent.com/rock3r/cavalry-skill/main/install.sh | sh
 # Options (environment): CAV_VERSION=v0.1.0 to pin a release, CAV_BIN_DIR to choose the folder,
-# CAV_REPO=owner/name for a fork.
+# CAV_REPO=owner/name for a fork, CAV_BASE_URL to download from a mirror or a local dist/ folder.
 set -eu
 
 REPO="${CAV_REPO:-rock3r/cavalry-skill}"
@@ -23,7 +23,9 @@ case "$arch" in
 esac
 
 asset="cav_${os}_${arch}.tar.gz"
-if [ "$VERSION" = "latest" ]; then
+if [ -n "${CAV_BASE_URL:-}" ]; then
+  base="$CAV_BASE_URL"   # a mirror, or file:///path/to/dist for testing
+elif [ "$VERSION" = "latest" ]; then
   base="https://github.com/$REPO/releases/latest/download"
 else
   base="https://github.com/$REPO/releases/download/$VERSION"

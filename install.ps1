@@ -1,6 +1,6 @@
 # Install or update the cav CLI on Windows, then run `cav setup`.
 #   irm https://raw.githubusercontent.com/rock3r/cavalry-skill/main/install.ps1 | iex
-# Options (environment): CAV_VERSION=v0.1.0, CAV_BIN_DIR, CAV_REPO=owner/name.
+# Options (environment): CAV_VERSION=v0.1.0, CAV_BIN_DIR, CAV_REPO=owner/name, CAV_BASE_URL (mirror).
 $ErrorActionPreference = 'Stop'
 
 $Repo = if ($env:CAV_REPO) { $env:CAV_REPO } else { 'rock3r/cavalry-skill' }
@@ -9,7 +9,7 @@ $Version = if ($env:CAV_VERSION) { $env:CAV_VERSION } else { 'latest' }
 
 $arch = if ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq 'Arm64') { 'arm64' } else { 'amd64' }
 $asset = "cav_windows_$arch.zip"
-$base = if ($Version -eq 'latest') { "https://github.com/$Repo/releases/latest/download" } else { "https://github.com/$Repo/releases/download/$Version" }
+$base = if ($env:CAV_BASE_URL) { $env:CAV_BASE_URL } elseif ($Version -eq 'latest') { "https://github.com/$Repo/releases/latest/download" } else { "https://github.com/$Repo/releases/download/$Version" }
 
 $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("cav-" + [guid]::NewGuid())
 New-Item -ItemType Directory -Path $tmp | Out-Null
