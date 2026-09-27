@@ -244,7 +244,9 @@ func bridgeCheck(a *app) check {
 		return check{Name: "bridge", Detail: "something answers on the port but it is not cav-bridge", Fix: "close the other program or set CAV_BRIDGE_PORT"}
 	}
 	if got != want {
-		return check{Name: "bridge", Detail: fmt.Sprintf("running v%s, installed v%s", got, want),
+		// The request protocol has not changed since 0.1, so an older running bridge still
+		// works; restarting it only brings its improvements.
+		return check{Name: "bridge", OK: true, Optional: true, Detail: fmt.Sprintf("running v%s; v%s is installed (works; restart the cav-bridge window to update)", got, want),
 			Fix: "close the cav-bridge window in Cavalry and start it again from the Scripts menu"}
 	}
 	return check{Name: "bridge", OK: true, Detail: fmt.Sprintf("running v%s on %s:%d", got, c.Host, c.Port)}
