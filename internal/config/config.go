@@ -38,9 +38,37 @@ func CacheDir() string    { return filepath.Join(Home(), "cache") }
 func DocsDir() string     { return filepath.Join(CacheDir(), "docs") }
 func PreloadPath() string { return filepath.Join(Home(), "helpers.js") }
 
-// SpoolDir returns the spool folder when the CLI must not use the network
-// (for example inside a sandbox that blocks loopback). Empty means HTTP.
-func SpoolDir() string { return os.Getenv("CAV_SPOOL") }
+// SpoolDir returns the spool folder when the CLI must not use the network (for example
+// inside a sandbox that blocks loopback). Empty means HTTP. It comes from $CAV_SPOOL or
+// from a ".cav-spool" file in the working directory or one of its parents; the file holds
+// the folder path, absolute or relative to the file.
+func SpoolDir() string {
+	if v := os.Getenv("CAV_SPOOL"); v != "" {
+		return v
+	}
+	dir, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	for {
+		b, err := os.ReadFile(filepath.Join(dir, ".cav-spool"))
+		if err == nil {
+			p := strings.TrimSpace(string(b))
+			if p == "" {
+				return ""
+			}
+			if !filepath.IsAbs(p) {
+				p = filepath.Join(dir, p)
+			}
+			return p
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return ""
+		}
+		dir = parent
+	}
+}
 
 func Host() string {
 	if v := os.Getenv("CAV_BRIDGE_HOST"); v != "" {

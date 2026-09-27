@@ -181,7 +181,7 @@ panel `pop`s. Keep a reference screenshot beside it in the review sheet if you h
 
 ## 13. The review loop
 
-1. After each script: `cav sheet 12` (or frames around the part you changed) and look at it.
+1. After each script: `cav sheet` (or frames around the part you changed) and look at it.
 2. Something looks wrong -> check numbers: `cav layer <id>` shows the bounding box, parent and keys.
 3. Before rendering: `cav sheet 0-<end>:<step> --bpm <bpm>` over the whole piece.
 4. Render: `cav render -o renders/final.mp4 --audio <track>`; say what you could not check.

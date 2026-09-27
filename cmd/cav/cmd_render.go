@@ -26,15 +26,18 @@ func init() {
 	})
 	register(command{
 		name:    "sheet",
-		args:    "[frames] [--scale 25] [--cols N] [--bpm B] [-o sheet.png]",
+		args:    "[frames] [--count 12] [--scale 25] [--cols N] [--bpm B] [-o sheet.png]",
 		summary: "Render frames and tile them into one labelled contact sheet.",
 		run:     cmdSheet,
 	})
 	longHelp["sheet"] = `
 Frames can be:
-  12            12 frames spread evenly over the comp (the default)
+  (nothing)     12 frames spread evenly over the comp; --count N for another number
+  45            just frame 45
   0,30,60,90    a list
   0-600:30      a range with a step (every 30th frame from 0 to 600)
+Simulations (Forge Dynamics, particles) only advance when frames render in order:
+use a step-1 range such as 0-59:1 to preview them.
 Each tile is labelled "f<frame> <seconds>s". With --bpm, the label also shows the beat
 number (b1 is the first beat), so you can check that hits land on the beat.
 Look at the sheet image after every build step: it is the fastest way to catch
@@ -197,6 +200,7 @@ func cmdSheet(a *app, args []string) error {
 	bpm := fs.Float64("bpm", 0, "label tiles with the beat number at this tempo")
 	offset := fs.Float64("offset", 0, "with --bpm: time of the first beat in seconds")
 	keep := fs.Bool("keep", false, "keep the single frame PNGs")
+	count := fs.Int("count", 12, "number of evenly spread frames when no frames are given")
 	pos, err := parseFlags(fs, args)
 	if err != nil {
 		return err
@@ -205,18 +209,14 @@ func cmdSheet(a *app, args []string) error {
 	if err != nil {
 		return err
 	}
-	spec := "12"
-	if len(pos) > 0 {
-		spec = strings.Join(pos, ",")
-	}
 	var frames []int
-	if n, err := strconv.Atoi(spec); err == nil && !strings.Contains(spec, ",") && n > 0 && n <= 200 && len(pos) <= 1 {
-		frames = evenFrames(n, st.Comp.StartFrame, st.Comp.EndFrame)
-	} else if frames, err = parseFrameList(spec, nil); err != nil {
+	if len(pos) == 0 {
+		frames = evenFrames(*count, st.Comp.StartFrame, st.Comp.EndFrame)
+	} else if frames, err = parseFrameList(strings.Join(pos, ","), nil); err != nil {
 		return err
 	}
-	if len(frames) > 60 {
-		return usageErr("%d frames is too many for one sheet (max 60); use a larger step", len(frames))
+	if len(frames) > 120 {
+		return usageErr("%d frames is too many for one sheet (max 120); use a larger step", len(frames))
 	}
 	if *out == "" {
 		*out = filepath.Join(outDir(), "sheet.png")

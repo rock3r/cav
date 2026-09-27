@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -63,9 +65,15 @@ func cmdRelay(a *app, args []string) error {
 	handled := 0
 	for {
 		reqs, _ := filepath.Glob(filepath.Join(dir, "*.req.json"))
-		sort.Strings(reqs)
-		for _, p := range reqs {
-			relayOne(c, p, *restricted, *timeout)
+		cmds, _ := filepath.Glob(filepath.Join(dir, "*.cmd.json"))
+		all := append(reqs, cmds...)
+		sort.Slice(all, func(i, j int) bool { return filepath.Base(all[i]) < filepath.Base(all[j]) })
+		for _, p := range all {
+			if strings.HasSuffix(p, ".cmd.json") {
+				relayCommand(p, *restricted, *timeout)
+			} else {
+				relayOne(c, p, *restricted, *timeout)
+			}
 			handled++
 		}
 		if *once {
@@ -128,4 +136,63 @@ func relayOne(c *bridge.Client, reqPath string, restricted bool, timeout time.Du
 	}
 	bridge.Cleanup(req.ID)
 	writeRes(res)
+}
+
+// relayCommand runs one forwarded cav command line outside the sandbox.
+func relayCommand(cmdPath string, restricted bool, timeout time.Duration) {
+	taken := strings.TrimSuffix(cmdPath, ".cmd.json") + ".cmdtaken"
+	if err := os.Rename(cmdPath, taken); err != nil {
+		return
+	}
+	defer os.Remove(taken)
+	base := strings.TrimSuffix(cmdPath, ".cmd.json")
+	write := func(r forwardRes) {
+		b, _ := json.Marshal(r)
+		_ = os.WriteFile(base+".out.json.tmp", b, 0o600)
+		_ = os.Rename(base+".out.json.tmp", base+".out.json")
+	}
+	b, err := os.ReadFile(taken)
+	var req forwardReq
+	if err != nil || json.Unmarshal(b, &req) != nil || len(req.Argv) == 0 {
+		write(forwardRes{Exit: exitError, Stderr: "cav relay: bad command file\n"})
+		return
+	}
+	name := req.Argv[0]
+	for _, a := range req.Argv {
+		if !strings.HasPrefix(a, "-") {
+			name = a
+			break
+		}
+	}
+	if relayDenied[name] {
+		write(forwardRes{Exit: exitError, Stderr: "cav relay: `cav " + name + "` is not allowed through the relay; ask the user to run it outside the sandbox\n"})
+		return
+	}
+	if st, err := os.Stat(req.Cwd); err != nil || !st.IsDir() {
+		write(forwardRes{Exit: exitError, Stderr: "cav relay: working folder does not exist: " + req.Cwd + "\n"})
+		return
+	}
+	self, _ := os.Executable()
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, self, req.Argv...)
+	cmd.Dir = req.Cwd
+	cmd.Env = append(os.Environ(), "CAV_RELAYED=1")
+	if restricted {
+		cmd.Env = append(cmd.Env, "CAV_RESTRICTED=1")
+	}
+	if len(req.Stdin) > 0 {
+		cmd.Stdin = bytes.NewReader(req.Stdin)
+	}
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	err = cmd.Run()
+	code := 0
+	if err != nil {
+		code = exitError
+		if ee, ok := err.(*exec.ExitError); ok {
+			code = ee.ExitCode()
+		}
+	}
+	write(forwardRes{Exit: code, Stdout: stdout.String(), Stderr: stderr.String()})
 }

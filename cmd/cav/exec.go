@@ -98,7 +98,7 @@ func (a *app) execJS(code string, o execOpts) (*jobOutcome, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
-	req := &bridge.Request{ID: bridge.NewID()}
+	req := &bridge.Request{ID: bridge.NewID(), Restricted: os.Getenv("CAV_RESTRICTED") == "1"}
 	jsPath := filepath.Join(dir, req.ID+".js")
 	if err := os.WriteFile(jsPath, []byte(code), 0o600); err != nil {
 		return nil, err

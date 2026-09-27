@@ -26,6 +26,8 @@ already handles the trap.
 | String keys on `text`. | Silently ignored. | One layer per glyph, or cross-fade text layers. | `cav.glyphs` |
 | Chained keys interpolate across gaps. | A layer drifts slowly for seconds. | Add a hold key right before the next move. | `cav.tween` |
 | Opacity is clamped to 0..100. | Overshoot curves do nothing on opacity. | Use overshoot on position/scale/rotation. | |
+| Keys on `'rotation'` (a 3-channel attribute). | Silently no keys. | Key `'rotation.z'`. | `cav.key` |
+| `api.get(textLayer, 'text')` returns an object `{text, overrides}`. | String code sees "[object Object]". | Read `.text`. | `cav.textOf(l)` |
 | `api.get` returns the value at the playhead. | A helper that reads "the current position" gets the wrong value when keys exist. | Read at a frame: `cav.valueAt(l, attr, f)`. | all recipes |
 
 ## Look and render
@@ -35,7 +37,11 @@ already handles the trap.
 | Stroke width scales with the layer's scale. | Expanding rings become very thick. | Animate `generator.radius`, not `scale`. | `cav.ring` |
 | Strokes must be switched on first. | `stroke.*` sets do nothing. | `api.setStroke(l, true)` first. | `o.stroke` |
 | Trim uses `stroke.trim` + `stroke.trimStart`/`trimEnd` (0-100). | | | `cav.drawOn` |
-| Glow filter on large text. | The word turns into a white blob. | Use a blurred duplicate behind the text. | |
+| Glow filter at high intensity on large text. | The word turns into a white blob (seen once; normal settings looked clean). | Keep `intensity` at 1 or lower, or use a blurred copy behind the text. | |
+| `chromaticAberrationFilter` at its default strength (100). | Broken colour noise. | Use `strength` 15-30. | |
+| Comp `motionBlur` alone. | The render is sharp. | Also set each layer's `motionBlur` to 1. | `cav.motionBlur()` |
+| A new render queue item. | Its `filePath` can point at another project's folder. | Always set `filePath` and `fileName`. | `cav render` |
+| Pre-comp background. | The pre-comp draws an opaque box. | Give the sub-comp a background with alpha 0. | |
 | Missing font. | Another font is used without an error. | Check `cavalry.fontExists(family, style)`. | `cav.text` warns |
 | Filters and masks are connections, not attributes. | | `api.connect(filter,'id',shape,'filters')`, `api.connect(mask,'id',target,'masks')`. | `cav.filter`, `cav.mask` |
 | Render queue range | Off-by-one frame counts were seen in one session. | `cav render` checks the count with ffprobe and prints it. | `cav render` |

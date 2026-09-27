@@ -65,14 +65,20 @@ func cmdRun(a *app, args []string) error {
 		code, source = string(b), "stdin"
 	case len(pos) > 0:
 		var parts []string
-		for _, p := range pos {
+		for i, p := range pos {
 			b, err := os.ReadFile(p)
 			if err != nil {
 				return usageErr("cannot read %s: %v", p, err)
 			}
-			parts = append(parts, string(b))
+			if i < len(pos)-1 && len(pos) > 1 {
+				// Each earlier file runs in its own function, so its `return` ends only that
+				// file. The last file's return value is the job's result.
+				parts = append(parts, "(function () {\n"+string(b)+"\n})();")
+			} else {
+				parts = append(parts, string(b))
+			}
 		}
-		code, source = strings.Join(parts, "\n;\n"), strings.Join(pos, "+")
+		code, source = strings.Join(parts, "\n"), strings.Join(pos, "+")
 	default:
 		return usageErr("run needs a file, -e <code>, or - for stdin")
 	}

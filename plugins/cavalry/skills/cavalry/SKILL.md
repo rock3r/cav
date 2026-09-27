@@ -28,7 +28,7 @@ cav doctor
 2. **Start a fresh scene**: `cav scene new --width 1920 --height 1080 --fps 60 --seconds 8 --bg '#0b0d12'`.
    It refuses if the open scene has unsaved changes. Never use `--force` on the user's own work: ask first.
 3. **Write the build as script files** in the project (e.g. `build/01_title.js`), one scene section per file, and run them with `cav run build/01_title.js`. Files can be fixed and re-run. Start each file with `cav.clear()` only if it builds the whole comp; otherwise delete just its own group.
-4. **Review after every file**: `cav sheet 12` renders 12 frames into `renders/sheet.png`. Open the image and check it. Use `cav sheet 0-240:20` for a range, `--bpm 120` to see beat numbers.
+4. **Review after every file**: `cav sheet` renders 12 frames spread over the comp into `renders/sheet.png`. Open the image and check it. `cav sheet 0-240:20` for a range, `cav sheet 30,60,90` for a list, `--bpm 120` to see beat numbers.
 5. **Fix numbers, not guesses**: `cav tree` (layer ids and structure), `cav layer <id>` (position, bbox, keys).
 6. **Save**: `cav scene save scenes/<name>.cv`.
 7. **Render**: `cav render -o renders/final.mp4 [--audio music.wav]`. Check the frame count it prints.
@@ -74,7 +74,9 @@ Rules that keep scripts working:
 | Stroke width scales with the layer scale | Rings get thick when scaled | Animate `generator.radius` (see `cav.ring`) |
 | Keys interpolate across gaps | A layer drifts slowly between two moves | Use `cav.tween`, or add a hold key before the next move |
 | `api.reorder(a, b)` | a goes **below** b | Think "a under b" |
-| Glow filter on big text | The word becomes a white blob | Put a blurred copy behind the text instead |
+| Raw keys on `'rotation'` (it has x, y, z) | No keys are made | `cav.key`/`cav.tween` on `'rotation'` key `rotation.z` for you |
+| A behaviour connected to an attribute | It replaces the value instead of adding | Put the layer in a positioned group, animate the child |
+| Comp motion blur alone | Renders sharp | `cav.motionBlur()` also switches it on per layer |
 | Missing font | Cavalry silently uses another font | `cav.text` warns and falls back; check the warning |
 
 More traps and details: `references/gotchas.md`.

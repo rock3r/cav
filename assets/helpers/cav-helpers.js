@@ -168,7 +168,8 @@
 	//@     ('scale' also takes one number); colour attributes ('fill', 'material.materialColor',
 	//@     'stroke.strokeColor') take '#rrggbb' and are keyed per channel for you.
 	//@     'fill' = 'material.materialColor', 'strokeColor' = 'stroke.strokeColor'.
-	//@     Scale is a multiplier: 1 = 100 %. Opacity is 0..100. Rotation is in degrees.
+	//@     Scale is a multiplier: 1 = 100 %. Opacity is 0..100. Rotation is in degrees
+	//@     ('rotation' means rotation.z; 'rotation.y' spins 2.5D layers).
 	//@ cav.tween(layer, attr, f0, f1, from, to, ease?)  two keys. Repeated tweens on one
 	//@     attribute HOLD between them (a key is placed at each tween's start), so there is no drift.
 	//@ Keys that are not tweened interpolate across gaps: add a hold key before the next move.
@@ -180,7 +181,7 @@
 		'generator.dimensions': ['generator.dimensions.x', 'generator.dimensions.y'],
 		'generator.radius': ['generator.radius.x', 'generator.radius.y'],
 	}
-	var ALIAS = { fill: 'material.materialColor', color: 'material.materialColor', strokeColor: 'stroke.strokeColor', 'stroke.color': 'stroke.strokeColor', x: 'position.x', y: 'position.y', rotate: 'rotation' }
+	var ALIAS = { fill: 'material.materialColor', color: 'material.materialColor', strokeColor: 'stroke.strokeColor', 'stroke.color': 'stroke.strokeColor', x: 'position.x', y: 'position.y', rotate: 'rotation.z', rotation: 'rotation.z' }
 	cav.ALIAS = ALIAS
 
 	function isColorAttr(attr) {
@@ -260,7 +261,7 @@
 	//@ cav.group(name, o)
 	//@ cav.rect(name, w, h, o)            o.radius: corner radius
 	//@ cav.circle(name, r, o) / cav.ellipse(name, rx, ry, o)
-	//@ cav.polygon(name, sides, r, o) / cav.star(name, points, r, o)
+	//@ cav.polygon(name, sides, r, o) / cav.star(name, points, r, o)   o.inner: inner radius
 	//@ cav.line(name, [x1,y1], [x2,y2], o)   a stroked path (default stroke white 4 px)
 	//@ cav.path(name, [[x,y], ...], o)     o.closed, o.smooth; or pass function(p){p.moveTo(..)...}
 	//@ cav.text(name, string, size, o)     o.font ('Inter'), o.style ('Bold'), o.color, o.align
@@ -384,13 +385,13 @@
 	cav.star = function (name, points, r, o) {
 		o = o || {}
 		var l = primitive('star', name)
-		var d = { 'generator.points': points, 'generator.outerRadius': r, 'material.materialColor': o.fill || '#ffffff' }
-		if (o.inner) d['generator.innerRadius'] = o.inner
-		try {
-			api.set(l, d)
-		} catch (e) {
-			api.set(l, { 'material.materialColor': o.fill || '#ffffff' })
-		}
+		api.set(l, {
+			'generator.sides': points,
+			'generator.radius': r,
+			'generator.useInnerRadius': true,
+			'generator.innerRadius': o.inner || r * 0.45,
+			'material.materialColor': o.fill || '#ffffff',
+		})
 		return cav.set(l, o)
 	}
 
@@ -802,6 +803,176 @@
 				[fr, 100],
 			])
 		})
+	}
+
+
+	//@
+	//@ ## Native features (fewer layers, faster scripts; all verified in Cavalry 2.7.2)
+	//@ A behaviour connected to an attribute REPLACES its value (it does not add to it).
+	//@ cav.duplicator(name, source, {type, count, size, radius, seed, path, parent}) -> duplicator id
+	//@     type: 'grid' (count [cols, rows], size [w, h]), 'circle' (count, radius), 'linear' (count,
+	//@     size = total length), 'random' (count, size [w, h], seed), 'path' (count, path: layer id).
+	//@     The source is hidden; the duplicator draws the copies. The source's OWN position/scale/
+	//@     rotation keys are ignored: to animate each copy, put the shape in a group and pass the group.
+	//@ cav.staggerTime(target, spread, {reverse}) -> stagger id
+	//@     Delays copies of a duplicator or sub-mesh one after another: copy 0 starts first and the
+	//@     last copy starts `spread` frames later (reverse: true flips the order).
+	//@ cav.textCascade(textLayer, f, {step=3, dur=16, dy=-120, scale=0.4, rotate=-20, fade=true, ease='outBack'})
+	//@     Per-letter animation on ONE text layer (Sub-Mesh + Stagger). Returns the sub-mesh id.
+	//@ cav.counter(textLayer, f0, f1, from, to, {prefix, suffix, decimals=0, ease='outCubic'})
+	//@     Drives the text with an animated number (String Generator). Returns the generator id.
+	//@ cav.oscillate(layer, attr, {min, max, freq=1})   sine wave on an attribute (freq in cycles per second)
+	//@ cav.wiggle(layer, attr, {min, max, freq=1, seed})  smooth noise on an attribute
+	//@     attr can be one channel ('position.y', 'rotation.z', 'scale.x'), or a duplicator's
+	//@     'shapePosition.y', 'shapeScale.y', 'shapeRotation', 'shapeOpacity'.
+	//@ cav.gradient(layer, ['#hex', '#hex', ...], {type='linear'|'radial', rotation=0})  gradient fill
+	//@     On text it spans the whole word. Animate its 'generator.offset.x' for a shimmer.
+	//@ cav.motionBlur(samples=16)   turns on comp motion blur AND per-layer blur on every layer
+	//@     (call it last, after all layers exist; the comp switch alone renders sharp).
+	//@ cav.pro(type) -> true when a layer type needs a Cavalry Pro licence (forge, particles, camera,
+	//@     glow, javaScript...). Starter licences cannot save or render those.
+	var DIST = { grid: 'gridDistribution', circle: 'circleDistribution', linear: 'linearDistribution', random: 'randomDistribution', path: 'pathDistribution' }
+
+	cav.pro = function (type) {
+		try {
+			return !!api.isProLayerType(type)
+		} catch (e) {
+			return false
+		}
+	}
+
+	cav.duplicator = function (name, source, o) {
+		o = o || {}
+		checkLayer(source, 'cav.duplicator')
+		var type = o.type || 'grid'
+		if (!DIST[type]) fail('cav.duplicator type must be one of: ' + Object.keys(DIST).join(', '))
+		var d = cav.create('duplicator', name)
+		api.connect(source, 'id', d, 'shapes')
+		api.set(source, { hidden: true })
+		api.setGenerator(d, 'generator', DIST[type])
+		var set = {}
+		function pair(v, def) {
+			if (v === undefined) v = def
+			return Array.isArray(v) ? v : [v, v]
+		}
+		if (type === 'grid') {
+			var c = pair(o.count, 3), sz = pair(o.size, 200)
+			set['generator.count.x'] = c[0]
+			set['generator.count.y'] = c[1]
+			set['generator.size.x'] = sz[0]
+			set['generator.size.y'] = sz[1]
+		} else if (type === 'random') {
+			var rs = pair(o.size, 500)
+			set['generator.count'] = o.count || 50
+			set['generator.size.x'] = rs[0]
+			set['generator.size.y'] = rs[1]
+			if (o.seed !== undefined) set['generator.seed'] = o.seed
+		} else {
+			set['generator.count'] = o.count || 3
+			if (type === 'circle') set['generator.radius'] = o.radius || 200
+			if (type === 'linear') set['generator.size'] = o.size || 200
+		}
+		api.set(d, set)
+		if (type === 'path') {
+			if (!o.path) fail("cav.duplicator type 'path' needs o.path (a path layer id)")
+			api.connect(o.path, 'id', d, 'generator.inputShape')
+		}
+		if (o.parent) cav.set(d, { parent: o.parent })
+		return d
+	}
+
+	cav.staggerTime = function (target, spread, o) {
+		o = o || {}
+		checkLayer(target, 'cav.staggerTime')
+		var st = cav.create('stagger', api.getNiceName(target) + ' stagger')
+		// shapeTimeOffset shows each copy at frame + value, so later copies need negative values.
+		// Stagger sorts minimum/maximum, so the direction comes from the sign of strength.
+		api.set(st, { minimum: 0, maximum: Math.abs(spread), strength: o.reverse ? 100 : -100 })
+		api.connect(st, 'id', target, 'shapeTimeOffset')
+		return st
+	}
+
+	cav.textCascade = function (text, f, o) {
+		o = o || {}
+		checkLayer(text, 'cav.textCascade')
+		var dur = o.dur || 16, step = o.step === undefined ? 3 : o.step
+		var sm = cav.create('subMesh', api.getNiceName(text) + ' letters')
+		var ease = o.ease || 'outBack'
+		var dy = o.dy === undefined ? -120 : o.dy
+		cav.key(sm, 'shapePosition.y', [[f, dy, ease], [f + dur, 0]])
+		if (o.scale !== false) {
+			var s0 = o.scale === undefined ? 0.4 : o.scale
+			cav.key(sm, 'shapeScale', [[f, [s0, s0], ease], [f + dur, [1, 1]]])
+		}
+		if (o.rotate !== false) cav.key(sm, 'shapeRotation', [[f, o.rotate === undefined ? -20 : o.rotate, 'outCubic'], [f + dur, 0]])
+		if (o.fade !== false) cav.key(sm, 'shapeOpacity', [[f, 0, 'out'], [f + Math.max(4, Math.round(dur / 2)), 100]])
+		api.connect(sm, 'id', text, 'deformers')
+		var n = cav.textOf(text).replace(/\s/g, '').length
+		cav.staggerTime(sm, step * Math.max(1, n - 1), { reverse: o.reverse })
+		return sm
+	}
+
+	// The text attribute is an object {text, overrides}; this returns the plain string.
+	cav.textOf = function (layer) {
+		var v = api.get(layer, 'text')
+		return v && typeof v === 'object' ? String(v.text) : String(v)
+	}
+
+	cav.counter = function (text, f0, f1, from, to, o) {
+		o = o || {}
+		checkLayer(text, 'cav.counter')
+		var sg = cav.create('stringGenerator', api.getNiceName(text) + ' number')
+		api.set(sg, { 'generator.precision': o.decimals || 0, 'generator.length': 1, prefix: o.prefix || '', suffix: o.suffix || '' })
+		cav.key(sg, 'generator.number', [[f0, from, o.ease || 'outCubic'], [f1, to]])
+		api.connect(sg, 'id', text, 'text')
+		return sg
+	}
+
+	cav.oscillate = function (layer, attr, o) {
+		o = o || {}
+		checkLayer(layer, 'cav.oscillate')
+		var osc = cav.create('oscillator', api.getNiceName(layer) + ' oscillator')
+		api.set(osc, { minimum: o.min === undefined ? -10 : o.min, maximum: o.max === undefined ? 10 : o.max, frequency: o.freq || 1, stagger: o.stagger === undefined ? 1 : o.stagger })
+		cav.connect(osc, 'id', layer, ALIAS[attr] || attr)
+		return osc
+	}
+
+	cav.wiggle = function (layer, attr, o) {
+		o = o || {}
+		checkLayer(layer, 'cav.wiggle')
+		var nz = cav.create('noise', api.getNiceName(layer) + ' wiggle')
+		var d = { 'generator.minimum': o.min === undefined ? -10 : o.min, 'generator.maximum': o.max === undefined ? 10 : o.max, 'generator.frequency': o.freq || 1 }
+		if (o.seed !== undefined) d['generator.seed'] = o.seed
+		api.set(nz, d)
+		cav.connect(nz, 'id', layer, ALIAS[attr] || attr)
+		return nz
+	}
+
+	cav.gradient = function (layer, colors, o) {
+		o = o || {}
+		checkLayer(layer, 'cav.gradient')
+		if (!colors || colors.length < 2) fail('cav.gradient needs at least two colours')
+		colors.forEach(cav.rgb)
+		var g = cav.create('gradientShader', api.getNiceName(layer) + ' gradient')
+		if (o.type === 'radial') api.setGenerator(g, 'generator', 'radialGradientShader')
+		api.setGradientFromColors(g, 'generator.gradient', colors)
+		if (o.rotation !== undefined && o.type !== 'radial') api.set(g, { 'generator.rotation': o.rotation })
+		api.connect(g, 'id', layer, 'material.colorShaders')
+		if (api.getLayerType(layer) === 'textShape') api.set(g, { screenSpace: true })
+		return g
+	}
+
+	cav.motionBlur = function (samples) {
+		var comp = api.getActiveComp()
+		api.set(comp, { motionBlur: true, motionBlurSamples: samples || 16, shutterAngle: 180 })
+		var n = 0
+		api.getCompLayers(false).forEach(function (id) {
+			try {
+				api.set(id, { motionBlur: 1 })
+				n++
+			} catch (e) {}
+		})
+		return n
 	}
 
 	//@

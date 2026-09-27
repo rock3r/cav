@@ -72,6 +72,9 @@ func main() {
 	if os.Getenv("CAV_JSON") == "1" {
 		a.json = true
 	}
+	if spool := spoolFor(args); spool != "" {
+		os.Exit(forward(spool, os.Args[1:]))
+	}
 	code := a.dispatch(args)
 	a.writeLog(code)
 	os.Exit(code)

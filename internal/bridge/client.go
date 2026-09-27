@@ -105,9 +105,17 @@ func New() *Client {
 	return &Client{
 		Host:  config.Host(),
 		Port:  config.Port(),
-		Spool: config.SpoolDir(),
+		Spool: spoolUnlessRelayed(),
 		http:  &http.Client{Timeout: 5 * time.Second},
 	}
+}
+
+// A process started by `cav relay` must talk HTTP even when a spool marker is present.
+func spoolUnlessRelayed() string {
+	if os.Getenv("CAV_RELAYED") == "1" {
+		return ""
+	}
+	return config.SpoolDir()
 }
 
 func NewID() string {
