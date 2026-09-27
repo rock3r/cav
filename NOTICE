@@ -1,0 +1,22 @@
+cavalry-skill
+Copyright (c) 2026 Sebastiano Poggi. MIT licence (see LICENSE).
+
+This project builds on ideas and code from other projects.
+
+1. cavalry-mcp — https://github.com/m18h/cavalry-mcp
+   Copyright (c) 2026 Michael Essandoh. MIT licence.
+   assets/bridge/cav-bridge.js is derived from its bridge script
+   (cavalry-mcp-bridge.js). The request/response bridge with a shared token,
+   the idea of a bundled API reference, and the idea of a searchable docs
+   knowledge base come from cavalry-mcp. The full licence text is kept in the
+   header of assets/bridge/cav-bridge.js.
+
+2. cavalry-types — https://github.com/scenery-io/cavalry-types
+   Copyright (c) 2022 Remco Janssen. MIT licence.
+   assets/apiref/api.json contains function names and type signatures taken
+   from its type definitions. Documentation text is not copied.
+
+Cavalry is a product of Scene Group Limited (now part of Canva). This project
+is not affiliated with or endorsed by Scene Group or Canva. The Cavalry
+documentation is not redistributed: `cav docs update` downloads it to the
+user's own computer for offline search.

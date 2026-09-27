@@ -1,0 +1,243 @@
+// cav-bridge VERSION 0.1.0
+//
+// HTTP request/response bridge between the `cav` CLI and Cavalry.
+// Runs inside Cavalry as a UI script: Scripts menu -> cav-bridge.
+// Keep its window open while you use `cav`.
+//
+// Derived from the cavalry-mcp bridge by Michael Essandoh
+// (https://github.com/m18h/cavalry-mcp), MIT licence:
+//   Copyright (c) 2026 Michael Essandoh
+//   Permission is hereby granted, free of charge, to any person obtaining a copy of this
+//   software and associated documentation files (the "Software"), to deal in the Software
+//   without restriction, including without limitation the rights to use, copy, modify, merge,
+//   publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons
+//   to whom the Software is furnished to do so, subject to the following conditions:
+//   The above copyright notice and this permission notice shall be included in all copies or
+//   substantial portions of the Software.
+//   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.
+//
+// Protocol
+// --------
+//   POST http://127.0.0.1:8723/post
+//     {"id": "<job id>", "token": "<~/.cav/token>", "file": "<path to .js>" | "code": "<js>",
+//      "preload": "<path>", "preloadVersion": "<v>"}
+//   The bridge publishes {"type":"running","id":...} through GET /get while the job runs,
+//   then {"type":"result","id":...,"ok":bool,"value":...,"logs":[...],"error":{...},"ms":N}.
+//   The result is also written to ~/.cav/jobs/<id>.json, so a client that was not polling
+//   (or that polled after another job replaced the GET payload) can still read it.
+//   Job code runs inside a function, so `return` sends a value back.
+
+var BRIDGE_VERSION = '0.1.0'
+var MIN_CAVALRY_VERSION = '2.4.0'
+var HOST = '127.0.0.1'
+var PORT = 8723
+
+if (cavalry.versionLessThan(MIN_CAVALRY_VERSION)) {
+	throw new Error('cav-bridge needs Cavalry ' + MIN_CAVALRY_VERSION + ' or newer')
+}
+
+var HOME = api.getHomeFolder().replace(/\\/g, '/').replace(/\/+$/, '')
+var CAV_DIR = HOME + '/.cav'
+var TOKEN_PATH = CAV_DIR + '/token'
+var JOBS_DIR = CAV_DIR + '/jobs'
+
+if (!api.filePathExists(TOKEN_PATH)) {
+	throw new Error('cav-bridge: token file missing at ' + TOKEN_PATH + '. Run `cav setup`.')
+}
+var TOKEN = String(api.readFromFile(TOKEN_PATH)).trim()
+if (TOKEN.length < 32) {
+	throw new Error('cav-bridge: token in ' + TOKEN_PATH + ' is too short. Run `cav setup`.')
+}
+if (!api.filePathExists(JOBS_DIR)) {
+	api.makeFolder(JOBS_DIR)
+}
+
+var server = new api.WebServer()
+var jobCount = 0
+var lastJobAt = 0
+
+function jsonSafe(value) {
+	if (value === undefined) {
+		return null
+	}
+	try {
+		var text = JSON.stringify(value)
+		return text === undefined ? null : JSON.parse(text)
+	} catch (err) {
+		try {
+			return String(value)
+		} catch (err2) {
+			return '[unserializable value]'
+		}
+	}
+}
+
+// Line number of the failing statement inside the job's code, when the engine reports it.
+function errorLine(err) {
+	var stack = String((err && err.stack) || '')
+	var m = stack.match(/<anonymous>:(\d+):(\d+)/) || stack.match(/eval[^\n]*?:(\d+):(\d+)/)
+	if (!m) {
+		return null
+	}
+	return { line: Number(m[1]) - 1, column: Number(m[2]) }
+}
+
+function captureConsole(logs) {
+	var original = {}
+	;['log', 'info', 'warn', 'error'].forEach(function (level) {
+		original[level] = console[level]
+		console[level] = function () {
+			var parts = []
+			for (var i = 0; i < arguments.length; i++) {
+				var arg = arguments[i]
+				try {
+					parts.push(typeof arg === 'string' ? arg : JSON.stringify(arg))
+				} catch (err) {
+					parts.push(String(arg))
+				}
+			}
+			if (logs.length < 500) {
+				logs.push({ level: level, message: parts.join(' ') })
+			}
+			original[level].apply(console, arguments)
+		}
+	})
+	return function restore() {
+		for (var level in original) {
+			console[level] = original[level]
+		}
+	}
+}
+
+function preload(request, logs) {
+	if (!request.preload) {
+		return null
+	}
+	var want = String(request.preloadVersion || '')
+	if (globalThis.__cavPreloadVersion === want && want !== '') {
+		return null
+	}
+	var src = String(api.readFromFile(String(request.preload)))
+	;(0, eval)(src) // indirect eval: runs in global scope
+	globalThis.__cavPreloadVersion = want
+	logs.push({ level: 'info', message: 'cav: loaded helpers ' + want })
+	return want
+}
+
+function execute(request) {
+	var logs = []
+	var restore = captureConsole(logs)
+	var started = Date.now()
+	var response = { type: 'result', id: String(request.id), ok: true, value: null, logs: logs, error: null }
+	try {
+		preload(request, logs)
+		var code = request.file ? String(api.readFromFile(String(request.file))) : String(request.code)
+		response.value = jsonSafe(eval('(function() {\n' + code + '\n})()'))
+	} catch (err) {
+		response.ok = false
+		response.error = {
+			message: String(err && err.message ? err.message : err),
+			stack: String(err && err.stack ? err.stack : ''),
+			where: errorLine(err),
+		}
+	} finally {
+		restore()
+	}
+	response.ms = Date.now() - started
+	return response
+}
+
+function BridgeCallbacks() {
+	// onPost must be an own property: Cavalry's native side may not resolve prototype methods.
+	this.onPost = function () {
+		while (server.postCount() > 0) {
+			var post = server.getNextPost()
+			var request
+			try {
+				request = JSON.parse(post.result)
+			} catch (err) {
+				console.error('cav-bridge: request was not valid JSON')
+				continue
+			}
+			if (request.token !== TOKEN) {
+				console.error('cav-bridge: rejected a request with a missing or wrong token')
+				continue
+			}
+			if (!request.id || !(request.code || request.file)) {
+				console.error('cav-bridge: request needs `id` and `code` or `file`')
+				continue
+			}
+			server.setResultForGet(
+				JSON.stringify({ type: 'running', id: String(request.id), startedAt: Date.now(), bridgeVersion: BRIDGE_VERSION }),
+			)
+			var response = execute(request)
+			jobCount++
+			lastJobAt = Date.now()
+			response.bridgeVersion = BRIDGE_VERSION
+			var text = JSON.stringify(response)
+			try {
+				api.writeToFile(JOBS_DIR + '/' + String(request.id).replace(/[^A-Za-z0-9_-]/g, '') + '.json', text)
+			} catch (err) {
+				// The GET payload still carries the result.
+			}
+			server.setResultForGet(text)
+		}
+	}
+}
+
+server.setResultForGet(
+	JSON.stringify({
+		type: 'hello',
+		bridge: 'cav-bridge',
+		bridgeVersion: BRIDGE_VERSION,
+		cavalryVersion: api.getCavalryVersion(),
+	}),
+)
+server.listen(HOST, PORT)
+var callbacks = new BridgeCallbacks()
+server.addCallbackObject(callbacks)
+// setRealtime() breaks post polling on Cavalry 2.7.2 (reported by cavalry-mcp);
+// setHighFrequency() polls about once per second.
+server.setHighFrequency()
+
+// A faster poll through api.Timer, so short jobs do not wait up to a second.
+// The WebServer callback above stays as the fallback.
+var busy = false
+function FastPoll() {
+	this.onTimeout = function () {
+		if (busy || server.postCount() === 0) {
+			return
+		}
+		busy = true
+		try {
+			callbacks.onPost()
+		} finally {
+			busy = false
+		}
+	}
+}
+var fastPoll = null
+try {
+	fastPoll = new api.Timer(new FastPoll())
+	fastPoll.setRepeating(true)
+	fastPoll.setInterval(50)
+	fastPoll.start()
+} catch (err) {
+	console.warn('cav-bridge: fast polling unavailable, using 1 s polling: ' + err)
+}
+
+var title = new ui.Label('cav-bridge v' + BRIDGE_VERSION)
+title.setAlignment(1)
+var status = new ui.Label('Listening on http://' + HOST + ':' + PORT)
+status.setAlignment(1)
+var hint = new ui.Label('Keep this window open while you use cav.')
+hint.setAlignment(1)
+var layout = new ui.VLayout()
+layout.addStretch()
+layout.add(title, status, hint)
+layout.addStretch()
+ui.setTitle('cav-bridge')
+ui.add(layout)
+ui.show()
+
+console.log('cav-bridge v' + BRIDGE_VERSION + ' listening on ' + HOST + ':' + PORT)
