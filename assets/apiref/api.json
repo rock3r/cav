@@ -1,1 +1,3816 @@
-{"entries":[]}
+{
+"source": "names and signatures: https://github.com/scenery-io/cavalry-types (MIT, (c) 2022 Remco Janssen); live check: Cavalry 2.7.2",
+"count": 432,
+"entries": [
+{
+"ns": "api",
+"kind": "function",
+"name": "getPreference",
+"sig": "getPreference(key: string): unknown",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "setPreference",
+"sig": "setPreference(key: string, object: unknown): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "setFrame",
+"sig": "setFrame(frame: number): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getFrame",
+"sig": "getFrame(): number",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "play",
+"sig": "play(): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "stop",
+"sig": "stop(): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getCompLayers",
+"sig": "getCompLayers(topLevel: boolean): string[]",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getCompLayersOfType",
+"sig": "getCompLayersOfType(topLevel: boolean, type: string): string[]",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getParentComp",
+"sig": "getParentComp(layerId: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "createTimeMarker",
+"sig": "createTimeMarker(time: number): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getTimeMarkers",
+"sig": "getTimeMarkers(): string[]",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "removeTimeMarker",
+"sig": "removeTimeMarker(markerId: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getNthBeat",
+"sig": "getNthBeat(n: number): number",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "addGuide",
+"sig": "addGuide( compId: string, isVertical: boolean, position: number, ): number",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "deleteGuide",
+"sig": "deleteGuide(compId: string, rulerId: number): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "clearGuides",
+"sig": "clearGuides(compId: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getGuideInfo",
+"sig": "getGuideInfo(compId: string): object[]",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getControlCentreAttributes",
+"sig": "getControlCentreAttributes(): string[]",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "timecodeToFrames",
+"sig": "timecodeToFrames(timecode: string, fps: number): number",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "framesToTimecode",
+"sig": "framesToTimecode(frames: number, fps: number): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "primitive",
+"sig": "primitive(primitiveType: string, name: string): string",
+"live": true,
+"note": "Same selection trap as api.create. Types: rectangle, ellipse, polygon, star, ring, ... Use cav.rect()/cav.ellipse().",
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "createEditable",
+"sig": "createEditable(object: unknown, name: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "create",
+"sig": "create( layerType: string, name?: string, allowDefaultPreset?: boolean, ): string",
+"live": true,
+"note": "Places the new layer next to the current selection (it can end up inside a hidden group). Call api.select([]) before and after, or use cav.create().",
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "deleteLayer",
+"sig": "deleteLayer(layerId: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "layerExists",
+"sig": "layerExists(layerId: string): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getLayerType",
+"sig": "getLayerType(layerId: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "isThirdPartyLayer",
+"sig": "isThirdPartyLayer(layerId: string): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "resetLayerAttributes",
+"sig": "resetLayerAttributes( layerId: string, includeTransformAttributes?: boolean, ): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getSelection",
+"sig": "getSelection(sortByHierarchyOrder?: boolean): string[]",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "select",
+"sig": "select(array: string[]): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "invertSelection",
+"sig": "invertSelection(): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "duplicate",
+"sig": "duplicate(layerId: string, withInputConnections: boolean): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getChildren",
+"sig": "getChildren(layerId: string): string[]",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "parent",
+"sig": "parent(layerId: string, newParentId: string): void",
+"live": true,
+"note": "Keeps the child's world transform, so the child gets compensating position/scale. Set position, scale and rotation again after parenting (cav.create does this).",
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "unParent",
+"sig": "unParent(layerId: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getParent",
+"sig": "getParent(layerId: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getNiceName",
+"sig": "getNiceName(layerId: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "rename",
+"sig": "rename(layerId: string, newName: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "offsetLayerTime",
+"sig": "offsetLayerTime(layerId: string, timeDelta: number): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "setStroke",
+"sig": "setStroke(layerId: string, on: boolean): void",
+"live": true,
+"note": "Call api.setStroke(layer, true) before setting stroke.* attributes. Stroke width scales with the layer's scale.",
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "hasStroke",
+"sig": "hasStroke(layerId: string): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "setFill",
+"sig": "setFill(layerId: string, on: boolean): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "hasFill",
+"sig": "hasFill(layerId: string): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getBoundingBox",
+"sig": "getBoundingBox( layerId: string, worldSpace: boolean, ): { x: number; y: number; width: number; height: number; centre: { x: number; y: number }; left: number; right: number; top: number; bottom: number; }",
+"live": true,
+"note": "getBoundingBox(layer, worldSpace) -> {x,y,width,height,centre,left,right,top,bottom}. Y points up; the comp centre is (0,0).",
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getSelectionBoundingBox",
+"sig": "getSelectionBoundingBox(worldSpace: boolean): { x: number; y: number; width: number; height: number; centre: { x: number; y: number }; left: number; right: number; top: number; bottom: number; }",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "isVisible",
+"sig": "isVisible(layerId: string, testHierarchy: boolean): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "isTransform",
+"sig": "isTransform(layerId: string): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "has3dTransforms",
+"sig": "has3dTransforms(layerId: string): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getInFrame",
+"sig": "getInFrame(layerId: string): number",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "setInFrame",
+"sig": "setInFrame(layerId: string, frame: number): void",
+"live": true,
+"note": "A group's in/out frames hide all its children: a clean way to cut between scenes.",
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getOutFrame",
+"sig": "getOutFrame(layerId: string): number",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "setOutFrame",
+"sig": "setOutFrame(layerId: string, frame: number): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getInOutKeyframeIds",
+"sig": "getInOutKeyframeIds(layerId: string): unknown",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getActiveCamera",
+"sig": "getActiveCamera(): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "hasActiveCamera",
+"sig": "hasActiveCamera(): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "bringForward",
+"sig": "bringForward(): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "bringToFront",
+"sig": "bringToFront(): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "moveBackward",
+"sig": "moveBackward(): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "moveToBack",
+"sig": "moveToBack(): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "isShape",
+"sig": "isShape(layerId: string): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "editComponent",
+"sig": "editComponent(layerId: string, editing: boolean): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "sortLayerIdsByHierarchy",
+"sig": "sortLayerIdsByHierarchy(layerIds: string[]): string[]",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "reorder",
+"sig": "reorder(layerIdToReorder: string, underLayerId: string): void",
+"live": true,
+"note": "api.reorder(a, b) puts a BELOW b in the layer stack.",
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getLayerVersion",
+"sig": "getLayerVersion(layerId: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "compareVersions",
+"sig": "compareVersions( firstVersion: string, secondVersion: string, ): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "isProLayerType",
+"sig": "isProLayerType(layerType: string): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "showInAttributeEditor",
+"sig": "showInAttributeEditor(layerId: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "clearAttributeEditor",
+"sig": "clearAttributeEditor(): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "isReferenced",
+"sig": "isReferenced(layerId: string): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getSelectedAttributes",
+"sig": "getSelectedAttributes(): unknown",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "set",
+"sig": "set(layerId: string, dictionary: unknown): void",
+"live": true,
+"note": "api.set(layer, {attr: value}). Vector attributes take [x, y]. Colours take '#rrggbb'. Comp: resolution, fps, startFrame, endFrame, backgroundColor, motionBlur.",
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "get",
+"sig": "get(layerId: string, attrId: string): unknown",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getAttributeDefinition",
+"sig": "getAttributeDefinition(layerId: string, attrId: string): unknown",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "setGenerator",
+"sig": "setGenerator( layerId: string, attrId: string, generatorType: string, ): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getCurrentGenerator",
+"sig": "getCurrentGenerator(layerId: string, attrId: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getGenerators",
+"sig": "getGenerators(layerId: string): string[]",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getCurrentGeneratorType",
+"sig": "getCurrentGeneratorType( layerId: string, generatorId: string, ): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "setAttributeExpression",
+"sig": "setAttributeExpression( layerId: string, attrId: string, expression: string, ): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "hasAttributeExpression",
+"sig": "hasAttributeExpression(layerId: string, attrId: string): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getAttributeExpression",
+"sig": "getAttributeExpression(layerId: string, attrId: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "connect",
+"sig": "connect( fromId: string, fromAttrId: string, toId: string, toAttrId: string, force?: boolean, ): void",
+"live": true,
+"note": "api.connect(fromLayer, fromAttr, toLayer, toAttr). Masks: connect(shape,'id',target,'masks'). Filters: connect(filter,'id',shape,'filters'). Deformers: connect(behaviour,'id',shape,'deformers').",
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "disconnect",
+"sig": "disconnect( fromId: string, fromAttrId: string, toId: string, toAttrId: string, ): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "disconnectInput",
+"sig": "disconnectInput(layerId: string, attrId: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "disconnectOutputs",
+"sig": "disconnectOutputs(layerId: string, attrId: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getInConnection",
+"sig": "getInConnection(layerId: string, attrId: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getOutConnections",
+"sig": "getOutConnections(layerId: string, attrId: string): string[]",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getSelectedKeyframes",
+"sig": "getSelectedKeyframes(): unknown",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "keyframe",
+"sig": "keyframe( layerId: string, frame: number, dictionary: unknown, ): string",
+"live": true,
+"note": "api.keyframe(layer, frame, {attr: value}). Hex strings on colour attributes are silently ignored: key .r/.g/.b separately (cav.key does this). String keys on text are ignored.",
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "deleteKeyframe",
+"sig": "deleteKeyframe(layerId: string, attrId: string, frame: number): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "modifyKeyframe",
+"sig": "modifyKeyframe(layerId: string, dictionary: unknown): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "modifyKeyframeTangent",
+"sig": "modifyKeyframeTangent(layerId: string, dictionary: unknown): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "setKeyframeVelocity",
+"sig": "setKeyframeVelocity(layerId: string, dictionary: unknown): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "clearKeyframeVelocity",
+"sig": "clearKeyframeVelocity(layerId: string, dictionary: unknown): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getKeyframeIdsForAttribute",
+"sig": "getKeyframeIdsForAttribute(layerId: string, attrId: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getSelectedKeyframeIds",
+"sig": "getSelectedKeyframeIds(): string[]",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "setSelectedKeyframeIds",
+"sig": "setSelectedKeyframeIds(keyframeIdArray: string[]): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getAttributeFromKeyframeId",
+"sig": "getAttributeFromKeyframeId(keyframeId: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "resyncPathKeyframes",
+"sig": "resyncPathKeyframes(layerId: string, attrId: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "magicEasing",
+"sig": "magicEasing( layerId: string, attrId: string, frame: number, easingName: string, expression?: string, ): void",
+"live": true,
+"note": "Eases the segment that STARTS at this key. 'Custom' takes an expression in x (0..1), for example '1 - pow(1-x,3)'. Without easing, keys are linear.",
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getKeyframeTimes",
+"sig": "getKeyframeTimes(layerId: string, attrId: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "deleteAnimation",
+"sig": "deleteAnimation(layerId: string, attrId: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getAttrType",
+"sig": "getAttrType(layerId: string, attrId: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "resetAttribute",
+"sig": "resetAttribute(layerId: string, attrId: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "addArrayIndex",
+"sig": "addArrayIndex(layerId: string, attrId: string): number",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "removeArrayIndex",
+"sig": "removeArrayIndex(layerId: string, attrId: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "reorderArrayAttr",
+"sig": "reorderArrayAttr( layerId: string, attrId: string, oldIndex: number, newIndex: number, ): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getArrayCount",
+"sig": "getArrayCount(layerId: string, attrId: string): number",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "addDynamic",
+"sig": "addDynamic(layerId: string, attrId: string, attrType: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getCustomAttributeName",
+"sig": "getCustomAttributeName(layerId: string, attrId: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "hasCustomAttributeName",
+"sig": "hasCustomAttributeName(layerId: string, attrId: string): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getAttrParent",
+"sig": "getAttrParent(layerId: string, attrId: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getAttrChildren",
+"sig": "getAttrChildren(layerId: string, attrId: string): string[]",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "renameAttribute",
+"sig": "renameAttribute(layerId: string, attrId: string, name: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getAttributeNiceName",
+"sig": "getAttributeNiceName(layerId: string, attrId: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getDropdownNiceName",
+"sig": "getDropdownNiceName( layerId: string, attrId: string, index: number, ): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getOutConnectedAttributes",
+"sig": "getOutConnectedAttributes(layerId: string): string[]",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getInConnectedAttributes",
+"sig": "getInConnectedAttributes(layerId: string): string[]",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getAttributes",
+"sig": "getAttributes(layerId: string): string[]",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "selectAttribute",
+"sig": "selectAttribute(attributePaths: string[], add?: boolean): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "deselectAttribute",
+"sig": "deselectAttribute(attributePaths: string[]): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "hasAttribute",
+"sig": "hasAttribute(layerId: string, attrId: string): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getAnimatedAttributes",
+"sig": "getAnimatedAttributes(layerId: string): string[]",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "isAnimatedAttribute",
+"sig": "isAnimatedAttribute(layerId: string, attrId: string): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "graphPreset",
+"sig": "graphPreset( layerId: string, attrId: string, presetNumber: number, ): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "flipGraph",
+"sig": "flipGraph(layerId: string, attrId: string, flipType: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "addToControlCentre",
+"sig": "addToControlCentre(layerId: string, attrId: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "removeFromControlCentre",
+"sig": "removeFromControlCentre(layerId: string, attrId: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "addPreCompOverride",
+"sig": "addPreCompOverride(layerId: string, attrId: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "removePreCompOverride",
+"sig": "removePreCompOverride(layerId: string, attrId: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "listPreCompOverrides",
+"sig": "listPreCompOverrides(layerId: string): unknown",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "setGradientFromColors",
+"sig": "setGradientFromColors(layerId?: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "setGradientInterpolation",
+"sig": "setGradientInterpolation(layerId?: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "isAttrDefault",
+"sig": "isAttrDefault(layerId: string, attrId: string): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "areAttributeValuesEqual",
+"sig": "areAttributeValuesEqual( layerId1: string, attrId1: string, layerId2: string, attrId2: string, ): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "hasAttributeDefinitionOverrides",
+"sig": "hasAttributeDefinitionOverrides( layerId: string, attrId: string, ): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "clearAttributeDefinitionOverrides",
+"sig": "clearAttributeDefinitionOverrides( layerId: string, attrId: string, ): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getAttributeDefinitionOverride",
+"sig": "getAttributeDefinitionOverride( layerId: string, attrId: string, key: string, ): number | null",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "setAttributeDefinitionOverride",
+"sig": "setAttributeDefinitionOverride( layerId: string, attrId: string, key: string, value?: number, ): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getEffectiveAttributeDefinition",
+"sig": "getEffectiveAttributeDefinition( layerId: string, attrId: string, ): unknown",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "centrePivot",
+"sig": "centrePivot(layerId: string, doCentroid: boolean): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getPivotPosition",
+"sig": "getPivotPosition( layerId: string, worldSpace: boolean, ): { x: number; y: number }",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "freezeTransform",
+"sig": "freezeTransform(layerId: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "resetTransform",
+"sig": "resetTransform(layerId: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getDrawInstructionsForSelection",
+"sig": "getDrawInstructionsForSelection(): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "move",
+"sig": "move(x: number, y: number): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "makeEditable",
+"sig": "makeEditable(layerId: string, makeCopy: boolean): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getEditablePath",
+"sig": "getEditablePath(layerId: string, worldSpace: boolean): unknown",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "setEditablePath",
+"sig": "setEditablePath( layerId: string, worldSpace: boolean, pathObject: unknown, ): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "makeFirstPoint",
+"sig": "makeFirstPoint(layerId: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "movePoint",
+"sig": "movePoint(x: number, y: number, localSpace: boolean): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "setPointPosition",
+"sig": "setPointPosition( xAndOrYObject: unknown, localSpace: boolean, handles: boolean, ): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "render",
+"sig": "render(renderQueueItemId: string): void",
+"live": true,
+"note": "Blocking. Render queue items have filePath, fileName, frameRange [start,end], resolutionScale. `cav render` wraps this and muxes audio with ffmpeg.",
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "renderAll",
+"sig": "renderAll(): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "renderPNGFrame",
+"sig": "renderPNGFrame(filePath: string, scalePercentage: number): void",
+"live": true,
+"note": "Renders the current frame (set it with api.setFrame first). '.png' is appended to the path. Soloing a nested layer renders blank unless its top-level parent is soloed.",
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "renderSVGFrame",
+"sig": "renderSVGFrame( filePath: string, scalePercentage: number, skipComps?: boolean, ): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getRenderQueueItems",
+"sig": "getRenderQueueItems(): string[]",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "addRenderQueueItem",
+"sig": "addRenderQueueItem(compId: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "connectDynamicIndex",
+"sig": "connectDynamicIndex(nodeId: string, attrId: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getDynamicIndex",
+"sig": "getDynamicIndex(): number",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "setDynamicIndexOffset",
+"sig": "setDynamicIndexOffset(value: number): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "backgroundRender",
+"sig": "backgroundRender(renderQueueItemId: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "backgroundRenderAll",
+"sig": "backgroundRenderAll(): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "cancelRender",
+"sig": "cancelRender(): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "newScene",
+"sig": "newScene(): void",
+"live": true,
+"note": "Discards unsaved changes without asking. `cav scene new` refuses when the open scene has unsaved changes.",
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "openScene",
+"sig": "openScene(path: string, force?: boolean): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "saveSceneAs",
+"sig": "saveSceneAs(filePath: string): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "saveScene",
+"sig": "saveScene(): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "sceneHasUnsavedChanges",
+"sig": "sceneHasUnsavedChanges(): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "importScene",
+"sig": "importScene(path: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "loadAsset",
+"sig": "loadAsset(path: string, isImageSequence: boolean): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "loadSmartFolderAsset",
+"sig": "loadSmartFolderAsset(path: string, type: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "reloadAsset",
+"sig": "reloadAsset(assetId: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "replaceAsset",
+"sig": "replaceAsset(assetId: string, newPath: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "addAssetToComp",
+"sig": "addAssetToComp(assetId: string | string[]): string | string[]",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "jsonFromAsset",
+"sig": "jsonFromAsset(assetId: string): unknown",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "textFromAsset",
+"sig": "textFromAsset(assetId: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "loadGoogleSheet",
+"sig": "loadGoogleSheet(fileId: string, sheetId?: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "replaceGoogleSheet",
+"sig": "replaceGoogleSheet( assetId: string, fileId: string, sheetId?: string, ): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "isFileAsset",
+"sig": "isFileAsset(assetId: string): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getProfileName",
+"sig": "getProfileName(assetId: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "isGoogleSheetAsset",
+"sig": "isGoogleSheetAsset(assetId: string): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getFontAssetFamilyName",
+"sig": "getFontAssetFamilyName(assetId: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getFontAssetStyleName",
+"sig": "getFontAssetStyleName(assetId: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "setProject",
+"sig": "setProject(path: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "clearProject",
+"sig": "clearProject(): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getActiveComp",
+"sig": "getActiveComp(): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getComps",
+"sig": "getComps(): string[]",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "createComp",
+"sig": "createComp(name: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "setActiveComp",
+"sig": "setActiveComp(compId: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "preCompose",
+"sig": "preCompose(name?: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getCompFromReference",
+"sig": "getCompFromReference(layerId: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "createCompReference",
+"sig": "createCompReference(compId: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getAssetWindowLayers",
+"sig": "getAssetWindowLayers(topLevel: boolean): string[]",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getAssetType",
+"sig": "getAssetType(assetId: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getAssetFilePath",
+"sig": "getAssetFilePath(assetId: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getImageSequenceFilePaths",
+"sig": "getImageSequenceFilePaths(assetId: string): string[]",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getGoogleSheetAssetURL",
+"sig": "getGoogleSheetAssetURL(assetId: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "createAssetGroup",
+"sig": "createAssetGroup(name: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "soloLayers",
+"sig": "soloLayers(layerIdArray: string[]): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getAllSceneLayers",
+"sig": "getAllSceneLayers(): string[]",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "load",
+"sig": "load(scriptPath: string): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "presentOpenFile",
+"sig": "presentOpenFile( startPath: string, title: string, fileFilter: string, ): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "presentSaveFile",
+"sig": "presentSaveFile( startPath: string, title: string, fileFilter: string, defaultFileName: string, ): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "presentChooseFolder",
+"sig": "presentChooseFolder(startPath: string, title: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "exec",
+"sig": "exec(scriptId: string, script: string): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getProjectPath",
+"sig": "getProjectPath(): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getRenderPath",
+"sig": "getRenderPath(): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getAssetPath",
+"sig": "getAssetPath(): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getPalettesPath",
+"sig": "getPalettesPath(): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getScenesPath",
+"sig": "getScenesPath(): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getSceneFilePath",
+"sig": "getSceneFilePath(): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getPreferencesPath",
+"sig": "getPreferencesPath(): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getPresetsPath",
+"sig": "getPresetsPath(): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getAppAssetsPath",
+"sig": "getAppAssetsPath(): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getHomeFolder",
+"sig": "getHomeFolder(): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getDesktopFolder",
+"sig": "getDesktopFolder(): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getDownloadsFolder",
+"sig": "getDownloadsFolder(): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getFontsFolder",
+"sig": "getFontsFolder(): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getTempFolder",
+"sig": "getTempFolder(): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getPreferencesFolder",
+"sig": "getPreferencesFolder(): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getAppDataFolder",
+"sig": "getAppDataFolder(): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "filePathExists",
+"sig": "filePathExists(path: string): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getFileNameFromPath",
+"sig": "getFileNameFromPath( path: string, includeExtension?: boolean, ): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getExtensionFromPath",
+"sig": "getExtensionFromPath(path: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getFolderFromPath",
+"sig": "getFolderFromPath(path: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "makeFolder",
+"sig": "makeFolder(path: string, overwriteExisting?: boolean): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "deleteFilePath",
+"sig": "deleteFilePath(path: string): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "writeToFile",
+"sig": "writeToFile( filePath: string, content: string, overwriteExisting?: boolean, ): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "writeEncodedToBinaryFile",
+"sig": "writeEncodedToBinaryFile(filePath: string, content: string): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "readFromFile",
+"sig": "readFromFile(filePath: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "encodeBinary",
+"sig": "encodeBinary(filePath: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "convertSVGToLayers",
+"sig": "convertSVGToLayers(filename: string): string[]",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getFileModifiedDate",
+"sig": "getFileModifiedDate(path: string): number",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getFileSize",
+"sig": "getFileSize(path: string): number",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "isDirectory",
+"sig": "isDirectory(path: string): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "listDirectoryPaths",
+"sig": "listDirectoryPaths( path: string, includeDirectories?: boolean, ): string[]",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "isFile",
+"sig": "isFile(path: string): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getAbsolutePath",
+"sig": "getAbsolutePath(path: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getRelativePath",
+"sig": "getRelativePath(from: string, to: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "listDirectory",
+"sig": "listDirectory(path: string): string[]",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "listDirectoryRecursive",
+"sig": "listDirectoryRecursive(path: string): string[]",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "unzip",
+"sig": "unzip(zipPath: string, destinationPath: string): string[]",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "copyFilePath",
+"sig": "copyFilePath(fromPath: string, toPath: string): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "exportSceneAs",
+"sig": "exportSceneAs(filePath: string): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "exportSelected",
+"sig": "exportSelected( filePath: string, exportingAsProject?: boolean, ): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "setClipboardText",
+"sig": "setClipboardText(content: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getClipboardText",
+"sig": "getClipboardText(): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "runProcess",
+"sig": "runProcess(cmd: string, argArray: string[]): unknown",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "runDetachedProcess",
+"sig": "runDetachedProcess(cmd: string, argArray: string[]): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "openURL",
+"sig": "openURL(url: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "isGuiSession",
+"sig": "isGuiSession(): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getPlatform",
+"sig": "getPlatform(): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getSystemInfo",
+"sig": "getSystemInfo(): { cpu: string; os: string; uniqueId: string }",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getCavalryVersion",
+"sig": "getCavalryVersion(): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "toNativeFilePath",
+"sig": "toNativeFilePath(filePath: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "serialise",
+"sig": "serialise(layerIds: string[], withConnections: boolean): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "deserialise",
+"sig": "deserialise(string: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "setPreferenceObject",
+"sig": "setPreferenceObject(key: string, object: unknown): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "hasPreferenceObject",
+"sig": "hasPreferenceObject(key: string): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getPreferenceObject",
+"sig": "getPreferenceObject(key: string): unknown",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "setUserData",
+"sig": "setUserData(layerId: string, key: string, value: unknown): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "hasUserDataKey",
+"sig": "hasUserDataKey(layerId: string, key: string): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getUserDataKey",
+"sig": "getUserDataKey(layerId: string, key: string): unknown",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "uuid",
+"sig": "uuid(): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getLayerFromUUID",
+"sig": "getLayerFromUUID(uuid: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "class",
+"name": "Timer",
+"sig": "class Timer",
+"members": [
+"constructor(callback: unknown)",
+"start(): void",
+"stop(): void",
+"isActive(): void",
+"setInterval(interval: number): void",
+"setRepeating(repeat: boolean): void"
+],
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "isAltHeld",
+"sig": "isAltHeld(): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "isShiftHeld",
+"sig": "isShiftHeld(): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "isControlHeld",
+"sig": "isControlHeld(): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "isMetaHeld",
+"sig": "isMetaHeld(): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getAllLayerTypes",
+"sig": "getAllLayerTypes(includeExperimentalTypes: boolean): unknown",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getSuperTypes",
+"sig": "getSuperTypes(layerId: string): string[]",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "encrypt",
+"sig": "encrypt(content: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "processEvents",
+"sig": "processEvents(): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "setCavalryPreference",
+"sig": "setCavalryPreference(key: string, value: unknown): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getCavalryPreference",
+"sig": "getCavalryPreference(key: string): unknown",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "saveViewportContentsAsImage",
+"sig": "saveViewportContentsAsImage(filePath: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "encryptFile",
+"sig": "encryptFile(filePath: string, newFilePath: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "isRestrictedLicence",
+"sig": "isRestrictedLicence(): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "updateAppTitleBar",
+"sig": "updateAppTitleBar(string: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getActiveTool",
+"sig": "getActiveTool(): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "class",
+"name": "WebClient",
+"sig": "class WebClient",
+"members": [
+"constructor(origin: string)",
+"setBasicAuthentication(username: string, password: string): void",
+"setDigestAuthentication(username: string, password: string): void",
+"setTokenAuthentication(token: string): void",
+"addHeader(key: string, value: string): void",
+"getHeaders(): void",
+"status(): void",
+"body(): void",
+"get(path: string): void",
+"post(path: string, content: string, contentType: string): void",
+"put(path: string, content: string, contentType: string): void",
+"postFromFile(path: string, filePath: string, contentType: string): void",
+"putFromFile(path: string, filePath: string, contentType: string): void",
+"writeBodyToBinaryFile(path: string): void",
+"setProxy(hostAddress: string, port: number): void",
+"setProxyBasicAuthentication(username: string, password: string): void",
+"setProxyBearerAuthentication(password: string): void"
+],
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "class",
+"name": "WebServer",
+"sig": "class WebServer",
+"members": [
+"listen(host: string, port: number): void",
+"stop(): void",
+"setResultForGet(resultText: string): void",
+"getNextPost(): void",
+"getNewestPost(): void",
+"postCount(): void",
+"clearPosts(): void",
+"addCallbackObject(callbackObj: unknown): void",
+"setHighFrequency(): void",
+"setRealtime(): void"
+],
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "cavalry",
+"kind": "class",
+"name": "Path",
+"sig": "class Path",
+"members": [
+"moveTo(x: number, y: number): void",
+"lineTo(x: number, y: number): void",
+"quadTo(cp1X: number, cp1Y: number, endX: number, endY: number): void",
+"convertConicsToQuads(): void",
+"close(): void",
+"addRect(fromX: number, fromY: number, toX: number, toY: number): void",
+"clear(): void",
+"translate(x: number, y: number): void",
+"rotate(degrees: number): void",
+"scale(x: number, y: number): void",
+"append(pathToAdd: cavalry.Path): void",
+"intersect(intersectPath: cavalry.Path): void",
+"unite(unitePath: cavalry.Path): void",
+"difference(differencePath: cavalry.Path): void",
+"convertToCurves(): void",
+"convertToLines(linesPerCurve: number): void",
+"toObject(): unknown",
+"fromObject(objectToRead: unknown): void",
+"empty(): boolean",
+"pointCount(): number",
+"contains(x: number, y: number): boolean",
+"pathData(): unknown",
+"setPathData(data: unknown): void",
+"offset(distance: number, round: boolean): void",
+"trim(start: number, end: number, travel: number, reverse: boolean): void",
+"resample(edgeLength: number): void",
+"lineIntersections(line: cavalry.Line): unknown",
+"pathIntersections(path: cavalry.Path): unknown",
+"relax(iterations: number, radius: number, relaxationStrength: number): void",
+"smooth(iterations: number, smoothStrength: number): void",
+"length(): number",
+"pointAtParam(param: number): { x: number",
+"tangentAtParam(param: number): { x: number",
+"normalAtParam(param: number): { x: number",
+"angleAtParam(param: number): number",
+"paramAtLength(length: number): number",
+"mergeOverlaps(): void",
+"reverse(): void",
+"isClockwise(): boolean",
+"applyMatrix(matrix: unknown): void"
+],
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/cavalry-module/"
+},
+{
+"ns": "cavalry",
+"kind": "class",
+"name": "Line",
+"sig": "class Line",
+"members": [
+"constructor(x1: number, y1: number, x2: number, y2: number)",
+"length(): number",
+"angle(): number",
+"setLength(length: number): void",
+"setAngle(angle: number): void",
+"start(): { x: number",
+"end(): { x: number",
+"delta(): { x: number",
+"pointAt(param: number): { x: number",
+"normalAt(param: number): { x: number",
+"translate(object: unknown): void",
+"distance(object: unknown): number",
+"closestPointTo(object: unknown): { x: number",
+"lineIntersection(line: cavalry.Line): { x: number"
+],
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/cavalry-module/"
+},
+{
+"ns": "cavalry",
+"kind": "class",
+"name": "PointCloud",
+"sig": "class PointCloud",
+"members": [
+"appendPoint(point: cavalry.Point): void",
+"appendRotation(rotation: number): void",
+"appendSize(point: cavalry.Point): void"
+],
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/cavalry-module/"
+},
+{
+"ns": "cavalry",
+"kind": "class",
+"name": "Point",
+"sig": "class Point {}",
+"members": [
+"addPath(path: Path, material?: Material): void",
+"count(): number",
+"empty(): boolean",
+"clear(): void",
+"getPathDataAtIndex(index: number): unknown",
+"setPathAtIndex(index: number, path: unknown): void",
+"setPathDataAtIndex(index: number, pathData: unknown): void",
+"setMaterialAtIndex(index: number, material: unknown): void",
+"getPathAtIndex(index: number): cavalry.Path",
+"addChildMesh(mesh: cavalry.Mesh): void",
+"clearChildMeshes(): void",
+"childMeshCount(): number",
+"getChildMeshAtIndex(index: number): cavalry.Mesh",
+"setChildMeshAtIndex(index: number, mesh: cavalry.Mesh): void",
+"getFlattenedPath(): Path"
+],
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/cavalry-module/"
+},
+{
+"ns": "cavalry",
+"kind": "class",
+"name": "Material",
+"sig": "class Material",
+"members": [],
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/cavalry-module/"
+},
+{
+"ns": "cavalry",
+"kind": "class",
+"name": "Matrix",
+"sig": "class Matrix",
+"members": [
+"setPosition(x: number, y: number): void",
+"setRotation(angle: number): void",
+"setScale(x: number, y: number): void",
+"setSkew(x: number, y: number): void",
+"skew(): void",
+"scale(): unknown",
+"position(): { x: number",
+"rotation(): number",
+"multiply(matrix: cavalry.Matrix): cavalry.Matrix",
+"inverted(): cavalry.Matrix",
+"invert(): void",
+"isFinite(): boolean",
+"isIdentity(): boolean",
+"mapPoint(point: unknown): { x: number",
+"mapPoints(points: unknown): unknown",
+"setFromArray(array: number[]): void"
+],
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/cavalry-module/"
+},
+{
+"ns": "cavalry",
+"kind": "function",
+"name": "random",
+"sig": "random( min: number, max: number, seed: number, sequence: number, ): number",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/cavalry-module/"
+},
+{
+"ns": "cavalry",
+"kind": "function",
+"name": "uniform",
+"sig": "uniform(min: number, max: number, seed: number): number",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/cavalry-module/"
+},
+{
+"ns": "cavalry",
+"kind": "function",
+"name": "noise1d",
+"sig": "noise1d(x: number, seed: number, frequency: number): number",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/cavalry-module/"
+},
+{
+"ns": "cavalry",
+"kind": "function",
+"name": "noise2d",
+"sig": "noise2d( x: number, y: number, seed: number, frequency: number, ): number",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/cavalry-module/"
+},
+{
+"ns": "cavalry",
+"kind": "function",
+"name": "noise3d",
+"sig": "noise3d( x: number, y: number, z: number, seed: number, frequency: number, ): number",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/cavalry-module/"
+},
+{
+"ns": "cavalry",
+"kind": "function",
+"name": "dist",
+"sig": "dist(x1: number, y1: number, x2: number, y2: number): number",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/cavalry-module/"
+},
+{
+"ns": "cavalry",
+"kind": "function",
+"name": "map",
+"sig": "map( value: number, inMin: number, inMax: number, outMin: number, outMax: number, ): number",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/cavalry-module/"
+},
+{
+"ns": "cavalry",
+"kind": "function",
+"name": "norm",
+"sig": "norm(value: number, min: number, max: number): number",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/cavalry-module/"
+},
+{
+"ns": "cavalry",
+"kind": "function",
+"name": "clamp",
+"sig": "clamp(value: number, min: number, max: number): number",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/cavalry-module/"
+},
+{
+"ns": "cavalry",
+"kind": "function",
+"name": "lerp",
+"sig": "lerp(min: number, max: number, t: number): number",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/cavalry-module/"
+},
+{
+"ns": "cavalry",
+"kind": "function",
+"name": "angleFromVector",
+"sig": "angleFromVector(x: number, y: number): number",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/cavalry-module/"
+},
+{
+"ns": "cavalry",
+"kind": "function",
+"name": "vectorFromAngle",
+"sig": "vectorFromAngle(angle: number): { x: number; y: number }",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/cavalry-module/"
+},
+{
+"ns": "cavalry",
+"kind": "function",
+"name": "radiansToDegrees",
+"sig": "radiansToDegrees(radians: number): number",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/cavalry-module/"
+},
+{
+"ns": "cavalry",
+"kind": "function",
+"name": "degreesToRadians",
+"sig": "degreesToRadians(degrees: number): number",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/cavalry-module/"
+},
+{
+"ns": "cavalry",
+"kind": "function",
+"name": "rgbToHsv",
+"sig": "rgbToHsv( r: number, g: number, b: number, normalised?: boolean, ): { h: number; s: number; v: number }",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/cavalry-module/"
+},
+{
+"ns": "cavalry",
+"kind": "function",
+"name": "rgbToHex",
+"sig": "rgbToHex( r: number, g: number, b: number, normalised?: boolean, ): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/cavalry-module/"
+},
+{
+"ns": "cavalry",
+"kind": "function",
+"name": "rgbaToHex",
+"sig": "rgbaToHex( r: number, g: number, b: number, a: number, normalised?: boolean, ): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/cavalry-module/"
+},
+{
+"ns": "cavalry",
+"kind": "function",
+"name": "hsvToRgba",
+"sig": "hsvToRgba( h: number, s: number, v: number, normalised?: boolean, ): { r: number; g: number; b: number; a: number }",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/cavalry-module/"
+},
+{
+"ns": "cavalry",
+"kind": "function",
+"name": "hsvToHex",
+"sig": "hsvToHex(h: number, s: number, v: number): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/cavalry-module/"
+},
+{
+"ns": "cavalry",
+"kind": "function",
+"name": "hexToRgba",
+"sig": "hexToRgba( hex: string, normalised?: boolean, ): { r: number; g: number; b: number; a: number }",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/cavalry-module/"
+},
+{
+"ns": "cavalry",
+"kind": "function",
+"name": "hexToHsv",
+"sig": "hexToHsv(hexValue: string): { h: number; s: number; v: number }",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/cavalry-module/"
+},
+{
+"ns": "cavalry",
+"kind": "function",
+"name": "nameThatColor",
+"sig": "nameThatColor(hexValue: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/cavalry-module/"
+},
+{
+"ns": "cavalry",
+"kind": "function",
+"name": "fontExists",
+"sig": "fontExists(fontFamily: string, fontStyle: string): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/cavalry-module/"
+},
+{
+"ns": "cavalry",
+"kind": "function",
+"name": "getFontFamilies",
+"sig": "getFontFamilies(): string[]",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/cavalry-module/"
+},
+{
+"ns": "cavalry",
+"kind": "function",
+"name": "getFontStyles",
+"sig": "getFontStyles(fontFamily: string): string[]",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/cavalry-module/"
+},
+{
+"ns": "cavalry",
+"kind": "function",
+"name": "measureText",
+"sig": "measureText( string: string, fontFamily: string, fontStyle: string, fontSize: number, ): { width: number; height: number; x: number; y: number; centreX: number; centreY: number; }",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/cavalry-module/"
+},
+{
+"ns": "cavalry",
+"kind": "function",
+"name": "fontMetrics",
+"sig": "fontMetrics( fontFamily: string, fontStyle: string, fontSize: number, ): { top: number; ascent: number; descent: number; bottom: number; leading: number; averageCharacterWidth: number; maxCharacterWidth: number; xMin: number; xMax: number; xHeight: number; capHeight: number; }",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/cavalry-module/"
+},
+{
+"ns": "cavalry",
+"kind": "function",
+"name": "versionLessThan",
+"sig": "versionLessThan(version: string): boolean",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/cavalry-module/"
+},
+{
+"ns": "ctx",
+"kind": "const",
+"name": "index",
+"sig": "index: number",
+"url": "https://cavalry.studio/docs/tech-info/scripting/context-module/"
+},
+{
+"ns": "ctx",
+"kind": "const",
+"name": "count",
+"sig": "count: number",
+"url": "https://cavalry.studio/docs/tech-info/scripting/context-module/"
+},
+{
+"ns": "ctx",
+"kind": "const",
+"name": "positionX",
+"sig": "positionX: number",
+"url": "https://cavalry.studio/docs/tech-info/scripting/context-module/"
+},
+{
+"ns": "ctx",
+"kind": "const",
+"name": "positionY",
+"sig": "positionY: number",
+"url": "https://cavalry.studio/docs/tech-info/scripting/context-module/"
+},
+{
+"ns": "ctx",
+"kind": "const",
+"name": "attributeId",
+"sig": "attributeId: string",
+"url": "https://cavalry.studio/docs/tech-info/scripting/context-module/"
+},
+{
+"ns": "ctx",
+"kind": "const",
+"name": "layerId",
+"sig": "layerId: string",
+"url": "https://cavalry.studio/docs/tech-info/scripting/context-module/"
+},
+{
+"ns": "ctx",
+"kind": "function",
+"name": "saveObject",
+"sig": "saveObject(name: string, object: unknown): void",
+"url": "https://cavalry.studio/docs/tech-info/scripting/context-module/"
+},
+{
+"ns": "ctx",
+"kind": "function",
+"name": "loadObject",
+"sig": "loadObject(name: string): unknown",
+"url": "https://cavalry.studio/docs/tech-info/scripting/context-module/"
+},
+{
+"ns": "ctx",
+"kind": "function",
+"name": "hasObject",
+"sig": "hasObject(name: string): boolean",
+"url": "https://cavalry.studio/docs/tech-info/scripting/context-module/"
+},
+{
+"ns": "ctx",
+"kind": "function",
+"name": "niceName",
+"sig": "niceName(): string",
+"url": "https://cavalry.studio/docs/tech-info/scripting/context-module/"
+},
+{
+"ns": "ctx",
+"kind": "function",
+"name": "transformationMatrix",
+"sig": "transformationMatrix(): cavalry.Matrix",
+"url": "https://cavalry.studio/docs/tech-info/scripting/context-module/"
+},
+{
+"ns": "ctx",
+"kind": "function",
+"name": "globalTransformationMatrix",
+"sig": "globalTransformationMatrix(): cavalry.Matrix",
+"url": "https://cavalry.studio/docs/tech-info/scripting/context-module/"
+},
+{
+"ns": "def",
+"kind": "function",
+"name": "getRootMesh",
+"sig": "getRootMesh(): cavalry.Mesh",
+"url": "https://cavalry.studio/docs/tech-info/scripting/deformer-module/"
+},
+{
+"ns": "def",
+"kind": "function",
+"name": "setRootMesh",
+"sig": "setRootMesh(mesh: cavalry.Mesh): void",
+"url": "https://cavalry.studio/docs/tech-info/scripting/deformer-module/"
+},
+{
+"ns": "def",
+"kind": "function",
+"name": "getFalloffAtPoint",
+"sig": "getFalloffAtPoint(x: number, y: number): number",
+"url": "https://cavalry.studio/docs/tech-info/scripting/deformer-module/"
+},
+{
+"ns": "def",
+"kind": "function",
+"name": "getBoundingBox",
+"sig": "getBoundingBox(): { x: number; y: number; width: number; height: number; centre: { x: number; y: number }; left: number; right: number; top: number; bottom: number; }",
+"url": "https://cavalry.studio/docs/tech-info/scripting/deformer-module/"
+},
+{
+"ns": "def",
+"kind": "function",
+"name": "getPoints",
+"sig": "getPoints(): cavalry.Point",
+"url": "https://cavalry.studio/docs/tech-info/scripting/deformer-module/"
+},
+{
+"ns": "def",
+"kind": "function",
+"name": "setPoints",
+"sig": "setPoints(points: unknown): void",
+"url": "https://cavalry.studio/docs/tech-info/scripting/deformer-module/"
+},
+{
+"ns": "def",
+"kind": "const",
+"name": "meshDepth",
+"sig": "meshDepth: void",
+"url": "https://cavalry.studio/docs/tech-info/scripting/deformer-module/"
+},
+{
+"ns": "def",
+"kind": "function",
+"name": "meshCountAtDepth",
+"sig": "meshCountAtDepth(depth: number): number",
+"url": "https://cavalry.studio/docs/tech-info/scripting/deformer-module/"
+},
+{
+"ns": "def",
+"kind": "function",
+"name": "getMeshesAtDepth",
+"sig": "getMeshesAtDepth(depth: number): cavalry.Mesh",
+"url": "https://cavalry.studio/docs/tech-info/scripting/deformer-module/"
+},
+{
+"ns": "def",
+"kind": "function",
+"name": "setMeshesAtDepth",
+"sig": "setMeshesAtDepth(depth: number, meshes: cavalry.Mesh): void",
+"url": "https://cavalry.studio/docs/tech-info/scripting/deformer-module/"
+},
+{
+"ns": "def",
+"kind": "function",
+"name": "getMeshAtDepthAtIndex",
+"sig": "getMeshAtDepthAtIndex(depth: number, index: number): cavalry.Mesh",
+"url": "https://cavalry.studio/docs/tech-info/scripting/deformer-module/"
+},
+{
+"ns": "def",
+"kind": "function",
+"name": "setMeshAtDepthAtIndex",
+"sig": "setMeshAtDepthAtIndex( depth: number, index: number, mesh: unknown, ): void",
+"url": "https://cavalry.studio/docs/tech-info/scripting/deformer-module/"
+},
+{
+"ns": "def",
+"kind": "function",
+"name": "setTransformAtDepthAtIndex",
+"sig": "setTransformAtDepthAtIndex( depth: number, index: number, position?: unknown, rotation?: number, scale?: unknown, ): void",
+"url": "https://cavalry.studio/docs/tech-info/scripting/deformer-module/"
+},
+{
+"ns": "def",
+"kind": "function",
+"name": "clearTransformAtDepthAtIndex",
+"sig": "clearTransformAtDepthAtIndex(depth: number, index: number): void",
+"url": "https://cavalry.studio/docs/tech-info/scripting/deformer-module/"
+},
+{
+"ns": "def",
+"kind": "function",
+"name": "centrePivotAtDepthAtIndex",
+"sig": "centrePivotAtDepthAtIndex(depth: number, index: number): void",
+"url": "https://cavalry.studio/docs/tech-info/scripting/deformer-module/"
+},
+{
+"ns": "def",
+"kind": "function",
+"name": "setMaterialAtDepthAtIndex",
+"sig": "setMaterialAtDepthAtIndex( depth: number, index: number, material: unknown, ): void",
+"url": "https://cavalry.studio/docs/tech-info/scripting/deformer-module/"
+},
+{
+"ns": "def",
+"kind": "function",
+"name": "highestDepthWithPath",
+"sig": "highestDepthWithPath(): number",
+"url": "https://cavalry.studio/docs/tech-info/scripting/deformer-module/"
+},
+{
+"ns": "render",
+"kind": "const",
+"name": "composition",
+"sig": "composition: string",
+"url": "https://cavalry.studio/docs/tech-info/scripting/render-scripts/"
+},
+{
+"ns": "render",
+"kind": "const",
+"name": "path",
+"sig": "path: string",
+"url": "https://cavalry.studio/docs/tech-info/scripting/render-scripts/"
+},
+{
+"ns": "render",
+"kind": "const",
+"name": "renderQueueItem",
+"sig": "renderQueueItem: string",
+"url": "https://cavalry.studio/docs/tech-info/scripting/render-scripts/"
+},
+{
+"ns": "ui",
+"kind": "function",
+"name": "add",
+"sig": "add(...widgets: object[]): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "function",
+"name": "show",
+"sig": "show(): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "function",
+"name": "setTitle",
+"sig": "setTitle(title: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "function",
+"name": "setBackgroundColor",
+"sig": "setBackgroundColor(color: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "function",
+"name": "addStretch",
+"sig": "addStretch(): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "function",
+"name": "addSpacing",
+"sig": "addSpacing(spacing: number): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "function",
+"name": "setSpaceBetween",
+"sig": "setSpaceBetween(spacing: number): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "function",
+"name": "setMargins",
+"sig": "setMargins( left: number, top: number, right: number, bottom: number, ): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "const",
+"name": "scriptLocation",
+"sig": "scriptLocation: void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "function",
+"name": "addCallbackObject",
+"sig": "addCallbackObject(callback: unknown): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "function",
+"name": "setToolbar",
+"sig": "setToolbar(): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "function",
+"name": "setVerticalToolbar",
+"sig": "setVerticalToolbar(): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "function",
+"name": "setMinimumWidth",
+"sig": "setMinimumWidth(width: number): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "function",
+"name": "setMinimumHeight",
+"sig": "setMinimumHeight(height: number): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "function",
+"name": "setMaximumWidth",
+"sig": "setMaximumWidth(width: number): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "function",
+"name": "setMaximumHeight",
+"sig": "setMaximumHeight(height: number): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "function",
+"name": "setFixedWidth",
+"sig": "setFixedWidth(width: number): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "function",
+"name": "setFixedHeight",
+"sig": "setFixedHeight(height: number): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "function",
+"name": "setFixedSize",
+"sig": "setFixedSize(width: number, height: number): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "const",
+"name": "fieldWidth",
+"sig": "fieldWidth: number",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "const",
+"name": "fieldHeight",
+"sig": "fieldHeight: number",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "function",
+"name": "size",
+"sig": "size(): unknown",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "function",
+"name": "registerDragDropMimeType",
+"sig": "registerDragDropMimeType(mimeType: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "function",
+"name": "runFileScript",
+"sig": "runFileScript(filePath: string): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "function",
+"name": "addMenuItem",
+"sig": "addMenuItem(object: unknown): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "function",
+"name": "addSubMenu",
+"sig": "addSubMenu(object: unknown): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "function",
+"name": "showContextMenuOnRightClick",
+"sig": "showContextMenuOnRightClick(): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "function",
+"name": "showContextMenu",
+"sig": "showContextMenu(): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "function",
+"name": "clearContextMenu",
+"sig": "clearContextMenu(): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "function",
+"name": "getThemeColor",
+"sig": "getThemeColor(colorName: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "function",
+"name": "chooseFolderPath",
+"sig": "chooseFolderPath(startFilePath: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "function",
+"name": "chooseFileToSave",
+"sig": "chooseFileToSave(startFilePath: string, fileFilter: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "function",
+"name": "chooseFileToOpen",
+"sig": "chooseFileToOpen(startFilePath: string, fileFilter: string): string",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "function",
+"name": "openSceneDialog",
+"sig": "openSceneDialog(): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "function",
+"name": "setCallbacksActive",
+"sig": "setCallbacksActive(active: boolean): void",
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "class",
+"name": "Widget",
+"sig": "class Widget",
+"members": [
+"setEnabled(state: boolean): void",
+"isEnabled(): boolean",
+"setHidden(state: boolean): void",
+"isHidden(): boolean",
+"setSize(width: number, height: number): void",
+"setFixedWidth(width: number): void",
+"setFixedHeight(height: number): void",
+"setMinimumHeight(height: number): void",
+"setMaximumHeight(height: number): void",
+"setMinimumWidth(width: number): void",
+"setMaximumWidth(width: number): void",
+"setToolTip(tooltip: string): void",
+"setBackgroundColor(hex: string): void",
+"getUUID(): void",
+"setCornerRounding(radius: number): void",
+"setTransparentForMouseEvents(transparent?: boolean): void"
+],
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "class",
+"name": "Button",
+"sig": "class Button extends Widget",
+"members": [
+"constructor(buttonText: string)",
+"setText(buttonText: string): void",
+"setFontSize(pixelSize: number): void",
+"setImage(path: string): void",
+"setImageSize(width: number, height: number): void",
+"setDrawStroke(state: boolean): void",
+"setSpacing(spacing: number): void"
+],
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "class",
+"name": "Checkbox",
+"sig": "class Checkbox extends Widget",
+"members": [
+"constructor(state: boolean)",
+"getValue(): boolean",
+"setValue(state: boolean): void"
+],
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "class",
+"name": "ColorChip",
+"sig": "class ColorChip extends Widget",
+"members": [
+"getColor(): string",
+"getColorWithAlpha(): string",
+"setColor(hex: string): void",
+"setAcceptsDrops(accepts: boolean): void"
+],
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "class",
+"name": "ColorPalette",
+"sig": "class ColorPalette extends Widget",
+"members": [
+"getColors(): string[]",
+"setColors(hex: string[]): void"
+],
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "class",
+"name": "ColorPicker",
+"sig": "class ColorPicker extends Widget",
+"members": [
+"getColor(): string"
+],
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "class",
+"name": "ColorWheel",
+"sig": "class ColorWheel extends Widget",
+"members": [
+"getColor(): string",
+"setColor(hex: string): void"
+],
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "class",
+"name": "Container",
+"sig": "class Container extends Widget",
+"members": [
+"setLayout(layout: unknown): void",
+"useHoverEvents(use: boolean): void",
+"show(): void",
+"close(): void",
+"move(x: number, y: number): void",
+"showAsPopover(x: number, y: number): void",
+"setPreferredPopoverSide(side: number): void"
+],
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "class",
+"name": "Draw",
+"sig": "class Draw extends Widget",
+"members": [
+"addPath(pathObject: unknown, paintInfo: unknown): void",
+"clearPaths(): void",
+"redraw(): void",
+"saveImage(filePath: string, width: number, height: number): void",
+"useHoverEvents(use: boolean): void"
+],
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "class",
+"name": "DropDown",
+"sig": "class DropDown extends Widget",
+"members": [
+"getValue(): number",
+"getText(): string",
+"addEntry(rowText: string): void",
+"insertSeparator(index: number): void",
+"setValue(index: number): void",
+"setText(rowText: string): void",
+"populateFontFamilies(): void",
+"populateStylesForFamily(familyName: string): void",
+"clear(): void"
+],
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "class",
+"name": "FilePath",
+"sig": "class FilePath extends Widget",
+"members": [
+"getFilePath(): string",
+"setPlaceholder(placeholder: string): void",
+"setFilePath(path: string): void",
+"setOpenLocation(path: string): void",
+"setMode(argument: string): void",
+"setFilter(filetype: string): void",
+"setFontSize(pixelSize: number): void",
+"hideLoadButton(): void",
+"setReadOnly(readOnly: boolean): void"
+],
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "class",
+"name": "Image",
+"sig": "class Image extends Widget",
+"members": [
+"constructor(path: string)",
+"setImage(path: string): void",
+"setToolTip(tooltip: string): void"
+],
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "class",
+"name": "ImageButton",
+"sig": "class ImageButton extends Widget",
+"members": [
+"constructor(path: string)",
+"setImage(path: string): void",
+"setImageSize(width: number, height: number): void",
+"setDrawStroke(state: boolean): void",
+"setStateButton(state: boolean): void",
+"setState(state: boolean): void",
+"getState(): boolean",
+"setToolTip(tooltip: string): void"
+],
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "class",
+"name": "Label",
+"sig": "class Label extends Widget",
+"members": [
+"constructor(text: string)",
+"setText(text: string): void",
+"setTextColor(hex: string): void",
+"setAlignment(state: number): void",
+"setToolTip(tooltip: string): void",
+"setFontSize(pixelSize: number): void",
+"setMarkdown(markdown: string): void"
+],
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "class",
+"name": "LineEdit",
+"sig": "class LineEdit extends Widget",
+"members": [
+"getText(): string",
+"setText(text: string): void",
+"setTextColor(hex: string): void",
+"setPlaceholder(placeholder: string): void",
+"setReadOnly(state: boolean): void",
+"clear(): void",
+"setFontSize(pixelSize: number): void"
+],
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "class",
+"name": "List",
+"sig": "class List extends Widget",
+"members": [
+"showSearchBar(show: boolean): void",
+"setSelectionMode(mode: string): void",
+"setRowsRenamable(renamable: boolean): void",
+"setRowsDeletable(deletable: boolean): void",
+"setRowsReorderable(reorderable: boolean): void",
+"setRowHeight(height: number): void",
+"setPlaceholder(text: string): void",
+"setModel(model: unknown): void",
+"updateRow(rowData: unknown): void",
+"addRow(rowData: unknown): void",
+"getModel(): unknown",
+"getSelection(): string[]",
+"setSearchFilter(filter: string): void",
+"getSearchFilter(): string",
+"getFilteredUUIDs(): string[]"
+],
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "class",
+"name": "Menu",
+"sig": "class Menu extends Widget",
+"members": [
+"constructor(name?: string)",
+"addMenuItem(object: unknown): void"
+],
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "class",
+"name": "Modal",
+"sig": "class Modal extends Widget",
+"members": [
+"showMessage(message: string): void",
+"showQuestion(title: string, question: string): boolean",
+"showConfirmation(title: string, question: string): boolean"
+],
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "class",
+"name": "MultiLineEdit",
+"sig": "class MultiLineEdit extends Widget",
+"members": [
+"getText(): string",
+"setText(text: string): void",
+"setTextColor(hex: string): void",
+"setPlaceholder(placeholder: string): void",
+"setReadOnly(state: boolean): void",
+"clear(): void",
+"setFontSize(pixelSize: number): void"
+],
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "class",
+"name": "NumericField",
+"sig": "class NumericField extends Widget",
+"members": [
+"constructor(number: number)",
+"getValue(): number",
+"setValue(value: number): void",
+"setMin(minimum: number): void",
+"setMax(maximum: number): void",
+"setType(type: number): void",
+"setStep(step: number): void",
+"setFontSize(pixelSize: number): void"
+],
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "class",
+"name": "ProgressBar",
+"sig": "class ProgressBar extends Widget",
+"members": [
+"getValue(): void",
+"setValue(): void",
+"setMaximum(maximum: number): void"
+],
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "class",
+"name": "Slider",
+"sig": "class Slider extends Widget",
+"members": [
+"getValue(): number",
+"setValue(value: number): void",
+"setRange(min: number, max: number): void"
+],
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "class",
+"name": "FlowLayout",
+"sig": "class FlowLayout",
+"members": [
+"constructor(horizontalSpacing: number, verticalSpacing: number)",
+"setSpaceBetween(pixel: number): void",
+"setMargins(left: number, top: number, right: number, bottom: number): void",
+"itemCount(): number",
+"clear(): void",
+"removeAt(number: number): void",
+"getHeightForWidth(width: number): void"
+],
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "class",
+"name": "HLayout",
+"sig": "class HLayout",
+"members": [
+"add(...widgets: object[]): void",
+"addStretch(): void",
+"addSpacing(pixel: number): void",
+"setSpaceBetween(pixel: number): void",
+"setMargins(left: number, top: number, right: number, bottom: number): void",
+"itemCount(): number",
+"clear(): void"
+],
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "class",
+"name": "PageView",
+"sig": "class PageView",
+"members": [
+"add(layout: unknown): void",
+"setPage(index: number): void",
+"currentPage(): number",
+"previousPage(): number",
+"pageCount(): number"
+],
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "class",
+"name": "ScrollView",
+"sig": "class ScrollView",
+"members": [
+"setLayout(layout: unknown): void",
+"setSize(width: number, height: number): void",
+"setFixedWidth(width: number): void",
+"setFixedHeight(height: number): void",
+"alwaysShowVerticalScrollBar(): void",
+"alwaysShowHorizontalScrollBar(): void"
+],
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "class",
+"name": "TabView",
+"sig": "class TabView",
+"members": [
+"add(name: string, layout: unknown): void",
+"setTab(index: number): void",
+"currentTab(): number",
+"tabCount(): number"
+],
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "class",
+"name": "VLayout",
+"sig": "class VLayout",
+"members": [
+"add(...widgets: object[]): void",
+"addStretch(): void",
+"addSpacing(space: number): void",
+"setSpaceBetween(padding: number): void",
+"setMargins(left: number, top: number, right: number, bottom: number): void",
+"addSeparator(tooltip: string): void",
+"itemCount(): number",
+"clear(): void"
+],
+"live": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "console",
+"kind": "function",
+"name": "log",
+"sig": "log(...data: any[]): void",
+"url": "https://cavalry.studio/docs/tech-info/scripting/scripting-getting-started/"
+},
+{
+"ns": "console",
+"kind": "function",
+"name": "info",
+"sig": "info(...data: any[]): void",
+"url": "https://cavalry.studio/docs/tech-info/scripting/scripting-getting-started/"
+},
+{
+"ns": "console",
+"kind": "function",
+"name": "warn",
+"sig": "warn(...data: any[]): void",
+"url": "https://cavalry.studio/docs/tech-info/scripting/scripting-getting-started/"
+},
+{
+"ns": "console",
+"kind": "function",
+"name": "error",
+"sig": "error(...data: any[]): void",
+"url": "https://cavalry.studio/docs/tech-info/scripting/scripting-getting-started/"
+},
+{
+"ns": "console",
+"kind": "function",
+"name": "debug",
+"sig": "debug(...data: any[]): void",
+"url": "https://cavalry.studio/docs/tech-info/scripting/scripting-getting-started/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "exists",
+"sig": "exists(...)",
+"live": true,
+"untyped": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "getGuides",
+"sig": "getGuides(...)",
+"live": true,
+"untyped": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "jokeOfTheDay",
+"sig": "jokeOfTheDay(...)",
+"live": true,
+"untyped": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "openWindow",
+"sig": "openWindow(...)",
+"live": true,
+"untyped": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "resetWorkspace",
+"sig": "resetWorkspace(...)",
+"live": true,
+"untyped": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "scrollToAttribute",
+"sig": "scrollToAttribute(...)",
+"live": true,
+"untyped": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "api",
+"kind": "function",
+"name": "setActiveTool",
+"sig": "setActiveTool(...)",
+"live": true,
+"untyped": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/api-module/"
+},
+{
+"ns": "cavalry",
+"kind": "function",
+"name": "Mesh",
+"sig": "Mesh(...)",
+"live": true,
+"untyped": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/cavalry-module/"
+},
+{
+"ns": "cavalry",
+"kind": "function",
+"name": "Rect",
+"sig": "Rect(...)",
+"live": true,
+"untyped": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/cavalry-module/"
+},
+{
+"ns": "cavalry",
+"kind": "function",
+"name": "Vec",
+"sig": "Vec(...)",
+"live": true,
+"untyped": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/cavalry-module/"
+},
+{
+"ns": "cavalry",
+"kind": "function",
+"name": "hexToRgb",
+"sig": "hexToRgb(...)",
+"live": true,
+"untyped": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/cavalry-module/"
+},
+{
+"ns": "cavalry",
+"kind": "function",
+"name": "hsvToRgb",
+"sig": "hsvToRgb(...)",
+"live": true,
+"untyped": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/cavalry-module/"
+},
+{
+"ns": "cavalry",
+"kind": "function",
+"name": "noise",
+"sig": "noise(...)",
+"live": true,
+"untyped": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/cavalry-module/"
+},
+{
+"ns": "ui",
+"kind": "function",
+"name": "BoxLayout",
+"sig": "BoxLayout(...)",
+"live": true,
+"untyped": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+},
+{
+"ns": "ui",
+"kind": "function",
+"name": "Layout",
+"sig": "Layout(...)",
+"live": true,
+"untyped": true,
+"url": "https://cavalry.studio/docs/tech-info/scripting/script-uis/"
+}
+]
+}

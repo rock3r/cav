@@ -1,0 +1,16 @@
+{
+  "api.create": "Places the new layer next to the current selection (it can end up inside a hidden group). Call api.select([]) before and after, or use cav.create().",
+  "api.primitive": "Same selection trap as api.create. Types: rectangle, ellipse, polygon, star, ring, ... Use cav.rect()/cav.ellipse().",
+  "api.parent": "Keeps the child's world transform, so the child gets compensating position/scale. Set position, scale and rotation again after parenting (cav.create does this).",
+  "api.keyframe": "api.keyframe(layer, frame, {attr: value}). Hex strings on colour attributes are silently ignored: key .r/.g/.b separately (cav.key does this). String keys on text are ignored.",
+  "api.magicEasing": "Eases the segment that STARTS at this key. 'Custom' takes an expression in x (0..1), for example '1 - pow(1-x,3)'. Without easing, keys are linear.",
+  "api.renderPNGFrame": "Renders the current frame (set it with api.setFrame first). '.png' is appended to the path. Soloing a nested layer renders blank unless its top-level parent is soloed.",
+  "api.getBoundingBox": "getBoundingBox(layer, worldSpace) -> {x,y,width,height,centre,left,right,top,bottom}. Y points up; the comp centre is (0,0).",
+  "api.reorder": "api.reorder(a, b) puts a BELOW b in the layer stack.",
+  "api.connect": "api.connect(fromLayer, fromAttr, toLayer, toAttr). Masks: connect(shape,'id',target,'masks'). Filters: connect(filter,'id',shape,'filters'). Deformers: connect(behaviour,'id',shape,'deformers').",
+  "api.setStroke": "Call api.setStroke(layer, true) before setting stroke.* attributes. Stroke width scales with the layer's scale.",
+  "api.newScene": "Discards unsaved changes without asking. `cav scene new` refuses when the open scene has unsaved changes.",
+  "api.render": "Blocking. Render queue items have filePath, fileName, frameRange [start,end], resolutionScale. `cav render` wraps this and muxes audio with ffmpeg.",
+  "api.set": "api.set(layer, {attr: value}). Vector attributes take [x, y]. Colours take '#rrggbb'. Comp: resolution, fps, startFrame, endFrame, backgroundColor, motionBlur.",
+  "api.setInFrame": "A group's in/out frames hide all its children: a clean way to cut between scenes."
+}

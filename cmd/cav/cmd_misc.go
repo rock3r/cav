@@ -48,3 +48,8 @@ func prettyJSON(raw []byte) string {
 	b, _ := json.MarshalIndent(v, "", "  ")
 	return string(b)
 }
+
+func prettyAny(v any) string {
+	b, _ := json.MarshalIndent(v, "", "  ")
+	return string(b)
+}

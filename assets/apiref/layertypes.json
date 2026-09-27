@@ -1,0 +1,1125 @@
+{
+"source": "api.getAllLayerTypes(true) in Cavalry 2.7.2",
+"types": [
+{
+"type": "3dMatrix",
+"name": "3D Matrix"
+},
+{
+"type": "accumulator",
+"name": "Accumulator"
+},
+{
+"type": "addDivisions",
+"name": "Add Divisions"
+},
+{
+"type": "align",
+"name": "Align"
+},
+{
+"type": "materialBehaviourAlpha",
+"name": "Alpha Material Override"
+},
+{
+"type": "animationControl",
+"name": "Animation Control"
+},
+{
+"type": "applyCharacterSpacing",
+"name": "Apply Character Spacing"
+},
+{
+"type": "applyDistribution",
+"name": "Apply Distribution",
+"experimental": true
+},
+{
+"type": "applyFontSize",
+"name": "Apply Font Size"
+},
+{
+"type": "applyFontStyle",
+"name": "Apply Font Style"
+},
+{
+"type": "applyLayout",
+"name": "Apply Layout",
+"experimental": true
+},
+{
+"type": "applyOpenType",
+"name": "Apply OpenType"
+},
+{
+"type": "applyTextMaterial",
+"name": "Apply Text Material"
+},
+{
+"type": "applyTypeface",
+"name": "Apply Typeface"
+},
+{
+"type": "areaRange",
+"name": "Area Range"
+},
+{
+"type": "assetArray",
+"name": "Asset Array"
+},
+{
+"type": "assetFromSmartFolder",
+"name": "Asset From Smart Folder"
+},
+{
+"type": "attractorField",
+"name": "Attractor Field"
+},
+{
+"type": "autoAnimate",
+"name": "Auto-Animate"
+},
+{
+"type": "autoCrop",
+"name": "Auto-Crop"
+},
+{
+"type": "backgroundBlurFilter",
+"name": "Background Blur"
+},
+{
+"type": "backgroundShape",
+"name": "Background Shape"
+},
+{
+"type": "basicLine",
+"name": "Basic Line"
+},
+{
+"type": "basicShape",
+"name": "Basic Shape"
+},
+{
+"type": "behaviourMixer",
+"name": "Behaviour Mixer"
+},
+{
+"type": "bend",
+"name": "Bend"
+},
+{
+"type": "bevel",
+"name": "Bevel"
+},
+{
+"type": "sceneGroup::bilateralBlurFilter",
+"name": "Bilateral Blur"
+},
+{
+"type": "blackAndWhite",
+"name": "Black and White"
+},
+{
+"type": "blendShader",
+"name": "Blend Shader"
+},
+{
+"type": "blendShape",
+"name": "Blend Shape"
+},
+{
+"type": "blendSubMeshPositions",
+"name": "Blend Sub-Mesh Positions"
+},
+{
+"type": "bodySettingCollisionEvent",
+"name": "Body Settings Collision Event"
+},
+{
+"type": "boolean",
+"name": "Boolean"
+},
+{
+"type": "boundingBox",
+"name": "Bounding Box"
+},
+{
+"type": "boundingBoxConstraint",
+"name": "Bounding Box Constraint"
+},
+{
+"type": "sceneGroup::boxBlurFilter",
+"name": "Box Blur"
+},
+{
+"type": "bridgeConstraint",
+"name": "Bridge Constraint"
+},
+{
+"type": "brightnessAndContrast",
+"name": "Brightness And Contrast"
+},
+{
+"type": "sceneGroup::bulgeFilter",
+"name": "Bulge"
+},
+{
+"type": "buoyancyField",
+"name": "Buoyancy Field"
+},
+{
+"type": "planarCamera",
+"name": "Camera"
+},
+{
+"type": "cameraGuide",
+"name": "Camera Guide"
+},
+{
+"type": "celAnimationShape",
+"name": "Cel Animation Shape"
+},
+{
+"type": "checkerboardShader",
+"name": "Checkerboard Shader"
+},
+{
+"type": "chopPath",
+"name": "Chop Path"
+},
+{
+"type": "sceneGroup::chromaKeyFilter",
+"name": "Chroma Key"
+},
+{
+"type": "chromaticAberrationFilter",
+"name": "Chromatic Aberration"
+},
+{
+"type": "cleanUp",
+"name": "Clean Up"
+},
+{
+"type": "colorArray",
+"name": "Color Array"
+},
+{
+"type": "colorBlend",
+"name": "Color Blend"
+},
+{
+"type": "colorCollisionEvent",
+"name": "Color Collision Event"
+},
+{
+"type": "colorInfo",
+"name": "Color Info"
+},
+{
+"type": "materialBehaviourColor",
+"name": "Color Material Override"
+},
+{
+"type": "colorShader",
+"name": "Color Shader"
+},
+{
+"type": "comparison",
+"name": "Comparison"
+},
+{
+"type": "component",
+"name": "Component"
+},
+{
+"type": "componentConstraint",
+"name": "Component Constraint"
+},
+{
+"type": "compConstraint",
+"name": "Composition Constraint"
+},
+{
+"type": "connectShape",
+"name": "Connect Shape"
+},
+{
+"type": "contoursToSubMeshes",
+"name": "Contours to Sub-Meshes"
+},
+{
+"type": "contrastingColor",
+"name": "Contrasting Color"
+},
+{
+"type": "convexHull",
+"name": "Convex Hull"
+},
+{
+"type": "cornerPinShape",
+"name": "Corner Pin"
+},
+{
+"type": "countSubMeshes",
+"name": "Count Sub-Meshes"
+},
+{
+"type": "curvesToLines",
+"name": "Curves To Lines"
+},
+{
+"type": "customShape",
+"name": "Custom Shape"
+},
+{
+"type": "dataModifier",
+"name": "Data Modifier",
+"experimental": true
+},
+{
+"type": "directionField",
+"name": "Direction Field"
+},
+{
+"type": "sceneGroup::directionalBlurFilter",
+"name": "Directional Blur"
+},
+{
+"type": "distance",
+"name": "Distance"
+},
+{
+"type": "distanceConstraint",
+"name": "Distance Constraint"
+},
+{
+"type": "distortEdges",
+"name": "Distort Edges"
+},
+{
+"type": "distortionFilter",
+"name": "Distortion"
+},
+{
+"type": "distributionEmitter",
+"name": "Distribution Emitter",
+"experimental": true
+},
+{
+"type": "ditheringFilter",
+"name": "Dithering"
+},
+{
+"type": "dragField",
+"name": "Drag Field"
+},
+{
+"type": "dropShadowFilter",
+"name": "Drop Shadow"
+},
+{
+"type": "duplicator",
+"name": "Duplicator"
+},
+{
+"type": "edgeDetection",
+"name": "Edge Detection"
+},
+{
+"type": "editableShape",
+"name": "Editable Shape"
+},
+{
+"type": "extendOpenPaths",
+"name": "Extend Open Paths"
+},
+{
+"type": "extractSubMeshes",
+"name": "Extract Sub-Meshes"
+},
+{
+"type": "extrude",
+"name": "Extrude"
+},
+{
+"type": "falloff",
+"name": "Falloff"
+},
+{
+"type": "blurFilter",
+"name": "Fast Blur"
+},
+{
+"type": "colorMaterial",
+"name": "Fill"
+},
+{
+"type": "fill",
+"name": "Fill Color"
+},
+{
+"type": "fillRule",
+"name": "Fill Rule"
+},
+{
+"type": "flare",
+"name": "Flare"
+},
+{
+"type": "flattenShapeLayers",
+"name": "Flatten Shape Layers"
+},
+{
+"type": "flowFieldModifier",
+"name": "Flow Field Modifier",
+"experimental": true
+},
+{
+"type": "footageShape",
+"name": "Footage Shape"
+},
+{
+"type": "forceModifier",
+"name": "Force Modifier",
+"experimental": true
+},
+{
+"type": "forgeDynamicsShape",
+"name": "Forge Dynamics"
+},
+{
+"type": "fourPointWarp",
+"name": "Four Point Warp"
+},
+{
+"type": "frame",
+"name": "Frame"
+},
+{
+"type": "gammaCorrectionFilter",
+"name": "Gamma Correction"
+},
+{
+"type": "sceneGroup::gaussianBlurFilter",
+"name": "Gaussian Blur"
+},
+{
+"type": "getLayerName",
+"name": "Get Name"
+},
+{
+"type": "getSubMeshTransform",
+"name": "Get Sub-Mesh Transform"
+},
+{
+"type": "getVector",
+"name": "Get Vector"
+},
+{
+"type": "glowFilter",
+"name": "Glow"
+},
+{
+"type": "goalModifier",
+"name": "Goal Modifier",
+"experimental": true
+},
+{
+"type": "gradientMapFilter",
+"name": "Gradient Map"
+},
+{
+"type": "gradientShader",
+"name": "Gradient Shader"
+},
+{
+"type": "sceneGroup::grainFilter",
+"name": "Grain"
+},
+{
+"type": "gridLayoutGroup",
+"name": "Grid Layout Group"
+},
+{
+"type": "gridLayoutRow",
+"name": "Grid Layout Row"
+},
+{
+"type": "group",
+"name": "Group"
+},
+{
+"type": "hsvAdjustmentFilter",
+"name": "HSV Adjustment"
+},
+{
+"type": "hsvColor",
+"name": "HSV Color"
+},
+{
+"type": "materialBehaviourHSV",
+"name": "HSV Material Override"
+},
+{
+"type": "halftoneFilter",
+"name": "Halftone"
+},
+{
+"type": "ifElse",
+"name": "If Else"
+},
+{
+"type": "imageModifier",
+"name": "Image Modifier",
+"experimental": true
+},
+{
+"type": "imageSampler",
+"name": "Image Sampler"
+},
+{
+"type": "imageShader",
+"name": "Image Shader"
+},
+{
+"type": "imageToShapes",
+"name": "Image To Shapes"
+},
+{
+"type": "impulseCollisionEvent",
+"name": "Impulse Collision Event"
+},
+{
+"type": "contextIndex",
+"name": "Index Context"
+},
+{
+"type": "indexToColor",
+"name": "Index To Color"
+},
+{
+"type": "innerShadowFilter",
+"name": "Inner Shadow"
+},
+{
+"type": "invert",
+"name": "Invert"
+},
+{
+"type": "isWithin",
+"name": "Is Within"
+},
+{
+"type": "isolinesShape",
+"name": "Isolines"
+},
+{
+"type": "javaScriptDeformer",
+"name": "JavaScript Deformer"
+},
+{
+"type": "javaScriptEmitter",
+"name": "JavaScript Emitter",
+"experimental": true
+},
+{
+"type": "javaScriptModifier",
+"name": "JavaScript Modifier",
+"experimental": true
+},
+{
+"type": "javaScriptShape",
+"name": "JavaScript Shape"
+},
+{
+"type": "javaScript",
+"name": "JavaScript Utility"
+},
+{
+"type": "jsmath",
+"name": "Jsmath"
+},
+{
+"type": "knot",
+"name": "Knot"
+},
+{
+"type": "lattice",
+"name": "Lattice"
+},
+{
+"type": "latticeController",
+"name": "Lattice Controller"
+},
+{
+"type": "layerSeed",
+"name": "Layer Seed"
+},
+{
+"type": "layoutGroup",
+"name": "Layout Group"
+},
+{
+"type": "lengthContext",
+"name": "Length Context"
+},
+{
+"type": "levels",
+"name": "Levels"
+},
+{
+"type": "sceneGroup::lightSweepFilter",
+"name": "Light Sweep"
+},
+{
+"type": "linearWipe",
+"name": "Linear Wipe"
+},
+{
+"type": "localTime",
+"name": "Local Time"
+},
+{
+"type": "logic",
+"name": "Logic"
+},
+{
+"type": "lookAt",
+"name": "Look At"
+},
+{
+"type": "luminanceBlur",
+"name": "Luminance Blur"
+},
+{
+"type": "magneticModifier",
+"name": "Magnetic Modifier",
+"experimental": true
+},
+{
+"type": "manipulator",
+"name": "Manipulator"
+},
+{
+"type": "materialSampler",
+"name": "Material Sampler"
+},
+{
+"type": "math",
+"name": "Math"
+},
+{
+"type": "math2",
+"name": "Math2"
+},
+{
+"type": "math3",
+"name": "Math3"
+},
+{
+"type": "measure",
+"name": "Measure"
+},
+{
+"type": "measureText",
+"name": "Measure Text"
+},
+{
+"type": "mergeShape",
+"name": "Merge"
+},
+{
+"type": "meshShape",
+"name": "Mesh Shape"
+},
+{
+"type": "meshSolver",
+"name": "Mesh Solver"
+},
+{
+"type": "mirrorFilter",
+"name": "Mirror"
+},
+{
+"type": "modulate",
+"name": "Modulate"
+},
+{
+"type": "morph",
+"name": "Morph"
+},
+{
+"type": "motionStretch",
+"name": "Motion Stretch",
+"experimental": true
+},
+{
+"type": "multiPointGradientShader",
+"name": "Multi-Point Gradient Shader"
+},
+{
+"type": "noise",
+"name": "Noise"
+},
+{
+"type": "noiseShader",
+"name": "Noise Shader"
+},
+{
+"type": "null",
+"name": "Null"
+},
+{
+"type": "numberRange",
+"name": "Number Range"
+},
+{
+"type": "numberRangeToColor",
+"name": "Number Range To Color"
+},
+{
+"type": "oscillator",
+"name": "Oscillator"
+},
+{
+"type": "outline",
+"name": "Outline"
+},
+{
+"type": "particleEmitter",
+"name": "Particle Emitter",
+"experimental": true
+},
+{
+"type": "particleShape",
+"name": "Particle Shape",
+"experimental": true
+},
+{
+"type": "pathAverage",
+"name": "Path Average"
+},
+{
+"type": "pathField",
+"name": "Path Field"
+},
+{
+"type": "pathLength",
+"name": "Path Length"
+},
+{
+"type": "pathModifier",
+"name": "Path Modifier",
+"experimental": true
+},
+{
+"type": "pathOffsetBehaviour",
+"name": "Path Offset"
+},
+{
+"type": "pathRelax",
+"name": "Path Relax"
+},
+{
+"type": "pathfinder",
+"name": "Pathfinder"
+},
+{
+"type": "pinConstraint",
+"name": "Pin Constraint"
+},
+{
+"type": "pinch",
+"name": "Pinch"
+},
+{
+"type": "pixelSortingFilter",
+"name": "Pixel Sorting"
+},
+{
+"type": "pixelateFilter",
+"name": "Pixelate"
+},
+{
+"type": "pointsToCurve",
+"name": "Points to Path"
+},
+{
+"type": "positionBlend",
+"name": "Position Blend"
+},
+{
+"type": "posterizeFilter",
+"name": "Posterize"
+},
+{
+"type": "compositionReference",
+"name": "Pre-Comp"
+},
+{
+"type": "pushAlongVector",
+"name": "Push Along Vector"
+},
+{
+"type": "quadTreeShape",
+"name": "Quad Tree Shape"
+},
+{
+"type": "rgbSplitFilter",
+"name": "RGB Split"
+},
+{
+"type": "radialWipe",
+"name": "Radial Wipe"
+},
+{
+"type": "radius",
+"name": "Radius"
+},
+{
+"type": "random",
+"name": "Random"
+},
+{
+"type": "rangeFalloff",
+"name": "Range Falloff"
+},
+{
+"type": "rayLine",
+"name": "Ray"
+},
+{
+"type": "rectPatternShape",
+"name": "Rectangle Pattern"
+},
+{
+"type": "resamplePath",
+"name": "Resample Path"
+},
+{
+"type": "reversePathUtility",
+"name": "Reverse Path"
+},
+{
+"type": "rigControl",
+"name": "Rig Control"
+},
+{
+"type": "round",
+"name": "Round"
+},
+{
+"type": "rubberHoseLimb",
+"name": "Rubber Hose Limb"
+},
+{
+"type": "slaShader",
+"name": "SLA Shader"
+},
+{
+"type": "svgShape",
+"name": "SVG"
+},
+{
+"type": "crtScanLines",
+"name": "Scan Lines"
+},
+{
+"type": "schedulingGroup",
+"name": "Scheduling Group"
+},
+{
+"type": "scrapeFilter",
+"name": "Scrape"
+},
+{
+"type": "secondsToFrames",
+"name": "Seconds To Frames"
+},
+{
+"type": "segmentPath",
+"name": "Segment Path"
+},
+{
+"type": "sequence",
+"name": "Sequence"
+},
+{
+"type": "shaderArray",
+"name": "Shader Array"
+},
+{
+"type": "shapeArray",
+"name": "Shape Array"
+},
+{
+"type": "shapeToShader",
+"name": "Shape to Shader"
+},
+{
+"type": "sharpenFilter",
+"name": "Sharpen"
+},
+{
+"type": "shiftChannels",
+"name": "Shift Channels"
+},
+{
+"type": "shortestPath",
+"name": "Shortest Path"
+},
+{
+"type": "skslFilter",
+"name": "SkSL Filter"
+},
+{
+"type": "skslShader",
+"name": "SkSL Shader"
+},
+{
+"type": "skew",
+"name": "Skew"
+},
+{
+"type": "slitScanFilter",
+"name": "Slit Scan"
+},
+{
+"type": "sound",
+"name": "Sound"
+},
+{
+"type": "spacerItem",
+"name": "Spacer"
+},
+{
+"type": "speedModifier",
+"name": "Speed Modifier",
+"experimental": true
+},
+{
+"type": "sceneGroup::spheriseFilter",
+"name": "Spherise"
+},
+{
+"type": "spreadsheet",
+"name": "Spreadsheet"
+},
+{
+"type": "spreadsheetLookup",
+"name": "Spreadsheet Lookup"
+},
+{
+"type": "spring",
+"name": "Spring",
+"experimental": true
+},
+{
+"type": "squashAndStretch",
+"name": "Squash and Stretch"
+},
+{
+"type": "stagger",
+"name": "Stagger"
+},
+{
+"type": "stickyCollisionEvent",
+"name": "Sticky Collision Event"
+},
+{
+"type": "stitches",
+"name": "Stitches"
+},
+{
+"type": "string",
+"name": "String"
+},
+{
+"type": "stringArray",
+"name": "String Array"
+},
+{
+"type": "stringFromAsset",
+"name": "String From Asset"
+},
+{
+"type": "stringGenerator",
+"name": "String Generator"
+},
+{
+"type": "stringLength",
+"name": "String Length"
+},
+{
+"type": "stringManipulator",
+"name": "String Manipulator"
+},
+{
+"type": "strokeMaterial",
+"name": "Stroke"
+},
+{
+"type": "strokeDuplicator",
+"name": "Stroke Duplicator"
+},
+{
+"type": "subMesh",
+"name": "Sub-Mesh"
+},
+{
+"type": "subBoundingBox",
+"name": "Sub-Mesh Bounding Box",
+"experimental": true
+},
+{
+"type": "subdivide",
+"name": "Subdivide"
+},
+{
+"type": "materialBehaviourSwapColor",
+"name": "Swap Color"
+},
+{
+"type": "textShape",
+"name": "Text Shape"
+},
+{
+"type": "thresholdFilter",
+"name": "Threshold"
+},
+{
+"type": "timelineCounter",
+"name": "Timeline Counter"
+},
+{
+"type": "trails",
+"name": "Trails",
+"experimental": true
+},
+{
+"type": "transformConstraint",
+"name": "Transform Constraint"
+},
+{
+"type": "travel",
+"name": "Travel"
+},
+{
+"type": "triToneFilter",
+"name": "TriTone"
+},
+{
+"type": "turbulenceModifier",
+"name": "Turbulence Modifier",
+"experimental": true
+},
+{
+"type": "typeface",
+"name": "Typeface"
+},
+{
+"type": "typefaceArray",
+"name": "Typeface Array"
+},
+{
+"type": "value",
+"name": "Value"
+},
+{
+"type": "valueArray",
+"name": "Value Array"
+},
+{
+"type": "valueBlend",
+"name": "Value Blend"
+},
+{
+"type": "simpleValueSolver",
+"name": "Value Solver"
+},
+{
+"type": "value2",
+"name": "Value2"
+},
+{
+"type": "value2Array",
+"name": "Value2 Array"
+},
+{
+"type": "value2Blend",
+"name": "Value2 Blend"
+},
+{
+"type": "simpleValue2Solver",
+"name": "Value2 Solver"
+},
+{
+"type": "value3",
+"name": "Value3"
+},
+{
+"type": "value3Array",
+"name": "Value3 Array"
+},
+{
+"type": "value3Blend",
+"name": "Value3 Blend"
+},
+{
+"type": "velocityContext",
+"name": "Velocity Context",
+"experimental": true
+},
+{
+"type": "velocityMagnitudeContext",
+"name": "Velocity Magnitude Context",
+"experimental": true
+},
+{
+"type": "venetianBlinds",
+"name": "Venetian Blinds"
+},
+{
+"type": "vignetteFilter",
+"name": "Vignette"
+},
+{
+"type": "visibilityCollisionEvent",
+"name": "Visibility Collision Event"
+},
+{
+"type": "visibility",
+"name": "Visibility Sequence"
+},
+{
+"type": "visualModifier",
+"name": "Visual Modifier",
+"experimental": true
+},
+{
+"type": "voronoiShader",
+"name": "Voronoi Shader"
+},
+{
+"type": "vortexField",
+"name": "Vortex Field"
+},
+{
+"type": "vortexModifier",
+"name": "Vortex Modifier",
+"experimental": true
+},
+{
+"type": "voxelize",
+"name": "Voxelize"
+},
+{
+"type": "wave",
+"name": "Wave"
+},
+{
+"type": "sceneGroup::zoomBlurFilter",
+"name": "Zoom Blur"
+}
+]
+}
