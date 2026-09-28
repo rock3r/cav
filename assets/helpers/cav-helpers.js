@@ -698,7 +698,7 @@
 
 	//@
 	//@ ## Impacts and transitions
-	//@ cav.flash(f, {color='#ffffff', dur=8, peak=100})   full-frame flash plane, returns its id
+	//@ cav.flash(f, {color='#ffffff', dur=6, peak=60})   full-frame flash plane, returns its id (keep it short and partial)
 	//@ cav.ring(f, x, y, {r0=10, r1=400, dur=24, width=12, color})   expanding shockwave ring
 	//@ cav.burst(f, x, y, {count=12, dist=260, size=10, dur=24, color, seed})  radial particle burst (group id)
 	//@ cav.zoomThrough(rig, f0, f1, [tx, ty], {scale=12, ease='inExpo'})
@@ -707,10 +707,10 @@
 	cav.flash = function (f, o) {
 		o = o || {}
 		var l = cav.plane('flash', o.color || '#ffffff', { opacity: 0 })
-		var dur = o.dur || 8
+		var dur = o.dur || 6
 		cav.key(l, 'opacity', [
 			[f - 1, 0],
-			[f, o.peak || 100, 'outQuad'],
+			[f, o.peak || 60, 'outQuad'],
 			[f + dur, 0],
 		])
 		api.setInFrame(l, Math.max(0, f - 1))
