@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/rock3r/cavalry-skill/assets"
 	"os"
 	"sort"
 	"strings"
@@ -105,7 +106,25 @@ func (a *app) dispatch(args []string) int {
 	if hint, ok := commandHints[args[0]]; ok {
 		return a.finish(&cliError{code: exitError, msg: fmt.Sprintf("unknown command %q", args[0]), hint: hint})
 	}
+	if sig := helperSignature(args[0]); sig != "" {
+		return a.finish(&cliError{code: exitError, msg: fmt.Sprintf("unknown command %q", args[0]),
+			hint: fmt.Sprintf("cav.%s is a helper for scripts, not a command. Write it in a .js file and run the file with `cav run`, for example:\n  %s\nSee `cav helpers %s`.", args[0], sig, args[0])})
+	}
 	return a.finish(usageErr("unknown command %q", args[0]))
+}
+
+// helperSignature returns the reference line of helper cav.<name>, or "" when there is none.
+func helperSignature(name string) string {
+	for _, l := range strings.Split(string(assets.HelpersJS), "\n") {
+		t := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(l), "//@"))
+		if strings.HasPrefix(t, "cav."+name+"(") {
+			if i := strings.Index(t, "  "); i > 0 {
+				t = t[:i]
+			}
+			return t
+		}
+	}
+	return ""
 }
 
 func (a *app) finish(err error) int {
