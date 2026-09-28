@@ -66,10 +66,11 @@ the marketplace: `/plugin marketplace update cavalry-skill`.
 | `cav status` | Bridge version, scene path, unsaved changes, comp size, fps and frame range |
 | `cav scene new\|comp\|open\|save` | New scene with comp settings (refuses to discard unsaved work), change comp, open, save |
 | `cav run <file.js>... \| -e <code> \| -` | Run JavaScript in Cavalry with the helper library preloaded; prints the return value |
-| `cav job wait <id>` | Wait for a long job; a timeout means "still running", not "failed" |
+| `cav job wait [<id>]` | Wait for a long job (default: the last one); a timeout means "still running", not "failed" |
 | `cav tree` / `cav layer <id>` | Layer tree; one layer's parent, bounding box, transform, animated attributes and keys |
 | `cav frame [n...]` | Render frames to PNG |
 | `cav sheet [frames]` | Render frames into one labelled contact sheet (optionally with beat numbers) |
+| `cav check` | Find common problems before rendering: long still stretches, tiny or clipped text, off-frame layers, empty start or end |
 | `cav render [-o out.mp4] [--audio track]` | Render the comp to MP4, check the frame count, mux audio with ffmpeg |
 | `cav beats <audio>` | Tempo, beats and downbeats as frame numbers |
 | `cav api <words>` / `cav docs <words>` / `cav types <word>` | Offline search: API signatures, Cavalry docs, layer type ids |
@@ -97,7 +98,7 @@ agent shell ── cav ── HTTP 127.0.0.1:8723 (token) ──> cav-bridge.js 
 ## What was verified
 
 Tested on macOS with Cavalry 2.7.2. Windows paths and scripts are written but **not tested** on
-Windows. The helper library has unit tests (Node, mock API) and live tests (58 checks inside
+Windows. The helper library has unit tests (Node, mock API) and live tests (74 checks inside
 Cavalry). The skill's `references/` folder lists the verified traps and recipes.
 
 ## Credits
