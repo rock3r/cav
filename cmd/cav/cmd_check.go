@@ -6,7 +6,6 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
-	"sort"
 	"time"
 
 	"github.com/rock3r/cavalry-skill/internal/bridge"
@@ -23,12 +22,16 @@ func init() {
 cav check looks at the active comp and reports problems that viewers notice:
   still     stretches longer than --max-still seconds where nothing is animated
   text      text smaller than --min-text px (scaled to a 1080 px tall frame)
-  offframe  text or large shapes completely outside the frame on a key frame
+  offframe  text or large shapes that never come inside the frame
   clipped   text cut by the frame edge
+  edge      text closer than 3 % of the frame height to an edge
   blank     blank frames at the start or the end (a long empty tail)
   keys      keyframes after the end of the comp (they never play)
 Each finding says what to change. Exit code 0 even with findings; use --json to read them.
-Oscillators, noise and other connected behaviours count as motion.`
+Keys, oscillators, noise and particles count as motion. Motion on a small layer (under 6 %
+of the frame height) counts only when at least three small layers move at the same time.
+Text and shapes are checked where they rest (the middle of their visible time); faint
+layers (opacity under 50) are skipped.`
 }
 
 type finding struct {
@@ -43,9 +46,21 @@ const checkJS = `
 var comp = api.getActiveComp();
 var start = api.get(comp, 'startFrame'), end = api.get(comp, 'endFrame');
 var res = api.get(comp, 'resolution');
+var W = res.x / 2, H = res.y / 2;
 var ids = api.getCompLayers(false);
-var segs = [], drivers = [], texts = [], late = [], shapes = [];
-var driverTypes = { oscillator: 1, noise: 1, stagger: 0, spring: 1, wave: 1, pathfinder: 0, particleShape: 1, forgeDynamicsShape: 1 };
+var segs = [], texts = [], late = [], shapes = [];
+var driverTypes = { oscillator: 1, noise: 1, spring: 1, wave: 1, particleShape: 2, forgeDynamicsShape: 2 };
+// setFrame re-evaluates the whole scene, so every lookup is batched by frame: at[f] holds the
+// functions to run while the playhead is on frame f.
+var at = {};
+function when(f, fn) { f = Math.round(f); (at[f] = at[f] || []).push(fn) }
+function flush() {
+  Object.keys(at).map(Number).sort(function (x, y) { return x - y }).forEach(function (f) {
+    api.setFrame(f);
+    at[f].forEach(function (fn) { try { fn() } catch (e) {} });
+  });
+  at = {};
+}
 function visibleRange(id) {
   var a = start, b = end, p = id;
   while (p && p !== comp) {
@@ -55,17 +70,38 @@ function visibleRange(id) {
   }
   return a <= b ? [a, b] : null;
 }
+// Motion on a layer smaller than 6 % of the frame height (a small dot) is hard to notice.
+function small(id) {
+  try { var b = api.getBoundingBox(id, true); return Math.max(b.width, b.height) < 0.06 * res.y } catch (e) { return false }
+}
+var transformKeys = {};
+function movesItself(id) {
+  var p = id;
+  while (p && p !== comp) { if (transformKeys[p]) return true; p = api.getParent(p) }
+  return false;
+}
 ids.forEach(function (id) {
   var type = api.getLayerType(id);
-  if (driverTypes[type]) {
+  var range = visibleRange(id);
+  if (driverTypes[type] === 2 && range) segs.push([range[0], range[1], 0]);
+  if (driverTypes[type] === 1) {
     var outs = [];
     try { outs = api.getOutConnectedAttributes(id) || [] } catch (e) {}
-    if (outs.length || type === 'particleShape' || type === 'forgeDynamicsShape') drivers.push(type);
+    outs.forEach(function (attr) {
+      var targets = [];
+      try { targets = api.getOutConnections(id, attr) || [] } catch (e) {}
+      targets.forEach(function (t) {
+        var layer = String(t).split('.')[0], r = visibleRange(layer);
+        if (!r) return;
+        if (/^(position|scale|rotation)/.test(String(t).split('.')[1] || '')) transformKeys[layer] = 1;
+        when(r[0], function () { segs.push([r[0], r[1], small(layer) ? 1 : 0]) });
+      });
+    });
   }
-  var range = visibleRange(id);
   var anim = [];
   try { anim = api.getAnimatedAttributes(id) } catch (e) {}
   anim.forEach(function (attr) {
+    if (/^(position|scale|rotation)/.test(attr)) transformKeys[id] = 1;
     var times = [];
     try { times = api.getKeyframeTimes(id, attr) } catch (e) {}
     times.sort(function (x, y) { return x - y });
@@ -74,57 +110,89 @@ ids.forEach(function (id) {
     }
     if (!range) return;
     for (var j = 0; j + 1 < times.length; j++) {
-      var t0 = times[j], t1 = times[j + 1];
-      var v0, v1;
-      try { api.setFrame(t0); v0 = JSON.stringify(api.get(id, attr)); api.setFrame(t1); v1 = JSON.stringify(api.get(id, attr)) } catch (e) { continue }
-      if (v0 !== v1) segs.push([Math.max(t0, range[0]), Math.min(t1, range[1])]);
+      (function (t0, t1) {
+        var q = {};
+        when(t0, function () { q.v0 = JSON.stringify(api.get(id, attr)); q.tiny = small(id) });
+        when(t1, function () {
+          if (q.v0 !== undefined && q.v0 !== JSON.stringify(api.get(id, attr)))
+            segs.push([Math.max(t0, range[0]), Math.min(t1, range[1]), q.tiny ? 1 : 0]);
+        });
+      })(times[j], times[j + 1]);
     }
   });
-  if (!range) return;
-  if (type === 'textShape') {
-    var mid = Math.round((range[0] + range[1]) / 2);
-    api.setFrame(mid);
-    var sc = 1, p = id;
-    while (p && p !== comp) { try { var s = api.get(p, 'scale'); sc *= Math.abs(s.y) } catch (e) {} p = api.getParent(p) }
-    var size = api.get(id, 'fontSize') * sc;
-    var t = api.get(id, 'text');
-    texts.push({ id: id, name: api.getNiceName(id), size: size, text: String(t && t.text !== undefined ? t.text : t).slice(0, 40), range: range });
-  }
-  if (type === 'textShape' || type === 'basicShape' || type === 'group') {
-    shapes.push({ id: id, type: type, range: range });
-  }
+  if (range && (type === 'textShape' || type === 'basicShape')) shapes.push({ id: id, type: type, range: range, looks: {} });
 });
-var off = [], clipped = [];
-var W = res.x / 2, H = res.y / 2;
-var probe = [end, Math.round((start + end) / 2)];
-shapes.forEach(function (s) {
-  if (s.type === 'group') return;
-  probe.forEach(function (f) {
+// Sample the whole comp at up to 30 frames (and 2 frames later, to see what is moving fast).
+// A layer "rests" on a sample where it is visible (opacity over 50 through its parents) and
+// moves less than 0.3 % of the frame height in 2 frames; a slow drift still counts as resting.
+var n = Math.max(1, Math.min(30, Math.floor((end - start) / 6)));
+var samples = [];
+for (var i = 0; i < n; i++) samples.push(Math.round(start + (end - start) * (i + 0.5) / n));
+function look(s) {
+  var op = 1, sc = 1, p = s.id;
+  while (p && p !== comp) {
+    try { op *= api.get(p, 'opacity') / 100 } catch (e) {}
+    try { sc *= Math.abs(api.get(p, 'scale').y) } catch (e) {}
+    p = api.getParent(p);
+  }
+  var b = null;
+  try { b = api.getBoundingBox(s.id, true) } catch (e) {}
+  return { op: op, sc: sc, b: b };
+}
+samples.forEach(function (f) {
+  var g = Math.min(f + 2, end);
+  shapes.forEach(function (s) {
     if (f < s.range[0] || f > s.range[1]) return;
-    api.setFrame(f);
-    var b;
-    try { b = api.getBoundingBox(s.id, true) } catch (e) { return }
-    if (!b || b.width * b.height === 0) return;
-    var big = s.type === 'textShape' || b.width * b.height > 0.005 * res.x * res.y;
-    var outside = b.right < -W || b.left > W || b.top < -H || b.bottom > H;
-    try { if (api.get(s.id, 'opacity') === 0) return } catch (e) {}
-    if (big && outside) off.push({ id: s.id, name: api.getNiceName(s.id), frame: f });
-    // Text cut by the frame edge (partly outside) while it should be readable.
-    var cut = !outside && (b.left < -W - 1 || b.right > W + 1 || b.top > H + 1 || b.bottom < -H - 1);
-    if (s.type === 'textShape' && cut) clipped.push({ id: s.id, name: api.getNiceName(s.id), frame: f });
+    when(f, function () { s.looks[f] = look(s) });
+    when(g, function () { s.looks[f + ':'] = look(s) });
   });
 });
+flush();
+var off = [], clipped = [], tight = [];
+var margin = 0.03 * res.y;
+shapes.forEach(function (s) {
+  var rest = [], seen = false, inside = false;
+  samples.forEach(function (f) {
+    var x = s.looks[f], y = s.looks[f + ':'];
+    if (!x || !x.b || x.op < 0.5 || x.sc === 0 || x.b.width * x.b.height === 0) return;
+    seen = true;
+    var b = x.b;
+    if (!(b.right < -W || b.left > W || b.top < -H || b.bottom > H)) inside = true;
+    if (!y || !y.b) return;
+    var d = Math.abs(b.left - y.b.left) + Math.abs(b.right - y.b.right) + Math.abs(b.top - y.b.top) + Math.abs(b.bottom - y.b.bottom);
+    if (d < 0.003 * res.y) rest.push({ f: f, b: b, sc: x.sc });
+  });
+  // Off frame: visible but never inside the frame, on a layer whose transform is not animated
+  // (a wipe band that parks outside after crossing the frame is fine).
+  if (seen && !inside && !movesItself(s.id)) {
+    var big = s.type === 'textShape' || rest.some(function (r) { return r.b.width * r.b.height > 0.005 * res.x * res.y });
+    if (big) off.push({ id: s.id, name: api.getNiceName(s.id), frame: rest.length ? rest[0].f : s.range[0] });
+    return;
+  }
+  if (s.type !== 'textShape' || !rest.length) return;
+  var t = api.get(s.id, 'text'), size = 0;
+  rest.forEach(function (r) { size = Math.max(size, api.get(s.id, 'fontSize') * r.sc) });
+  texts.push({ id: s.id, name: api.getNiceName(s.id), size: size, text: String(t && t.text !== undefined ? t.text : t).slice(0, 40), range: s.range });
+  // Text cut by the frame edge, or touching it, while it rests and should be readable.
+  for (var k = 0; k < rest.length; k++) {
+    var b = rest[k].b, f = rest[k].f;
+    if (b.right < -W || b.left > W || b.top < -H || b.bottom > H) continue;
+    var cut = b.left < -W - 1 || b.right > W + 1 || b.top > H + 1 || b.bottom < -H - 1;
+    var near = b.left < -W + margin || b.right > W - margin || b.top > H - margin || b.bottom < -H + margin;
+    if (cut) { clipped.push({ id: s.id, name: api.getNiceName(s.id), frame: f }); break }
+    if (near) { tight.push({ id: s.id, name: api.getNiceName(s.id), frame: f }); break }
+  }
+});
 api.setFrame(start);
-return { start: start, end: end, fps: api.get(comp, 'fps'), height: res.y, segs: segs, drivers: drivers, texts: texts, late: late.slice(0, 20), off: off.slice(0, 20), clipped: clipped.slice(0, 20), layers: ids.length };`
+return { start: start, end: end, fps: api.get(comp, 'fps'), height: res.y, segs: segs, texts: texts, late: late.slice(0, 20), off: off.slice(0, 20), clipped: clipped.slice(0, 20), tight: tight.slice(0, 20), layers: ids.length };`
 
 type checkData struct {
-	Start   int          `json:"start"`
-	End     int          `json:"end"`
-	FPS     float64      `json:"fps"`
-	Height  float64      `json:"height"`
-	Segs    [][2]float64 `json:"segs"`
-	Drivers []string     `json:"drivers"`
-	Texts   []struct {
+	Start  int          `json:"start"`
+	End    int          `json:"end"`
+	FPS    float64      `json:"fps"`
+	Height float64      `json:"height"`
+	Segs   [][3]float64 `json:"segs"` // start, end, 1 when the layer is small
+	Texts  []struct {
 		ID    string  `json:"id"`
 		Name  string  `json:"name"`
 		Size  float64 `json:"size"`
@@ -147,6 +215,11 @@ type checkData struct {
 		Name  string `json:"name"`
 		Frame int    `json:"frame"`
 	} `json:"clipped"`
+	Tight []struct {
+		ID    string `json:"id"`
+		Name  string `json:"name"`
+		Frame int    `json:"frame"`
+	} `json:"tight"`
 	Layers int `json:"layers"`
 }
 
@@ -165,22 +238,9 @@ func cmdSceneCheck(a *app, args []string) error {
 	if d.Layers == 0 {
 		out = append(out, finding{Kind: "empty", Detail: "the active comp has no layers", Fix: "build the scene first"})
 	}
-	// Still stretches: frames not covered by any changing key segment.
-	if len(d.Drivers) == 0 && d.Layers > 0 {
-		sort.Slice(d.Segs, func(i, j int) bool { return d.Segs[i][0] < d.Segs[j][0] })
-		cursor := float64(d.Start)
-		var gaps [][2]float64
-		for _, s := range d.Segs {
-			if s[0] > cursor {
-				gaps = append(gaps, [2]float64{cursor, s[0]})
-			}
-			if s[1] > cursor {
-				cursor = s[1]
-			}
-		}
-		if float64(d.End) > cursor {
-			gaps = append(gaps, [2]float64{cursor, float64(d.End)})
-		}
+	// Still stretches: frames where no large layer and fewer than three small layers change.
+	if d.Layers > 0 {
+		gaps := stillGaps(d.Segs, d.Start, d.End)
 		stillFrames := 0.0
 		for _, g := range gaps {
 			stillFrames += g[1] - g[0]
@@ -194,8 +254,8 @@ func cmdSceneCheck(a *app, args []string) error {
 			secs := (g[1] - g[0]) / d.FPS
 			if secs > *maxStill {
 				out = append(out, finding{Kind: "still",
-					Detail: fmt.Sprintf("nothing moves from frame %d to %d (%.1f s)", int(g[0]), int(g[1]), secs),
-					Fix:    "add secondary motion (a slow drift, scale breathe, cav.oscillate or cav.wiggle), start the next section earlier, or shorten the comp"})
+					Detail: fmt.Sprintf("nothing visible moves from frame %d to %d (%.1f s); motion on one small layer does not count", int(g[0]), int(g[1]), secs),
+					Fix:    "move something larger during the hold (a slow drift or scale breathe on the main text or shapes), start the next section earlier, or shorten the comp"})
 			}
 		}
 	}
@@ -226,6 +286,16 @@ func cmdSceneCheck(a *app, args []string) error {
 		out = append(out, finding{Kind: "clipped", Layer: c.ID, Name: c.Name,
 			Detail: fmt.Sprintf("text is cut by the frame edge at frame %d", c.Frame),
 			Fix:    "move it inside the frame (keep text within the middle 90 %), or make it smaller"})
+	}
+	seenTight := map[string]bool{}
+	for _, c := range d.Tight {
+		if seenTight[c.ID] || seenClip[c.ID] {
+			continue
+		}
+		seenTight[c.ID] = true
+		out = append(out, finding{Kind: "edge", Layer: c.ID, Name: c.Name,
+			Detail: fmt.Sprintf("text touches the frame edge at frame %d (less than 3 %% margin)", c.Frame),
+			Fix:    "leave a margin of at least 5 % of the frame around text; move it in or make it smaller"})
 	}
 	for _, l := range d.Late {
 		out = append(out, finding{Kind: "keys", Layer: l.ID, Name: l.Name,
@@ -330,4 +400,38 @@ func isBlank(path string) bool {
 	}
 	mean := sum / n
 	return sum2/n-mean*mean < 16 // standard deviation under 4 levels
+}
+
+// stillGaps returns the frame ranges where no large layer changes and fewer than three small
+// layers change at once.
+func stillGaps(segs [][3]float64, start, end int) [][2]float64 {
+	n := end - start // frame steps; a key segment [a, b) covers the steps from a to b
+	if n <= 0 {
+		return nil
+	}
+	big := make([]bool, n)
+	smallCount := make([]int, n)
+	for _, s := range segs {
+		a, b := int(s[0])-start, int(s[1])-start
+		for f := max(a, 0); f < min(b, n); f++ {
+			if s[2] == 0 {
+				big[f] = true
+			} else {
+				smallCount[f]++
+			}
+		}
+	}
+	var gaps [][2]float64
+	runStart := -1
+	for f := 0; f <= n; f++ {
+		moving := f == n || big[f] || smallCount[f] >= 3
+		if !moving && runStart < 0 {
+			runStart = f
+		}
+		if moving && runStart >= 0 {
+			gaps = append(gaps, [2]float64{float64(start + runStart), float64(start + f)})
+			runStart = -1
+		}
+	}
+	return gaps
 }
