@@ -181,6 +181,15 @@ func cmdSceneCheck(a *app, args []string) error {
 		if float64(d.End) > cursor {
 			gaps = append(gaps, [2]float64{cursor, float64(d.End)})
 		}
+		stillFrames := 0.0
+		for _, g := range gaps {
+			stillFrames += g[1] - g[0]
+		}
+		if total := float64(d.End - d.Start); total > 0 && stillFrames/total > 0.5 {
+			out = append(out, finding{Kind: "still",
+				Detail: fmt.Sprintf("nothing moves in %.0f %% of the piece (many short holds add up)", 100*stillFrames/total),
+				Fix:    "give holds a little life (cav.oscillate / cav.wiggle on position or scale, a slow drift, staggered accents), and keep holds to what the text needs"})
+		}
 		for _, g := range gaps {
 			secs := (g[1] - g[0]) / d.FPS
 			if secs > *maxStill {
