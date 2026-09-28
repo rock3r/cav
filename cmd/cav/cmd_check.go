@@ -24,6 +24,7 @@ cav check looks at the active comp and reports problems that viewers notice:
   still     stretches longer than --max-still seconds where nothing is animated
   text      text smaller than --min-text px (scaled to a 1080 px tall frame)
   offframe  text or large shapes completely outside the frame on a key frame
+  clipped   text cut by the frame edge
   blank     blank frames at the start or the end (a long empty tail)
   keys      keyframes after the end of the comp (they never play)
 Each finding says what to change. Exit code 0 even with findings; use --json to read them.
@@ -93,7 +94,7 @@ ids.forEach(function (id) {
     shapes.push({ id: id, type: type, range: range });
   }
 });
-var off = [];
+var off = [], clipped = [];
 var W = res.x / 2, H = res.y / 2;
 var probe = [end, Math.round((start + end) / 2)];
 shapes.forEach(function (s) {
@@ -108,10 +109,13 @@ shapes.forEach(function (s) {
     var outside = b.right < -W || b.left > W || b.top < -H || b.bottom > H;
     try { if (api.get(s.id, 'opacity') === 0) return } catch (e) {}
     if (big && outside) off.push({ id: s.id, name: api.getNiceName(s.id), frame: f });
+    // Text cut by the frame edge (partly outside) while it should be readable.
+    var cut = !outside && (b.left < -W - 1 || b.right > W + 1 || b.top > H + 1 || b.bottom < -H - 1);
+    if (s.type === 'textShape' && cut) clipped.push({ id: s.id, name: api.getNiceName(s.id), frame: f });
   });
 });
 api.setFrame(start);
-return { start: start, end: end, fps: api.get(comp, 'fps'), height: res.y, segs: segs, drivers: drivers, texts: texts, late: late.slice(0, 20), off: off.slice(0, 20), layers: ids.length };`
+return { start: start, end: end, fps: api.get(comp, 'fps'), height: res.y, segs: segs, drivers: drivers, texts: texts, late: late.slice(0, 20), off: off.slice(0, 20), clipped: clipped.slice(0, 20), layers: ids.length };`
 
 type checkData struct {
 	Start   int          `json:"start"`
@@ -138,6 +142,11 @@ type checkData struct {
 		Name  string `json:"name"`
 		Frame int    `json:"frame"`
 	} `json:"off"`
+	Clipped []struct {
+		ID    string `json:"id"`
+		Name  string `json:"name"`
+		Frame int    `json:"frame"`
+	} `json:"clipped"`
 	Layers int `json:"layers"`
 }
 
@@ -198,6 +207,16 @@ func cmdSceneCheck(a *app, args []string) error {
 		out = append(out, finding{Kind: "offframe", Layer: o.ID, Name: o.Name,
 			Detail: fmt.Sprintf("completely outside the frame at frame %d", o.Frame),
 			Fix:    "check its position and its parents' positions (+y is up, (0,0) is the centre)"})
+	}
+	seenClip := map[string]bool{}
+	for _, c := range d.Clipped {
+		if seenClip[c.ID] {
+			continue
+		}
+		seenClip[c.ID] = true
+		out = append(out, finding{Kind: "clipped", Layer: c.ID, Name: c.Name,
+			Detail: fmt.Sprintf("text is cut by the frame edge at frame %d", c.Frame),
+			Fix:    "move it inside the frame (keep text within the middle 90 %), or make it smaller"})
 	}
 	for _, l := range d.Late {
 		out = append(out, finding{Kind: "keys", Layer: l.ID, Name: l.Name,
@@ -268,7 +287,7 @@ func (a *app) blankRun(start, end int, fps float64) ([]finding, error) {
 		}
 		head = f - start + step
 	}
-	if secs := float64(head) / fps; secs >= 1 {
+	if secs := float64(head) / fps; secs >= 0.75 {
 		out = append(out, finding{Kind: "blank", Detail: fmt.Sprintf("the first %.1f s look empty", secs),
 			Fix: "bring the first element in within about half a second"})
 	}

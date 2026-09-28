@@ -102,7 +102,7 @@ Read `references/motion-recipes.md` before a creative task. Short version:
 - **Readable sizes at 1080p**: headlines 100-180 px, names 56-72 px, labels 30-40 px, nothing under 28 px. Secondary text in light grey (`#c3cad8`) on dark, never mid grey.
 - **Use the whole duration**: end on a finished frame (a held lockup or the last exit ending near the last frame), not on seconds of empty screen.
 - **Timing at 60 fps**: small moves 12-20 frames, big moves 20-40, holds long enough to read (about 1 s per 3 words).
-- **Impacts**: `cav.flash`, `cav.ring`, `cav.burst`, `cav.shake` on a top-level rig group, all on the same frame.
+- **Impacts**: `cav.flash`, `cav.ring`, `cav.burst`, `cav.shake` on a top-level rig group, all on the same frame. Keep flashes short and partial (`peak` 40-70, `dur` 4-8): a long full-white flash reads as a mistake.
 - **Transitions**: zoom-through (`cav.zoomThrough`), wipes, masks, a flash on the cut. Cut between sections with group in/out frames.
 - Prefer native Cavalry features (duplicators, stagger, shaders) for many similar items: see `references/native-features.md`. Fewer layers make scripts faster.
 
