@@ -586,11 +586,44 @@
 		return false
 	}
 
+	// Before its first key or after its last key, an attribute holds that key's value. Read it
+	// from the keyframe node (data.numValue at timeOffset). Returns undefined when f falls
+	// between keys or the key holds no plain number.
+	function heldKey(l, part, f) {
+		var ids = api.getKeyframeIdsForAttribute(l, part) || []
+		var first = null, last = null
+		for (var i = 0; i < ids.length; i++) {
+			var k = { t: api.get(ids[i], 'timeOffset'), v: (api.get(ids[i], 'data') || {}).numValue }
+			if (!first || k.t < first.t) first = k
+			if (!last || k.t > last.t) last = k
+		}
+		var k2 = !first ? null : f <= first.t ? first : f >= last.t ? last : null
+		return k2 && typeof k2.v === 'number' ? k2.v : undefined
+	}
+	function fastValueAt(l, attr, f) {
+		try {
+			var parts = VECTOR_PARTS[attr]
+			if (!parts) return api.isAnimatedAttribute(l, attr) ? heldKey(l, attr, f) : api.get(l, attr)
+			if (attr === 'rotation') return undefined
+			var out = {}
+			for (var i = 0; i < parts.length; i++) {
+				var v = api.isAnimatedAttribute(l, parts[i]) ? heldKey(l, parts[i], f) : api.get(l, parts[i])
+				if (typeof v !== 'number') return undefined
+				out[parts[i].split('.')[1]] = v
+			}
+			return out
+		} catch (e) {
+			return undefined
+		}
+	}
+
 	function valueAt(l, attr, f) {
 		l = lid(l, 'cav.valueAt')
 		// Moving the playhead makes Cavalry re-evaluate the whole scene, which is slow in big
 		// scenes. A value without keys is the same on every frame, so read it directly.
 		if (!isAnimated(l, attr)) return api.get(l, attr)
+		var held = fastValueAt(l, attr, f)
+		if (held !== undefined) return held
 		var cur = api.getFrame()
 		api.setFrame(Math.round(f))
 		var v = api.get(l, attr)
