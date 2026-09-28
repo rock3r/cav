@@ -258,6 +258,7 @@ var commandHints = map[string]string{
 	"script":     "use `cav run <file.js>`",
 	"save":       "use `cav scene save <file.cv>`",
 	"new":        "use `cav scene new`",
+	"comp":       "use `cav scene comp --width W --height H --fps F --seconds S` (or `cav scene info` to read it)",
 	"open":       "use `cav scene open <file.cv>`",
 	"screenshot": "use `cav frame <n>` (one PNG) or `cav sheet` (a contact sheet)",
 	"preview":    "use `cav sheet` (a contact sheet) or `cav frame <n>`",
