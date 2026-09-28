@@ -227,13 +227,17 @@ func bridgeVersionFromJS() string {
 }
 
 func bridgeCheck(a *app) check {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
 	defer cancel()
 	c := newClient()
 	if c.Spool != "" {
 		return check{Name: "bridge", OK: true, Optional: true, Detail: "spool mode (" + c.Spool + "); `cav relay` forwards jobs outside the sandbox"}
 	}
 	payload, err := c.Probe(ctx)
+	if err != nil && strings.Contains(err.Error(), "no answer within") {
+		return check{Name: "bridge", Detail: fmt.Sprintf("listening on %s:%d but not answering (Cavalry is busy or asleep in the background)", c.Host, c.Port),
+			Fix: "wait for the running script or render to finish, or bring Cavalry to the front, then try again"}
+	}
 	if err != nil {
 		return check{Name: "bridge", Detail: fmt.Sprintf("not running on %s:%d", c.Host, c.Port),
 			Fix: "open Cavalry, then Scripts menu > cav-bridge, and keep its window open"}

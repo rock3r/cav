@@ -40,6 +40,20 @@ cav update              # shows the change and asks before installing
 After an update, `cav doctor` may say the running bridge is older than the installed one. Then
 the user closes the cav-bridge window in Cavalry and starts it again from the Scripts menu.
 
+## A slow bridge
+
+`cav doctor` may say the bridge is "listening but not answering". Cavalry answers requests on
+its main thread, so a long script or a render makes it answer late. cav waits up to 30 s for
+each answer. If this happens after Cavalry sat idle in the background, macOS App Nap is the
+likely cause (believed, not verified). Bring Cavalry to the front and try again. The user can
+turn App Nap off for Cavalry:
+
+```bash
+defaults write com.scenegroup.cavalry NSAppSleepDisabled -bool YES
+```
+
+Do not run this command yourself: it changes the user's system settings. Suggest it to the user.
+
 ## Agents in a sandbox
 
 If the agent's sandbox blocks 127.0.0.1, run `cav relay --spool <dir>` outside the sandbox and

@@ -19,9 +19,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/rock3r/cavalry-skill/internal/config"
@@ -96,6 +98,26 @@ var (
 
 const unavailableHint = "Start Cavalry, then run Scripts > cav-bridge and keep its window open. `cav doctor` checks every step."
 
+// slowHint explains a bridge that accepts the connection but answers late. Cavalry serves
+// requests on its UI thread, so a long script, a render, or macOS putting the idle app to
+// sleep (App Nap) delays the answer.
+const slowHint = "Cavalry accepted the connection but did not answer in time. It may be busy (a long script or render) or asleep in the background; bring Cavalry to the front or wait, then try again."
+
+// answerTimeout is how long cav waits for the bridge to answer one request. It is long
+// because a sleeping or busy Cavalry answers late; a stopped bridge refuses at once.
+const answerTimeout = 30 * time.Second
+
+func unreachable(base string, err error) error {
+	if errors.Is(err, syscall.ECONNREFUSED) {
+		return fmt.Errorf("%w at %s: %s", ErrUnavailable, base, unavailableHint)
+	}
+	var ne net.Error
+	if errors.As(err, &ne) && ne.Timeout() {
+		return fmt.Errorf("%w at %s: no answer within %s. %s", ErrUnavailable, base, answerTimeout, slowHint)
+	}
+	return fmt.Errorf("%w at %s: %v. %s", ErrUnavailable, base, err, unavailableHint)
+}
+
 type Client struct {
 	Host  string
 	Port  int
@@ -108,7 +130,7 @@ func New() *Client {
 		Host:  config.Host(),
 		Port:  config.Port(),
 		Spool: spoolUnlessRelayed(),
-		http:  &http.Client{Timeout: 5 * time.Second},
+		http:  &http.Client{Timeout: answerTimeout},
 	}
 }
 
@@ -136,7 +158,7 @@ func (c *Client) Probe(ctx context.Context) (map[string]any, error) {
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, c.base()+"/get", nil)
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("%w at %s: %s", ErrUnavailable, c.base(), unavailableHint)
+		return nil, unreachable(c.base(), err)
 	}
 	defer resp.Body.Close()
 	var payload map[string]any
@@ -165,7 +187,7 @@ func (c *Client) Submit(ctx context.Context, r *Request) error {
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return fmt.Errorf("%w at %s: %s", ErrUnavailable, c.base(), unavailableHint)
+		return unreachable(c.base(), err)
 	}
 	resp.Body.Close()
 	if resp.StatusCode >= 300 {
