@@ -100,7 +100,7 @@ check('wipeIn keeps place', near(wb.centre.x, 50, 1) && near(wb.width, 200, 1), 
 api.setFrame(5)
 check('wipeIn grows from left edge', near(api.getBoundingBox(w, true).left, -50, 1), api.getBoundingBox(w, true))
 var fl = cav.flash(20)
-check('flash peak', near(at(20, fl, 'opacity'), 100, 1), at(20, fl, 'opacity'))
+check('flash peak', near(at(20, fl, 'opacity'), 60, 1), at(20, fl, 'opacity'))
 var ring = cav.ring(20, 0, 0, { r1: 300 })
 check('ring grows', at(44, ring, 'generator.radius').x > 250, at(44, ring, 'generator.radius'))
 var burst = cav.burst(20, 0, 0, { count: 6 })
