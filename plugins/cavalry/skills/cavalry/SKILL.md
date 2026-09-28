@@ -100,6 +100,7 @@ Read `references/motion-recipes.md` before a creative task. Short version:
 - **Anticipation and overshoot**: wind up before a big move (`inBack`), land with a small overshoot (`outBack`, `spring`).
 - **Hierarchy**: one hero element per moment. Big bold headline, small kicker, lots of empty space. Keep text inside 90 % of the frame.
 - **Readable sizes at 1080p**: headlines 100-180 px, names 56-72 px, labels 30-40 px, nothing under 28 px. Secondary text in light grey (`#c3cad8`) on dark, never mid grey.
+- **Keep it moving**: at any moment something should move. A hold keeps secondary motion (a slow drift, a gentle scale breathe, `cav.oscillate`/`cav.wiggle`, staggered accents); only the text stays still enough to read. Every card, word and panel gets an entrance, not just a cut. `cav check` warns when most of the piece is still.
 - **Use the whole duration**: end on a finished frame (a held lockup or the last exit ending near the last frame), not on seconds of empty screen.
 - **Timing at 60 fps**: small moves 12-20 frames, big moves 20-40, holds long enough to read (about 1 s per 3 words).
 - **Impacts**: `cav.flash`, `cav.ring`, `cav.burst`, `cav.shake` on a top-level rig group, all on the same frame. Keep flashes short and partial (`peak` 40-70, `dur` 4-8): a long full-white flash reads as a mistake.
