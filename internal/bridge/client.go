@@ -99,12 +99,12 @@ var (
 const unavailableHint = "Start Cavalry, then run Scripts > cav-bridge and keep its window open. `cav doctor` checks every step."
 
 // slowHint explains a bridge that accepts the connection but answers late. Cavalry serves
-// requests on its UI thread, so a long script, a render, or macOS putting the idle app to
-// sleep (App Nap) delays the answer.
-const slowHint = "Cavalry accepted the connection but did not answer in time. It may be busy (a long script or render) or asleep in the background; bring Cavalry to the front or wait, then try again."
+// requests on its UI thread, so a long script, a render or an open dialog box delays
+// the answer.
+const slowHint = "Cavalry accepted the connection but did not answer in time. It may be busy (a long script, a render or an open dialog box); wait, then try again."
 
 // answerTimeout is how long cav waits for the bridge to answer one request. It is long
-// because a sleeping or busy Cavalry answers late; a stopped bridge refuses at once.
+// because a busy Cavalry answers late; a stopped bridge refuses at once.
 const answerTimeout = 30 * time.Second
 
 func unreachable(base string, err error) error {

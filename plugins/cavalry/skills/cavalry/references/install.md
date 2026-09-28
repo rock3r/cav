@@ -43,16 +43,11 @@ the user closes the cav-bridge window in Cavalry and starts it again from the Sc
 ## A slow bridge
 
 `cav doctor` may say the bridge is "listening but not answering". Cavalry answers requests on
-its main thread, so a long script or a render makes it answer late. cav waits up to 30 s for
-each answer. If this happens after Cavalry sat idle in the background, macOS App Nap is the
-likely cause (believed, not verified). Bring Cavalry to the front and try again. The user can
-turn App Nap off for Cavalry:
-
-```bash
-defaults write com.scenegroup.cavalry NSAppSleepDisabled -bool YES
-```
-
-Do not run this command yourself: it changes the user's system settings. Suggest it to the user.
+its main thread, so a long script, a render or a dialog box makes it answer late. cav waits up
+to 30 s for each answer, and `cav job wait` keeps waiting for a job that is still running.
+Check whether Cavalry shows a dialog box, and ask the user to close it. In the evaluations this
+happened a few times without a visible cause (not explained yet; an 11-minute idle test did not
+reproduce it). Waiting a minute and trying again worked each time.
 
 ## Agents in a sandbox
 

@@ -235,8 +235,8 @@ func bridgeCheck(a *app) check {
 	}
 	payload, err := c.Probe(ctx)
 	if err != nil && strings.Contains(err.Error(), "no answer within") {
-		return check{Name: "bridge", Detail: fmt.Sprintf("listening on %s:%d but not answering (Cavalry is busy or asleep in the background)", c.Host, c.Port),
-			Fix: "wait for the running script or render to finish, or bring Cavalry to the front, then try again"}
+		return check{Name: "bridge", Detail: fmt.Sprintf("listening on %s:%d but not answering (Cavalry is busy: a long script, a render or an open dialog box)", c.Host, c.Port),
+			Fix: "wait for the running script or render to finish, or close any open dialog box in Cavalry, then try again"}
 	}
 	if err != nil {
 		return check{Name: "bridge", Detail: fmt.Sprintf("not running on %s:%d", c.Host, c.Port),
