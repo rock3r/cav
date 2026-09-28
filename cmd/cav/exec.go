@@ -128,6 +128,7 @@ func (a *app) execJS(code string, o execOpts) (*jobOutcome, error) {
 		return nil, err
 	}
 	out := &jobOutcome{id: req.ID, source: o.source, code: code}
+	_ = os.WriteFile(filepath.Join(config.Home(), "last-job"), []byte(req.ID), 0o600)
 	if o.async {
 		return out, nil
 	}

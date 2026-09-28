@@ -2,8 +2,11 @@ package main
 
 import (
 	"context"
+	"path/filepath"
+
 	"flag"
 	"fmt"
+	"github.com/rock3r/cavalry-skill/internal/config"
 	"io"
 	"os"
 	"strings"
@@ -37,7 +40,7 @@ Examples:
   cav run scene1.js scene2.js --timeout 30m`
 	register(command{
 		name:    "job",
-		args:    "wait <id> [--timeout 30m]",
+		args:    "wait [<id>] [--timeout 30m]",
 		summary: "Wait for a job that is still running and print its result.",
 		run:     cmdJob,
 	})
@@ -134,8 +137,16 @@ func cmdJob(a *app, args []string) error {
 	if err != nil {
 		return err
 	}
+	if len(pos) == 1 && pos[0] == "wait" {
+		// No id: the most recent job this machine submitted.
+		b, err := os.ReadFile(filepath.Join(config.Home(), "last-job"))
+		if err != nil {
+			return usageErr("no recent job; usage: cav job wait <id>")
+		}
+		pos = append(pos, strings.TrimSpace(string(b)))
+	}
 	if len(pos) != 2 || pos[0] != "wait" {
-		return usageErr("usage: cav job wait <id>")
+		return usageErr("usage: cav job wait [<id>] (without an id: the most recent job)")
 	}
 	c := bridge.New()
 	if c.Spool == "" {

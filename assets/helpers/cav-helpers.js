@@ -573,8 +573,24 @@
 	//@ cav.punch(l, f, amount=0.08, dur=12)   quick scale bump for beat accents
 	//@ cav.stagger(layers, f, step, fn)       calls fn(layer, frame, index) with frame = f + i*step
 	// The value of an attribute at frame f (api.get reads at the playhead).
+	var VECTOR_PARTS = { position: ['position.x', 'position.y'], scale: ['scale.x', 'scale.y'], rotation: ['rotation.z'] }
+	function isAnimated(l, attr) {
+		var parts = VECTOR_PARTS[attr] || [attr]
+		for (var i = 0; i < parts.length; i++) {
+			try {
+				if (api.isAnimatedAttribute(l, parts[i])) return true
+			} catch (e) {
+				return true // unknown: take the safe, slower path
+			}
+		}
+		return false
+	}
+
 	function valueAt(l, attr, f) {
 		l = lid(l, 'cav.valueAt')
+		// Moving the playhead makes Cavalry re-evaluate the whole scene, which is slow in big
+		// scenes. A value without keys is the same on every frame, so read it directly.
+		if (!isAnimated(l, attr)) return api.get(l, attr)
 		var cur = api.getFrame()
 		api.setFrame(Math.round(f))
 		var v = api.get(l, attr)
