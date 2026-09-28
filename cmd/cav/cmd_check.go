@@ -25,6 +25,7 @@ cav check looks at the active comp and reports problems that viewers notice:
   offframe  text or large shapes that never come inside the frame
   clipped   text cut by the frame edge
   edge      text closer than 3 % of the frame height to an edge
+  overflow  text that spills out of, or crowds, the button, pill or field it sits on
   blank     blank frames at the start or the end (a long empty tail)
   keys      keyframes after the end of the comp (they never play)
 Each finding says what to change. Exit code 0 even with findings; use --json to read them.
@@ -148,7 +149,7 @@ samples.forEach(function (f) {
   });
 });
 flush();
-var off = [], clipped = [], tight = [];
+var off = [], clipped = [], tight = [], overflow = [];
 var margin = 0.03 * res.y;
 shapes.forEach(function (s) {
   var rest = [], seen = false, inside = false;
@@ -182,9 +183,38 @@ shapes.forEach(function (s) {
     if (cut) { clipped.push({ id: s.id, name: api.getNiceName(s.id), frame: f }); break }
     if (near) { tight.push({ id: s.id, name: api.getNiceName(s.id), frame: f }); break }
   }
+  // Text that spills out of the small shape it sits on (a button, pill, field or badge).
+  for (var k2 = 0; k2 < rest.length; k2++) {
+    var tb = rest[k2].b, tf = rest[k2].f, cx = (tb.left + tb.right) / 2, cy = (tb.top + tb.bottom) / 2, box = null;
+    shapes.forEach(function (o) {
+      if (o.type !== 'basicShape') return;
+      var ol = o.looks[tf];
+      if (!ol || !ol.b || ol.op < 0.5 || ol.sc === 0) return;
+      var ob = ol.b, area = ob.width * ob.height;
+      if (area > 0.15 * res.x * res.y || area < tb.width * tb.height * 0.8) return;
+      if (cx < ob.left || cx > ob.right || cy < ob.bottom || cy > ob.top) return;
+      // A container is at least as tall as the text and already covers most of it; text that
+      // only crosses an unrelated shape (a progress bar under a dialog) does not count.
+      var ow = Math.min(tb.right, ob.right) - Math.max(tb.left, ob.left), oh = Math.min(tb.top, ob.top) - Math.max(tb.bottom, ob.bottom);
+      if (ob.height < tb.height || ow <= 0 || oh <= 0 || ow * oh < 0.7 * tb.width * tb.height) return;
+      if (!box || area < box.width * box.height) box = ob;
+    });
+    if (!box) continue;
+    if (tb.left < box.left - 2 || tb.right > box.right + 2 || tb.top > box.top + 2 || tb.bottom < box.bottom - 2) {
+      overflow.push({ id: s.id, name: api.getNiceName(s.id), frame: tf });
+      break;
+    }
+    // Cramped: side padding under half the text height (a pill whose text touches its ends).
+    // Single letters (from cav.glyphs) are parts of a word, so their own padding means nothing.
+    var str = String(t && t.text !== undefined ? t.text : t);
+    if (str.length > 1 && Math.min(tb.left - box.left, box.right - tb.right) < 0.5 * tb.height) {
+      overflow.push({ id: s.id, name: api.getNiceName(s.id), frame: tf, cramped: true });
+      break;
+    }
+  }
 });
 api.setFrame(start);
-return { start: start, end: end, fps: api.get(comp, 'fps'), height: res.y, segs: segs, texts: texts, late: late.slice(0, 20), off: off.slice(0, 20), clipped: clipped.slice(0, 20), tight: tight.slice(0, 20), layers: ids.length };`
+return { start: start, end: end, fps: api.get(comp, 'fps'), height: res.y, segs: segs, texts: texts, late: late.slice(0, 20), off: off.slice(0, 20), clipped: clipped.slice(0, 20), tight: tight.slice(0, 20), overflow: overflow.slice(0, 20), layers: ids.length };`
 
 type checkData struct {
 	Start  int          `json:"start"`
@@ -220,6 +250,12 @@ type checkData struct {
 		Name  string `json:"name"`
 		Frame int    `json:"frame"`
 	} `json:"tight"`
+	Overflow []struct {
+		ID      string `json:"id"`
+		Name    string `json:"name"`
+		Frame   int    `json:"frame"`
+		Cramped bool   `json:"cramped"`
+	} `json:"overflow"`
 	Layers int `json:"layers"`
 }
 
@@ -296,6 +332,14 @@ func cmdSceneCheck(a *app, args []string) error {
 		out = append(out, finding{Kind: "edge", Layer: c.ID, Name: c.Name,
 			Detail: fmt.Sprintf("text touches the frame edge at frame %d (less than 3 %% margin)", c.Frame),
 			Fix:    "leave a margin of at least 5 % of the frame around text; move it in or make it smaller"})
+	}
+	for _, o := range d.Overflow {
+		detail := fmt.Sprintf("text spills out of the shape behind it at frame %d", o.Frame)
+		if o.Cramped {
+			detail = fmt.Sprintf("text nearly touches the ends of the shape behind it at frame %d (side padding under half the text height)", o.Frame)
+		}
+		out = append(out, finding{Kind: "overflow", Layer: o.ID, Name: o.Name, Detail: detail,
+			Fix: "make the shape wider than the text by at least one text height, or make the text smaller"})
 	}
 	for _, l := range d.Late {
 		out = append(out, finding{Kind: "keys", Layer: l.ID, Name: l.Name,

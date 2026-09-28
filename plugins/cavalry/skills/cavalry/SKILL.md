@@ -30,7 +30,7 @@ cav doctor
 3. **Write the build as script files** in the project (e.g. `build/01_title.js`), one scene section per file, and run them with `cav run build/01_title.js`. Files can be fixed and re-run. Start each file with `cav.clear()` only if it builds the whole comp; otherwise delete just its own group.
 4. **Review after every file**: `cav sheet` renders 12 frames spread over the comp into `renders/sheet.png`. Open the image and check it. `cav sheet 0-240:20` for a range, `cav sheet 30,60,90` for a list, `--bpm 120` to see beat numbers.
 5. **Fix numbers, not guesses**: `cav tree` (layer ids and structure), `cav layer <id>` (position, bbox, keys).
-6. **Check**: `cav check` lists still stretches, text too small to read, text cut by or touching the frame edge, layers outside the frame and empty frames at the start or end. Fix every finding, or say why it is intended.
+6. **Check**: `cav check` lists still stretches, text too small to read, text cut by or touching the frame edge, text spilling out of or crowding its button or pill, layers outside the frame and empty frames at the start or end. Fix every finding, or say why it is intended.
 7. **Save**: `cav scene save scenes/<name>.cv`.
 8. **Render**: `cav render -o renders/final.mp4 [--audio music.wav]`. Check the frame count it prints.
 
