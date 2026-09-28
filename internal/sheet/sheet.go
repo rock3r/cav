@@ -66,17 +66,19 @@ func Build(tiles []Tile, out string, o Options) (int, int, error) {
 		tw, th = max(tw, b.Dx()), max(th, b.Dy())
 	}
 	rows := (len(tiles) + o.Cols - 1) / o.Cols
+	// Labels sit in a strip under each tile, so they never cover the picture.
+	lh := (glyphH+2)*o.Scale + o.Scale
 	W := o.Cols*tw + (o.Cols+1)*o.Gap
-	H := rows*th + (rows+1)*o.Gap
+	H := rows*(th+lh) + (rows+1)*o.Gap
 	dst := image.NewRGBA(image.Rect(0, 0, W, H))
 	draw.Draw(dst, dst.Bounds(), &image.Uniform{o.BG}, image.Point{}, draw.Src)
 	for i, img := range imgs {
 		x := o.Gap + (i%o.Cols)*(tw+o.Gap)
-		y := o.Gap + (i/o.Cols)*(th+o.Gap)
+		y := o.Gap + (i/o.Cols)*(th+lh+o.Gap)
 		r := image.Rect(x, y, x+img.Bounds().Dx(), y+img.Bounds().Dy())
 		draw.Draw(dst, r, img, img.Bounds().Min, draw.Over)
 		if tiles[i].Label != "" {
-			drawLabel(dst, x+3, y+3, tiles[i].Label, o.Scale, o.LabelBG)
+			drawLabel(dst, x, y+th, tiles[i].Label, o.Scale, o.LabelBG)
 		}
 	}
 	f, err := os.Create(out)
