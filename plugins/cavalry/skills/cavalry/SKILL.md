@@ -30,7 +30,7 @@ cav doctor
 3. **Write the build as script files** in the project (e.g. `build/01_title.js`), one scene section per file, and run them with `cav run build/01_title.js`. Files can be fixed and re-run. Start each file with `cav.clear()` only if it builds the whole comp; otherwise delete just its own group.
 4. **Review after every file**: `cav sheet` renders 12 frames spread over the comp into `renders/sheet.png`. Open the image and check it. `cav sheet 0-240:20` for a range, `cav sheet 30,60,90` for a list, `--bpm 120` to see beat numbers.
 5. **Fix numbers, not guesses**: `cav tree` (layer ids and structure), `cav layer <id>` (position, bbox, keys).
-6. **Check**: `cav check` lists still stretches, text too small to read, layers outside the frame and empty frames at the start or end. Fix every finding, or say why it is intended.
+6. **Check**: `cav check` lists still stretches, text too small to read, text cut by or touching the frame edge, layers outside the frame and empty frames at the start or end. Fix every finding, or say why it is intended.
 7. **Save**: `cav scene save scenes/<name>.cv`.
 8. **Render**: `cav render -o renders/final.mp4 [--audio music.wav]`. Check the frame count it prints.
 
@@ -98,9 +98,10 @@ Read `references/motion-recipes.md` before a creative task. Short version:
 - **Every move has an ease.** Entrances `outExpo`/`outBack`, exits `inBack`/`inCubic`, loops `inOut`. Never linear, except for constant drifts.
 - **Overlap and stagger**: elements arrive 2-6 frames apart, not all at once (`cav.stagger`, `cav.cascade`).
 - **Anticipation and overshoot**: wind up before a big move (`inBack`), land with a small overshoot (`outBack`, `spring`).
-- **Hierarchy**: one hero element per moment. Big bold headline, small kicker, lots of empty space. Keep text inside 90 % of the frame.
+- **Hierarchy**: one hero element per moment. Big bold headline, small kicker, lots of empty space. Keep text inside 90 % of the frame, including big decorative numbers and the text inside buttons and pills (make the pill wider than its text).
 - **Readable sizes at 1080p**: headlines 100-180 px, names 56-72 px, labels 30-40 px, nothing under 28 px. Secondary text in light grey (`#c3cad8`) on dark, never mid grey.
-- **Keep it moving**: at any moment something should move. A hold keeps secondary motion (a slow drift, a gentle scale breathe, `cav.oscillate`/`cav.wiggle`, staggered accents); only the text stays still enough to read. Every card, word and panel gets an entrance, not just a cut. `cav check` warns when most of the piece is still.
+- **Keep it moving**: at any moment something should move. A hold keeps secondary motion (a slow drift, a gentle scale breathe, `cav.oscillate`/`cav.wiggle`, staggered accents); only the text stays still enough to read. The secondary motion must be visible: a large element drifting or breathing, not only a small dot pulsing. Every card, word and panel gets an entrance, not just a cut. `cav check` warns when most of the piece is still.
+- **Start fast**: something clearly visible (not a single dot) within the first half second.
 - **Use the whole duration**: end on a finished frame (a held lockup or the last exit ending near the last frame), not on seconds of empty screen.
 - **Timing at 60 fps**: small moves 12-20 frames, big moves 20-40, holds long enough to read (about 1 s per 3 words).
 - **Impacts**: `cav.flash`, `cav.ring`, `cav.burst`, `cav.shake` on a top-level rig group, all on the same frame. Keep flashes short and partial (`peak` 40-70, `dur` 4-8): a long full-white flash reads as a mistake.
