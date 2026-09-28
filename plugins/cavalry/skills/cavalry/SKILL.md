@@ -59,6 +59,8 @@ Rules that keep scripts working:
 - Frames are integers. Scale is a multiplier (1 = 100 %). Opacity is 0-100. Rotation is degrees.
 - Keys: `cav.key(layer, 'position', [[0, [x, y], 'outExpo'], [30, [x2, y2]]])`. The ease on a key shapes the move that **starts** at that key. Without an ease the move is linear.
 - `cav.tween(layer, attr, f0, f1, from, to, ease)` places both keys. Two tweens on one attribute hold still between them.
+- Build each panel (dialog, card, button) as a group and create everything that belongs to it with `parent: thatGroup`. A layer left outside moves and stacks on its own: when the panel later moves or is re-stacked, the layer slides behind it. `cav check` reports text hidden behind a shape above it.
+- Text is centred on its `x` by default (`cav.text`, `cav.glyphs`). Pass `align: 'left'` when `x` is the left edge, for example text typed into a field.
 - Variables do not survive between `cav run` calls. Store ids on `globalThis` or look them up with `cav.find('name')`.
 - Look up unknown API names with `cav api <word>` and node attributes with `cav docs <node name>` and `cav layer <id> --attrs`. Do not guess attribute names.
 - Long builds are fine: if `cav run` exits with code 3, the job is still running. Run `cav job wait <id>`.

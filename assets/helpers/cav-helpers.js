@@ -842,7 +842,8 @@
 	//@ ## Kinetic type
 	//@ cav.glyphs(name, string, size, o) -> {group, chars:[ids], width}
 	//@     one text layer per character, placed with real advances, grouped. Same o as cav.text
-	//@     plus parent/x/y for the group. Use it to animate letters one by one.
+	//@     plus parent/x/y for the group. x is the word's centre unless o.align is 'left' or
+	//@     'right'. Use it to animate letters one by one.
 	//@ cav.cascade(glyphs, f, {step=2, dy=-80, dur=18, ease='outBack', rotate=0, fade=true})
 	//@     letters drop in one after the other.
 	//@ cav.typeOn(glyphs, f, {rate=2})   letters appear one per `rate` frames (typewriter).
