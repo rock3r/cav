@@ -101,6 +101,46 @@ Tested on macOS with Cavalry 2.7.2. Windows paths and scripts are written but **
 Windows. The helper library has unit tests (Node, mock API) and live tests (74 checks inside
 Cavalry). The skill's `references/` folder lists the verified traps and recipes.
 
+## Evaluation
+
+We measured the skill on 8 motion-design tasks: a logo sting, a kinetic title, a lower third,
+a bar chart, a UI walkthrough, a beat-synced loop, a transition pack and a promo cut to music.
+Each run starts from a new scene. The model is GLM-5.3 Flash (`zai/glm-5.3-flash`, run through
+the pi agent) with a 30-minute limit. Three arms get the same task text:
+
+| Arm | What the agent gets |
+|---|---|
+| plugin | the `cav` CLI and this skill |
+| baseline | the `cav` CLI only (it can read `cav help`) |
+| cavalry-mcp | the upstream cavalry-mcp server |
+
+A run passes when a script confirms the scene was saved and the video has the right size,
+frame rate, duration, audio, frame coverage, motion, easing and (for music tasks) beat sync.
+We also graded every contact sheet by eye (1 to 5).
+
+Results of iteration 6, the last one with all three arms on the same code (measured):
+
+| Arm | Passed | Mean grade | Mean time | Mean tokens | Script errors |
+|---|---|---|---|---|---|
+| plugin | 6 of 8 | 3.7 | 820 s | 0.70 M | 1 |
+| baseline | 5 of 8 | 3.6 | 1149 s | 1.54 M | 9 |
+| cavalry-mcp | 1 of 8 | 2.5 | 1494 s | 3.88 M | 0 |
+
+The plugin arm of iteration 7 passed 7 of 8 tasks (mean grade 3.7, 742 s, 0.75 M tokens).
+
+What this shows:
+
+- The skill makes the agent faster and cheaper: about 30 % less time and half the tokens of the
+  baseline, with far fewer script errors.
+- The CLI alone already helps a lot: the baseline passes most tasks. The skill mostly adds
+  polish (easing, beat sync, readable sizes, living holds) and fewer mistakes.
+- Every failed run in the last iterations was a 30-minute timeout. In each one the model spent
+  9 to 10 minutes planning before its first command. Slow scripts in heavy scenes did the rest.
+- Each cell is one run per task, so a single task can flip between iterations. Treat
+  differences of one task as noise.
+- The scoring rules changed between the early iterations, so compare arms inside one
+  iteration, not across iterations.
+
 ## Credits
 
 - [cavalry-mcp](https://github.com/m18h/cavalry-mcp) by Michael Essandoh (MIT): the bridge script
