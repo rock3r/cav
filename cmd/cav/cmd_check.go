@@ -285,9 +285,9 @@ func (a *app) blankRun(start, end int, fps float64) ([]finding, error) {
 		}
 		tail = end - f + step
 	}
-	if secs := float64(tail) / fps; secs >= 0.5 {
+	if secs := float64(tail) / fps; secs >= 1.0 {
 		out = append(out, finding{Kind: "blank", Detail: fmt.Sprintf("the last %.1f s look empty", secs),
-			Fix: "end on a finished frame: hold the final lockup, or end the exit near the last frame and shorten the comp"})
+			Fix: "if the brief does not ask for an exit to empty, end on a finished frame (hold the lockup); if it does, shorten the comp or end the exit closer to the last frame. Do not lengthen holds the brief sized"})
 	}
 	head := 0
 	for f := start; f < start+int(2*fps) && f < end; f += step {
