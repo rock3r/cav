@@ -26,6 +26,7 @@ cav check looks at the active comp and reports problems that viewers notice:
   clipped   text cut by the frame edge
   edge      text closer than 3 % of the frame height to an edge
   overflow  text that spills out of, or crowds, the button, pill or field it sits on
+  hidden    text partly covered by an opaque shape drawn above it
   blank     blank frames at the start or the end (a long empty tail)
   keys      keyframes after the end of the comp (they never play)
 Each finding says what to change. Exit code 0 even with findings; use --json to read them.
@@ -122,7 +123,33 @@ ids.forEach(function (id) {
     }
   });
   if (range && (type === 'textShape' || type === 'basicShape')) shapes.push({ id: id, type: type, range: range, looks: {} });
+  // A word built from one-letter layers (cav.glyphs) is checked as one text.
+  if (range && type === 'group') {
+    var kids = [], word = '';
+    try { kids = api.getChildren(id) || [] } catch (e) {}
+    var letters = kids.filter(function (k) {
+      if (api.getLayerType(k) !== 'textShape') return false;
+      var tx = api.get(k, 'text'); tx = String(tx && tx.text !== undefined ? tx.text : tx);
+      return tx.length === 1;
+    });
+    if (letters.length >= 2 && letters.length === kids.length) {
+      letters.slice().reverse().forEach(function (k) { var tx = api.get(k, 'text'); word += String(tx && tx.text !== undefined ? tx.text : tx) });
+      shapes.push({ id: id, type: 'word', word: word, range: range, looks: {} });
+    }
+  }
 });
+// Drawing order: cav tree lists layers top first, so a depth-first walk numbers them from the
+// top; a smaller number is drawn above a larger one.
+var order = {}, counter = 0;
+(function walk(list) {
+  list.forEach(function (id) { order[id] = counter++; var k = []; try { k = api.getChildren(id) || [] } catch (e) {} walk(k) });
+})(api.getCompLayers(true));
+function isAncestor(a, b) { var p = b; while (p && p !== comp) { if (p === a) return true; p = api.getParent(p) } return false }
+function opaque(id) {
+  try { if (!api.hasFill(id)) return false } catch (e) { return false }
+  try { var c = api.get(id, 'material.materialColor'); if (c && c.a !== undefined && c.a < 240) return false } catch (e) {}
+  return true;
+}
 // Sample the whole comp at up to 30 frames (and 2 frames later, to see what is moving fast).
 // A layer "rests" on a sample where it is visible (opacity over 50 through its parents) and
 // moves less than 0.3 % of the frame height in 2 frames; a slow drift still counts as resting.
@@ -135,6 +162,12 @@ function look(s) {
     try { op *= api.get(p, 'opacity') / 100 } catch (e) {}
     try { sc *= Math.abs(api.get(p, 'scale').y) } catch (e) {}
     p = api.getParent(p);
+  }
+  if (s.type === 'word') {
+    // A word is as visible as its most visible letter (typed or cascading letters start hidden).
+    var most = 0;
+    (api.getChildren(s.id) || []).forEach(function (k) { try { most = Math.max(most, api.get(k, 'opacity') / 100) } catch (e) {} });
+    op *= most;
   }
   var b = null;
   try { b = api.getBoundingBox(s.id, true) } catch (e) {}
@@ -149,7 +182,7 @@ samples.forEach(function (f) {
   });
 });
 flush();
-var off = [], clipped = [], tight = [], overflow = [];
+var off = [], clipped = [], tight = [], overflow = [], hidden = [];
 var margin = 0.03 * res.y;
 shapes.forEach(function (s) {
   var rest = [], seen = false, inside = false;
@@ -170,12 +203,15 @@ shapes.forEach(function (s) {
     if (big) off.push({ id: s.id, name: api.getNiceName(s.id), frame: rest.length ? rest[0].f : s.range[0] });
     return;
   }
-  if (s.type !== 'textShape' || !rest.length) return;
-  var t = api.get(s.id, 'text'), size = 0;
-  rest.forEach(function (r) { size = Math.max(size, api.get(s.id, 'fontSize') * r.sc) });
-  texts.push({ id: s.id, name: api.getNiceName(s.id), size: size, text: String(t && t.text !== undefined ? t.text : t).slice(0, 40), range: s.range });
-  // Text cut by the frame edge, or touching it, while it rests and should be readable.
-  for (var k = 0; k < rest.length; k++) {
+  if ((s.type !== 'textShape' && s.type !== 'word') || !rest.length) return;
+  var t = s.type === 'word' ? s.word : api.get(s.id, 'text'), size = 0;
+  if (s.type === 'textShape') {
+    rest.forEach(function (r) { size = Math.max(size, api.get(s.id, 'fontSize') * r.sc) });
+    texts.push({ id: s.id, name: api.getNiceName(s.id), size: size, text: String(t && t.text !== undefined ? t.text : t).slice(0, 40), range: s.range });
+  }
+  // Text cut by the frame edge, or touching it, while it rests and should be readable. Words are
+  // skipped here: each of their letters is checked on its own.
+  for (var k = 0; k < rest.length && s.type !== 'word'; k++) {
     var b = rest[k].b, f = rest[k].f;
     if (b.right < -W || b.left > W || b.top < -H || b.bottom > H) continue;
     var cut = b.left < -W - 1 || b.right > W + 1 || b.top > H + 1 || b.bottom < -H - 1;
@@ -183,38 +219,65 @@ shapes.forEach(function (s) {
     if (cut) { clipped.push({ id: s.id, name: api.getNiceName(s.id), frame: f }); break }
     if (near) { tight.push({ id: s.id, name: api.getNiceName(s.id), frame: f }); break }
   }
+  var str = String(t && t.text !== undefined ? t.text : t);
+  // Text partly hidden behind an opaque shape drawn above it (a button left out of its dialog's
+  // group ends up under the dialog). Content dimmed by a translucent overlay (a modal backdrop)
+  // is background on purpose, so it is skipped.
+  if (str.length > 1) {
+    for (var k3 = 0; k3 < rest.length; k3++) {
+      var hb = rest[k3].b, hf = rest[k3].f, tarea = hb.width * hb.height, cover = null, dimmed = false;
+      shapes.forEach(function (o) {
+        if (o.type !== 'basicShape' || o.id === s.id || !(order[o.id] < order[s.id]) || isAncestor(o.id, s.id)) return;
+        var ol = o.looks[hf], ol2 = o.looks[hf + ':'];
+        if (!ol || !ol.b || ol.op < 0.05 || ol.sc === 0) return;
+        // A panel sweeping across during a transition covers text only for a moment.
+        if (!ol2 || !ol2.b || Math.abs(ol.b.left - ol2.b.left) + Math.abs(ol.b.right - ol2.b.right) + Math.abs(ol.b.top - ol2.b.top) + Math.abs(ol.b.bottom - ol2.b.bottom) >= 0.003 * res.y) return;
+        var ob = ol.b, ow = Math.min(hb.right, ob.right) - Math.max(hb.left, ob.left), oh = Math.min(hb.top, ob.top) - Math.max(hb.bottom, ob.bottom);
+        if (ow <= 0 || oh <= 0) return;
+        var part = ow * oh / tarea;
+        if (ol.op < 0.95 || !opaque(o.id)) { if (part > 0.9 && ob.width * ob.height > 0.25 * res.x * res.y) dimmed = true; return }
+        if (part > 0.1 && part < 0.95) cover = o.id;
+      });
+      if (cover && !dimmed) { hidden.push({ id: s.id, name: api.getNiceName(s.id), frame: hf, by: api.getNiceName(cover) }); break }
+    }
+  }
   // Text that spills out of the small shape it sits on (a button, pill, field or badge).
   for (var k2 = 0; k2 < rest.length; k2++) {
-    var tb = rest[k2].b, tf = rest[k2].f, cx = (tb.left + tb.right) / 2, cy = (tb.top + tb.bottom) / 2, box = null;
+    if (str.length < 2) break;
+    var tb = rest[k2].b, tf = rest[k2].f, cx = (tb.left + tb.right) / 2, cy = (tb.top + tb.bottom) / 2, box = null, boxOrder = Infinity, boxMoving = false;
     shapes.forEach(function (o) {
-      if (o.type !== 'basicShape') return;
-      var ol = o.looks[tf];
+      // A container is drawn below the text and has a fill (an outline ring is not a box).
+      if (o.type !== 'basicShape' || !(order[o.id] > order[s.id]) || !opaque(o.id)) return;
+      var ol = o.looks[tf], ol2 = o.looks[tf + ':'];
       if (!ol || !ol.b || ol.op < 0.5 || ol.sc === 0) return;
+      var moving = !ol2 || !ol2.b || Math.abs(ol.b.left - ol2.b.left) + Math.abs(ol.b.right - ol2.b.right) + Math.abs(ol.b.top - ol2.b.top) + Math.abs(ol.b.bottom - ol2.b.bottom) >= 0.003 * res.y;
       var ob = ol.b, area = ob.width * ob.height;
       if (area > 0.15 * res.x * res.y || area < tb.width * tb.height * 0.8) return;
       if (cx < ob.left || cx > ob.right || cy < ob.bottom || cy > ob.top) return;
-      // A container is at least as tall as the text and already covers most of it; text that
+      // A container is at least as tall as the text and already covers at least half of it; text that
       // only crosses an unrelated shape (a progress bar under a dialog) does not count.
       var ow = Math.min(tb.right, ob.right) - Math.max(tb.left, ob.left), oh = Math.min(tb.top, ob.top) - Math.max(tb.bottom, ob.bottom);
-      if (ob.height < tb.height || ow <= 0 || oh <= 0 || ow * oh < 0.7 * tb.width * tb.height) return;
-      if (!box || area < box.width * box.height) box = ob;
+      if (ob.height < tb.height || ow <= 0 || oh <= 0 || ow * oh < 0.5 * tb.width * tb.height) return;
+      // The container is the nearest such shape below the text, not the smallest: a label on a
+      // dialog sits on the dialog even when a smaller card under the dialog also contains it.
+      if (!box || order[o.id] < boxOrder) { box = ob; boxOrder = order[o.id]; boxMoving = moving }
     });
-    if (!box) continue;
+    // The container is still sliding or scaling in: judge the text on a later frame.
+    if (!box || boxMoving) continue;
     if (tb.left < box.left - 2 || tb.right > box.right + 2 || tb.top > box.top + 2 || tb.bottom < box.bottom - 2) {
       overflow.push({ id: s.id, name: api.getNiceName(s.id), frame: tf });
       break;
     }
-    // Cramped: side padding under half the text height (a pill whose text touches its ends).
-    // Single letters (from cav.glyphs) are parts of a word, so their own padding means nothing.
-    var str = String(t && t.text !== undefined ? t.text : t);
-    if (str.length > 1 && Math.min(tb.left - box.left, box.right - tb.right) < 0.5 * tb.height) {
+    // Cramped: side padding under half the text height on a wide shape (a pill or button whose
+    // text touches its ends). Round or square shapes such as dials are left alone.
+    if (box.width >= 1.8 * box.height && Math.min(tb.left - box.left, box.right - tb.right) < 0.5 * tb.height) {
       overflow.push({ id: s.id, name: api.getNiceName(s.id), frame: tf, cramped: true });
       break;
     }
   }
 });
 api.setFrame(start);
-return { start: start, end: end, fps: api.get(comp, 'fps'), height: res.y, segs: segs, texts: texts, late: late.slice(0, 20), off: off.slice(0, 20), clipped: clipped.slice(0, 20), tight: tight.slice(0, 20), overflow: overflow.slice(0, 20), layers: ids.length };`
+return { start: start, end: end, fps: api.get(comp, 'fps'), height: res.y, segs: segs, texts: texts, late: late.slice(0, 20), off: off.slice(0, 20), clipped: clipped.slice(0, 20), tight: tight.slice(0, 20), overflow: overflow.slice(0, 20), hidden: hidden.slice(0, 20), layers: ids.length };`
 
 type checkData struct {
 	Start  int          `json:"start"`
@@ -256,6 +319,12 @@ type checkData struct {
 		Frame   int    `json:"frame"`
 		Cramped bool   `json:"cramped"`
 	} `json:"overflow"`
+	Hidden []struct {
+		ID    string `json:"id"`
+		Name  string `json:"name"`
+		Frame int    `json:"frame"`
+		By    string `json:"by"`
+	} `json:"hidden"`
 	Layers int `json:"layers"`
 }
 
@@ -340,6 +409,11 @@ func cmdSceneCheck(a *app, args []string) error {
 		}
 		out = append(out, finding{Kind: "overflow", Layer: o.ID, Name: o.Name, Detail: detail,
 			Fix: "make the shape wider than the text by at least one text height, or make the text smaller"})
+	}
+	for _, h := range d.Hidden {
+		out = append(out, finding{Kind: "hidden", Layer: h.ID, Name: h.Name,
+			Detail: fmt.Sprintf("text is partly hidden behind %q, which is drawn above it, at frame %d", h.By, h.Frame),
+			Fix:    "put the text (and the button or card it belongs to) inside that shape's group with parent:, or move it clear; check the stacking with cav tree"})
 	}
 	for _, l := range d.Late {
 		out = append(out, finding{Kind: "keys", Layer: l.ID, Name: l.Name,
