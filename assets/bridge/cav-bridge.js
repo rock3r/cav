@@ -1,4 +1,4 @@
-// cav-bridge VERSION 0.3.0
+// cav-bridge VERSION 0.4.0
 //
 // HTTP request/response bridge between the `cav` CLI and Cavalry.
 // Runs inside Cavalry as a UI script: Scripts menu -> cav-bridge.
@@ -26,8 +26,14 @@
 //   The result is also written to ~/.cav/jobs/<id>.json, so a client that was not polling
 //   (or that polled after another job replaced the GET payload) can still read it.
 //   Job code runs inside a function, so `return` sends a value back.
+//
+// Isolation: every UI script in Cavalry shares one global scope. The bridge therefore keeps
+// all its state inside one function and adds nothing global except the `cav` helpers, which
+// exist only while a cav job runs. Other scripts (such as the cavalry-mcp bridge) see an
+// unchanged `api` object and no cav names.
 
-var BRIDGE_VERSION = '0.3.0'
+;(function () {
+var BRIDGE_VERSION = '0.4.0'
 var MIN_CAVALRY_VERSION = '2.4.0'
 var HOST = '127.0.0.1'
 var PORT = 8723
@@ -101,17 +107,17 @@ function describeArgs(args) {
 }
 
 // Errors thrown by Cavalry's native functions have no stack, so the caller cannot see
-// which call failed or on which line. Wrap every api function once: a native error is
-// thrown again as a JavaScript error that names the call and carries the caller's stack.
+// which call failed or on which line. During a cav job each api function is replaced by a
+// wrapper that throws a JavaScript error naming the call and carrying the caller's stack.
+// The originals are put back when the job ends, so other scripts see the plain api.
 function wrapApi() {
-	if (api.__cavWrapped) {
-		return
-	}
+	var saved = {}
 	for (var name in api) {
 		var fn = api[name]
 		if (typeof fn !== 'function' || /^[A-Z]/.test(name)) {
 			continue
 		}
+		saved[name] = fn
 		;(function (name, fn) {
 			api[name] = function () {
 				try {
@@ -125,9 +131,12 @@ function wrapApi() {
 			}
 		})(name, fn)
 	}
-	api.__cavWrapped = true
+	return function unwrap() {
+		for (var name in saved) {
+			api[name] = saved[name]
+		}
+	}
 }
-wrapApi()
 
 function captureConsole(logs) {
 	var original = {}
@@ -156,17 +165,23 @@ function captureConsole(logs) {
 	}
 }
 
+// The helper library (global `cav`) is kept here between jobs and put on globalThis only
+// while a cav job runs.
+var helpers = null
+var helpersVersion = ''
 function preload(request, logs) {
 	if (!request.preload) {
 		return null
 	}
 	var want = String(request.preloadVersion || '')
-	if (globalThis.__cavPreloadVersion === want && want !== '') {
+	if (helpers && helpersVersion === want && want !== '') {
+		globalThis.cav = helpers
 		return null
 	}
 	var src = String(api.readFromFile(String(request.preload)))
-	;(0, eval)(src) // indirect eval: runs in global scope
-	globalThis.__cavPreloadVersion = want
+	;(0, eval)(src) // indirect eval: runs in global scope and defines globalThis.cav
+	helpers = globalThis.cav
+	helpersVersion = want
 	logs.push({ level: 'info', message: 'cav: loaded helpers ' + want })
 	return want
 }
@@ -195,13 +210,16 @@ function restrict(on) {
 function execute(request) {
 	var logs = []
 	var restore = captureConsole(logs)
+	var unwrap = wrapApi()
 	var unrestrict = restrict(!!request.restricted)
 	var started = Date.now()
 	var response = { type: 'result', id: String(request.id), ok: true, value: null, logs: logs, error: null }
 	try {
 		preload(request, logs)
 		var code = request.file ? String(api.readFromFile(String(request.file))) : String(request.code)
-		response.value = jsonSafe(eval('(function() {\n' + code + '\n})()'))
+		// Indirect eval: job code runs in global scope and cannot see the bridge's variables.
+		var job = (0, eval)('(function() {\n' + code + '\n})')
+		response.value = jsonSafe(job())
 	} catch (err) {
 		response.ok = false
 		response.error = {
@@ -211,7 +229,11 @@ function execute(request) {
 		}
 	} finally {
 		unrestrict()
+		unwrap()
 		restore()
+		if (helpers && globalThis.cav === helpers) {
+			delete globalThis.cav
+		}
 	}
 	response.ms = Date.now() - started
 	return response
@@ -311,3 +333,4 @@ ui.add(layout)
 ui.show()
 
 console.log('cav-bridge v' + BRIDGE_VERSION + ' listening on ' + HOST + ':' + PORT)
+})()
