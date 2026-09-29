@@ -14,7 +14,8 @@ is always there. A CLI costs the agent no context until it asks for help.
 
 Documentation: the [user guide](docs/user-guide.md) covers installing, the workflow, music
 sync, agents and troubleshooting. [Architecture](docs/architecture.md) explains how the parts
-fit together, for people who change the code.
+fit together, for people who change the code, and [evaluation](docs/evaluation.md) describes
+how we measure it.
 
 ## Install
 
