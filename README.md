@@ -12,6 +12,10 @@ motion design app. There are three parts:
 There is no MCP server. Driving Cavalry always needs a desktop with Cavalry running, so a shell
 is always there. A CLI costs the agent no context until it asks for help.
 
+Documentation: the [user guide](docs/user-guide.md) covers installing, the workflow, music
+sync, agents and troubleshooting. [Architecture](docs/architecture.md) explains how the parts
+fit together, for people who change the code.
+
 ## Install
 
 **1. The CLI.** macOS:
