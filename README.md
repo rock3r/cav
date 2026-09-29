@@ -103,45 +103,51 @@ Cavalry). The skill's `references/` folder lists the verified traps and recipes.
 
 ## Evaluation
 
-We measured the skill on 8 motion-design tasks: a logo sting, a kinetic title, a lower third,
-a bar chart, a UI walkthrough, a beat-synced loop, a transition pack and a promo cut to music.
-Each run starts from a new scene. The model is GLM-5.3 Flash (`zai/glm-5.3-flash`, run through
-the pi agent) with a 30-minute limit. Three arms get the same task text:
+We measured the toolkit on 11 motion-design tasks with GLM-5.3 Flash (`zai/glm-5.3-flash`, run
+through the pi agent, 30-minute limit per run, one new scene per run). Eight tasks were used
+while we improved the toolkit: a logo sting, a kinetic title, a lower third, a bar chart, a UI
+walkthrough, a beat-synced loop, a transition pack and a promo cut to music. Three tasks were
+written later and never used for tuning (held out): a square quote card, a map route and a
+countdown to music.
 
 | Arm | What the agent gets |
 |---|---|
 | plugin | the `cav` CLI and this skill |
-| baseline | the `cav` CLI only (it can read `cav help`) |
+| baseline | the `cav` CLI only (it can read `cav help` and `cav helpers`) |
 | cavalry-mcp | the upstream cavalry-mcp server |
 
-A run passes when a script confirms the scene was saved and the video has the right size,
-frame rate, duration, audio, frame coverage, motion, easing and (for music tasks) beat sync.
-We also graded every contact sheet by eye (1 to 5).
+A script checks each run: the scene was saved, and the video has the right size, frame rate,
+duration, audio, frame coverage, motion, easing and (for music) beat sync. For quality, a
+separate model (Claude Sonnet) compared the two arms' contact sheets without knowing which arm
+made which. It judged every pair twice, the second time with the order swapped.
 
-Results of iteration 6, the last one with all three arms on the same code (measured):
+Final comparison, same code for both arms (measured):
 
-| Arm | Passed | Mean grade | Mean time | Mean tokens | Script errors |
+| Arm | Automatic checks passed | Blind wins | Rubric claims met | Mean time | Mean tokens |
 |---|---|---|---|---|---|
-| plugin | 6 of 8 | 3.7 | 820 s | 0.70 M | 1 |
-| baseline | 5 of 8 | 3.6 | 1149 s | 1.54 M | 9 |
-| cavalry-mcp | 1 of 8 | 2.5 | 1494 s | 3.88 M | 0 |
+| plugin | 12 of 14 runs | 10 | 118 of 130 | 833 s | 1.17 M |
+| baseline | 14 of 14 runs | 16 | 111 of 130 | 864 s | 1.01 M |
 
-The plugin arm of iteration 7 passed 7 of 8 tasks (mean grade 3.7, 742 s, 0.75 M tokens).
+The upstream cavalry-mcp server passed 1 of 8 tasks in the last run that included it (4
+timeouts, mean 1494 s, 3.9 M tokens).
 
 What this shows:
 
-- The skill makes the agent faster and cheaper: about 30 % less time and half the tokens of the
-  baseline, with far fewer script errors.
-- The CLI alone already helps a lot: the baseline passes most tasks. The skill mostly adds
-  polish (easing, beat sync, readable sizes, living holds) and fewer mistakes.
-- Every failed run in the last iterations was a 30-minute timeout. In each one the model spent
-  9 to 10 minutes planning before its first command. Slow scripts in heavy scenes did the rest.
-- Each cell is one run per task, so a single task can flip between iterations. Treat
-  differences of one task as noise.
-- The scoring rules changed between the early iterations, so compare arms inside one
-  iteration, not across iterations.
+- The CLI does most of the work. With `cav help`, the helper library and `cav check`, a
+  mid-size model produces clean, animated, correct videos without the skill.
+- The skill did not make the videos better in the final blind comparison. It won the repeated
+  tasks (5 to 1) but lost the first pass (5 to 15), including all held-out tasks. Earlier
+  iterations showed it using fewer tokens and making fewer script errors; the final run did not
+  confirm that.
+- Both plugin failures were a 30-minute timeout on the beat loop and a missed beat-sync check.
+  In timeouts the model spent 9 to 10 minutes planning before its first command.
+- The judge's two passes agreed on 9 of 13 pairs, and single runs flip between pass and fail.
+  Differences of one or two tasks are noise.
+- Free models: Nemotron 3.5 Lightning (OpenRouter, free) passed 0 of 8 with the plugin: it
+  ignored the review loop and stacked everything in the middle of the frame. Space Bunny could
+  not be measured: the free endpoint returned empty responses.
 
-## Credits
+## Credits## Credits
 
 - [cavalry-mcp](https://github.com/m18h/cavalry-mcp) by Michael Essandoh (MIT): the bridge script
   is derived from its bridge, and the token handshake, API reference and docs search ideas come
