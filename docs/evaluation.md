@@ -72,7 +72,7 @@ gate passes.
 | audio | music tasks have an audio stream |
 | coverage | at least 60 % of sampled frames are not blank |
 | motion | at least 30 % of frames differ from the previous one (on a 160×90 copy), and no still stretch is longer than max(2.5 s, 40 % of the length); some tasks override these |
-| eased | at least half of the keyed moves longer than 4 frames have an easing; constant motion (a move of 90 frames or more, or 3 or more linear moves in a row) does not count either way |
+| eased | at least half of the keyed moves of 4 frames or more have an easing; constant motion (a move of 90 frames or more, or 3 or more linear moves in a row) does not count either way |
 | beatSync | at least 40 % of visual hits land on a beat and at least 75 % of downbeats get a hit |
 
 The scorer also records time, tokens, turns, script errors and the `cav` commands used.
