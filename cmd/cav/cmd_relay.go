@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/rock3r/cavalry-skill/internal/bridge"
@@ -63,20 +64,29 @@ func cmdRelay(a *app, args []string) error {
 		fmt.Fprintf(os.Stderr, "cav relay: watching %s (Ctrl+C to stop)\n", dir)
 	}
 	handled := 0
+	var wg sync.WaitGroup
 	for {
 		reqs, _ := filepath.Glob(filepath.Join(dir, "*.req.json"))
 		cmds, _ := filepath.Glob(filepath.Join(dir, "*.cmd.json"))
 		all := append(reqs, cmds...)
 		sort.Slice(all, func(i, j int) bool { return filepath.Base(all[i]) < filepath.Base(all[j]) })
+		// Each request runs on its own, so one slow command (a long `cav job wait`) cannot hold
+		// up the others. Cavalry still runs scripts one at a time; each request is renamed
+		// before it runs, so two workers never take the same one.
 		for _, p := range all {
-			if strings.HasSuffix(p, ".cmd.json") {
-				relayCommand(p, *restricted, *timeout)
-			} else {
-				relayOne(c, p, *restricted, *timeout)
-			}
+			wg.Add(1)
+			go func(p string) {
+				defer wg.Done()
+				if strings.HasSuffix(p, ".cmd.json") {
+					relayCommand(p, *restricted, *timeout)
+				} else {
+					relayOne(c, p, *restricted, *timeout)
+				}
+			}(p)
 			handled++
 		}
 		if *once {
+			wg.Wait()
 			a.emit(map[string]any{"handled": handled}, func() { fmt.Printf("relayed %d jobs\n", handled) })
 			return nil
 		}

@@ -92,6 +92,8 @@ var (
 	ErrUnavailable = errors.New("cannot reach cav-bridge")
 	// ErrStillRunning means the wait timed out while the job was queued or running.
 	ErrStillRunning = errors.New("job still running")
+	// ErrUnknownJob means no job with that id is queued, running or stored.
+	ErrUnknownJob = errors.New("unknown job")
 	// ErrLost means the bridge stopped answering while the job was in flight.
 	ErrLost = errors.New("bridge stopped answering while the job was in flight")
 )
@@ -213,7 +215,9 @@ func (c *Client) Wait(ctx context.Context, id string, timeout time.Duration, onS
 		}
 	}
 	jobFile := filepath.Join(config.JobsDir(), id+".json")
+	scriptFile := filepath.Join(config.JobsDir(), id+".js")
 	var lastSeen = time.Now()
+	var idleSince time.Time
 	warnedBusy := false
 	for i := 0; ; i++ {
 		if r, ok := readResultFile(jobFile); ok {
@@ -228,6 +232,17 @@ func (c *Client) Wait(ctx context.Context, id string, timeout time.Duration, onS
 				ID   string `json:"id"`
 			}
 			_ = json.Unmarshal(payload, &head)
+			// A job that is not running, has no script waiting and no stored result is unknown
+			// (a wrong id, or a result pruned after a day). Say so instead of waiting forever.
+			if head.ID != id && head.Type != "running" && !exists(scriptFile) && !exists(jobFile) {
+				if idleSince.IsZero() {
+					idleSince = time.Now()
+				} else if time.Since(idleSince) > 5*time.Second {
+					return nil, fmt.Errorf("%w: job %s is not running and has no stored result (check the id; results are kept for a day)", ErrUnknownJob, id)
+				}
+			} else {
+				idleSince = time.Time{}
+			}
 			if head.ID == id {
 				switch head.Type {
 				case "running":
@@ -337,6 +352,18 @@ func Cleanup(id string) {
 	if os.Getenv("CAV_KEEP_JOBS") != "" {
 		return
 	}
-	_ = os.Remove(filepath.Join(config.JobsDir(), id+".json"))
+	// The result stays, so a later `cav job wait <id>` still finds it; only the script goes.
+	// Results older than a day are pruned.
 	_ = os.Remove(filepath.Join(config.JobsDir(), id+".js"))
+	old, _ := filepath.Glob(filepath.Join(config.JobsDir(), "*.json"))
+	for _, f := range old {
+		if st, err := os.Stat(f); err == nil && time.Since(st.ModTime()) > 24*time.Hour {
+			_ = os.Remove(f)
+		}
+	}
+}
+
+func exists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
