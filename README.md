@@ -128,8 +128,11 @@ Final comparison, same code for both arms (measured):
 | plugin | 12 of 14 runs | 10 | 118 of 130 | 833 s | 1.17 M |
 | baseline | 14 of 14 runs | 16 | 111 of 130 | 864 s | 1.01 M |
 
-The upstream cavalry-mcp server passed 1 of 8 tasks in the last run that included it (4
-timeouts, mean 1494 s, 3.9 M tokens).
+The upstream cavalry-mcp server passed 1 of 8 tasks in the last run that included it, but
+that number is not valid. Until cav-bridge 0.4.0, cav-bridge and the cavalry-mcp bridge
+shared global names inside Cavalry, so with both open, cavalry-mcp jobs ran through
+cav-bridge code. A clean rerun is pending. The plugin and baseline numbers are not affected:
+their jobs always ran through cav-bridge.
 
 What this shows:
 
@@ -162,6 +165,7 @@ What this shows:
 ```bash
 go test ./...                    # Go tests (search, beats, packaging contracts)
 node --test assets/helpers/test  # helper unit tests
+node --test assets/bridge/test   # the bridge adds no globals and restores api after a job
 cav scene new --force --width 1280 --height 720 --fps 30 --seconds 3   # throwaway scene!
 cav run assets/helpers/test/live.js                                    # live helper tests
 claude plugin validate . --strict

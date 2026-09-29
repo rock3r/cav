@@ -3,6 +3,7 @@
   "name": "cavalry-skill-dev",
   "description": "Development scripts only. The cav CLI is written in Go.",
   "scripts": {
-    "test:helpers": "node --test assets/helpers/test"
+    "test:helpers": "node --test assets/helpers/test",
+    "test:bridge": "node --test assets/bridge/test"
   }
 }
