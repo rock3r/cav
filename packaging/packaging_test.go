@@ -41,11 +41,19 @@ func TestManifestsAgree(t *testing.T) {
 	if ap["$schema"] != "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json" {
 		t.Errorf("Agent Plugins manifest needs the 1.0.0 $schema")
 	}
-	// Agent Plugins has a closed field list.
-	allowed := map[string]bool{"$schema": true, "name": true, "version": true, "description": true, "author": true, "homepage": true, "repository": true, "license": true, "keywords": true}
+	// Agent Plugins has a closed field list; client-specific data goes under "extensions".
+	allowed := map[string]bool{"$schema": true, "name": true, "version": true, "description": true, "author": true, "homepage": true, "repository": true, "license": true, "keywords": true, "extensions": true}
 	for k := range ap {
 		if !allowed[k] {
 			t.Errorf("plugin.json field %q is not in the Agent Plugins 1.0.0 field list", k)
+		}
+	}
+	if ext, ok := ap["extensions"]; ok {
+		m, _ := ext.(map[string]any)
+		for ns, v := range m {
+			if _, obj := v.(map[string]any); !obj || !strings.Contains(ns, ".") {
+				t.Errorf("extensions.%s must be an object under a reverse-domain key", ns)
+			}
 		}
 	}
 	for _, f := range []string{"name", "version", "description", "license"} {
@@ -117,10 +125,20 @@ func TestInstallScriptCopiesMatch(t *testing.T) {
 // Codex rules from developers.openai.com/plugins/deploy/submission (checked 2026-09-30).
 func TestCodexInterface(t *testing.T) {
 	r := root(t)
-	cx := readJSON(t, filepath.Join(r, "plugins/cavalry/.codex-plugin/plugin.json"))
-	ui, _ := cx["interface"].(map[string]any)
+	// OpenAI reads extensions."com.openai" in the root plugin.json. Older Codex versions read
+	// .codex-plugin/plugin.json instead, so it keeps an identical copy of the interface.
+	ap := readJSON(t, filepath.Join(r, "plugins/cavalry/plugin.json"))
+	ext, _ := ap["extensions"].(map[string]any)
+	oa, _ := ext["com.openai"].(map[string]any)
+	ui, _ := oa["interface"].(map[string]any)
 	if ui == nil {
-		t.Fatal("codex manifest has no interface")
+		t.Fatal(`plugin.json has no extensions."com.openai".interface`)
+	}
+	cx := readJSON(t, filepath.Join(r, "plugins/cavalry/.codex-plugin/plugin.json"))
+	a, _ := json.Marshal(ui)
+	b, _ := json.Marshal(cx["interface"])
+	if !bytes.Equal(a, b) {
+		t.Errorf(".codex-plugin/plugin.json interface differs from plugin.json extensions.\"com.openai\".interface")
 	}
 	categories := map[string]bool{"Productivity": true, "Creativity": true, "Developer Tools": true, "Business & Operations": true,
 		"Data & Analytics": true, "Communication": true, "Education & Research": true, "Security": true, "Finance": true,
