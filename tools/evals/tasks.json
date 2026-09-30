@@ -1,0 +1,214 @@
+{
+ "contract": "Deliverables (required): save the Cavalry scene as out/scene.cv and render the final video as out/final.mp4 ({width}x{height}). Work only in this folder. Cavalry is already open with an empty scene; do not open or modify any other scene. When you are finished, reply with a short summary of what you built.",
+ "tasks": [
+  {
+   "id": "logo-sting",
+   "prompt": "Make a 4-second logo sting for a fictional space-tech startup called ORBIT, at 60 fps. Build the logo mark yourself from shapes (for example a planet with a ring and a small moon), then reveal it with a satisfying build-up and a single impact moment, and finish on the full logo with the word ORBIT and the tagline 'launch faster'. Dark background, one accent colour.",
+   "fixtures": [],
+   "expect": {
+    "seconds": 4,
+    "fps": 60,
+    "audio": false
+   },
+   "rubric": [
+    "A recognisable logo mark built from shapes (not just text) is visible at the end.",
+    "The word ORBIT and the tagline 'launch faster' are readable on the final frames.",
+    "There is a clear build-up and one impact moment (flash, ring, burst, shake or similar).",
+    "Moves are eased (anticipation or overshoot visible), not linear slides.",
+    "The final frame is a clean, centred, well-spaced lockup."
+   ]
+  },
+  {
+   "id": "kinetic-title",
+   "prompt": "Create a 5-second kinetic typography title that says MAKE IT MOVE, at 60 fps. The letters or words should animate in with energy and rhythm (not everything at once), hold so it can be read, then exit with style. Bold type, strong contrast.",
+   "fixtures": [],
+   "expect": {
+    "seconds": 5,
+    "fps": 60,
+    "audio": false
+   },
+   "rubric": [
+    "The full phrase MAKE IT MOVE is readable during a hold.",
+    "Letters or words enter at different times (staggered), not all at once.",
+    "Entrances and exits use easing with some overshoot or anticipation.",
+    "There is a distinct exit at the end.",
+    "Typography is bold, well sized and centred; nothing clipped off-screen."
+   ]
+  },
+  {
+   "id": "lower-third",
+   "prompt": "Design an animated lower third for a video interview, 6 seconds at 60 fps. Name: Maya Chen. Title: Head of Product, Lumen. It should animate in, hold for about 3 seconds, and animate out. Place it in the lower-left area over a plain dark background (the editor will key it later). Clean, modern, with one accent colour.",
+   "fixtures": [],
+   "expect": {
+    "seconds": 6,
+    "fps": 60,
+    "audio": false,
+    "minMotion": 0.04,
+    "maxStill": 4.5
+   },
+   "rubric": [
+    "Name and title are both readable and correctly spelled during the hold.",
+    "It sits in the lower-left area, inside the title-safe margin.",
+    "It animates in and animates out (both visible in the video).",
+    "Elements are layered or staggered (for example a bar leads, text follows).",
+    "The design is clean: consistent alignment and hierarchy (name larger than title)."
+   ]
+  },
+  {
+   "id": "bar-chart",
+   "prompt": "Turn the data in fixtures/revenue.csv into a 7-second animated bar chart at 60 fps titled 'Revenue grows every year' (values are in millions of USD). Bars should grow in one after another, each with its quarter label and its value, and the last (biggest) bar should be highlighted at the end.",
+   "fixtures": [
+    "revenue.csv"
+   ],
+   "expect": {
+    "seconds": 7,
+    "fps": 60,
+    "audio": false
+   },
+   "rubric": [
+    "Six bars with heights proportional to the CSV values.",
+    "Each bar has its quarter label and a value label; the title is visible.",
+    "Bars grow from a common baseline one after another (staggered).",
+    "The last bar (Q2 2026, 9.6) is visibly highlighted at the end.",
+    "Layout is balanced: chart centred, labels not overlapping, nothing off-screen."
+   ]
+  },
+  {
+   "id": "ui-walkthrough",
+   "prompt": "fixtures/app.png is a screenshot of a project-management app called Lumen. Make an 8-second, 60 fps product walkthrough: rebuild the main parts of this screen as real vector elements (sidebar, header with the '+ New project' button, and the four project cards with their progress bars), animate them in, then show a cursor moving to '+ New project' and clicking it, and a 'New project' dialog appearing. Do not just place the screenshot as an image.",
+   "fixtures": [
+    "app.png"
+   ],
+   "expect": {
+    "seconds": 8,
+    "fps": 60,
+    "audio": false
+   },
+   "rubric": [
+    "The UI is rebuilt from shapes and text (sidebar, header, button, four cards with progress bars) and resembles the screenshot.",
+    "UI parts animate in (staggered), not all appear at once.",
+    "A cursor moves to the '+ New project' button and a click is visible (press or highlight).",
+    "A 'New project' dialog appears after the click.",
+    "Readable text; proportions and colours close to the screenshot."
+   ]
+  },
+  {
+   "id": "beat-loop",
+   "prompt": "fixtures/loop128.wav is an 8-bar electronic loop. Make an abstract motion graphics visual for it (geometric shapes, bold colours, 60 fps) that is tightly synced to the music: something clearly hits on every downbeat, smaller accents on the other beats, and the biggest moment on the drop (listen to the structure: there is a short silence right before it). Render the final video with the audio.",
+   "fixtures": [
+    "loop128.wav"
+   ],
+   "expect": {
+    "seconds": 15.0,
+    "fps": 60,
+    "audio": true,
+    "music": "loop128.wav"
+   },
+   "rubric": [
+    "Visual hits land on the beat grid (downbeats clearly marked).",
+    "Smaller accents on the other beats; the picture never sits still for long.",
+    "The drop (bar 5) is the biggest visual moment, with a calm or collapse just before it.",
+    "Composition is bold and abstract with a consistent palette.",
+    "The video contains the audio track."
+   ]
+  },
+  {
+   "id": "transition-pack",
+   "prompt": "Make an 8-second, 60 fps showcase of three different transitions. Show four full-screen title cards in sequence, each with its own background colour and a big word: ONE, TWO, THREE, FOUR. Go from card to card with three different transition styles (for example a wipe, a zoom-through, and a flash or push). Each transition should feel smooth and intentional.",
+   "fixtures": [],
+   "expect": {
+    "seconds": 8,
+    "fps": 60,
+    "audio": false
+   },
+   "rubric": [
+    "All four cards (ONE, TWO, THREE, FOUR) appear in order with distinct colours.",
+    "Three transitions are used and they are visibly different styles.",
+    "Transitions are eased and smooth (no pops or blank frames).",
+    "Each card holds long enough to read its word.",
+    "No visual glitches: no gaps showing the wrong background, nothing mispositioned."
+   ]
+  },
+  {
+   "id": "promo-music",
+   "prompt": "Make a ~16-second promo video at 60 fps for a fictional app called Tempo, whose tagline is 'plan your week in minutes'. Use the music in fixtures/promo100.wav and cut and animate to it. Structure: a hook (the problem: 'too many tasks?'), three quick feature beats ('smart scheduling', 'focus mode', 'weekly review'), and a final logo with the tagline. Cuts and key hits should land on the music's downbeats. Render with the audio.",
+   "fixtures": [
+    "promo100.wav"
+   ],
+   "expect": {
+    "seconds": 15.9,
+    "fps": 60,
+    "audio": true,
+    "music": "promo100.wav"
+   },
+   "rubric": [
+    "All the copy appears: hook, three features, final Tempo logo and tagline.",
+    "Section changes and key hits land on the music's downbeats.",
+    "Each section has motion (entrances, emphasis), consistent visual style.",
+    "The final logo lockup is clean and holds to the end.",
+    "The video contains the audio track."
+   ]
+  },
+  {
+   "id": "quote-card",
+   "heldout": true,
+   "prompt": "Make an 8-second animated quote card for social media: square 1080x1080 at 30 fps. Quote: \"Simplicity is the ultimate sophistication.\" Attribution: Leonardo da Vinci. The quote builds in phrase by phrase, the attribution follows, it holds long enough to read, and ends on a finished frame. Warm light background, dark text, one accent colour.",
+   "fixtures": [],
+   "expect": {
+    "seconds": 8,
+    "fps": 30,
+    "audio": false,
+    "width": 1080,
+    "height": 1080,
+    "maxStill": 4.5
+   },
+   "rubric": [
+    "The full quote and the attribution are readable, correctly spelled and inside the frame with a clear margin.",
+    "The quote appears phrase by phrase (not all at once), then the attribution.",
+    "The finished card holds long enough to read the whole quote (about 3 seconds or more).",
+    "Clear hierarchy: the quote is large, the attribution smaller; lines break at natural phrase boundaries.",
+    "One accent colour used with restraint on a warm light background."
+   ]
+  },
+  {
+   "id": "map-route",
+   "heldout": true,
+   "prompt": "Make a 10-second route animation at 60 fps for a travel app. Build a simple stylised map from shapes (a coastline or land mass, a few roads). Three stops: Lisbon, Porto and Madrid. A route line draws from Lisbon to Porto to Madrid while a marker travels along it; each city gets a pin and a label when the marker arrives. End with the full route visible and a title 'Iberia in 5 days'. Dark background.",
+   "fixtures": [],
+   "expect": {
+    "seconds": 10,
+    "fps": 60,
+    "audio": false,
+    "minMotion": 0.1
+   },
+   "rubric": [
+    "A map-like background is built from shapes (land and some roads), not an empty frame.",
+    "The route line visibly draws on from Lisbon to Porto to Madrid, in that order.",
+    "A marker moves along the route and each city pin and label appears as the marker arrives.",
+    "The final frame shows the whole route, all three labels and the title 'Iberia in 5 days', all readable.",
+    "Motion is smooth and eased; the camera or map may move, but nothing important leaves the frame."
+   ]
+  },
+  {
+   "id": "countdown",
+   "heldout": true,
+   "prompt": "fixtures/count90.wav is a 4-bar track at 90 BPM. Make a countdown video for it at 30 fps: the numbers 10 down to 1 appear one per beat, starting on the third beat of the track, and a big 'GO' lands on the downbeat of bar 4 (there is a short silence just before it). Bold, high-contrast design. Render the final video with the audio.",
+   "fixtures": [
+    "count90.wav"
+   ],
+   "expect": {
+    "seconds": 12.2,
+    "fps": 30,
+    "audio": true,
+    "music": "count90.wav"
+   },
+   "rubric": [
+    "The numbers 10 to 1 appear in order, one per beat, each clearly readable.",
+    "Each number changes on the beat (not between beats).",
+    "'GO' lands on the downbeat of bar 4 and is the biggest moment, after a short calm.",
+    "The design is bold and high-contrast with a consistent style for all numbers.",
+    "The video contains the audio track."
+   ]
+  }
+ ]
+}

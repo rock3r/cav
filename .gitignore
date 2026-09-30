@@ -2,3 +2,7 @@
 .DS_Store
 /bin/
 /dist/
+
+# Eval harness dependencies (install with npm ci in tools/evals/mcp)
+tools/evals/mcp/node_modules/
+__pycache__/
