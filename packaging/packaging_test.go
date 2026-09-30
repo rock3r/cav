@@ -113,3 +113,44 @@ func TestInstallScriptCopiesMatch(t *testing.T) {
 		}
 	}
 }
+
+// Codex rules from developers.openai.com/plugins/deploy/submission (checked 2026-09-30).
+func TestCodexInterface(t *testing.T) {
+	r := root(t)
+	cx := readJSON(t, filepath.Join(r, "plugins/cavalry/.codex-plugin/plugin.json"))
+	ui, _ := cx["interface"].(map[string]any)
+	if ui == nil {
+		t.Fatal("codex manifest has no interface")
+	}
+	categories := map[string]bool{"Productivity": true, "Creativity": true, "Developer Tools": true, "Business & Operations": true,
+		"Data & Analytics": true, "Communication": true, "Education & Research": true, "Security": true, "Finance": true,
+		"Healthcare": true, "Travel": true, "Entertainment": true, "Other": true}
+	if c, _ := ui["category"].(string); !categories[c] {
+		t.Errorf("interface.category %q is not an allowed Codex category", c)
+	}
+	for _, f := range []string{"displayName", "shortDescription", "longDescription", "developerName", "capabilities", "composerIcon", "logo"} {
+		if _, ok := ui[f]; !ok {
+			t.Errorf("interface.%s is required for Codex", f)
+		}
+	}
+	if s, _ := ui["shortDescription"].(string); len(s) > 30 {
+		t.Errorf("interface.shortDescription is %d characters; the directory allows 30", len(s))
+	}
+	for _, f := range []string{"composerIcon", "logo"} {
+		p, _ := ui[f].(string)
+		if !strings.HasPrefix(p, "./assets/") {
+			t.Errorf("interface.%s must point under ./assets/, got %q", f, p)
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(r, "plugins/cavalry", p)); err != nil {
+			t.Errorf("interface.%s: %v", f, err)
+		}
+	}
+	mk := readJSON(t, filepath.Join(r, ".agents/plugins/marketplace.json"))
+	for _, e := range mk["plugins"].([]any) {
+		entry := e.(map[string]any)
+		if c, _ := entry["category"].(string); !categories[c] {
+			t.Errorf("marketplace entry %v: category %q is not an allowed Codex category", entry["name"], c)
+		}
+	}
+}
