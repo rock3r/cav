@@ -298,8 +298,8 @@ Both searches use BM25 over tokens with camelCase splitting and light stemming
 | Command | What it covers |
 |---|---|
 | `go test ./...` | Search, beat detection, `cav check` still-gap logic, helper-name hints, packaging contracts (manifests agree, skill frontmatter, installer copies match). |
-| `node --test assets/helpers/test` | Helper library against a mocked `api`. |
-| `node --test assets/bridge/test` | Bridge isolation (see above). |
+| `node --test assets/helpers/test/*.test.js` | Helper library against a mocked `api`. |
+| `node --test assets/bridge/test/*.test.js` | Bridge isolation (see above). |
 | `cav run assets/helpers/test/live.js` | 65 checks inside a real Cavalry, in a throwaway scene. |
 | `cav run assets/helpers/test/live-native.js` | 14 checks of native-feature helpers inside Cavalry. |
 | `claude plugin validate . --strict` | Claude Code plugin and marketplace manifests. |

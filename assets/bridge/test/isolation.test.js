@@ -1,6 +1,6 @@
 // cav-bridge must not add global names and must leave `api` unchanged between jobs, in case
 // a Cavalry version runs UI scripts in one shared global scope (2.8.0 does not).
-// Run with: node --test assets/bridge/test
+// Run with: node --test assets/bridge/test/*.test.js
 const test = require('node:test')
 const assert = require('node:assert')
 const fs = require('node:fs')

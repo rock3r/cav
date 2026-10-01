@@ -170,8 +170,8 @@ What this shows:
 
 ```bash
 go test ./...                    # Go tests (search, beats, packaging contracts)
-node --test assets/helpers/test  # helper unit tests
-node --test assets/bridge/test   # the bridge adds no globals and restores api after a job
+node --test assets/helpers/test/*.test.js  # helper unit tests
+node --test assets/bridge/test/*.test.js   # the bridge adds no globals and restores api after a job
 cav scene new --force --width 1280 --height 720 --fps 30 --seconds 3   # throwaway scene!
 cav run assets/helpers/test/live.js                                    # live helper tests
 claude plugin validate . --strict
