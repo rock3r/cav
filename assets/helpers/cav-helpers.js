@@ -1073,6 +1073,8 @@
 	//@
 	//@ ## Inspecting
 	//@ cav.bbox(layer)   world bounding box {left, right, top, bottom, width, height, centre}
+	//@     In the run that created a layer, Cavalry 2.8.0 keeps a child's world box at its first
+	//@     value even when an animated parent moves; read it again in a later `cav run`.
 	//@ cav.keys(layer)   {attr: [frames]} for every animated attribute
 	cav.bbox = function (l) {
 		l = checkLayer(l, 'cav.bbox')

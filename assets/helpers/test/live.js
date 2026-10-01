@@ -129,8 +129,11 @@ cav.zoomThrough(rig, 0, 30, [200, 100], { scale: 8, ease: 'inOutCubic' })
 api.setFrame(30)
 var tb = api.getBoundingBox(tgt, true)
 check('zoomThrough centres target', near(tb.centre.x, 0, 2) && near(tb.centre.y, 0, 2), tb.centre)
+// Cavalry 2.8.0 keeps a child's world box at its first value in the job that created it, so
+// check the start from the rig's own values: world x = rig x + rig scale * 200.
 api.setFrame(0)
-check('zoomThrough starts in place', near(api.getBoundingBox(tgt, true).centre.x, 200, 1))
+var rp = api.get(rig, 'position'), rs = api.get(rig, 'scale')
+check('zoomThrough starts in place', near(rp.x + rs.x * 200, 200, 1) && near(rp.y + rs.y * 100, 100, 1), [rp, rs])
 
 // Filters, masks, create by type.
 var bl = cav.blur(t, 10)
