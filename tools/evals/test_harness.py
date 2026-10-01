@@ -16,6 +16,36 @@ import judge
 
 
 class RuntimeSnapshot(unittest.TestCase):
+    def test_mcp_model_remains_frozen_and_modified_cache_is_rejected(self):
+        with tempfile.TemporaryDirectory() as td:
+            data = Path(td)
+            source = data / 'runtime' / 'mcp-kb-prefetch'
+            source.mkdir(parents=True)
+            (source / 'model_optimized.onnx').write_bytes(b'original model')
+            snapshot = data / 'snapshots' / 'iterfresh'
+            snapshot.mkdir(parents=True)
+            with patch.object(batch, 'DATA', data):
+                cache = batch.stage_mcp_kb('fresh')
+                (source / 'model_optimized.onnx').write_bytes(b'new model')
+                self.assertEqual(batch.stage_mcp_kb('fresh'), cache)
+                self.assertEqual((cache / 'model_optimized.onnx').read_bytes(), b'original model')
+                (cache / 'model_optimized.onnx').write_bytes(b'modified model')
+                with self.assertRaises(SystemExit):
+                    batch.stage_mcp_kb('fresh')
+
+    def test_mcp_server_uses_offline_cache_without_changing_token_home(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            cache = root / 'cache'
+            cache.mkdir()
+            path = root / 'mcp.json'
+            run.write_mcp_config(path, pioneer=True, cache=cache)
+            server = json.loads(path.read_text())['mcpServers']['cavalry']
+            self.assertEqual(server['command'], '/usr/bin/env')
+            self.assertIn('FASTEMBED_CACHE_PATH=' + str(cache), server['args'])
+            self.assertIn('HF_HUB_OFFLINE=1', server['args'])
+            self.assertIn('HOME=' + str(Path.home()), server['args'])
+
     def test_helper_remains_frozen_when_installed_tool_changes(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

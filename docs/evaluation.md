@@ -21,6 +21,11 @@ build-brief hook tried to start its helper executable before the shell. A frozen
 read-only runtime folder fixed the Pi diagnostic. The next comparison is `pioneer-final4`.
 The minimal reproduction is tracked in [Pioneer issue #102](https://github.com/rock3r/pioneer/issues/102).
 
+The first MCP attempt in `pioneer-final4` reached the real bridge, but knowledge search
+could not load its embedding model. That attempt is preserved and excluded. The harness
+now uses a preloaded, frozen model cache with offline mode enabled. Both knowledge search
+and bridge status passed through the actual MCP server inside Pioneer before retrying.
+
 ## Summary
 
 We give the same motion-design brief to an agent under three conditions (arms), one run at a
@@ -136,18 +141,24 @@ it:
   plugin arm gets the cavalry skill explicitly.
 - When build-brief is installed, the batch freezes its executable in `runtime/bin/` and
   records its hash. The actor reads that folder and finds the helper on PATH. This lets
-  its existing shell hook work without access to Homebrew folders. Judges use the same copy.
+  its existing shell hook work without access to Homebrew folders. Pioneer judges use the
+  same copy; the requested Codex judge has hooks and tools disabled.
 - The cavalry-mcp arm loads pi-mcp-adapter with `--pi-extension`, may reach only port 8722
   (`--allow-loopback`), and starts the server through `/usr/bin/env HOME=<real home>`, because
   Pioneer gives the agent a private home folder and cavalry-mcp reads its token from the real
   one.
+- The MCP knowledge-search model is preloaded outside the actor sandbox. The batch copies
+  it to the iteration's `runtime/mcp-kb/` folder and records each file's SHA-256. The server
+  gets read access to that cache and runs with `HF_HUB_OFFLINE=1`. It needs no model-download
+  access inside the sandbox. Resuming checks the frozen files before running another task.
 - The agent's stdout and stderr go to files (`--stdout-file`, `--stderr-file`). Otherwise
   pi's JSON events, which carry every viewed image as base64, pass Pioneer's 4 MiB in-memory
   limit.
 - Scratch scenes and renders stay under `.plans/evals/scratch/`. Pioneer gives the actor
   access only to its work folder and the explicit runtime paths.
 - A harness error, a non-timeout controller exit, a scorer error, or an environment change
-  stops the batch. Inspect the logs before resuming. A timeout while the model works remains
+  stops the batch. Provider errors in the event stream also stop it, even if the controller
+  exits successfully. Inspect the logs before resuming. A timeout while the model works remains
   a task result and is scored.
 
 ## What went wrong, and what we changed
@@ -212,6 +223,7 @@ newer for `--via pioneer`. The MCP arm also needs a cavalry-mcp checkout (defaul
 go build -o bin/cav ./cmd/cav      # batch.py freezes this binary and the skill per iteration
 (cd tools/evals/mcp && npm ci)
 uv run --no-project --with numpy --with scipy --with pillow python tools/evals/make_fixtures.py
+FASTEMBED_CACHE_PATH="$PWD/.plans/evals/runtime/mcp-kb-prefetch" "${CAVALRY_MCP_DIR:-$HOME/src/cavalry-mcp}/.venv/bin/python" -c 'from cavalry_mcp.tools.knowledge import search; assert search("composition frame range", 1)'
 python3 tools/evals/batch.py --iter <name> --arms plugin,baseline,mcp --via pioneer
 python3 tools/evals/blind.py prepare --iter <name>
 python3 tools/evals/judge.py --iter <name> --via codex --judge-model gpt-6.1-sol

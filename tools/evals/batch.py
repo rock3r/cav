@@ -46,6 +46,29 @@ def freeze(iteration):
     print(f"froze {snap} at commit {commit}", flush=True)
 
 
+def stage_mcp_kb(iteration):
+    """Freeze the preloaded embedding model for the sandboxed MCP server."""
+    snap = DATA / 'snapshots' / f'iter{iteration}'
+    target = snap / 'runtime' / 'mcp-kb'
+    manifest_path = snap / 'runtime.json'
+    manifest = json.loads(manifest_path.read_text()) if manifest_path.exists() else {}
+    if 'mcp-kb' not in manifest:
+        source = DATA / 'runtime' / 'mcp-kb-prefetch'
+        if not any(source.rglob('*.onnx')):
+            sys.exit('MCP embedding cache is missing; preload it into ' + str(source))
+        if target.exists():
+            sys.exit('unrecorded MCP runtime exists: ' + str(target))
+        shutil.copytree(source, target)
+        manifest['mcp-kb'] = {'files': {str(p.relative_to(target)): hashlib.sha256(p.read_bytes()).hexdigest()
+                                      for p in sorted(target.rglob('*')) if p.is_file()}}
+        manifest_path.write_text(json.dumps(manifest, indent=2) + '\n')
+    for name, expected in manifest['mcp-kb']['files'].items():
+        path = target / name
+        if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected:
+            sys.exit('frozen MCP embedding cache changed: ' + str(path))
+    return target
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--iter", required=True)
@@ -57,6 +80,8 @@ def main():
     ap.add_argument("--via", default="pi", choices=["pi", "pioneer"])
     args = ap.parse_args()
     freeze(args.iter)
+    if args.via == 'pioneer' and 'mcp' in args.arms.split(','):
+        stage_mcp_kb(args.iter)
     spec = json.loads(TASKS.read_text())
     tasks = [t["id"] for t in spec["tasks"]]
     if args.tasks:

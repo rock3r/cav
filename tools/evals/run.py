@@ -130,7 +130,7 @@ def provider_error_count(events_path):
     return count
 
 
-def write_mcp_config(path, pioneer):
+def write_mcp_config(path, pioneer, cache=None):
     """The cavalry-mcp server config for the MCP arm.
 
     Directly, uv starts the server. Under Pioneer the agent has a private HOME, and
@@ -138,8 +138,11 @@ def write_mcp_config(path, pioneer):
     /usr/bin/env with the real HOME and from its own virtualenv (uv's cache is read-only).
     """
     if pioneer:
+        if cache is None or not cache.is_dir():
+            sys.exit('frozen MCP embedding cache is missing; prepare the iteration through batch.py')
         server = {"command": "/usr/bin/env",
-                  "args": ["HOME=" + str(Path.home()), str(CAVALRY_MCP_DIR / ".venv" / "bin" / "cavalry-mcp")]}
+                  "args": ["HOME=" + str(Path.home()), "FASTEMBED_CACHE_PATH=" + str(cache), "HF_HUB_OFFLINE=1",
+                           str(CAVALRY_MCP_DIR / ".venv" / "bin" / "cavalry-mcp")]}
     else:
         server = {"command": "uv", "args": ["run", "--directory", str(CAVALRY_MCP_DIR), "--extra", "kb", "cavalry-mcp"]}
     server.update({"directTools": True, "lifecycle": "eager"})
@@ -228,7 +231,7 @@ def main():
     if args.arm == "mcp":
         if not ADAPTER.exists():
             sys.exit("pi-mcp-adapter is not installed: run `npm ci` in " + str(MCP_TOOLS))
-        write_mcp_config(work / "mcp.json", pioneer=args.via == "pioneer")
+        write_mcp_config(work / "mcp.json", pioneer=args.via == "pioneer", cache=snap / 'runtime' / 'mcp-kb')
         # An explicit --mcp-config is not subject to the adapter's project-server trust gate.
         pi += ["-e", str(ADAPTER), "--mcp-config", str(work / "mcp.json")]
     pi += ["-p", prompt]
@@ -269,7 +272,7 @@ def main():
                 # ~/.cavalry-mcp-token, so write_mcp_config starts the server with the real HOME.
                 cmd += ["--allow-loopback", "127.0.0.1:8722", "--pi-extension", str(ADAPTER),
                         "--runtime-read", str(CAVALRY_MCP_DIR), "--runtime-read", str(home / ".local" / "share" / "uv"),
-                        "--runtime-read", str(home / ".cavalry-mcp-token")]
+                        "--runtime-read", str(home / ".cavalry-mcp-token"), "--runtime-read", str(snap / 'runtime' / 'mcp-kb')]
                 j = pi.index("-e")
                 pi = pi[:j] + ["--mcp-config", "mcp.json"] + pi[j + 4:]
             # Pioneer streams the actor's stdout and stderr to files (0.4.2+), so pi's JSON event
