@@ -47,15 +47,16 @@ def environment():
     cav-bridge on 8723 and copied the cav token over the cavalry-mcp token. Every later MCP
     run then went through cav-bridge. Each run compares this before and after.
     """
-    owners = {}
+    owners, listener_pids = {}, {}
     for port in BRIDGE_PORTS:
-        r = subprocess.run(["lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN", "-Fc"], capture_output=True, text=True)
+        r = subprocess.run(["lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN", "-Fpc"], capture_output=True, text=True)
         owners[str(port)] = sorted({l[1:] for l in r.stdout.splitlines() if l.startswith("c")})
+        listener_pids[str(port)] = sorted({int(l[1:]) for l in r.stdout.splitlines() if l.startswith("p") and l[1:].isdigit()})
     tokens = {}
     for t in TOKENS:
         if t.exists():
             tokens[t.name] = {"sha": hashlib.sha256(t.read_bytes().strip()).hexdigest()[:12], "mtime": t.stat().st_mtime}
-    return {"listeners": owners, "tokens": tokens}
+    return {"listeners": owners, "listenerPids": listener_pids, "tokens": tokens}
 
 
 def check_environment(env, arm):
@@ -66,6 +67,9 @@ def check_environment(env, arm):
             problems.append(f"port {port} is held by {owners}, not by Cavalry")
     if arm == "mcp" and not env["listeners"].get("8722"):
         problems.append("the cavalry-mcp bridge is not running (nothing listens on 8722)")
+    pids = env.get('listenerPids', {})
+    if pids.get('8722') and pids.get('8723') and pids['8722'] != pids['8723']:
+        problems.append('the two bridges are held by different Cavalry processes')
     shas = [t["sha"] for t in env["tokens"].values()]
     if len(shas) == 2 and shas[0] == shas[1]:
         problems.append("~/.cav/token and ~/.cavalry-mcp-token are the same, so each bridge accepts the other's jobs")

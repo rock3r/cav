@@ -160,6 +160,22 @@ class ProviderExtensions(unittest.TestCase):
         self.assertIn('--no-extensions', run.agent_command('model', 'medium', 'pi'))
 
 
+class BridgeProcesses(unittest.TestCase):
+    def test_restart_changes_environment_even_when_process_name_is_the_same(self):
+        with patch.object(run, 'TOKENS', ()), patch.object(run.subprocess, 'run') as execute:
+            execute.return_value = argparse.Namespace(stdout='p10\ncCavalry\n')
+            before = run.environment()
+            execute.return_value = argparse.Namespace(stdout='p20\ncCavalry\n')
+            after = run.environment()
+        self.assertEqual(before['listeners'], after['listeners'])
+        self.assertNotEqual(before, after)
+
+    def test_two_cavalry_instances_cannot_supply_separate_bridges(self):
+        environment = {'listeners': {'8722': ['Cavalry'], '8723': ['Cavalry']},
+                       'listenerPids': {'8722': [10], '8723': [20]}, 'tokens': {}}
+        self.assertIn('different Cavalry processes', ' '.join(run.check_environment(environment, 'mcp')))
+
+
 class BlindFolders(unittest.TestCase):
     def test_incremental_prepare_preserves_verdicts_and_rejects_changed_inputs(self):
         with tempfile.TemporaryDirectory() as td:

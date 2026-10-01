@@ -26,6 +26,11 @@ could not load its embedding model. That attempt is preserved and excluded. The 
 now uses a preloaded, frozen model cache with offline mode enabled. Both knowledge search
 and bridge status passed through the actual MCP server inside Pioneer before retrying.
 
+A later MCP attempt stopped when Cavalry restarted and its bridge connection failed.
+That attempt is preserved and excluded too. The environment check now records process
+IDs as well as names. A restart during a run invalidates it, even if both ports still
+belong to a process named Cavalry. Both bridges must belong to the same process.
+
 ## Summary
 
 We give the same motion-design brief to an agent under three conditions (arms), one run at a
@@ -91,7 +96,7 @@ gate passes.
 
 | Gate | Passes when |
 |---|---|
-| environment | the agent did not change the bridge ports or tokens (see "The port forwarder") |
+| environment | bridge owners, process IDs and tokens stayed unchanged (see "The port forwarder") |
 | sceneSaved, videoRendered | `out/scene.cv` and `out/final.mp4` exist |
 | resolution, fps, duration | the video matches the brief (duration within 10 % or 0.5 s) |
 | audio | music tasks have an audio stream |
@@ -119,9 +124,10 @@ Use `--tag mcp --b mcp` for the plugin-versus-MCP comparison. It writes to
 Use the same tag and arms with `unblind`. Record the exact judge model. Keep repeated runs
 in a separate iteration and report them separately from the first eleven tasks.
 
-The historical comparison used Claude Sonnet. The pending clean comparison will use
+The historical comparison used Claude Sonnet. The clean comparison uses
 GPT 6.1 Sol (`gpt-6.1-sol`) through Codex, as requested. Judge availability and image input
-have been checked. Those checks are not task verdicts.
+have been checked. Those checks are not task verdicts. The first completed pair has also
+been judged in both orders with this model.
 
 `tools/evals/judge.py --via codex` supplies only the two images and the task text. It disables
 tools, skills, memory and integrations. It rejects tool use, provider errors and invalid
