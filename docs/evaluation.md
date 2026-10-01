@@ -3,33 +3,24 @@
 How we measure whether the CLI and the skill help an agent make good motion graphics, and
 what we learned about measuring it. For people who run or change the evaluation.
 
-Status: method stable; the final comparison through Pioneer is being rerun because an eval
-agent had redirected the cavalry-mcp arm to our bridge. Updated 2026-10-01.
+Status: the clean 33-run comparison, `pioneer-final4`, is running through Pioneer on
+Cavalry 2.8.0. Updated 2026-10-02. Earlier results used Cavalry 2.7.2 and remain historical.
 
-The clean `pioneer-final2` launch on Cavalry 2.8.0 stopped before any model turn. The harness
-disabled Pi extensions, so Pioneer could not find `zai/glm-5.3-flash`, which is registered
-by a provider extension. No task result was measured. The Pioneer path now loads provider
-extensions through Pioneer's tool-stripping adapter. A new iteration, `pioneer-final3`,
-uses the original model and provider. Earlier results used Cavalry 2.7.2 and remain historical
-results.
+Failed setup and runtime attempts are preserved and excluded from task scores and means:
 
-`pioneer-final3` reached the model but was stopped after repeated `spawn EPERM` failures
-from Pi's shell tool. Its first task is an infrastructure failure and is excluded from task
-scores. The post-run environment check found no bridge or token changes. A plain Node actor
-could spawn system shells under the same Pioneer sandbox. A trace found that an enabled
-build-brief hook tried to start its helper executable before the shell. A frozen copy in a
-read-only runtime folder fixed the Pi diagnostic. The next comparison is `pioneer-final4`.
-The minimal reproduction is tracked in [Pioneer issue #102](https://github.com/rock3r/pioneer/issues/102).
+| Attempt | Cavalry | Failure | Recovery |
+|---|---|---|---|
+| pioneer-final2 | 2.8.0 | Harness disabled the extension registering the requested provider model | Load provider extensions through Pioneer's tool-stripping adapter |
+| pioneer-final3 | 2.8.0 | Pi shell hook could not execute build-brief | Freeze the helper in a read-only runtime folder; actual Pi shell diagnostic passed |
+| pioneer-final4 MCP setup | 2.8.0 | Knowledge search could not load its embedding model | Freeze a preloaded cache; real knowledge search and bridge status passed inside Pioneer |
+| pioneer-final4 MCP preview setup | 2.8.0 | Setup interrupted to keep preview files under .plans | Set TMPDIR to the run's out folder; actual MCP PNG preview passed |
+| pioneer-final4 MCP bridge | 2.8.0 | Cavalry restarted and its bridge connection failed; cause unknown | Both bridges recovered; read-only checks passed; record listener process IDs before and after each run |
+| pioneer-final4 kinetic-title plugin | 2.8.0 | Provider turn reported terminated, with no HTTP status or quota detail | Same-model acknowledgment and both bridge checks passed; retry the unscored attempt |
 
-The first MCP attempt in `pioneer-final4` reached the real bridge, but knowledge search
-could not load its embedding model. That attempt is preserved and excluded. The harness
-now uses a preloaded, frozen model cache with offline mode enabled. Both knowledge search
-and bridge status passed through the actual MCP server inside Pioneer before retrying.
-
-A later MCP attempt stopped when Cavalry restarted and its bridge connection failed.
-That attempt is preserved and excluded too. The environment check now records process
-IDs as well as names. A restart during a run invalidates it, even if both ports still
-belong to a process named Cavalry. Both bridges must belong to the same process.
+These recoveries kept the tested model, provider, thinking level and native Pioneer sandbox.
+The shell-hook reproduction is tracked in [Pioneer issue #102](https://github.com/rock3r/pioneer/issues/102).
+Both bridges must belong to the same Cavalry process. A restart during a run invalidates it,
+even if both ports still belong to a process named Cavalry.
 
 ## Summary
 
@@ -135,8 +126,8 @@ in a separate iteration and report them separately from the first eleven tasks.
 
 The historical comparison used Claude Sonnet. The clean comparison uses
 GPT 6.1 Sol (`gpt-6.1-sol`) through Codex, as requested. Judge availability and image input
-have been checked. Those checks are not task verdicts. The first completed pair has also
-been judged in both orders with this model.
+have been checked. Those checks are not task verdicts. Judging proceeds as scored output
+pairs become available.
 
 `tools/evals/judge.py --via codex` supplies only the two images and the task text. It disables
 tools, skills, memory and integrations. It rejects tool use, provider errors and invalid
@@ -266,6 +257,6 @@ the desktop app's bundled binary is newer than the command on PATH.
 Use `--skip-existing` with the batch command to resume scored runs. A run with
 `environmentChanged` in its metadata stops a resumed batch too.
 
-Runs are serial: one Cavalry, one scene at a time. A full comparison of three arms on eleven
-tasks takes 8 to 10 hours with GLM-5.3 Flash, mostly because the model plans for several
-minutes before its first command.
+Runs are serial: one Cavalry, one scene at a time. A full comparison has 33 runs, each
+with a 30-minute deadline, and can take many hours. Planning and rendering count toward
+task time. Excluded infrastructure failures add wall time but do not enter task means.

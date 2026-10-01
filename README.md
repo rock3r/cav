@@ -109,20 +109,14 @@ traps and recipes.
 
 ## Evaluation
 
-The clean Pioneer comparison on Cavalry 2.8.0 is pending. Its first launch on 2026-10-01
-stopped before any model turn: the harness disabled the provider extension that registers
-`zai/glm-5.3-flash`. The Pioneer path now loads provider extensions with their tools removed.
-The fresh iteration, `pioneer-final3`, keeps the original model and provider.
-It reached the model, but was stopped because Pi's shell calls returned `spawn EPERM`
-inside Pioneer. An enabled build-brief hook needed its helper executable. The harness now
-freezes that helper too; the Pi shell diagnostic passes. The next clean iteration is
-`pioneer-final4`, with the same original model and provider.
-This is a setup failure, so it is not counted as a failed motion-design task. The historical
-numbers below are still the last measured results; they have not been replaced by this run.
+The clean 33-run comparison is running through Pioneer on Cavalry 2.8.0 as
+`pioneer-final4`. It uses `zai/glm-5.3-flash`, medium thinking, and the same frozen CLI
+and skill for all three arms. Setup, provider and bridge failures are excluded from task
+results. The historical numbers below remain in place until the full comparison is audited.
 
 The clean comparison uses GPT 6.1 Sol (`gpt-6.1-sol`) through Codex for blind judging.
-Each pair is judged in fresh sessions in both image orders. Its results will be reported
-separately from the historical Sonnet results below.
+Each available pair is judged in fresh sessions in both image orders. These verdicts
+remain separate from the historical Sonnet results below.
 
 We measured the toolkit on 11 motion-design tasks with GLM-5.3 Flash (`zai/glm-5.3-flash`, run
 through the pi agent, 30-minute limit per run, one new scene per run). Eight tasks were used
@@ -156,7 +150,7 @@ token over the cavalry-mcp token. From then on, every cavalry-mcp call went to c
 clean rerun is pending. The plugin and baseline numbers are not affected: their jobs always
 ran through cav-bridge. See [docs/evaluation.md](docs/evaluation.md) for details.
 
-What this shows:
+What the historical runs showed:
 
 - The CLI does most of the work. With `cav help`, the helper library and `cav check`, a
   mid-size model produces clean, animated, correct videos without the skill.
