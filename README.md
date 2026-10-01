@@ -120,6 +120,10 @@ freezes that helper too; the Pi shell diagnostic passes. The next clean iteratio
 This is a setup failure, so it is not counted as a failed motion-design task. The historical
 numbers below are still the last measured results; they have not been replaced by this run.
 
+The clean comparison uses GPT 6.1 Sol (`gpt-6.1-sol`) through Codex for blind judging.
+Each pair is judged in fresh sessions in both image orders. Its results will be reported
+separately from the historical Sonnet results below.
+
 We measured the toolkit on 11 motion-design tasks with GLM-5.3 Flash (`zai/glm-5.3-flash`, run
 through the pi agent, 30-minute limit per run, one new scene per run). Eight tasks were used
 while we improved the toolkit: a logo sting, a kinetic title, a lower third, a bar chart, a UI
