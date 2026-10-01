@@ -113,6 +113,8 @@ The clean Pioneer comparison on Cavalry 2.8.0 is pending. Its first launch on 20
 stopped before any model turn: the harness disabled the provider extension that registers
 `zai/glm-5.3-flash`. The Pioneer path now loads provider extensions with their tools removed.
 The fresh iteration, `pioneer-final3`, keeps the original model and provider.
+It reached the model, but was stopped because Pi's shell calls returned `spawn EPERM`
+inside Pioneer. This runtime failure is under investigation.
 This is a setup failure, so it is not counted as a failed motion-design task. The historical
 numbers below are still the last measured results; they have not been replaced by this run.
 

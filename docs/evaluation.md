@@ -13,6 +13,12 @@ extensions through Pioneer's tool-stripping adapter. A new iteration, `pioneer-f
 uses the original model and provider. Earlier results used Cavalry 2.7.2 and remain historical
 results.
 
+`pioneer-final3` reached the model but was stopped after repeated `spawn EPERM` failures
+from Pi's shell tool. Its first task is an infrastructure failure and is excluded from task
+scores. The post-run environment check found no bridge or token changes. A plain Node actor
+could spawn system shells under the same Pioneer sandbox; the Pi path is being investigated.
+The minimal reproduction is tracked in [Pioneer issue #102](https://github.com/rock3r/pioneer/issues/102).
+
 ## Summary
 
 We give the same motion-design brief to an agent under three conditions (arms), one run at a
