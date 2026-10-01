@@ -27,10 +27,9 @@
 //   (or that polled after another job replaced the GET payload) can still read it.
 //   Job code runs inside a function, so `return` sends a value back.
 //
-// Isolation: every UI script in Cavalry shares one global scope. The bridge therefore keeps
-// all its state inside one function and adds nothing global except the `cav` helpers, which
-// exist only while a cav job runs. Other scripts (such as the cavalry-mcp bridge) see an
-// unchanged `api` object and no cav names.
+// Isolation (a precaution): the bridge keeps all its state inside one function and adds
+// nothing global except the `cav` helpers, which exist only while a cav job runs. On Cavalry
+// 2.8.0 each UI script has its own global scope anyway; 2.7.2 was not checked.
 
 ;(function () {
 var BRIDGE_VERSION = '0.4.0'

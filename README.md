@@ -134,10 +134,11 @@ Final comparison, same code for both arms (measured):
 | baseline | 14 of 14 runs | 16 | 111 of 130 | 864 s | 1.01 M |
 
 The upstream cavalry-mcp server passed 1 of 8 tasks in the last run that included it, but
-that number is not valid. Until cav-bridge 0.4.0, cav-bridge and the cavalry-mcp bridge
-shared global names inside Cavalry, so with both open, cavalry-mcp jobs ran through
-cav-bridge code. A clean rerun is pending. The plugin and baseline numbers are not affected:
-their jobs always ran through cav-bridge.
+that number is not valid. During that run, one cavalry-mcp agent found the cavalry-mcp bridge
+down. It started a port forwarder from the cavalry-mcp port to cav-bridge and copied the cav
+token over the cavalry-mcp token. From then on, every cavalry-mcp call went to cav-bridge. A
+clean rerun is pending. The plugin and baseline numbers are not affected: their jobs always
+ran through cav-bridge. See [docs/evaluation.md](docs/evaluation.md) for details.
 
 What this shows:
 

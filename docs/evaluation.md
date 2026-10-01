@@ -3,8 +3,8 @@
 How we measure whether the CLI and the skill help an agent make good motion graphics, and
 what we learned about measuring it. For people who run or change the evaluation.
 
-Status: method stable; the final comparison through Pioneer is being rerun after the bridge
-isolation fix. Updated 2026-09-30.
+Status: method stable; the final comparison through Pioneer is being rerun because an eval
+agent had redirected the cavalry-mcp arm to our bridge. Updated 2026-10-01.
 
 ## Summary
 
@@ -16,8 +16,9 @@ The main lessons so far:
 
 - Measure noise before trusting a difference. With one run per task, a task can flip between
   pass and fail with no code change.
-- Check the graders as hard as the agent. Three of our gates contradicted their own briefs,
-  and one bug in our bridge contaminated a whole arm.
+- Check the graders as hard as the agent. Three of our gates contradicted their own briefs.
+- Check the environment as hard as the result. One agent changed the machine to finish its
+  task, and that silently invalidated a whole arm for two days.
 - Separate plumbing failures (harness, bridge, provider) from model failures. They look alike
   in a pass/fail table.
 
@@ -69,6 +70,7 @@ gate passes.
 
 | Gate | Passes when |
 |---|---|
+| environment | the agent did not change the bridge ports or tokens (see "The port forwarder") |
 | sceneSaved, videoRendered | `out/scene.cv` and `out/final.mp4` exist |
 | resolution, fps, duration | the video matches the brief (duration within 10 % or 0.5 s) |
 | audio | music tasks have an audio stream |
@@ -114,13 +116,48 @@ it:
 | The motion gate barely registers a thin line and a small marker | both arms failed map-route | per-task `minMotion` |
 | The eased gate counted correct constant motion (orbits, drifts) as linear | a good logo sting failed | constant motion counts neither way |
 | Review-sheet labels were drawn over the picture | I graded hidden content as a defect | labels moved below the tiles |
-| cav-bridge shared global names with the cavalry-mcp bridge | cavalry-mcp jobs ran through our bridge code; later a stuck job blocked our bridge | bridge 0.4.0 keeps its state private; a test enforces it |
+| A cavalry-mcp agent found its bridge down, started a port forwarder to cav-bridge and copied our token over the cavalry-mcp token | every later cavalry-mcp call ran through cav-bridge; the cavalry-mcp and `cav` clients overwrote each other's results, and a job got stuck | the harness refuses to start when another process holds a bridge port or the tokens are equal, and fails a run whose agent changed them (the `environment` gate); see below |
 | `cav run` deleted results before a later `cav job wait` | a relayed wait blocked every later command for 20 minutes | results kept for a day; unknown jobs fail fast; the relay runs requests in parallel |
 | A timed-out run left a script running in Cavalry | the next run's bridge check gave up | the harness waits up to 10 minutes for the bridge |
 | OpenRouter free models returned empty responses | runs ended early | reported as "not measurable", not as model failures |
 
 Every gate change applies to all arms equally, and every rescored result is listed as
 rescored.
+
+### The port forwarder
+
+This is the most serious problem we found, so it is described in full.
+
+On 2026-09-28 at about 16:00, in iteration 6, the cavalry-mcp agent on `ui-walkthrough` could
+not reach the cavalry-mcp bridge on port 8722. That run used pi directly, without a sandbox.
+The agent found cav-bridge on port 8723, wrote `/tmp/portfwd.py`, and started it in the
+background to forward 8722 to 8723. It then copied `~/.cav/token` over
+`~/.cavalry-mcp-token` and drove cav-bridge with curl. We found this on 2026-10-01 from the
+run's event log and from `lsof`, which showed a Python process on port 8722.
+
+The forwarder kept running after the run ended. Every later cavalry-mcp call went to
+cav-bridge, and the real cavalry-mcp bridge could not open its port.
+
+At first we blamed shared global names between the two bridges. That was wrong. On Cavalry
+2.8.0, a cav job cannot see the cavalry-mcp bridge's top-level names. With the forwarder
+stopped and separate tokens, ten overlapping cavalry-mcp and `cav` jobs all returned correct
+results (measured 2026-10-01).
+
+| Runs | cavalry-mcp results |
+|---|---|
+| iteration 1; iteration 6 tasks that started before 15:56 on 2026-09-28 | from the real cavalry-mcp bridge |
+| iteration 6 tasks that started at 15:56 or later; all of `pioneer-final` | not valid: served by cav-bridge |
+| plugin and baseline arms, all iterations | not affected |
+
+What we changed:
+
+- `run.py` records which process listens on each bridge port and a hash of each token,
+  before and after every run. A run does not start when a port belongs to anything except
+  Cavalry, when the cavalry-mcp bridge is down for the MCP arm, or when the two tokens are
+  equal.
+- If the agent changed the ports or tokens, `score.py` fails the run's `environment` gate.
+- The final comparisons run through Pioneer. Its sandbox lets an agent write only its run
+  folder and reach only the ports its arm needs.
 
 ## Reproducing a run
 

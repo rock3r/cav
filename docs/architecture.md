@@ -124,17 +124,22 @@ CLI can print the failing line of the user's script.
 
 ### Isolation from other scripts
 
-Every UI script in Cavalry shares one global scope. Until bridge 0.4.0, cav-bridge shared 17
-top-level names (`execute`, `server`, `TOKEN`, `callbacks` and others) with the cavalry-mcp
-bridge it was derived from. With both open, one bridge ran the other's jobs, and a stuck job
-of one could stop the other from taking requests.
-
 Since 0.4.0 the bridge keeps all its state inside one function. It adds nothing global while
 idle: the `api` wrapper and the `cav` helpers exist only while a cav job runs.
 `assets/bridge/test/isolation.test.js` loads the bridge in a sandboxed context and fails if it
 defines a global name, leaves `api` changed after a job, or lets job code read its token.
 
-Job code still runs in the shared global scope. A job can leave values on `globalThis`, and
+This is a precaution, not the fix for an observed bug. We first believed that all UI scripts
+share one global scope and that cav-bridge clashed with the cavalry-mcp bridge, because
+cavalry-mcp requests came back in cav-bridge's format. The real cause was a port forwarder
+that an eval agent had started (see [evaluation.md](evaluation.md)). On Cavalry 2.8.0 we
+checked that a cav job cannot see the cavalry-mcp bridge's top-level names, so each UI script
+has its own global scope there. We did not check Cavalry 2.7.2.
+
+Two bridges still must not share a token: each bridge runs any request that carries its
+token, whatever port it came in on.
+
+Job code runs in the bridge's global scope. A job can leave values on `globalThis`, and
 they survive until the bridge restarts. This is deliberate: scripts use it to pass ids
 between runs.
 

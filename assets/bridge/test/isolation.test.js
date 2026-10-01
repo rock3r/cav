@@ -1,5 +1,5 @@
-// Every UI script in Cavalry shares one global scope, so cav-bridge must not add global names
-// (it once clashed with the cavalry-mcp bridge) and must leave `api` unchanged between jobs.
+// cav-bridge must not add global names and must leave `api` unchanged between jobs, in case
+// a Cavalry version runs UI scripts in one shared global scope (2.8.0 does not).
 // Run with: node --test assets/bridge/test
 const test = require('node:test')
 const assert = require('node:assert')
