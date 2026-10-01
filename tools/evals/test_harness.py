@@ -45,6 +45,8 @@ class RuntimeSnapshot(unittest.TestCase):
             self.assertIn('FASTEMBED_CACHE_PATH=' + str(cache), server['args'])
             self.assertIn('HF_HUB_OFFLINE=1', server['args'])
             self.assertIn('HOME=' + str(Path.home()), server['args'])
+            self.assertIn('TMPDIR=' + str(root / 'out' / '.mcp-tmp'), server['args'])
+            self.assertTrue((root / 'out' / '.mcp-tmp').is_dir())
 
     def test_helper_remains_frozen_when_installed_tool_changes(self):
         with tempfile.TemporaryDirectory() as td:

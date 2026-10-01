@@ -146,7 +146,8 @@ it:
 - The cavalry-mcp arm loads pi-mcp-adapter with `--pi-extension`, may reach only port 8722
   (`--allow-loopback`), and starts the server through `/usr/bin/env HOME=<real home>`, because
   Pioneer gives the agent a private home folder and cavalry-mcp reads its token from the real
-  one.
+  one. The wrapper sets `TMPDIR` to `out/.mcp-tmp/` inside the run folder, so preview PNGs
+  also stay under `.plans/`.
 - The MCP knowledge-search model is preloaded outside the actor sandbox. The batch copies
   it to the iteration's `runtime/mcp-kb/` folder and records each file's SHA-256. The server
   gets read access to that cache and runs with `HF_HUB_OFFLINE=1`. It needs no model-download

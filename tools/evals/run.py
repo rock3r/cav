@@ -140,8 +140,11 @@ def write_mcp_config(path, pioneer, cache=None):
     if pioneer:
         if cache is None or not cache.is_dir():
             sys.exit('frozen MCP embedding cache is missing; prepare the iteration through batch.py')
+        previews = Path(path).parent / 'out' / '.mcp-tmp'
+        previews.mkdir(parents=True, exist_ok=True)
         server = {"command": "/usr/bin/env",
-                  "args": ["HOME=" + str(Path.home()), "FASTEMBED_CACHE_PATH=" + str(cache), "HF_HUB_OFFLINE=1",
+                  "args": ["HOME=" + str(Path.home()), "TMPDIR=" + str(previews),
+                           "FASTEMBED_CACHE_PATH=" + str(cache), "HF_HUB_OFFLINE=1",
                            str(CAVALRY_MCP_DIR / ".venv" / "bin" / "cavalry-mcp")]}
     else:
         server = {"command": "uv", "args": ["run", "--directory", str(CAVALRY_MCP_DIR), "--extra", "kb", "cavalry-mcp"]}
