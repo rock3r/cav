@@ -177,6 +177,11 @@ it:
   exits successfully. Inspect the logs before resuming. A timeout while the model works remains
   a task result and is scored.
 
+These results apply to the recorded Pioneer grants. Direct `ffprobe` calls returned
+"command not found" in the kinetic-title plugin actor. CLI commands run through the relay;
+the relay and scorer can use the host's installed media programs. Actor shell access is
+limited to its declared runtime paths and work folder.
+
 ## What went wrong, and what we changed
 
 | Problem | Effect | Fix |
