@@ -110,7 +110,9 @@ traps and recipes.
 ## Evaluation
 
 The clean Pioneer comparison on Cavalry 2.8.0 is pending. Its first launch on 2026-10-01
-stopped before any model turn: Pioneer could not find the requested `zai/glm-5.3-flash` model.
+stopped before any model turn: the harness disabled the provider extension that registers
+`zai/glm-5.3-flash`. The Pioneer path now loads provider extensions with their tools removed.
+The fresh iteration, `pioneer-final3`, keeps the original model and provider.
 This is a setup failure, so it is not counted as a failed motion-design task. The historical
 numbers below are still the last measured results; they have not been replaced by this run.
 

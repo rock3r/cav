@@ -100,6 +100,17 @@ def build_prompt(task, contract, arm):
     return f"{task['prompt']}\n\n{tool}\n\n{contract}"
 
 
+def agent_command(model, thinking, via):
+    command = ["pi", "--model", model, "--thinking", thinking, "--no-session", "--mode", "json",
+               "--no-context-files", "--no-prompt-templates", "--no-themes", "--no-skills"]
+    # Pioneer snapshots enabled provider/auth extensions and removes their tools. Some
+    # configured models exist only through those extensions. Direct pi keeps its previous
+    # built-in-only setup; Pioneer still exposes MCP tools only through --pi-extension.
+    if via == "pi":
+        command.append("--no-extensions")
+    return command
+
+
 def write_mcp_config(path, pioneer):
     """The cavalry-mcp server config for the MCP arm.
 
@@ -188,8 +199,7 @@ def main():
         path = str(CAV.parent) + os.pathsep + path
     env["PATH"] = path
 
-    pi = ["pi", "--model", args.model, "--thinking", args.thinking, "--no-session", "--mode", "json",
-          "--no-extensions", "--no-context-files", "--no-prompt-templates", "--no-themes", "--no-skills"]
+    pi = agent_command(args.model, args.thinking, args.via)
     if args.arm == "plugin":
         shutil.copytree(SKILL, scratch / "skills" / "cavalry")
         pi += ["--skill", str(scratch / "skills" / "cavalry")]

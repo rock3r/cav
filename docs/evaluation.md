@@ -6,10 +6,12 @@ what we learned about measuring it. For people who run or change the evaluation.
 Status: method stable; the final comparison through Pioneer is being rerun because an eval
 agent had redirected the cavalry-mcp arm to our bridge. Updated 2026-10-01.
 
-The clean `pioneer-final2` launch on Cavalry 2.8.0 stopped before any model turn. Pioneer
-reported that `zai/glm-5.3-flash` was not configured. No task result was measured. The
-requested provider must be restored, or a provider change approved, before the comparison
-can continue. Earlier results used Cavalry 2.7.2 and remain historical results.
+The clean `pioneer-final2` launch on Cavalry 2.8.0 stopped before any model turn. The harness
+disabled Pi extensions, so Pioneer could not find `zai/glm-5.3-flash`, which is registered
+by a provider extension. No task result was measured. The Pioneer path now loads provider
+extensions through Pioneer's tool-stripping adapter. A new iteration, `pioneer-final3`,
+uses the original model and provider. Earlier results used Cavalry 2.7.2 and remain historical
+results.
 
 ## Summary
 
@@ -111,6 +113,9 @@ it:
 
 - `cav` works in spool mode. The harness starts `cav relay` outside the sandbox and writes a
   `.cav-spool` file in the run folder.
+- Pioneer loads enabled provider and auth extensions from a private snapshot. It removes
+  their tools. Auto-loaded skills and context files remain disabled for all arms; only the
+  plugin arm gets the cavalry skill explicitly.
 - The cavalry-mcp arm loads pi-mcp-adapter with `--pi-extension`, may reach only port 8722
   (`--allow-loopback`), and starts the server through `/usr/bin/env HOME=<real home>`, because
   Pioneer gives the agent a private home folder and cavalry-mcp reads its token from the real

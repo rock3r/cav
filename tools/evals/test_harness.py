@@ -10,6 +10,18 @@ from unittest.mock import patch
 
 import batch
 import blind
+import run
+
+
+class ProviderExtensions(unittest.TestCase):
+    def test_pioneer_keeps_provider_extensions_but_disables_auto_skills(self):
+        command = run.agent_command('zai/glm-5.3-flash', 'medium', 'pioneer')
+        self.assertNotIn('--no-extensions', command)
+        self.assertIn('--no-skills', command)
+        self.assertEqual(command[command.index('--model') + 1], 'zai/glm-5.3-flash')
+
+    def test_direct_pi_keeps_previous_extension_mode(self):
+        self.assertIn('--no-extensions', run.agent_command('model', 'medium', 'pi'))
 
 
 class BlindFolders(unittest.TestCase):
