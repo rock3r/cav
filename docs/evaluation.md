@@ -106,6 +106,11 @@ Use `--tag mcp --b mcp` for the plugin-versus-MCP comparison. It writes to
 Use the same tag and arms with `unblind`. Record the exact judge model. Keep repeated runs
 in a separate iteration and report them separately from the first eleven tasks.
 
+`tools/evals/judge.py` runs each prepared folder through Pioneer with a different model.
+The judge can read only its task folder; the answer key stays outside. Model provenance and
+controller logs go to `judge-logs/`. The runner validates the five claims and winner before
+accepting each verdict. `unblind` validates them too and reports unknown claims separately.
+
 ## Running through Pioneer
 
 Pioneer runs each agent in a macOS sandbox. The harness (`run.py --via pioneer`) adapts to
@@ -193,10 +198,10 @@ go build -o bin/cav ./cmd/cav      # batch.py freezes this binary and the skill 
 uv run --no-project --with numpy --with scipy --with pillow python tools/evals/make_fixtures.py
 python3 tools/evals/batch.py --iter <name> --arms plugin,baseline,mcp --via pioneer
 python3 tools/evals/blind.py prepare --iter <name>
-# run the judge on judge/<name> and judge/<name>-swap in the data folder
+python3 tools/evals/judge.py --iter <name> --judge-model <provider/model>
 python3 tools/evals/blind.py unblind --iter <name>
 python3 tools/evals/blind.py prepare --iter <name> --b mcp --tag mcp
-# run the judge on judge/<name>-mcp and judge/<name>-mcp-swap
+python3 tools/evals/judge.py --iter <name> --tag mcp --judge-model <provider/model>
 python3 tools/evals/blind.py unblind --iter <name> --b mcp --tag mcp
 python3 tools/evals/summary.py --iter <name>
 ```

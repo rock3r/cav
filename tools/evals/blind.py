@@ -25,6 +25,26 @@ def judge_name(args):
     return args.iter + ("-" + args.tag if args.tag else "")
 
 
+def validate_verdict(value):
+    if not isinstance(value, dict) or set(value) != {'claims', 'better', 'reason'}:
+        raise ValueError('verdict must contain exactly claims, better and reason')
+    if value['better'] not in ('A', 'B', 'tie'):
+        raise ValueError('better must be A, B or tie')
+    if not isinstance(value['reason'], str) or not value['reason'].strip():
+        raise ValueError('reason must be nonempty text')
+    claims = value['claims']
+    if not isinstance(claims, dict) or set(claims) != {'A', 'B'}:
+        raise ValueError('claims must contain A and B')
+    for label in 'AB':
+        entries = claims[label]
+        if not isinstance(entries, list) or len(entries) != 5:
+            raise ValueError(f'{label} needs five claims')
+        if any(type(c) is not bool and c is not None for c in entries):
+            raise ValueError(f'{label} claims must be true, false or null')
+    return value
+
+
+
 def prepare(args):
     spec = json.loads(TASKS.read_text())
     rng = random.Random(args.seed)
@@ -57,6 +77,7 @@ def prepare(args):
 def unblind(args):
     tally = {args.a: 0, args.b: 0, "tie": 0}
     claims = {args.a: 0, args.b: 0}
+    unknown = {args.a: 0, args.b: 0}
     total_claims = 0
     agree = pairs = 0
     rows = []
@@ -65,12 +86,13 @@ def unblind(args):
         base = EVALS / "judge" / f"{judge_name(args)}{suffix}"
         key = json.loads((base / "key.json").read_text())
         for task, mapping in key.items():
-            v = json.loads((base / task / "verdict.json").read_text())
+            v = validate_verdict(json.loads((base / task / "verdict.json").read_text()))
             winner = mapping.get(v["better"], "tie")
             verdicts.setdefault(task, []).append(winner)
             tally[winner] += 1
             for label in "AB":
-                met = sum(1 for c in v["claims"][label] if c)
+                met = sum(1 for c in v["claims"][label] if c is True)
+                unknown[mapping[label]] += sum(1 for c in v["claims"][label] if c is None)
                 claims[mapping[label]] += met
             total_claims += len(v["claims"]["A"])
     for task, ws in verdicts.items():
@@ -82,6 +104,7 @@ def unblind(args):
     print("\n".join(rows))
     print(f"\nWins over both passes: {args.a} {tally[args.a]}, {args.b} {tally[args.b]}, tie {tally['tie']}.")
     print(f"Rubric claims met: {args.a} {claims[args.a]}/{total_claims}, {args.b} {claims[args.b]}/{total_claims}.")
+    print(f"Unknown claims: {args.a} {unknown[args.a]}, {args.b} {unknown[args.b]} (included in the claim totals above).")
     print(f"The two passes agreed on {agree} of {pairs} tasks.")
 
 

@@ -11,6 +11,34 @@ from unittest.mock import patch
 import batch
 import blind
 import run
+import judge
+
+
+class VerdictFormat(unittest.TestCase):
+    def verdict(self):
+        return {'claims': {'A': [True, False, None, True, False], 'B': [None] * 5},
+                'better': 'tie', 'reason': 'Neither sheet shows all five claims.'}
+
+    def test_accepts_unknown_claims(self):
+        self.assertEqual(judge.validate_verdict(self.verdict())['claims']['B'], [None] * 5)
+
+    def test_rejects_numbers_as_boolean_claims(self):
+        value = self.verdict()
+        value['claims']['A'][0] = 1
+        with self.assertRaises(ValueError):
+            judge.validate_verdict(value)
+
+    def test_rejects_wrong_claim_count(self):
+        value = self.verdict()
+        value['claims']['B'].pop()
+        with self.assertRaises(ValueError):
+            judge.validate_verdict(value)
+
+    def test_rejects_unknown_winner(self):
+        value = self.verdict()
+        value['better'] = 'plugin'
+        with self.assertRaises(ValueError):
+            judge.validate_verdict(value)
 
 
 class ProviderExtensions(unittest.TestCase):
