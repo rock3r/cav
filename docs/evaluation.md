@@ -106,6 +106,7 @@ gate passes.
 | beatSync | at least 40 % of visual hits land on a beat and at least 75 % of downbeats get a hit |
 
 The scorer also records time, tokens, turns, script errors and the `cav` commands used.
+Token totals include input, output and cached reads, as reported by Pi.
 
 ## Blind judging
 
@@ -118,6 +119,10 @@ to arms and reports wins, claims met, and how often the two passes agreed.
 
 The judge sees only still frames. It cannot judge audio or exact beat timing, so those claims
 are marked unknown, and the automatic beat gate covers them.
+
+If a valid task run produces no final video, the automatic checks record a failure. There
+is no contact sheet for blind judging. Report that pair as not judgeable, with its reason;
+do not create a blank substitute or remove the task from automatic results.
 
 Use `--tag mcp --b mcp` for the plugin-versus-MCP comparison. It writes to
 `judge/<iter>-mcp/` and `judge/<iter>-mcp-swap/`, leaving the baseline comparison in place.
