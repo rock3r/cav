@@ -60,14 +60,14 @@ Save this as `title.js`:
 
 ```js
 var c = cav.comp()
-var beat = cav.beats(120)                 // beat.beat(n) is the frame of beat n
+var beat = cav.beats(120)                 // beat.beat(n) is the frame of beat n (beat 0 is frame 0)
 cav.plane('bg', '#0b0d12')
 var title = cav.text('title', 'LAUNCH DAY', 140, { font: 'Inter', style: 'Black', color: '#f5f7fa', y: 40 })
 var bar = cav.rect('underline', 520, 10, { fill: '#ff4d2e', y: -60, radius: 5 })
 
-cav.slideIn(title, beat.beat(1), { dy: -80, dur: 20, ease: 'outBack' })
-cav.wipeIn(bar, beat.beat(2), { dur: 18, from: 'left' })
-cav.punch(title, beat.beat(4))
+cav.slideIn(title, beat.beat(0), { dy: -80, dur: 20, ease: 'outBack' })
+cav.wipeIn(bar, beat.beat(1), { dur: 18, from: 'left' })
+for (var b = 2; b <= 6; b++) cav.punch(title, beat.beat(b))   // a small hit on every beat
 cav.slideOut(title, beat.beat(7), { dy: 60, dur: 16 })
 cav.fadeOut(bar, beat.beat(7), 12)
 return { title: title, bar: bar }
@@ -82,6 +82,9 @@ cav check                 # lists problems a viewer would notice
 cav scene save out/title.cv
 cav render -o out/title.mp4
 ```
+
+For this short example, `cav check` still reports that nothing moves in about half of the
+piece. Treat its fixes as suggestions: here, a slow drift on the underline would answer it.
 
 Open `renders/sheet.png` after every change. It is the quickest way to see a missing layer,
 a wrong position or a wrong colour.
