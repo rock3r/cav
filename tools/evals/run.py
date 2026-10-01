@@ -159,9 +159,9 @@ def main():
         if not args.force:
             sys.exit(f"{run} exists (use --force)")
         shutil.rmtree(run)
-    # The agent works in a folder outside the repository, so an arm without the skill cannot
-    # find it by walking up. The folder moves into the run directory afterwards.
-    scratch = Path("/tmp/cav-eval") / f"iter{args.iter}_{args.task}_{args.arm}_{slug(args.model)}"
+    # Pioneer restricts the actor to work/ and its explicit runtime-read grants. Keep
+    # scratch scenes and renders with the other eval data, then move them into the run.
+    scratch = DATA / "scratch" / f"iter{args.iter}_{args.task}_{args.arm}_{slug(args.model)}"
     if scratch.exists():
         shutil.rmtree(scratch)
     work = scratch / "work"

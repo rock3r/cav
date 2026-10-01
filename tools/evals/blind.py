@@ -21,11 +21,15 @@ def slug(s):
     return s.replace("/", "_").replace(":", "_")
 
 
+def judge_name(args):
+    return args.iter + ("-" + args.tag if args.tag else "")
+
+
 def prepare(args):
     spec = json.loads(TASKS.read_text())
     rng = random.Random(args.seed)
     for suffix in ("", "-swap"):
-        out = EVALS / "judge" / f"{args.iter}{suffix}"
+        out = EVALS / "judge" / f"{judge_name(args)}{suffix}"
         if out.exists():
             shutil.rmtree(out)
     key, key_swap = {}, {}
@@ -36,7 +40,7 @@ def prepare(args):
         first = [args.a, args.b]
         rng.shuffle(first)
         for suffix, order, k in (("", first, key), ("-swap", first[::-1], key_swap)):
-            d = EVALS / "judge" / f"{args.iter}{suffix}" / task["id"]
+            d = EVALS / "judge" / f"{judge_name(args)}{suffix}" / task["id"]
             d.mkdir(parents=True)
             for label, arm in zip("AB", order):
                 shutil.copy(runs[arm] / "review.png", d / f"{label}.png")
@@ -44,8 +48,10 @@ def prepare(args):
             (d / "task.md").write_text(f"# Task\n\n{task['prompt']}\n\n# Rubric claims\n\n{claims}\n")
             k[task["id"]] = {"A": order[0], "B": order[1]}
     for suffix, k in (("", key), ("-swap", key_swap)):
-        (EVALS / "judge" / f"{args.iter}{suffix}" / "key.json").write_text(json.dumps(k, indent=1))
-    print(f"{len(key)} pairs in judge/{args.iter} and judge/{args.iter}-swap")
+        base = EVALS / "judge" / f"{judge_name(args)}{suffix}"
+        base.mkdir(parents=True, exist_ok=True)
+        (base / "key.json").write_text(json.dumps(k, indent=1))
+    print(f"{len(key)} pairs in judge/{judge_name(args)} and judge/{judge_name(args)}-swap")
 
 
 def unblind(args):
@@ -56,7 +62,7 @@ def unblind(args):
     rows = []
     verdicts = {}
     for suffix in ("", "-swap"):
-        base = EVALS / "judge" / f"{args.iter}{suffix}"
+        base = EVALS / "judge" / f"{judge_name(args)}{suffix}"
         key = json.loads((base / "key.json").read_text())
         for task, mapping in key.items():
             v = json.loads((base / task / "verdict.json").read_text())
@@ -87,5 +93,8 @@ if __name__ == "__main__":
     ap.add_argument("--a", default="plugin")
     ap.add_argument("--b", default="baseline")
     ap.add_argument("--seed", type=int, default=7)
+    ap.add_argument("--tag", default="", help="separate judging folder for another arm comparison")
     args = ap.parse_args()
+    if args.tag and (Path(args.tag).name != args.tag or args.tag in (".", "..")):
+        ap.error("--tag must be a folder name, without path separators")
     prepare(args) if args.cmd == "prepare" else unblind(args)

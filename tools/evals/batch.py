@@ -54,17 +54,23 @@ def main():
             for arm in args.arms.split(","):
                 run = DATA / "runs" / f"iter{args.iter}" / task / f"{arm}__{slug(model)}"
                 if args.skip_existing and (run / "score.json").exists():
+                    meta = json.loads((run / "meta.json").read_text())
+                    if "environmentChanged" in meta:
+                        sys.exit(f"environment changed in {run}; stop and inspect meta.json")
                     continue
                 t0 = time.time()
                 print(f"== {task} / {arm} / {model}", flush=True)
                 r = subprocess.run([sys.executable, str(HERE / "run.py"), "--iter", args.iter, "--task", task, "--arm", arm,
                                     "--model", model, "--timeout", str(args.timeout), "--via", args.via, "--force"])
                 if r.returncode != 0:
-                    print(f"   run failed with exit {r.returncode}", flush=True)
-                    if not (run / "meta.json").exists():
-                        continue
+                    sys.exit(f"run harness failed with exit {r.returncode}: {run}")
+                meta = json.loads((run / "meta.json").read_text())
+                if "environmentChanged" in meta:
+                    sys.exit(f"environment changed in {run}; stop and inspect meta.json")
+                if meta["exit"] != 0 and not meta["timedOut"]:
+                    sys.exit(f"agent/controller failed with exit {meta['exit']}: {run}; inspect stderr.txt")
                 subprocess.run(["uv", "run", "--no-project", "--with", "numpy", "--with", "pillow", "python",
-                                str(HERE / "score.py"), str(run)])
+                                str(HERE / "score.py"), str(run)], check=True)
                 print(f"   done in {time.time() - t0:.0f} s", flush=True)
 
 
