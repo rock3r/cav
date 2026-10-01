@@ -69,6 +69,42 @@ class VerdictFormat(unittest.TestCase):
             judge.validate_verdict(value)
 
 
+class CodexJudge(unittest.TestCase):
+    def test_only_attaches_blind_images_and_disables_tools(self):
+        command = judge.codex_command('/app/codex', 'gpt-6.1-sol', Path('/case'), Path('/logs'))
+        self.assertEqual(command[0], '/app/codex')
+        self.assertEqual(command[command.index('--model') + 1], 'gpt-6.1-sol')
+        self.assertIn('/case/A.png', command)
+        self.assertIn('/case/B.png', command)
+        self.assertNotIn('/case/key.json', command)
+        self.assertIn('shell_tool', command)
+        self.assertIn('--ignore-user-config', command)
+        self.assertIn('read-only', command)
+
+    def summary(self, records):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / 'events.jsonl'
+            path.write_text('\n'.join(json.dumps(r) for r in records))
+            return judge.codex_event_summary(path)
+
+    def test_warning_is_distinct_from_provider_failure(self):
+        result = self.summary([
+            {'type': 'item.completed', 'item': {'type': 'error', 'message': 'development feature warning'}},
+            {'type': 'item.completed', 'item': {'type': 'agent_message', 'text': '{}'}},
+            {'type': 'turn.completed'},
+        ])
+        self.assertEqual(result, {'providerErrors': 0, 'toolsUsed': [], 'turnCompleted': True})
+        self.assertEqual(self.summary([{'type': 'turn.failed'}])['providerErrors'], 1)
+
+    def test_tool_use_is_rejected_even_if_the_turn_completes(self):
+        result = self.summary([
+            {'type': 'item.started', 'item': {'type': 'command_execution'}},
+            {'type': 'item.completed', 'item': {'type': 'command_execution'}},
+            {'type': 'turn.completed'},
+        ])
+        self.assertEqual(result['toolsUsed'], ['command_execution'])
+
+
 class ProviderExtensions(unittest.TestCase):
     def test_provider_failure_is_detected_despite_successful_controller(self):
         with tempfile.TemporaryDirectory() as td:

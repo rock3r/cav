@@ -102,7 +102,7 @@ The scorer also records time, tokens, turns, script errors and the `cav` command
 `tools/evals/blind.py prepare` copies each pair of contact sheets to `judge/<iter>/<task>/A.png`
 and `B.png` in random order, with the task brief and rubric, and keeps the answer key in a
 separate file. A second copy with the order swapped goes to `judge/<iter>-swap/`. A judge
-model that is not the tested model (Claude Sonnet) marks each rubric claim true, false or
+model that is not the tested model marks each rubric claim true, false or
 unknown for both sheets and picks the better one. `blind.py unblind` maps the verdicts back
 to arms and reports wins, claims met, and how often the two passes agreed.
 
@@ -114,10 +114,15 @@ Use `--tag mcp --b mcp` for the plugin-versus-MCP comparison. It writes to
 Use the same tag and arms with `unblind`. Record the exact judge model. Keep repeated runs
 in a separate iteration and report them separately from the first eleven tasks.
 
-`tools/evals/judge.py` runs each prepared folder through Pioneer with a different model.
-The judge can read only its task folder; the answer key stays outside. Model provenance and
-controller logs go to `judge-logs/`. The runner validates the five claims and winner before
-accepting each verdict. `unblind` validates them too and reports unknown claims separately.
+The historical comparison used Claude Sonnet. The pending clean comparison will use
+GPT 6.1 Sol (`gpt-6.1-sol`) through Codex, as requested. Judge availability and image input
+have been checked. Those checks are not task verdicts.
+
+`tools/evals/judge.py --via codex` supplies only the two images and the task text. It disables
+tools, skills, memory and integrations. It rejects tool use, provider errors and invalid
+verdicts. Each pass starts a fresh session. The answer key is not supplied. Model provenance,
+input hashes and logs go to `judge-logs/`. `unblind` validates verdicts too and reports unknown
+claims separately. `--via pioneer` remains available for a configured Pi judge model.
 
 ## Running through Pioneer
 
@@ -209,13 +214,16 @@ go build -o bin/cav ./cmd/cav      # batch.py freezes this binary and the skill 
 uv run --no-project --with numpy --with scipy --with pillow python tools/evals/make_fixtures.py
 python3 tools/evals/batch.py --iter <name> --arms plugin,baseline,mcp --via pioneer
 python3 tools/evals/blind.py prepare --iter <name>
-python3 tools/evals/judge.py --iter <name> --judge-model <provider/model>
+python3 tools/evals/judge.py --iter <name> --via codex --judge-model gpt-6.1-sol
 python3 tools/evals/blind.py unblind --iter <name>
 python3 tools/evals/blind.py prepare --iter <name> --b mcp --tag mcp
-python3 tools/evals/judge.py --iter <name> --tag mcp --judge-model <provider/model>
+python3 tools/evals/judge.py --iter <name> --tag mcp --via codex --judge-model gpt-6.1-sol
 python3 tools/evals/blind.py unblind --iter <name> --b mcp --tag mcp
 python3 tools/evals/summary.py --iter <name>
 ```
+
+The Codex binary must support the requested judge model. Use `--codex-bin <path>` when
+the desktop app's bundled binary is newer than the command on PATH.
 
 `tools/evals/peek.py <run dir>` prints a run's tool calls while it is still going.
 Use `--skip-existing` with the batch command to resume scored runs. A run with
