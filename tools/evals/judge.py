@@ -16,7 +16,7 @@ from pathlib import Path
 
 from blind import judge_name, validate_verdict
 from evalpaths import DATA
-from run import agent_command, runtime_bin
+from run import agent_command, provider_error_count, runtime_bin
 
 PROMPT = """Compare two motion-design contact sheets. Read only task.md, A.png and B.png in
 this folder. View both images. Do not read any other source, scene, video, log or answer key.
@@ -89,9 +89,12 @@ def main():
                 result = subprocess.run(command, cwd=case, env=environment, stdout=out, stderr=err)
             info = {'judgeModel': args.judge_model, 'testedModel': args.tested_model, 'via': 'pioneer',
                     'case': str(case), 'exit': result.returncode, 'wallSeconds': round(time.time() - started, 1)}
+            info['providerErrors'] = provider_error_count(outputs['stdout']) if outputs['stdout'].is_file() else None
             provenance.write_text(json.dumps(info, indent=2) + '\n')
             if result.returncode:
                 sys.exit(f'judge controller failed with exit {result.returncode}; inspect {logdir}')
+            if info['providerErrors'] != 0:
+                sys.exit(f'judge provider failed or its event stream is missing; inspect {logdir}')
             if not verdict.is_file():
                 sys.exit(f'judge did not write verdict.json; inspect {logdir}')
             validate_verdict(json.loads(verdict.read_text()))

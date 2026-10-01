@@ -70,6 +70,18 @@ class VerdictFormat(unittest.TestCase):
 
 
 class ProviderExtensions(unittest.TestCase):
+    def test_provider_failure_is_detected_despite_successful_controller(self):
+        with tempfile.TemporaryDirectory() as td:
+            events = Path(td) / 'events.jsonl'
+            records = [
+                {'type': 'tool_execution_end', 'isError': True},
+                {'type': 'message_end', 'message': {'stopReason': 'error'}},
+                {'type': 'turn_end', 'message': {'stopReason': 'error'}},
+                {'type': 'turn_end', 'message': {'stopReason': 'stop'}},
+            ]
+            events.write_text('\n'.join(json.dumps(r) for r in records) + '\ntruncated')
+            self.assertEqual(run.provider_error_count(events), 1)
+
     def test_pioneer_keeps_provider_extensions_but_disables_auto_skills(self):
         command = run.agent_command('zai/glm-5.3-flash', 'medium', 'pioneer')
         self.assertNotIn('--no-extensions', command)

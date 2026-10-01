@@ -116,6 +116,20 @@ def runtime_bin(iteration):
     return directory if (directory / "build-brief").is_file() else None
 
 
+def provider_error_count(events_path):
+    """Pi can report a provider failure while Pioneer itself exits successfully."""
+    count = 0
+    with Path(events_path).open() as stream:
+        for line in stream:
+            try:
+                event = json.loads(line)
+            except ValueError:
+                continue
+            if event.get("type") == "turn_end" and (event.get("message") or {}).get("stopReason") == "error":
+                count += 1
+    return count
+
+
 def write_mcp_config(path, pioneer):
     """The cavalry-mcp server config for the MCP arm.
 
@@ -330,8 +344,11 @@ def main():
             if e.get("isError"):
                 tool_errors += 1
     meta.update({"tokens": tokens, "turns": turns, "toolCalls": tools, "toolErrors": tool_errors, "finalText": final_text[-2000:]})
+    meta["providerErrors"] = provider_error_count(run / "events.jsonl")
     (run / "meta.json").write_text(json.dumps(meta, indent=2))
     print(json.dumps({k: meta[k] for k in ("task", "arm", "model", "exit", "wallSeconds", "turns", "toolCalls", "toolErrors")}))
+    if meta["providerErrors"]:
+        sys.exit(f"provider failed in {meta['providerErrors']} completed turn(s); inspect {run / 'events.jsonl'}")
 
 
 if __name__ == "__main__":
