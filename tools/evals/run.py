@@ -12,6 +12,7 @@ events.jsonl (pi JSON events), cav.jsonl (every cav call), meta.json.
 """
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -33,6 +34,42 @@ def slug(s):
 
 def cav(*args, timeout=120):
     return subprocess.run([str(CAV), *args], capture_output=True, text=True, timeout=timeout)
+
+
+BRIDGE_PORTS = (8722, 8723)
+TOKENS = (Path.home() / ".cav" / "token", Path.home() / ".cavalry-mcp-token")
+
+
+def environment():
+    """What owns the bridge ports, and a hash and mtime of each bridge token.
+
+    An agent once found the cavalry-mcp bridge down, started a forwarder from 8722 to
+    cav-bridge on 8723 and copied the cav token over the cavalry-mcp token. Every later MCP
+    run then went through cav-bridge. Each run compares this before and after.
+    """
+    owners = {}
+    for port in BRIDGE_PORTS:
+        r = subprocess.run(["lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN", "-Fc"], capture_output=True, text=True)
+        owners[str(port)] = sorted({l[1:] for l in r.stdout.splitlines() if l.startswith("c")})
+    tokens = {}
+    for t in TOKENS:
+        if t.exists():
+            tokens[t.name] = {"sha": hashlib.sha256(t.read_bytes().strip()).hexdigest()[:12], "mtime": t.stat().st_mtime}
+    return {"listeners": owners, "tokens": tokens}
+
+
+def check_environment(env, arm):
+    """Problems that make a run invalid before it starts."""
+    problems = []
+    for port, owners in env["listeners"].items():
+        if any(o != "Cavalry" for o in owners):
+            problems.append(f"port {port} is held by {owners}, not by Cavalry")
+    if arm == "mcp" and not env["listeners"].get("8722"):
+        problems.append("the cavalry-mcp bridge is not running (nothing listens on 8722)")
+    shas = [t["sha"] for t in env["tokens"].values()]
+    if len(shas) == 2 and shas[0] == shas[1]:
+        problems.append("~/.cav/token and ~/.cavalry-mcp-token are the same, so each bridge accepts the other's jobs")
+    return problems
 
 
 def prepare_cavalry():
@@ -164,6 +201,10 @@ def main():
         pi += ["-e", str(ADAPTER), "--mcp-config", str(work / "mcp.json")]
     pi += ["-p", prompt]
 
+    before = environment()
+    problems = check_environment(before, args.arm)
+    if problems:
+        sys.exit("environment not clean:\n  " + "\n  ".join(problems))
     prepare_cavalry()
     meta = {"task": args.task, "arm": args.arm, "model": args.model, "via": args.via, "iter": args.iter,
             "thinking": args.thinking, "started": time.strftime("%Y-%m-%dT%H:%M:%S")}
@@ -237,6 +278,10 @@ def main():
             if (run / "actor-stderr.txt").exists():
                 err.write((run / "actor-stderr.txt").read_text())
     meta["exit"] = code
+    after = environment()
+    if after != before:
+        # The agent changed the bridges or their tokens: the run did not test what it claims to.
+        meta["environmentChanged"] = {"before": before, "after": after}
     meta["workdir"] = str(work)
     shutil.move(str(work), str(run / "work"))
     shutil.rmtree(scratch, ignore_errors=True)

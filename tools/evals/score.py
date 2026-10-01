@@ -200,6 +200,8 @@ def main():
                          "wallSeconds": meta.get("wallSeconds"), "tokens": meta.get("tokens"), "turns": meta.get("turns"),
                          "toolCalls": meta.get("toolCalls"), "toolErrors": meta.get("toolErrors"), "timedOut": meta.get("timedOut")})
 
+    # A run whose agent changed the bridge ports or tokens did not test its own arm (see run.py).
+    s["gates"]["environment"] = "environmentChanged" not in meta
     s["gates"]["sceneSaved"] = scene.exists()
     s["gates"]["videoRendered"] = video.exists()
     fps = exp["fps"]
