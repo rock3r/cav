@@ -129,6 +129,10 @@ verdicts. Each pass starts a fresh session. The answer key is not supplied. Mode
 input hashes and logs go to `judge-logs/`. `unblind` validates verdicts too and reports unknown
 claims separately. `--via pioneer` remains available for a configured Pi judge model.
 
+Use `prepare --keep-existing` to add pairs as their runs finish. It preserves prior verdicts
+and checks that their inputs and A/B mappings have not changed. This lets judging proceed
+while later tasks run. Use `judge.py --skip-existing` to retain validated judgments.
+
 ## Running through Pioneer
 
 Pioneer runs each agent in a macOS sandbox. The harness (`run.py --via pioneer`) adapts to
@@ -226,11 +230,11 @@ go build -o bin/cav ./cmd/cav      # batch.py freezes this binary and the skill 
 uv run --no-project --with numpy --with scipy --with pillow python tools/evals/make_fixtures.py
 FASTEMBED_CACHE_PATH="$PWD/.plans/evals/runtime/mcp-kb-prefetch" "${CAVALRY_MCP_DIR:-$HOME/src/cavalry-mcp}/.venv/bin/python" -c 'from cavalry_mcp.tools.knowledge import search; assert search("composition frame range", 1)'
 python3 tools/evals/batch.py --iter <name> --arms plugin,baseline,mcp --via pioneer
-python3 tools/evals/blind.py prepare --iter <name>
-python3 tools/evals/judge.py --iter <name> --via codex --judge-model gpt-6.1-sol
+python3 tools/evals/blind.py prepare --iter <name> --keep-existing
+python3 tools/evals/judge.py --iter <name> --via codex --judge-model gpt-6.1-sol --skip-existing
 python3 tools/evals/blind.py unblind --iter <name>
-python3 tools/evals/blind.py prepare --iter <name> --b mcp --tag mcp
-python3 tools/evals/judge.py --iter <name> --tag mcp --via codex --judge-model gpt-6.1-sol
+python3 tools/evals/blind.py prepare --iter <name> --b mcp --tag mcp --keep-existing
+python3 tools/evals/judge.py --iter <name> --tag mcp --via codex --judge-model gpt-6.1-sol --skip-existing
 python3 tools/evals/blind.py unblind --iter <name> --b mcp --tag mcp
 python3 tools/evals/summary.py --iter <name>
 ```

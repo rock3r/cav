@@ -161,6 +161,39 @@ class ProviderExtensions(unittest.TestCase):
 
 
 class BlindFolders(unittest.TestCase):
+    def test_incremental_prepare_preserves_verdicts_and_rejects_changed_inputs(self):
+        with tempfile.TemporaryDirectory() as td:
+            data = Path(td)
+            tasks = data / 'tasks.json'
+            cases = [{'id': 'one', 'prompt': 'brief one', 'rubric': ['claim']}]
+            tasks.write_text(json.dumps({'tasks': cases}))
+            for arm in ('plugin', 'baseline'):
+                directory = data / 'runs' / 'iterfresh' / 'one' / f'{arm}__model'
+                directory.mkdir(parents=True)
+                (directory / 'review.png').write_bytes(arm.encode())
+            args = argparse.Namespace(iter='fresh', model='model', a='plugin', b='baseline', seed=7, tag='', keep_existing=True)
+            with patch.object(blind, 'EVALS', data), patch.object(blind, 'TASKS', tasks), contextlib.redirect_stdout(io.StringIO()):
+                blind.prepare(args)
+                original_key = json.loads((data / 'judge' / 'fresh' / 'key.json').read_text())
+                for suffix in ('', '-swap'):
+                    (data / 'judge' / f'fresh{suffix}' / 'one' / 'verdict.json').write_text('saved verdict')
+                cases.append({'id': 'two', 'prompt': 'brief two', 'rubric': ['claim']})
+                tasks.write_text(json.dumps({'tasks': cases}))
+                for arm in ('plugin', 'baseline'):
+                    directory = data / 'runs' / 'iterfresh' / 'two' / f'{arm}__model'
+                    directory.mkdir(parents=True)
+                    (directory / 'review.png').write_bytes(('two ' + arm).encode())
+                blind.prepare(args)
+                updated = json.loads((data / 'judge' / 'fresh' / 'key.json').read_text())
+                self.assertEqual(updated['one'], original_key['one'])
+                self.assertEqual(set(updated), {'one', 'two'})
+                for suffix in ('', '-swap'):
+                    self.assertEqual((data / 'judge' / f'fresh{suffix}' / 'one' / 'verdict.json').read_text(), 'saved verdict')
+                (data / 'runs' / 'iterfresh' / 'one' / 'plugin__model' / 'review.png').write_bytes(b'changed render')
+                with self.assertRaises(ValueError):
+                    blind.prepare(args)
+                self.assertEqual(json.loads((data / 'judge' / 'fresh' / 'key.json').read_text()), updated)
+
     def test_tag_keeps_other_comparison_and_swaps_order(self):
         with tempfile.TemporaryDirectory() as td:
             data = Path(td)

@@ -48,11 +48,15 @@ def validate_verdict(value):
 def prepare(args):
     spec = json.loads(TASKS.read_text())
     rng = random.Random(args.seed)
+    keep = getattr(args, 'keep_existing', False)
+    previous = {}
     for suffix in ("", "-swap"):
         out = EVALS / "judge" / f"{judge_name(args)}{suffix}"
-        if out.exists():
+        previous[suffix] = json.loads((out / 'key.json').read_text()) if keep and (out / 'key.json').is_file() else {}
+        if out.exists() and not keep:
             shutil.rmtree(out)
     key, key_swap = {}, {}
+    prepared = []
     for task in spec["tasks"]:
         runs = {arm: EVALS / "runs" / f"iter{args.iter}" / task["id"] / f"{arm}__{slug(args.model)}" for arm in (args.a, args.b)}
         if not all((r / "review.png").exists() for r in runs.values()):
@@ -61,12 +65,28 @@ def prepare(args):
         rng.shuffle(first)
         for suffix, order, k in (("", first, key), ("-swap", first[::-1], key_swap)):
             d = EVALS / "judge" / f"{judge_name(args)}{suffix}" / task["id"]
-            d.mkdir(parents=True)
-            for label, arm in zip("AB", order):
-                shutil.copy(runs[arm] / "review.png", d / f"{label}.png")
             claims = "\n".join(f"{i + 1}. {c}" for i, c in enumerate(task["rubric"]))
-            (d / "task.md").write_text(f"# Task\n\n{task['prompt']}\n\n# Rubric claims\n\n{claims}\n")
-            k[task["id"]] = {"A": order[0], "B": order[1]}
+            inputs = {label + '.png': (runs[arm] / 'review.png').read_bytes() for label, arm in zip('AB', order)}
+            inputs['task.md'] = f"# Task\n\n{task['prompt']}\n\n# Rubric claims\n\n{claims}\n".encode()
+            mapping = {"A": order[0], "B": order[1]}
+            if keep and d.exists():
+                if previous[suffix].get(task['id']) != mapping:
+                    raise ValueError(f'existing blind mapping differs: {d}; preserve the prior comparison')
+                for name, content in inputs.items():
+                    path = d / name
+                    if not path.is_file() or path.read_bytes() != content:
+                        raise ValueError(f'existing blind input differs: {path}; preserve the prior comparison')
+            else:
+                prepared.append((d, inputs))
+            k[task["id"]] = mapping
+    for suffix, k in (("", key), ("-swap", key_swap)):
+        if keep and set(previous[suffix]) - set(k):
+            raise ValueError('a previously prepared pair is missing; preserve the prior comparison')
+    # Validate all retained inputs before writing any new cases or answer keys.
+    for directory, inputs in prepared:
+        directory.mkdir(parents=True)
+        for name, content in inputs.items():
+            (directory / name).write_bytes(content)
     for suffix, k in (("", key), ("-swap", key_swap)):
         base = EVALS / "judge" / f"{judge_name(args)}{suffix}"
         base.mkdir(parents=True, exist_ok=True)
@@ -117,6 +137,7 @@ if __name__ == "__main__":
     ap.add_argument("--b", default="baseline")
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--tag", default="", help="separate judging folder for another arm comparison")
+    ap.add_argument("--keep-existing", action="store_true", help="add ready pairs without changing prior inputs, mappings or verdicts")
     args = ap.parse_args()
     if args.tag and (Path(args.tag).name != args.tag or args.tag in (".", "..")):
         ap.error("--tag must be a folder name, without path separators")
