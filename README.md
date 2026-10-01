@@ -102,11 +102,17 @@ agent shell ── cav ── HTTP 127.0.0.1:8723 (token) ──> cav-bridge.js 
 
 ## What was verified
 
-Tested on macOS with Cavalry 2.7.2. Windows paths and scripts are written but **not tested** on
-Windows. The helper library has unit tests (Node, mock API) and live tests (74 checks inside
-Cavalry). The skill's `references/` folder lists the verified traps and recipes.
+Tested on macOS with Cavalry 2.7.2. On 2026-10-01, live tests also passed on Cavalry 2.8.0:
+65 core helper checks and 14 native helper checks (measured). Windows paths and scripts are
+written but **not tested** on Windows. The skill's `references/` folder lists the verified
+traps and recipes.
 
 ## Evaluation
+
+The clean Pioneer comparison on Cavalry 2.8.0 is pending. Its first launch on 2026-10-01
+stopped before any model turn: Pioneer could not find the requested `zai/glm-5.3-flash` model.
+This is a setup failure, so it is not counted as a failed motion-design task. The historical
+numbers below are still the last measured results; they have not been replaced by this run.
 
 We measured the toolkit on 11 motion-design tasks with GLM-5.3 Flash (`zai/glm-5.3-flash`, run
 through the pi agent, 30-minute limit per run, one new scene per run). Eight tasks were used
@@ -126,12 +132,12 @@ duration, audio, frame coverage, motion, easing and (for music) beat sync. For q
 separate model (Claude Sonnet) compared the two arms' contact sheets without knowing which arm
 made which. It judged every pair twice, the second time with the order swapped.
 
-Final comparison, same code for both arms (measured):
+Historical comparison, same code for both arms (measured on Cavalry 2.7.2):
 
-| Arm | Automatic checks passed | Blind wins | Rubric claims met | Mean time | Mean tokens |
-|---|---|---|---|---|---|
-| plugin | 12 of 14 runs | 10 | 118 of 130 | 833 s | 1.17 M |
-| baseline | 14 of 14 runs | 16 | 111 of 130 | 864 s | 1.01 M |
+| Arm | Cavalry | Automatic checks passed | Blind wins | Rubric claims met | Mean time | Mean tokens |
+|---|---|---|---|---|---|---|
+| plugin | 2.7.2 | 12 of 14 runs | 10 | 118 of 130 | 833 s | 1.17 M |
+| baseline | 2.7.2 | 14 of 14 runs | 16 | 111 of 130 | 864 s | 1.01 M |
 
 The upstream cavalry-mcp server passed 1 of 8 tasks in the last run that included it, but
 that number is not valid. During that run, one cavalry-mcp agent found the cavalry-mcp bridge
@@ -156,7 +162,7 @@ What this shows:
   ignored the review loop and stacked everything in the middle of the frame. Space Bunny could
   not be measured: the free endpoint returned empty responses.
 
-## Credits## Credits
+## Credits
 
 - [cavalry-mcp](https://github.com/m18h/cavalry-mcp) by Michael Essandoh (MIT): the bridge script
   is derived from its bridge, and the token handshake, API reference and docs search ideas come

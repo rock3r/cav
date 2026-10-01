@@ -3,8 +3,8 @@
 How the `cav` CLI, the Cavalry bridge, the helper library and the agent skill fit together,
 and how a request moves through them. For people who change this code.
 
-Status: working on macOS with Cavalry 2.7.2. Windows code paths are written but not tested.
-Updated 2026-09-30.
+Status: working on macOS with Cavalry 2.7.2 and 2.8.0. Windows code paths are written but
+not tested. Updated 2026-10-01.
 
 ## Summary
 
@@ -40,8 +40,9 @@ Main limits today:
 The Go binary embeds the bridge script, the helper library and the API reference
 (`assets/assets.go`). One file is enough to install and repair everything.
 
-The evaluation harness lives in `.plans/evals/`, which is not committed. The README
-summarises its method and results.
+The evaluation harness lives in `tools/evals/`. Its run data, fixtures, frozen snapshots
+and scratch scenes live in `.plans/evals/`, which is not committed. The README summarises
+its method and results.
 
 ## Files on disk
 

@@ -6,6 +6,11 @@ what we learned about measuring it. For people who run or change the evaluation.
 Status: method stable; the final comparison through Pioneer is being rerun because an eval
 agent had redirected the cavalry-mcp arm to our bridge. Updated 2026-10-01.
 
+The clean `pioneer-final2` launch on Cavalry 2.8.0 stopped before any model turn. Pioneer
+reported that `zai/glm-5.3-flash` was not configured. No task result was measured. The
+requested provider must be restored, or a provider change approved, before the comparison
+can continue. Earlier results used Cavalry 2.7.2 and remain historical results.
+
 ## Summary
 
 We give the same motion-design brief to an agent under three conditions (arms), one run at a
@@ -34,9 +39,10 @@ The harness is in `tools/evals/`. Generated fixtures and all run data go to `.pl
 | cavalry-mcp | the upstream cavalry-mcp server through an MCP adapter; `cav` is hidden |
 
 All arms use the same agent (pi), the same model, the same prompt text apart from one line
-naming the tool, and a 30-minute limit. Every arm of one comparison runs from one frozen
-snapshot of the CLI and the skill (`snapshots/iter<N>/` in the data folder), so edits made while a
-batch runs do not leak into it.
+naming the tool, and a 30-minute limit. The clean comparison uses pi through Pioneer's
+sandbox. Every arm of one comparison runs from one frozen snapshot of the CLI and the skill
+(`snapshots/iter<name>/` in the data folder), so edits to those parts during a batch do not
+leak into it. Keep the harness and task definitions fixed too.
 
 ## Tasks
 
@@ -93,6 +99,11 @@ to arms and reports wins, claims met, and how often the two passes agreed.
 The judge sees only still frames. It cannot judge audio or exact beat timing, so those claims
 are marked unknown, and the automatic beat gate covers them.
 
+Use `--tag mcp --b mcp` for the plugin-versus-MCP comparison. It writes to
+`judge/<iter>-mcp/` and `judge/<iter>-mcp-swap/`, leaving the baseline comparison in place.
+Use the same tag and arms with `unblind`. Record the exact judge model. Keep repeated runs
+in a separate iteration and report them separately from the first eleven tasks.
+
 ## Running through Pioneer
 
 Pioneer runs each agent in a macOS sandbox. The harness (`run.py --via pioneer`) adapts to
@@ -107,6 +118,11 @@ it:
 - The agent's stdout and stderr go to files (`--stdout-file`, `--stderr-file`). Otherwise
   pi's JSON events, which carry every viewed image as base64, pass Pioneer's 4 MiB in-memory
   limit.
+- Scratch scenes and renders stay under `.plans/evals/scratch/`. Pioneer gives the actor
+  access only to its work folder and the explicit runtime paths.
+- A harness error, a non-timeout controller exit, a scorer error, or an environment change
+  stops the batch. Inspect the logs before resuming. A timeout while the model works remains
+  a task result and is scored.
 
 ## What went wrong, and what we changed
 
@@ -174,10 +190,15 @@ python3 tools/evals/batch.py --iter <name> --arms plugin,baseline,mcp --via pion
 python3 tools/evals/blind.py prepare --iter <name>
 # run the judge on judge/<name> and judge/<name>-swap in the data folder
 python3 tools/evals/blind.py unblind --iter <name>
+python3 tools/evals/blind.py prepare --iter <name> --b mcp --tag mcp
+# run the judge on judge/<name>-mcp and judge/<name>-mcp-swap
+python3 tools/evals/blind.py unblind --iter <name> --b mcp --tag mcp
 python3 tools/evals/summary.py --iter <name>
 ```
 
 `tools/evals/peek.py <run dir>` prints a run's tool calls while it is still going.
+Use `--skip-existing` with the batch command to resume scored runs. A run with
+`environmentChanged` in its metadata stops a resumed batch too.
 
 Runs are serial: one Cavalry, one scene at a time. A full comparison of three arms on eleven
 tasks takes 8 to 10 hours with GLM-5.3 Flash, mostly because the model plans for several
