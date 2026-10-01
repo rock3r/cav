@@ -4,6 +4,7 @@
 """
 
 import argparse
+import hashlib
 import json
 import shutil
 import subprocess
@@ -27,6 +28,17 @@ def freeze(iteration):
     (snap / "bin").mkdir(parents=True, exist_ok=True)
     shutil.copy2(CAV, snap / "bin" / "cav")
     shutil.copytree(REPO / "plugins" / "cavalry" / "skills" / "cavalry", snap / "skill", dirs_exist_ok=True)
+    # Enabled Pi hooks can invoke build-brief even for a non-Gradle bash command.
+    # Freeze the helper inside the runtime grant rather than expose Homebrew folders.
+    helper = shutil.which("build-brief")
+    if helper:
+        runtime = snap / "runtime" / "bin"
+        runtime.mkdir(parents=True)
+        target = runtime / "build-brief"
+        shutil.copy2(helper, target)
+        (snap / "runtime.json").write_text(json.dumps({"build-brief": {
+            "source": str(Path(helper).resolve()), "sha256": hashlib.sha256(target.read_bytes()).hexdigest()
+        }}, indent=2) + "\n")
     commit = subprocess.run(["git", "-C", str(REPO), "rev-parse", "--short", "HEAD"], capture_output=True, text=True).stdout.strip()
     dirty = subprocess.run(["git", "-C", str(REPO), "status", "--porcelain", "--", "cmd", "internal", "assets", "plugins"],
                            capture_output=True, text=True).stdout.strip()

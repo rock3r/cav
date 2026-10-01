@@ -16,7 +16,9 @@ results.
 `pioneer-final3` reached the model but was stopped after repeated `spawn EPERM` failures
 from Pi's shell tool. Its first task is an infrastructure failure and is excluded from task
 scores. The post-run environment check found no bridge or token changes. A plain Node actor
-could spawn system shells under the same Pioneer sandbox; the Pi path is being investigated.
+could spawn system shells under the same Pioneer sandbox. A trace found that an enabled
+build-brief hook tried to start its helper executable before the shell. A frozen copy in a
+read-only runtime folder fixed the Pi diagnostic. The next comparison is `pioneer-final4`.
 The minimal reproduction is tracked in [Pioneer issue #102](https://github.com/rock3r/pioneer/issues/102).
 
 ## Summary
@@ -127,6 +129,9 @@ it:
 - Pioneer loads enabled provider and auth extensions from a private snapshot. It removes
   their tools. Auto-loaded skills and context files remain disabled for all arms; only the
   plugin arm gets the cavalry skill explicitly.
+- When build-brief is installed, the batch freezes its executable in `runtime/bin/` and
+  records its hash. The actor reads that folder and finds the helper on PATH. This lets
+  its existing shell hook work without access to Homebrew folders. Judges use the same copy.
 - The cavalry-mcp arm loads pi-mcp-adapter with `--pi-extension`, may reach only port 8722
   (`--allow-loopback`), and starts the server through `/usr/bin/env HOME=<real home>`, because
   Pioneer gives the agent a private home folder and cavalry-mcp reads its token from the real

@@ -111,6 +111,11 @@ def agent_command(model, thinking, via):
     return command
 
 
+def runtime_bin(iteration):
+    directory = DATA / "snapshots" / f"iter{iteration}" / "runtime" / "bin"
+    return directory if (directory / "build-brief").is_file() else None
+
+
 def write_mcp_config(path, pioneer):
     """The cavalry-mcp server config for the MCP arm.
 
@@ -197,6 +202,9 @@ def main():
         path = os.pathsep.join(p for p in path.split(os.pathsep) if Path(p).resolve() != CAV.parent.resolve())
     else:
         path = str(CAV.parent) + os.pathsep + path
+    runtime = runtime_bin(args.iter)
+    if runtime is not None:
+        path = str(runtime) + os.pathsep + path
     env["PATH"] = path
 
     pi = agent_command(args.model, args.thinking, args.via)
@@ -237,6 +245,8 @@ def main():
             actor_env = {k: v for k, v in env.items() if k != "CAV_LOG"}
             cmd = ["pioneer", "eval", "run", "--run-dir", str(work), "--timeout-ms", str(args.timeout * 1000),
                    "--work-log", str(run / "pioneer.jsonl"), "--runtime-read", str(CAV.parent)]
+            if runtime is not None:
+                cmd += ["--runtime-read", str(runtime)]
             if args.arm == "plugin":
                 cmd += ["--runtime-read", str(scratch / "skills")]
             home = Path.home()

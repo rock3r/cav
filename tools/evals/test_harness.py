@@ -2,6 +2,7 @@
 import argparse
 import contextlib
 import io
+import hashlib
 import json
 import tempfile
 import unittest
@@ -12,6 +13,33 @@ import batch
 import blind
 import run
 import judge
+
+
+class RuntimeSnapshot(unittest.TestCase):
+    def test_helper_remains_frozen_when_installed_tool_changes(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            repo = root / 'repo'
+            skill = repo / 'plugins' / 'cavalry' / 'skills' / 'cavalry'
+            skill.mkdir(parents=True)
+            (skill / 'SKILL.md').write_text('skill')
+            cav = root / 'cav'
+            cav.write_bytes(b'cli')
+            helper = root / 'build-brief'
+            helper.write_bytes(b'original helper')
+            data = root / 'data'
+            with patch.object(batch, 'DATA', data), patch.object(batch, 'REPO', repo), patch.object(batch, 'CAV', cav), patch.object(batch.shutil, 'which', return_value=str(helper)), patch.object(batch.subprocess, 'run', return_value=argparse.Namespace(stdout='')), contextlib.redirect_stdout(io.StringIO()):
+                batch.freeze('fresh')
+                helper.write_bytes(b'updated helper')
+                batch.freeze('fresh')
+            snapshot = data / 'snapshots' / 'iterfresh'
+            frozen = snapshot / 'runtime' / 'bin' / 'build-brief'
+            self.assertEqual(frozen.read_bytes(), b'original helper')
+            record = json.loads((snapshot / 'runtime.json').read_text())
+            self.assertEqual(record['build-brief']['sha256'], hashlib.sha256(b'original helper').hexdigest())
+            with patch.object(run, 'DATA', data):
+                self.assertEqual(run.runtime_bin('fresh'), frozen.parent)
+                self.assertIsNone(run.runtime_bin('missing'))
 
 
 class VerdictFormat(unittest.TestCase):

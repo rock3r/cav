@@ -8,6 +8,7 @@ B.png and task.md and writes verdict.json. This command never contacts Cavalry.
 """
 import argparse
 import json
+import os
 import subprocess
 import sys
 import time
@@ -15,7 +16,7 @@ from pathlib import Path
 
 from blind import judge_name, validate_verdict
 from evalpaths import DATA
-from run import agent_command
+from run import agent_command, runtime_bin
 
 PROMPT = """Compare two motion-design contact sheets. Read only task.md, A.png and B.png in
 this folder. View both images. Do not read any other source, scene, video, log or answer key.
@@ -48,6 +49,10 @@ def main():
     if args.timeout < 1:
         ap.error('timeout must be positive')
     name = judge_name(args)
+    runtime = runtime_bin(args.iter)
+    environment = dict(os.environ)
+    if runtime is not None:
+        environment['PATH'] = str(runtime) + os.pathsep + environment.get('PATH', '')
     count = 0
     for suffix in ('', '-swap'):
         base = DATA / 'judge' / f'{name}{suffix}'
@@ -74,12 +79,14 @@ def main():
             if any(p.exists() for p in outputs.values()):
                 sys.exit(f'judge logs already exist: {logdir}; preserve the failed attempt before retrying')
             command = ['pioneer', 'eval', 'run', '--run-dir', str(case), '--timeout-ms', str(args.timeout * 1000),
-                       '--work-log', str(outputs['work']), '--stdout-file', str(outputs['stdout']), '--stderr-file', str(outputs['stderr']),
-                       '--', *agent_command(args.judge_model, 'medium', 'pioneer'), '-p', PROMPT]
+                       '--work-log', str(outputs['work']), '--stdout-file', str(outputs['stdout']), '--stderr-file', str(outputs['stderr'])]
+            if runtime is not None:
+                command += ['--runtime-read', str(runtime)]
+            command += ['--', *agent_command(args.judge_model, 'medium', 'pioneer'), '-p', PROMPT]
             print(f'Judging {case.name}{suffix} with {args.judge_model}', flush=True)
             started = time.time()
             with (logdir / 'controller-stdout.txt').open('w') as out, (logdir / 'controller-stderr.txt').open('w') as err:
-                result = subprocess.run(command, cwd=case, stdout=out, stderr=err)
+                result = subprocess.run(command, cwd=case, env=environment, stdout=out, stderr=err)
             info = {'judgeModel': args.judge_model, 'testedModel': args.tested_model, 'via': 'pioneer',
                     'case': str(case), 'exit': result.returncode, 'wallSeconds': round(time.time() - started, 1)}
             provenance.write_text(json.dumps(info, indent=2) + '\n')

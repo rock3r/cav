@@ -114,7 +114,9 @@ stopped before any model turn: the harness disabled the provider extension that 
 `zai/glm-5.3-flash`. The Pioneer path now loads provider extensions with their tools removed.
 The fresh iteration, `pioneer-final3`, keeps the original model and provider.
 It reached the model, but was stopped because Pi's shell calls returned `spawn EPERM`
-inside Pioneer. This runtime failure is under investigation.
+inside Pioneer. An enabled build-brief hook needed its helper executable. The harness now
+freezes that helper too; the Pi shell diagnostic passes. The next clean iteration is
+`pioneer-final4`, with the same original model and provider.
 This is a setup failure, so it is not counted as a failed motion-design task. The historical
 numbers below are still the last measured results; they have not been replaced by this run.
 
