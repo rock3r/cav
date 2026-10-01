@@ -117,6 +117,10 @@ model that is not the tested model marks each rubric claim true, false or
 unknown for both sheets and picks the better one. `blind.py unblind` maps the verdicts back
 to arms and reports wins, claims met, and how often the two passes agreed.
 
+Agreement compares the chosen winner, including a tie. Repeat the task pair once when
+that choice changes between image orders. Claim marks and unknown claims are reported
+separately.
+
 The judge sees only still frames. It cannot judge audio or exact beat timing, so those claims
 are marked unknown, and the automatic beat gate covers them.
 
