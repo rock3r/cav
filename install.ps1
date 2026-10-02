@@ -1,6 +1,6 @@
 # Install or update the cav CLI on Windows, then run `cav setup`.
 #   irm https://raw.githubusercontent.com/rock3r/cavalry-skill/main/install.ps1 | iex
-# Options (environment): CAV_VERSION=v0.1.0, CAV_BIN_DIR, CAV_REPO=owner/name, CAV_BASE_URL (mirror).
+# Options (environment): CAV_VERSION=v1.0.0, CAV_BIN_DIR, CAV_REPO=owner/name, CAV_BASE_URL (mirror).
 $ErrorActionPreference = 'Stop'
 
 $Repo = if ($env:CAV_REPO) { $env:CAV_REPO } else { 'rock3r/cavalry-skill' }

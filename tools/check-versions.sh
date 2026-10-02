@@ -1,7 +1,7 @@
 #!/bin/sh
 # Check (or with --set, write) the plugin version in every manifest.
-#   tools/check-versions.sh 0.1.0          fail if any manifest differs
-#   tools/check-versions.sh --set 0.2.0    write the version everywhere
+#   tools/check-versions.sh 1.0.0          fail if any manifest differs
+#   tools/check-versions.sh --set 1.1.0    write the version everywhere
 set -eu
 cd "$(dirname "$0")/.."
 files="plugins/cavalry/plugin.json plugins/cavalry/.claude-plugin/plugin.json plugins/cavalry/.codex-plugin/plugin.json"

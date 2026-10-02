@@ -1,7 +1,7 @@
 #!/bin/sh
 # Install or update the cav CLI on macOS, then run `cav setup`.
 #   curl -fsSL https://raw.githubusercontent.com/rock3r/cavalry-skill/main/install.sh | sh
-# Options (environment): CAV_VERSION=v0.1.0 to pin a release, CAV_BIN_DIR to choose the folder,
+# Options (environment): CAV_VERSION=v1.0.0 to pin a release, CAV_BIN_DIR to choose the folder,
 # CAV_REPO=owner/name for a fork, CAV_BASE_URL to download from a mirror or a local dist/ folder.
 set -eu
 
