@@ -1,6 +1,6 @@
 #!/bin/sh
 # Build release archives for every supported platform into dist/.
-#   tools/release.sh v0.1.0          build only
+#   tools/release.sh v1.0.0          build only
 # Publishing is a separate, manual step (see RELEASING.md). This script never pushes.
 set -eu
 VERSION="${1:?usage: tools/release.sh vX.Y.Z}"
@@ -9,7 +9,7 @@ cd "$(dirname "$0")/.."
 
 tools/check-versions.sh "${VERSION#v}"
 go test ./...
-node --test assets/helpers/test
+node --test assets/helpers/test/*.test.js assets/bridge/test/*.test.js
 
 rm -rf dist && mkdir -p dist
 for target in darwin/arm64 darwin/amd64 windows/amd64 windows/arm64 linux/amd64; do
