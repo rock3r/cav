@@ -57,8 +57,10 @@ check('counter changes the text width', numWidth > api.getBoundingBox(num, true)
 // Oscillator and wiggle.
 var ob = cav.circle('osc', 20)
 cav.oscillate(ob, 'position.x', { min: -100, max: 100, freq: 1 })
-var xs = [0, 7, 15, 22].map(function (f) { return at(f, ob, 'position').x })
-check('oscillator moves', Math.max.apply(null, xs) - Math.min.apply(null, xs) > 100, xs)
+// Sample quarter periods (1 cycle per second) so the check holds at any frame rate.
+var q = Math.round(cav.comp().fps / 4)
+var xs = [0, q, 2 * q, 3 * q].map(function (f) { return at(f, ob, 'position').x })
+check('oscillator moves', Math.max.apply(null, xs) - Math.min.apply(null, xs) > 150, xs)
 var wb = cav.rect('wig', 40, 40)
 cav.wiggle(wb, 'rotation', { min: -30, max: 30, freq: 2 })
 var rs = [0, 10, 20, 30].map(function (f) { return at(f, wb, 'rotation').z })
