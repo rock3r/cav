@@ -15,8 +15,11 @@ checks, beat grids and offline search.
 
 We chose a CLI and an Agent Skill instead of an MCP server. Driving Cavalry always needs a
 desktop session with Cavalry open, so a shell is always available, and a CLI costs an agent
-no context until it asks for help. The skill teaches the workflow; the CLI enforces as much
-of it as it can (`cav check`, clear errors, "still running" instead of "failed").
+no context until it asks for help. The CLI also teaches the workflow (`cav guide`) and
+enforces as much of it as it can (`cav check`, clear errors, "still running" instead of
+"failed"). The skill is only an entry point that sends the agent to `cav guide`. In the
+clean evaluation, the CLI alone did as well as the CLI with the old, longer skill, so the
+guidance now lives in the CLI, where every agent can reach it.
 
 Main limits today:
 
@@ -33,11 +36,12 @@ Main limits today:
 | cav-bridge | `assets/bridge/cav-bridge.js` | Cavalry JavaScript (UI script) | Listens on `127.0.0.1:8723`, runs jobs, publishes their state and result. |
 | Helper library | `assets/helpers/cav-helpers.js` | Cavalry JavaScript | The global `cav` inside jobs: creation, keys, easing, motion recipes, native features. |
 | API reference | `assets/apiref/*.json`, `tools/build_apiref.py`, `tools/api-notes.json` | JSON | Offline data for `cav api` and `cav types`. |
-| Skill | `plugins/cavalry/skills/cavalry` | Markdown | The agent workflow, traps, motion recipes and native-feature recipes. |
+| Guides | `assets/guide/*.md` | Markdown | What `cav guide` prints: workflow, design recipes, music sync, traps, native features. |
+| Skill | `plugins/cavalry/skills/cavalry` | Markdown | A short entry point: when to use `cav`, setup checks, and a pointer to `cav guide`. |
 | Plugin packaging | `plugins/cavalry/*plugin.json`, `.claude-plugin/`, `.agents/plugins/` | JSON | Claude Code, Agent Plugins and Codex manifests and marketplace entries. |
 | Installers | `install.sh`, `install.ps1` | shell, PowerShell | Download a release, verify its checksum, run `cav setup`. |
 
-The Go binary embeds the bridge script, the helper library and the API reference
+The Go binary embeds the bridge script, the helper library, the guides and the API reference
 (`assets/assets.go`). One file is enough to install and repair everything.
 
 The evaluation harness lives in `tools/evals/`. Its run data, fixtures, frozen snapshots
@@ -155,7 +159,7 @@ Lines that start with `//@` form the reference that `cav helpers` prints. Keep t
 the code they describe.
 
 Design rules the helpers follow, each learned from a silent failure in Cavalry 2.7.2 (the
-full list is in `references/gotchas.md` in the skill):
+full list is in `cav guide traps`):
 
 - New layers are created with the selection cleared, because `api.create` nests a new layer
   next to the current selection.
@@ -200,7 +204,7 @@ files or run ffmpeg (`cav render`, `cav beats`) work the same. The relay runs ea
 the agent's working folder.
 
 - Some commands never go through the relay because they need nothing from outside:
-  `help`, `version`, `helpers`, `api`, `types`, `relay`.
+  `help`, `version`, `helpers`, `guide`, `api`, `types`, `relay`.
 - The relay refuses `setup`, `update` and `relay`.
 - Each request runs on its own goroutine, so one slow command (a long `cav job wait`)
   cannot hold up the others. Requests are renamed before they run, so two workers never
@@ -312,7 +316,7 @@ The live tests delete every layer in the active comp. Run them only after
 
 - One slow script blocks the bridge for everyone. The CLI reports this honestly ("busy",
   "still running"), but cannot run two jobs at once.
-- The Spring behaviour had no visible effect when connected from a script. The skill
+- The Spring behaviour had no visible effect when connected from a script. `cav guide`
   recommends `spring`/`outBack` easing instead.
 - `cav check` does not catch every layout fault. A panel's content built outside the panel's
   group is caught only when text ends up hidden behind the panel.

@@ -5,8 +5,8 @@ motion design app. There are three parts:
 
 | Part | What it is |
 |---|---|
-| `cav` | A command-line tool. It runs JavaScript inside a running Cavalry, renders frames, contact sheets and videos, inspects scenes, finds music beats, and searches the API and docs offline. |
-| The `cavalry` skill | Instructions for agents: the workflow, the traps, and motion design recipes. |
+| `cav` | A command-line tool. It runs JavaScript inside a running Cavalry, renders frames, contact sheets and videos, inspects scenes, finds music beats, and searches the API and docs offline. `cav guide` prints the workflow, the traps and motion design recipes. |
+| The `cavalry` skill | A short entry point for agents: it checks the setup and sends the agent to `cav guide`. |
 | Plugin packaging | The skill as a Claude Code plugin, an [Agent Plugins](https://agent-plugins.org) plugin and a Codex plugin, with marketplace entries. |
 
 There is no MCP server. Driving Cavalry always needs a desktop with Cavalry running, so a shell
@@ -80,6 +80,7 @@ the marketplace: `/plugin marketplace update cavalry-skill`.
 | `cav beats <audio>` | Tempo, beats and downbeats as frame numbers |
 | `cav api <words>` / `cav docs <words>` / `cav types <word>` | Offline search: API signatures, Cavalry docs, layer type ids |
 | `cav helpers [word]` | Reference for the helper library (the global `cav` inside scripts) |
+| `cav guide [topic]` | How to work: workflow, design recipes, music sync, traps, native features |
 | `cav relay --spool <dir>` | Forward jobs for agents whose sandbox blocks 127.0.0.1 |
 | `cav version [--check]` / `cav update` | Versions and updates |
 
@@ -105,8 +106,8 @@ agent shell ── cav ── HTTP 127.0.0.1:8723 (token) ──> cav-bridge.js 
 
 Tested on macOS with Cavalry 2.7.2. On 2026-10-01, live tests also passed on Cavalry 2.8.0:
 65 core helper checks and 14 native helper checks (measured). Windows paths and scripts are
-written but **not tested** on Windows. The skill's `references/` folder lists the verified
-traps and recipes.
+written but **not tested** on Windows. `cav guide traps` and `cav guide native` list the
+verified traps and recipes.
 
 ## Evaluation
 

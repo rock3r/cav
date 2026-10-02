@@ -132,6 +132,7 @@ cav job wait <id>         # a specific job
 | Render with music | `cav render -o out/final.mp4 --audio music.wav` |
 | Find a layer type id | `cav types gradient` |
 | Search the docs | `cav docs stagger` |
+| Read how to work, or motion recipes | `cav guide`, `cav guide design` |
 
 Every command accepts `--json` for machine-readable output.
 
@@ -159,8 +160,10 @@ again with `--bpm <what you expect>`. For a track without a file, `cav beats --b
 
 ## Using cav with a coding agent
 
-The `cavalry` skill teaches an agent the workflow above, the traps, and recipes for motion
-design (entrances, impacts, kinetic type, transitions, beat sync). Install it in Claude Code:
+`cav guide` prints the workflow, the traps, and recipes for motion design (entrances,
+impacts, kinetic type, transitions, beat sync), so any agent with a shell can learn `cav` from
+`cav` itself. The `cavalry` skill is a short entry point: it tells the agent when to use
+`cav`, how to check the setup, and to read `cav guide`. Install it in Claude Code:
 
 ```text
 /plugin marketplace add rock3r/cavalry-skill
@@ -169,8 +172,8 @@ design (entrances, impacts, kinetic type, transitions, beat sync). Install it in
 
 For other agents, copy `plugins/cavalry/skills/cavalry` into the agent's skills folder.
 
-In our tests, a mid-size model produced clean, correct animations with the CLI alone. The
-skill mostly helps with workflow and polish. See the README for the measured results.
+In our tests, a mid-size model did as well with the CLI alone as with the CLI and the old,
+longer skill. That is why the skill is now short. See the README for the measured results.
 
 ### Agents in a sandbox
 
