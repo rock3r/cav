@@ -96,7 +96,8 @@ agent shell ── cav ── HTTP 127.0.0.1:8723 (token) ──> cav-bridge.js 
 
 - Jobs are files: the CLI writes the script to `~/.cav/jobs/`, and the bridge reads it. Results
   also go to a file, so a long job survives a client timeout (`cav job wait`).
-- The bridge answers status requests while a job runs, so cav can tell "running" from "gone".
+- The bridge publishes job state and stores results. When Cavalry is busy, `cav` waits
+  and reports that it is not answering.
 - Round trip: about 60 ms for a small job (measured on an M-series Mac, Cavalry 2.7.2).
 - The helper library is sent once per bridge session and reloaded when its version changes.
 
@@ -109,62 +110,149 @@ traps and recipes.
 
 ## Evaluation
 
-The clean 33-run comparison is running through Pioneer on Cavalry 2.8.0 as
-`pioneer-final4`. It uses `zai/glm-5.3-flash`, medium thinking, and the same frozen CLI
-and skill for all three arms. Setup, provider and bridge failures are excluded from task
-results. The historical numbers below remain in place until the full comparison is audited.
+Measured on Cavalry **2.8.0**, with `zai/glm-5.3-flash`, medium thinking, through
+Pioneer's native sandbox. Each run had a new scene and a 30-minute deadline. The CLI
+and skill were frozen at `cadd3c6`. Pioneer was 0.4.4 and Pi was 0.84.2.
 
-The clean comparison uses GPT 6.1 Sol (`gpt-6.1-sol`) through Codex for blind judging.
-Each available pair is judged in fresh sessions in both image orders. These verdicts
-remain separate from the historical Sonnet results below.
+There are 11 original tasks per arm: eight used for tuning and three held out
+(quote-card, map-route and countdown). The plugin arm gets the CLI and skill;
+baseline gets the CLI alone; cavalry-mcp gets the upstream MCP server, with the CLI hidden.
+Infrastructure and provider failures were excluded and replaced with the same setup.
+Normal task deadlines remain in the sample. Missing deliverables fail automatic checks.
 
-We measured the toolkit on 11 motion-design tasks with GLM-5.3 Flash (`zai/glm-5.3-flash`, run
-through the pi agent, 30-minute limit per run, one new scene per run). Eight tasks were used
-while we improved the toolkit: a logo sting, a kinetic title, a lower third, a bar chart, a UI
-walkthrough, a beat-synced loop, a transition pack and a promo cut to music. Three tasks were
-written later and never used for tuning (held out): a square quote card, a map route and a
-countdown to music.
+GPT 6.1 Sol (`gpt-6.1-sol`) through Codex CLI 0.159.2 judged every available contact-sheet
+pair in two fresh sessions, with swapped order and no tools or answer-key access.
+Wins count judgments, rather than tasks. Claims are the judge's marks; unknown claims
+remain in the denominator. Sheets cannot establish audio, exact beat timing, fidelity
+to input fixtures or vector construction. Automatic audio and beat checks are separate.
+Pairs without final videos have no blind verdict; their automatic failures remain counted.
 
-| Arm | What the agent gets |
-|---|---|
-| plugin | the `cav` CLI and this skill |
-| baseline | the `cav` CLI only (it can read `cav help` and `cav helpers`) |
-| cavalry-mcp | the upstream cavalry-mcp server |
+All figures below are **measured**. Mean tokens include input, output and cached reads.
+Mean times include the normal deadlines. Original and repeat runs are never pooled.
 
-A script checks each run: the scene was saved, and the video has the right size, frame rate,
-duration, audio, frame coverage, motion, easing and (for music) beat sync. For quality, a
-separate model (Claude Sonnet) compared the two arms' contact sheets without knowing which arm
-made which. It judged every pair twice, the second time with the order swapped.
+### All tasks
 
-Historical comparison, same code for both arms (measured on Cavalry 2.7.2):
-
-| Arm | Cavalry | Automatic checks passed | Blind wins | Rubric claims met | Mean time | Mean tokens |
+| Arm | Cavalry | Measured runs | Automatic passes | Mean time (s) | Mean tokens | Timeouts |
 |---|---|---|---|---|---|---|
-| plugin | 2.7.2 | 12 of 14 runs | 10 | 118 of 130 | 833 s | 1.17 M |
-| baseline | 2.7.2 | 14 of 14 runs | 16 | 111 of 130 | 864 s | 1.01 M |
+| plugin | 2.8.0 | 11 | 8/11 | 1,176.7 | 1,219,232 | 1 |
+| baseline | 2.8.0 | 11 | 8/11 | 1,025.3 | 982,121 | 1 |
+| cavalry-mcp | 2.8.0 | 11 | 3/11 | 1,604.0 | 3,221,162 | 8 |
 
-The upstream cavalry-mcp server passed 1 of 8 tasks in the last run that included it, but
-that number is not valid. During that run, one cavalry-mcp agent found the cavalry-mcp bridge
-down. It started a port forwarder from the cavalry-mcp port to cav-bridge and copied the cav
-token over the cavalry-mcp token. From then on, every cavalry-mcp call went to cav-bridge. A
-clean rerun is pending. The plugin and baseline numbers are not affected: their jobs always
-ran through cav-bridge. See [docs/evaluation.md](docs/evaluation.md) for details.
+#### Blind comparison: plugin vs baseline
 
-What the historical runs showed:
+Judge: gpt-6.1-sol through Codex. Each available pair was judged in both orders.
 
-- The CLI does most of the work. With `cav help`, the helper library and `cav check`, a
-  mid-size model produces clean, animated, correct videos without the skill.
-- The skill did not make the videos better in the final blind comparison. It won the repeated
-  tasks (5 to 1) but lost the first pass (5 to 15), including all held-out tasks. Earlier
-  iterations showed it using fewer tokens and making fewer script errors; the final run did not
-  confirm that.
-- Both plugin failures were a 30-minute timeout on the beat loop and a missed beat-sync check.
-  In timeouts the model spent 9 to 10 minutes planning before its first command.
-- The judge's two passes agreed on 9 of 13 pairs, and single runs flip between pass and fail.
-  Differences of one or two tasks are noise.
-- Free models: Nemotron 3.5 Lightning (OpenRouter, free) passed 0 of 8 with the plugin: it
-  ignored the review loop and stacked everything in the middle of the frame. Space Bunny could
-  not be measured: the free endpoint returned empty responses.
+| Arm | Cavalry | Wins | Claims met | Unknown claims |
+|---|---|---|---|---|
+| plugin | 2.8.0 | 9/18 | 63/90 | 22 |
+| baseline | 2.8.0 | 9/18 | 66/90 | 22 |
+
+Ties: 0/18. Both passes agreed on 8/9 pairs. Unknown claims are included in the claim denominator.
+
+Not judgeable: promo-music (plugin: final video missing). Its automatic result is retained.
+
+Not judgeable: ui-walkthrough (baseline: final video missing). Its automatic result is retained.
+
+Pairs selected for a separate once-only repeat: beat-loop.
+
+#### Blind comparison: plugin vs cavalry-mcp
+
+Judge: gpt-6.1-sol through Codex. Each available pair was judged in both orders.
+
+| Arm | Cavalry | Wins | Claims met | Unknown claims |
+|---|---|---|---|---|
+| plugin | 2.8.0 | 6/6 | 30/30 | 0 |
+| cavalry-mcp | 2.8.0 | 0/6 | 28/30 | 2 |
+
+Ties: 0/6. Both passes agreed on 3/3 pairs. Unknown claims are included in the claim denominator.
+
+Not judgeable: beat-loop (cavalry-mcp: final video missing). Its automatic result is retained.
+
+Not judgeable: countdown (cavalry-mcp: final video missing). Its automatic result is retained.
+
+Not judgeable: kinetic-title (cavalry-mcp: final video missing). Its automatic result is retained.
+
+Not judgeable: logo-sting (cavalry-mcp: final video missing). Its automatic result is retained.
+
+Not judgeable: map-route (cavalry-mcp: final video missing). Its automatic result is retained.
+
+Not judgeable: promo-music (plugin: final video missing; cavalry-mcp: final video missing). Its automatic result is retained.
+
+Not judgeable: transition-pack (cavalry-mcp: final video missing). Its automatic result is retained.
+
+Not judgeable: ui-walkthrough (cavalry-mcp: final video missing). Its automatic result is retained.
+
+
+### Held-out tasks
+
+| Arm | Cavalry | Measured runs | Automatic passes | Mean time (s) | Mean tokens | Timeouts |
+|---|---|---|---|---|---|---|
+| plugin | 2.8.0 | 3 | 3/3 | 1,166.7 | 1,863,384 | 0 |
+| baseline | 2.8.0 | 3 | 3/3 | 841.2 | 792,833 | 0 |
+| cavalry-mcp | 2.8.0 | 3 | 1/3 | 1,437.0 | 3,291,794 | 2 |
+
+#### Blind comparison: plugin vs baseline
+
+Judge: gpt-6.1-sol through Codex. Each available pair was judged in both orders.
+
+| Arm | Cavalry | Wins | Claims met | Unknown claims |
+|---|---|---|---|---|
+| plugin | 2.8.0 | 4/6 | 20/30 | 9 |
+| baseline | 2.8.0 | 2/6 | 20/30 | 10 |
+
+Ties: 0/6. Both passes agreed on 3/3 pairs. Unknown claims are included in the claim denominator.
+
+#### Blind comparison: plugin vs cavalry-mcp
+
+Judge: gpt-6.1-sol through Codex. Each available pair was judged in both orders.
+
+| Arm | Cavalry | Wins | Claims met | Unknown claims |
+|---|---|---|---|---|
+| plugin | 2.8.0 | 2/2 | 10/10 | 0 |
+| cavalry-mcp | 2.8.0 | 0/2 | 10/10 | 0 |
+
+Ties: 0/2. Both passes agreed on 1/1 pairs. Unknown claims are included in the claim denominator.
+
+Not judgeable: countdown (cavalry-mcp: final video missing). Its automatic result is retained.
+
+Not judgeable: map-route (cavalry-mcp: final video missing). Its automatic result is retained.
+
+### Separate once-only repeats
+
+Repeated once after winner disagreement in the original image orders: beat-loop (plugin, baseline).
+The repeat used the byte-identical frozen snapshot and the same native setup.
+No repeat pair had two final videos, so no repeat judge was called.
+A disagreement in a repeat does not trigger another repeat. These results are separate.
+
+#### All tasks
+
+| Arm | Cavalry | Measured runs | Automatic passes | Mean time (s) | Mean tokens | Timeouts |
+|---|---|---|---|---|---|---|
+| plugin | 2.8.0 | 1 | 0/1 | 1,806.2 | 1,213,699 | 1 |
+| baseline | 2.8.0 | 1 | 1/1 | 1,020.4 | 809,625 | 0 |
+
+##### Blind comparison: plugin vs baseline
+
+No judge was called for this group because no contact-sheet pair was available.
+
+| Arm | Cavalry | Wins | Claims met | Unknown claims |
+|---|---|---|---|---|
+| plugin | 2.8.0 | not measured | not measured | not measured |
+| baseline | 2.8.0 | not measured | not measured | not measured |
+
+No completed contact-sheet pairs were judgeable in this group.
+
+Not judgeable: beat-loop (plugin: final video missing). Its automatic result is retained.
+
+These figures replace the historical Cavalry 2.7.2 plugin/baseline figures:
+12/14 and 14/14 automatic passes; 10 and 16 blind wins; 118/130 and 111/130 claims;
+833 s and 864 s mean time; 1.17 M and 1.01 M mean tokens. Those figures pooled
+originals and repeats and used Claude Sonnet. The new originals use 11 runs per arm,
+a different judge and Pioneer, so the difference is not an isolated skill effect.
+The invalid MCP 1/8 figure, all of `iterpioneer-final`, and iteration 6 tasks started
+at or after 15:56 on 2026-09-28 remain excluded.
+
+See [the evaluation method and full tuning tables](docs/evaluation.md).
 
 ## Credits
 
