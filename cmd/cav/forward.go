@@ -60,8 +60,10 @@ func forward(spool string, argv []string) int {
 			var res forwardRes
 			if json.Unmarshal(b, &res) == nil {
 				_ = os.Remove(outPath)
-				os.Stdout.WriteString(res.Stdout)
+				// Progress lines and warnings (stderr) were printed before the result (stdout).
+				// Keep that order: a "job running" line after the result reads as "not done".
 				os.Stderr.WriteString(res.Stderr)
+				os.Stdout.WriteString(res.Stdout)
 				return res.Exit
 			}
 		}
