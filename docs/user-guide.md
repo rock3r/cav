@@ -200,7 +200,8 @@ boundary, because scripts can still read and write files through Cavalry's API.
 |---|---|---|
 | `FAIL bridge  not running on 127.0.0.1:8723` | The bridge script is not open in Cavalry. | In Cavalry: **Scripts > cav-bridge**. Keep its window open. |
 | `listening ... but not answering` | Cavalry is busy with a long script or render, or a dialog box is open. | Wait for the job, or close the dialog in Cavalry, then try again. |
-| `running v0.3.0; v0.4.0 is installed` | You updated `cav` but Cavalry still runs the old bridge. | Close the cav-bridge window and start it again from the Scripts menu. |
+| `running v1.0.0; v1.1.0 is installed` | You updated `cav` but Cavalry still runs the old bridge. It still works. | Close the cav-bridge window and start it again from the Scripts menu. |
+| `cav and cav-bridge do not match` or `speaks protocol` | The running bridge and `cav` use different request formats. `cav` will not send jobs. | Run `cav setup`, then close the cav-bridge window and start it again from the Scripts menu. |
 | Exit code 3, "still running" | The job took longer than `--timeout`. | `cav job wait <id>`. It is not an error. |
 | `unknown job` | The id is wrong, or the result is older than a day. | Check the id. `cav job wait` without an id waits for the most recent job. |
 | "Cavalry is busy (not answering)" during a job | A Cavalry operation is blocking the app, for example deleting hundreds of layers. | Keep waiting. `cav` gives up only after 120 s of silence. |

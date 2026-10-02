@@ -29,9 +29,14 @@ import (
 	"github.com/rock3r/cavalry-skill/internal/config"
 )
 
+// Protocol is the version of the request and result format that this cav speaks. Change it
+// only when that format changes; the bridge refuses requests with another protocol.
+const Protocol = 1
+
 // Request is what the bridge receives.
 type Request struct {
 	ID             string `json:"id"`
+	Protocol       int    `json:"protocol"`
 	Token          string `json:"token,omitempty"`
 	Code           string `json:"code,omitempty"`
 	File           string `json:"file,omitempty"`
@@ -51,6 +56,7 @@ type Result struct {
 	Error         *ScriptError    `json:"error"`
 	MS            int64           `json:"ms"`
 	BridgeVersion string          `json:"bridgeVersion,omitempty"`
+	Protocol      int             `json:"protocol,omitempty"`
 }
 
 type LogLine struct {
@@ -59,6 +65,7 @@ type LogLine struct {
 }
 
 type ScriptError struct {
+	Code    string `json:"code,omitempty"` // "protocol" when the bridge refused the request format
 	Message string `json:"message"`
 	Stack   string `json:"stack,omitempty"`
 	Where   *struct {
@@ -73,6 +80,7 @@ type Hello struct {
 	ID             string `json:"id"`
 	Bridge         string `json:"bridge"`
 	BridgeVersion  string `json:"bridgeVersion"`
+	Protocol       int    `json:"protocol,omitempty"`
 	CavalryVersion string `json:"cavalryVersion"`
 }
 
@@ -94,6 +102,8 @@ var (
 	ErrStillRunning = errors.New("job still running")
 	// ErrUnknownJob means no job with that id is queued, running or stored.
 	ErrUnknownJob = errors.New("unknown job")
+	// ErrProtocol means the running bridge speaks another request format than this cav.
+	ErrProtocol = errors.New("cav and cav-bridge do not match")
 	// ErrLost means the bridge stopped answering while the job was in flight.
 	ErrLost = errors.New("bridge stopped answering while the job was in flight")
 )
@@ -184,6 +194,7 @@ func (c *Client) Submit(ctx context.Context, r *Request) error {
 		return err
 	}
 	r.Token = tok
+	r.Protocol = Protocol
 	body, _ := json.Marshal(r)
 	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, c.base()+"/post", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -201,6 +212,31 @@ func (c *Client) Submit(ctx context.Context, r *Request) error {
 // Wait blocks until the job finishes, the timeout passes (ErrStillRunning), or the
 // bridge disappears (ErrLost). onState is called when the state changes.
 func (c *Client) Wait(ctx context.Context, id string, timeout time.Duration, onState func(State)) (*Result, error) {
+	r, err := c.wait(ctx, id, timeout, onState)
+	if err == nil {
+		if perr := ProtocolError(r); perr != nil {
+			return nil, perr
+		}
+	}
+	return r, err
+}
+
+// ProtocolError reports a result from a bridge that speaks another protocol. A bridge older
+// than cav 1.0 sends no protocol; it speaks protocol 1.
+func ProtocolError(r *Result) error {
+	got := r.Protocol
+	if r.Error != nil && r.Error.Code == "protocol" {
+		return fmt.Errorf("%w: %s. %s", ErrProtocol, r.Error.Message, protocolHint)
+	}
+	if got != 0 && got != Protocol {
+		return fmt.Errorf("%w: cav-bridge %s speaks protocol %d, this cav speaks protocol %d. %s", ErrProtocol, r.BridgeVersion, got, Protocol, protocolHint)
+	}
+	return nil
+}
+
+const protocolHint = "Run `cav setup` to install the matching bridge script, then close the cav-bridge window in Cavalry and start it again from the Scripts menu"
+
+func (c *Client) wait(ctx context.Context, id string, timeout time.Duration, onState func(State)) (*Result, error) {
 	if c.Spool != "" {
 		return c.waitSpool(ctx, id, timeout, onState)
 	}

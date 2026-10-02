@@ -1,4 +1,4 @@
-// cav-bridge VERSION 0.4.0
+// cav-bridge VERSION 1.0.0
 //
 // HTTP request/response bridge between the `cav` CLI and Cavalry.
 // Runs inside Cavalry as a UI script: Scripts menu -> cav-bridge.
@@ -20,19 +20,24 @@
 // --------
 //   POST http://127.0.0.1:8723/post
 //     {"id": "<job id>", "token": "<~/.cav/token>", "file": "<path to .js>" | "code": "<js>",
-//      "preload": "<path>", "preloadVersion": "<v>"}
+//      "preload": "<path>", "preloadVersion": "<v>", "protocol": 1}
 //   The bridge publishes {"type":"running","id":...} through GET /get while the job runs,
 //   then {"type":"result","id":...,"ok":bool,"value":...,"logs":[...],"error":{...},"ms":N}.
 //   The result is also written to ~/.cav/jobs/<id>.json, so a client that was not polling
 //   (or that polled after another job replaced the GET payload) can still read it.
 //   Job code runs inside a function, so `return` sends a value back.
+//   Every payload carries "bridgeVersion" (the cav release that shipped this file) and
+//   "protocol". The protocol changes only when this request or result format changes. The
+//   bridge refuses a request whose "protocol" differs from its own; a request without one
+//   is treated as protocol 1.
 //
 // Isolation (a precaution): the bridge keeps all its state inside one function and adds
 // nothing global except the `cav` helpers, which exist only while a cav job runs. On Cavalry
 // 2.8.0 each UI script has its own global scope anyway; 2.7.2 was not checked.
 
 ;(function () {
-var BRIDGE_VERSION = '0.4.0'
+var BRIDGE_VERSION = '1.0.0'
+var PROTOCOL = 1
 var MIN_CAVALRY_VERSION = '2.4.0'
 var HOST = '127.0.0.1'
 var PORT = 8723
@@ -258,13 +263,22 @@ function BridgeCallbacks() {
 				console.error('cav-bridge: request needs `id` and `code` or `file`')
 				continue
 			}
-			server.setResultForGet(
-				JSON.stringify({ type: 'running', id: String(request.id), startedAt: Date.now(), bridgeVersion: BRIDGE_VERSION }),
-			)
-			var response = execute(request)
-			jobCount++
-			lastJobAt = Date.now()
+			var wanted = request.protocol === undefined ? 1 : request.protocol
+			var response
+			if (wanted !== PROTOCOL) {
+				// An older or newer cav speaks another request format: do not guess, refuse.
+				response = { type: 'result', id: String(request.id), ok: false, value: null, logs: [], ms: 0,
+					error: { code: 'protocol', message: 'cav-bridge ' + BRIDGE_VERSION + ' speaks protocol ' + PROTOCOL + ', but this cav speaks protocol ' + wanted } }
+			} else {
+				server.setResultForGet(
+					JSON.stringify({ type: 'running', id: String(request.id), startedAt: Date.now(), bridgeVersion: BRIDGE_VERSION, protocol: PROTOCOL }),
+				)
+				response = execute(request)
+				jobCount++
+				lastJobAt = Date.now()
+			}
 			response.bridgeVersion = BRIDGE_VERSION
+			response.protocol = PROTOCOL
 			var text = JSON.stringify(response)
 			try {
 				api.writeToFile(JOBS_DIR + '/' + String(request.id).replace(/[^A-Za-z0-9_-]/g, '') + '.json', text)
@@ -281,6 +295,7 @@ server.setResultForGet(
 		type: 'hello',
 		bridge: 'cav-bridge',
 		bridgeVersion: BRIDGE_VERSION,
+		protocol: PROTOCOL,
 		cavalryVersion: api.getCavalryVersion(),
 	}),
 )

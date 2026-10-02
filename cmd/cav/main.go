@@ -135,7 +135,7 @@ func (a *app) finish(err error) int {
 	if !errors.As(err, &ce) {
 		ce = &cliError{code: exitError, msg: err.Error()}
 		switch {
-		case errors.Is(err, bridge.ErrUnavailable):
+		case errors.Is(err, bridge.ErrUnavailable), errors.Is(err, bridge.ErrProtocol):
 			ce.code = exitUnavailable
 		case errors.Is(err, bridge.ErrStillRunning):
 			ce.code = exitStillRunning

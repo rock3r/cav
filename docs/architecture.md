@@ -289,14 +289,19 @@ Both searches use BM25 over tokens with camelCase splitting and light stemming
 - `cav setup` is safe to run again. It creates the token, installs or updates the bridge
   script, checks Cavalry and ffmpeg, builds the docs index and checks the running bridge.
   `cav doctor` runs the same checks without changing anything.
-- An older running bridge is a warning, not a failure: the request protocol has not changed
-  since 0.1. Restarting the bridge window brings the new version.
+- Each request and each bridge payload carries a protocol number (1 today). The bridge
+  refuses a request with another protocol, and `cav` then exits with code 2 and says how to
+  fix it. `cav doctor` fails on a mismatch. A bridge from before 1.0 sends no protocol; it
+  speaks protocol 1, which has not changed since 0.1.
+- An older running bridge with the same protocol is a warning, not a failure. Restarting the
+  bridge window brings the new version.
 - `cav update` downloads a GitHub release, verifies it against the release's
   `checksums.txt`, replaces the binary and runs `cav setup`. It asks first unless `--yes` is
   given, and nothing updates on its own.
-- Versions follow semver. `cav version` prints three: the CLI, the helper library (with its
-  hash) and the running bridge. `tools/check-versions.sh` checks, or with `--set` writes, the
-  version in the three plugin manifests and the skill. `RELEASING.md` describes the release steps.
+- One semver version covers the CLI, the plugins, the skill, the bridge script and the helper
+  library. `cav version` prints the CLI, the helper library (with its hash) and the bridge
+  script that this `cav` installs. `tools/check-versions.sh` checks, or with `--set` writes,
+  the version in every one of those files. `RELEASING.md` describes the release steps.
 
 ## Tests
 

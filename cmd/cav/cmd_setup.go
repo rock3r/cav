@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/rock3r/cavalry-skill/assets"
+	"github.com/rock3r/cavalry-skill/internal/bridge"
 	"github.com/rock3r/cavalry-skill/internal/config"
 )
 
@@ -248,9 +249,17 @@ func bridgeCheck(a *app) check {
 	if got == "" {
 		return check{Name: "bridge", Detail: "something answers on the port but it is not cav-bridge", Fix: "close the other program or set CAV_BRIDGE_PORT"}
 	}
+	// A bridge older than cav 1.0 sends no protocol; it speaks protocol 1.
+	proto := 1
+	if p, ok := payload["protocol"].(float64); ok {
+		proto = int(p)
+	}
+	if proto != bridge.Protocol {
+		return check{Name: "bridge", Detail: fmt.Sprintf("running v%s speaks protocol %d, but this cav speaks protocol %d: cav cannot use it", got, proto, bridge.Protocol),
+			Fix: "run `cav setup`, then close the cav-bridge window in Cavalry and start it again from the Scripts menu"}
+	}
 	if got != want {
-		// The request protocol has not changed since 0.1, so an older running bridge still
-		// works; restarting it only brings its improvements.
+		// Same protocol: the older bridge works; restarting it only brings its improvements.
 		return check{Name: "bridge", OK: true, Optional: true, Detail: fmt.Sprintf("running v%s; v%s is installed (works; restart the cav-bridge window to update)", got, want),
 			Fix: "close the cav-bridge window in Cavalry and start it again from the Scripts menu"}
 	}

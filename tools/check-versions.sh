@@ -1,5 +1,6 @@
 #!/bin/sh
-# Check (or with --set, write) the plugin version in every manifest.
+# Check (or with --set, write) the release version in every manifest, the bridge script and
+# the helper library.
 #   tools/check-versions.sh 1.0.0          fail if any manifest differs
 #   tools/check-versions.sh --set 1.1.0    write the version everywhere
 set -eu
@@ -11,6 +12,8 @@ if [ "${1:-}" = "--set" ]; then
     sed -i.bak -E "s/\"version\": \"[^\"]+\"/\"version\": \"$v\"/" "$f" && rm "$f.bak"
   done
   sed -i.bak -E "s/^  version: \"[^\"]+\"/  version: \"$v\"/" plugins/cavalry/skills/cavalry/SKILL.md && rm plugins/cavalry/skills/cavalry/SKILL.md.bak
+  sed -i.bak -E "s/^\/\/ cav-bridge VERSION .*/\/\/ cav-bridge VERSION $v/; s/^var BRIDGE_VERSION = '[^']+'/var BRIDGE_VERSION = '$v'/" assets/bridge/cav-bridge.js && rm assets/bridge/cav-bridge.js.bak
+  sed -i.bak -E "s/cav\.VERSION = '[^']+'/cav.VERSION = '$v'/" assets/helpers/cav-helpers.js && rm assets/helpers/cav-helpers.js.bak
   echo "set version $v"
   exit 0
 fi
@@ -22,4 +25,8 @@ for f in $files; do
 done
 got="$(sed -nE 's/^  version: "([^"]+)"/\1/p' plugins/cavalry/skills/cavalry/SKILL.md)"
 [ "$got" = "$want" ] || { echo "SKILL.md has version $got, want $want" >&2; bad=1; }
+got="$(sed -nE "s/^var BRIDGE_VERSION = '([^']+)'/\1/p" assets/bridge/cav-bridge.js)"
+[ "$got" = "$want" ] || { echo "cav-bridge.js has version $got, want $want" >&2; bad=1; }
+got="$(sed -nE "s/.*cav\.VERSION = '([^']+)'.*/\1/p" assets/helpers/cav-helpers.js)"
+[ "$got" = "$want" ] || { echo "cav-helpers.js has version $got, want $want" >&2; bad=1; }
 exit $bad

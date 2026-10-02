@@ -77,3 +77,26 @@ test('cav-bridge adds no global names and restores api after a job', () => {
 	c.timers[0].onTimeout()
 	assert.strictEqual(JSON.parse(c.files['/home/test/.cav/jobs/job2.json']).value, 'undefined')
 })
+
+test('cav-bridge refuses another protocol and reports its own', () => {
+	const c = makeCavalry()
+	const context = vm.createContext({ api: c.api, ui: c.ui, cavalry: c.cavalry, console: { log() {}, info() {}, warn() {}, error() {} } })
+	context.globalThis = context
+	vm.runInContext(BRIDGE, context)
+	assert.strictEqual(JSON.parse(c.getResult).protocol, 1, 'hello carries the protocol')
+
+	const run = (req) => {
+		c.posts.push(JSON.stringify(Object.assign({ token: TOKEN, code: 'return 7' }, req)))
+		c.timers[0].onTimeout()
+		return JSON.parse(c.files['/home/test/.cav/jobs/' + req.id + '.json'])
+	}
+	const old = run({ id: 'noproto' }) // a cav older than 1.0 sends no protocol
+	assert.strictEqual(old.ok, true)
+	assert.strictEqual(old.value, 7)
+	assert.strictEqual(old.protocol, 1)
+	assert.strictEqual(run({ id: 'p1', protocol: 1 }).value, 7)
+	const future = run({ id: 'p2', protocol: 2 })
+	assert.strictEqual(future.ok, false)
+	assert.strictEqual(future.error.code, 'protocol')
+	assert.strictEqual(future.value, null, 'the job must not run')
+})

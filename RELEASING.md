@@ -1,16 +1,21 @@
 # Releasing
 
-One version number covers the CLI and the plugin: `vMAJOR.MINOR.PATCH` (semantic versioning).
-The bridge script and the helper library carry their own version strings, because Cavalry
-reloads them separately; bump them when their files change.
+One version number covers the CLI, the plugin, the bridge script and the helper library:
+`vMAJOR.MINOR.PATCH` (semantic versioning). `tools/check-versions.sh` sets and checks it in
+every file, and a packaging test fails when the files disagree.
+
+Compatibility between `cav` and a running bridge is a separate number: the protocol
+(`Protocol` in `internal/bridge/client.go`, `PROTOCOL` in `cav-bridge.js`). Change both only
+when the request or result format changes. A bridge refuses requests with another protocol,
+and `cav doctor` fails on a mismatch. When only the version differs, an older bridge keeps
+working, and `cav doctor` suggests a restart.
 
 | What changed | Bump |
 |---|---|
 | Bug fix, docs, skill wording | PATCH |
 | New command, flag, helper or recipe | MINOR |
 | Removed or renamed command, flag or helper; bridge protocol change | MAJOR |
-| `assets/bridge/cav-bridge.js` | also `BRIDGE_VERSION` in that file |
-| `assets/helpers/cav-helpers.js` | also `cav.VERSION` in that file |
+| Bridge request or result format | MAJOR, and the protocol number in both places |
 
 ## Steps
 
