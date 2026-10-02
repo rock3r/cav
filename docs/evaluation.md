@@ -184,7 +184,8 @@ it:
 - A harness error, a non-timeout controller exit, a scorer error, or an environment change
   stops the batch. Provider errors in the event stream also stop it, even if the controller
   exits successfully. Inspect the logs before resuming. A timeout while the model works remains
-  a task result and is scored.
+  a task result and is scored. A normal exit at the model's output limit is also scored
+  when no provider error occurred. Missing required files fail the automatic checks.
 
 These results apply to the recorded Pioneer grants. Direct `ffprobe` calls returned
 "command not found" in the kinetic-title plugin actor. CLI commands run through the relay;
