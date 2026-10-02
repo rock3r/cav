@@ -1,4 +1,4 @@
-# How we evaluate cavalry-skill
+# How we evaluate cav
 
 How we measure whether the CLI and the skill help an agent make good motion graphics, and
 what we learned about measuring it. For people who run or change the evaluation.

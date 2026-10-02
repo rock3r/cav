@@ -2,13 +2,13 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "cavalry",
   "displayName": "Cavalry",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Build professional, beat-synced motion graphics in Cavalry from the shell with the cav CLI.",
   "author": {
     "name": "Sebastiano Poggi"
   },
-  "homepage": "https://github.com/rock3r/cavalry-skill#readme",
-  "repository": "https://github.com/rock3r/cavalry-skill",
+  "homepage": "https://github.com/rock3r/cav#readme",
+  "repository": "https://github.com/rock3r/cav",
   "license": "MIT",
   "keywords": ["cavalry", "motion-design", "animation", "motion-graphics", "video"],
   "skills": "./skills/"

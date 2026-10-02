@@ -15,9 +15,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rock3r/cavalry-skill/assets"
-	"github.com/rock3r/cavalry-skill/internal/bridge"
-	"github.com/rock3r/cavalry-skill/internal/config"
+	"github.com/rock3r/cav/assets"
+	"github.com/rock3r/cav/internal/bridge"
+	"github.com/rock3r/cav/internal/config"
 )
 
 // parseFlags parses flags that may appear before, between or after positional arguments.

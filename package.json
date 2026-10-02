@@ -1,6 +1,6 @@
 {
   "private": true,
-  "name": "cavalry-skill-dev",
+  "name": "cav-dev",
   "description": "Development scripts only. The cav CLI is written in Go.",
   "scripts": {
     "test:helpers": "node --test assets/helpers/test",

@@ -6,9 +6,9 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/rock3r/cavalry-skill/assets"
+	"github.com/rock3r/cav/assets"
 
-	"github.com/rock3r/cavalry-skill/internal/bridge"
+	"github.com/rock3r/cav/internal/bridge"
 )
 
 func newClient() *bridge.Client { return bridge.New() }

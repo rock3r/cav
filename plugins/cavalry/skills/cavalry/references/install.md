@@ -7,13 +7,13 @@ Ask the user before you install anything.
 macOS:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/rock3r/cavalry-skill/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/rock3r/cav/main/install.sh | sh
 ```
 
 Windows (PowerShell):
 
 ```powershell
-irm https://raw.githubusercontent.com/rock3r/cavalry-skill/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/rock3r/cav/main/install.ps1 | iex
 ```
 
 The installer puts `cav` in `~/.local/bin` (macOS) or `%LOCALAPPDATA%\cav\bin` (Windows), then

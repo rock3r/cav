@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/rock3r/cavalry-skill/internal/bridge"
-	"github.com/rock3r/cavalry-skill/internal/config"
+	"github.com/rock3r/cav/internal/bridge"
+	"github.com/rock3r/cav/internal/config"
 )
 
 // Commands that never need Cavalry or files outside the working directory run locally,

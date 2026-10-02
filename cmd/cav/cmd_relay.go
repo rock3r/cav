@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rock3r/cavalry-skill/internal/bridge"
+	"github.com/rock3r/cav/internal/bridge"
 )
 
 func init() {

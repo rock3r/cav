@@ -6,7 +6,7 @@
 
 ;(function () {
 	var cav = {}
-	cav.VERSION = '1.0.1'
+	cav.VERSION = '1.0.2'
 
 	//@ # cav helpers (global `cav`, loaded before every `cav run`)
 	//@ Coordinates: (0,0) is the comp centre, +x right, +y UP. Frames are integers.

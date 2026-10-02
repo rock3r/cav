@@ -1,4 +1,4 @@
-// cav-bridge VERSION 1.0.1
+// cav-bridge VERSION 1.0.2
 //
 // HTTP request/response bridge between the `cav` CLI and Cavalry.
 // Runs inside Cavalry as a UI script: Scripts menu -> cav-bridge.
@@ -36,7 +36,7 @@
 // 2.8.0 each UI script has its own global scope anyway; 2.7.2 was not checked.
 
 ;(function () {
-var BRIDGE_VERSION = '1.0.1'
+var BRIDGE_VERSION = '1.0.2'
 var PROTOCOL = 1
 var MIN_CAVALRY_VERSION = '2.4.0'
 var HOST = '127.0.0.1'

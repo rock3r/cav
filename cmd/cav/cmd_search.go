@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rock3r/cavalry-skill/assets"
-	"github.com/rock3r/cavalry-skill/internal/config"
-	"github.com/rock3r/cavalry-skill/internal/docs"
-	"github.com/rock3r/cavalry-skill/internal/search"
+	"github.com/rock3r/cav/assets"
+	"github.com/rock3r/cav/internal/config"
+	"github.com/rock3r/cav/internal/docs"
+	"github.com/rock3r/cav/internal/search"
 )
 
 func init() {

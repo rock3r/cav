@@ -26,7 +26,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/rock3r/cavalry-skill/internal/config"
+	"github.com/rock3r/cav/internal/config"
 )
 
 // Protocol is the version of the request and result format that this cav speaks. Change it

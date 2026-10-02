@@ -6,13 +6,13 @@ import (
 
 	"flag"
 	"fmt"
-	"github.com/rock3r/cavalry-skill/internal/config"
+	"github.com/rock3r/cav/internal/config"
 	"io"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/rock3r/cavalry-skill/internal/bridge"
+	"github.com/rock3r/cav/internal/bridge"
 )
 
 func init() {

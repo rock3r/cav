@@ -5,17 +5,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/rock3r/cavalry-skill/assets"
+	"github.com/rock3r/cav/assets"
 	"os"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/rock3r/cavalry-skill/internal/bridge"
+	"github.com/rock3r/cav/internal/bridge"
 )
 
 // Set by the release build with -ldflags "-X main.version=...".
-var version = "1.0.1-dev"
+var version = "1.0.2-dev"
 
 // Exit codes. Agents can branch on them without parsing text.
 const (

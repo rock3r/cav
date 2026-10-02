@@ -1,4 +1,4 @@
-# cavalry-skill
+# cav
 
 Make motion graphics in [Cavalry](https://cavalry.studio), the 2D motion design app, from a
 terminal. You, or a coding agent working for you, write short scripts. `cav` runs them inside
@@ -26,13 +26,13 @@ command-line tool costs an agent no context until it asks for help.
 **1. Install `cav`.** On macOS:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/rock3r/cavalry-skill/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/rock3r/cav/main/install.sh | sh
 ```
 
 On Windows, in PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/rock3r/cavalry-skill/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/rock3r/cav/main/install.ps1 | iex
 ```
 
 The installer checks the download against the release checksums, then runs `cav setup`.
@@ -47,18 +47,18 @@ cav doctor
 **3. Optional: add the agent plugin.** In Claude Code:
 
 ```text
-/plugin marketplace add rock3r/cavalry-skill
-/plugin install cavalry@cavalry-skill
+/plugin marketplace add rock3r/cav
+/plugin install cavalry@cav
 ```
 
 In Codex:
 
 ```bash
-codex plugin marketplace add rock3r/cavalry-skill
+codex plugin marketplace add rock3r/cav
 ```
 
 ```bash
-codex plugin add cavalry@cavalry-skill
+codex plugin add cavalry@cav
 ```
 
 Other agents: copy `plugins/cavalry/skills/cavalry` into the agent's skills folder.
@@ -112,7 +112,7 @@ cav update
 
 It shows the new release, asks, checks the download, and runs `cav setup`. If `cav doctor`
 then says the running bridge is older, close the cav-bridge window in Cavalry and start it
-again. Update the plugin with `/plugin marketplace update cavalry-skill` in Claude Code.
+again. Update the plugin with `/plugin marketplace update cav` in Claude Code.
 
 ## How well it works
 

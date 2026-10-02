@@ -23,7 +23,7 @@ import (
 )
 
 // The GitHub repository that publishes releases. Override with CAV_REPO=owner/name.
-const defaultRepo = "rock3r/cavalry-skill"
+const defaultRepo = "rock3r/cav"
 
 func repo() string {
 	if r := os.Getenv("CAV_REPO"); r != "" {

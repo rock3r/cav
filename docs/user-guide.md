@@ -14,13 +14,13 @@ licence.
 **1. Install the CLI.** On macOS:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/rock3r/cavalry-skill/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/rock3r/cav/main/install.sh | sh
 ```
 
 On Windows, in PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/rock3r/cavalry-skill/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/rock3r/cav/main/install.ps1 | iex
 ```
 
 The installer puts `cav` in `~/.local/bin` (Windows: `%LOCALAPPDATA%\cav\bin`), checks the
@@ -166,18 +166,18 @@ impacts, kinetic type, transitions, beat sync), so any agent with a shell can le
 `cav`, how to check the setup, and to read `cav guide`. Install it in Claude Code:
 
 ```text
-/plugin marketplace add rock3r/cavalry-skill
-/plugin install cavalry@cavalry-skill
+/plugin marketplace add rock3r/cav
+/plugin install cavalry@cav
 ```
 
 In Codex:
 
 ```bash
-codex plugin marketplace add rock3r/cavalry-skill
+codex plugin marketplace add rock3r/cav
 ```
 
 ```bash
-codex plugin add cavalry@cavalry-skill
+codex plugin add cavalry@cav
 ```
 
 For other agents, copy `plugins/cavalry/skills/cavalry` into the agent's skills folder.
@@ -234,7 +234,7 @@ cav update                # shows the release, asks, installs, then runs cav set
 
 `cav` never updates itself without asking. After an update, restart the cav-bridge window in
 Cavalry if `cav doctor` says the running bridge is older. Update the Claude Code plugin with
-`/plugin marketplace update cavalry-skill`.
+`/plugin marketplace update cav`.
 
 ## Uninstalling
 
@@ -243,7 +243,7 @@ Cavalry if `cav doctor` says the running bridge is older. Update the Claude Code
 2. Delete `~/.cav` (the token, job results and docs cache).
 3. Delete `cav-bridge.js` from Cavalry's Scripts folder: macOS
    `~/Library/Application Support/Cavalry/Scripts`, Windows `%APPDATA%\Cavalry\Scripts`.
-4. In Claude Code, remove the plugin with `/plugin uninstall cavalry@cavalry-skill`.
+4. In Claude Code, remove the plugin with `/plugin uninstall cavalry@cav`.
 
 ## Reference
 

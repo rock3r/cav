@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rock3r/cavalry-skill/assets"
+	"github.com/rock3r/cav/assets"
 )
 
 func TestHelperSignature(t *testing.T) {

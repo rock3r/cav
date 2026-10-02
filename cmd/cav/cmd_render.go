@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rock3r/cavalry-skill/internal/bridge"
-	"github.com/rock3r/cavalry-skill/internal/sheet"
+	"github.com/rock3r/cav/internal/bridge"
+	"github.com/rock3r/cav/internal/sheet"
 )
 
 func init() {

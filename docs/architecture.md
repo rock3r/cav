@@ -1,4 +1,4 @@
-# cavalry-skill architecture
+# cav architecture
 
 How the `cav` CLI, the Cavalry bridge, the helper library and the agent skill fit together,
 and how a request moves through them. For people who change this code.

@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.2
+
+- The project is now called `cav`, and the repository moved to
+  [rock3r/cav](https://github.com/rock3r/cav). Old links redirect, and `cav update` from 1.0.0
+  and 1.0.1 still works.
+- The plugin marketplace is now called `cav`: install the plugin with
+  `/plugin install cavalry@cav` (Claude Code) or `codex plugin add cavalry@cav` (Codex). If
+  you added the old `cavalry-skill` marketplace, remove it and add `rock3r/cav`.
+
 ## 1.0.1
 
 Fixes found by installing 1.0.0 from the release and using it through the Claude Code and

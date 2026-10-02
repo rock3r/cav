@@ -7,7 +7,7 @@ import (
 	"math"
 	"os"
 
-	"github.com/rock3r/cavalry-skill/internal/beats"
+	"github.com/rock3r/cav/internal/beats"
 )
 
 func init() {
