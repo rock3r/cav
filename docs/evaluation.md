@@ -16,6 +16,8 @@ Failed setup and runtime attempts are preserved and excluded from task scores an
 | pioneer-final4 MCP preview setup | 2.8.0 | Setup interrupted to keep preview files under .plans | Set TMPDIR to the run's out folder; actual MCP PNG preview passed |
 | pioneer-final4 MCP bridge | 2.8.0 | Cavalry restarted and its bridge connection failed; cause unknown | Both bridges recovered; read-only checks passed; record listener process IDs before and after each run |
 | pioneer-final4 kinetic-title plugin | 2.8.0 | Provider turn reported terminated, with no HTTP status or quota detail | Same-model acknowledgment and both bridge checks passed; retry the unscored attempt |
+| pioneer-final4 bar-chart MCP observer check | 2.8.0 | A second MCP client submitted a status request during the actor run; effect on result polling cannot be ruled out | Exclude the attempt and its blind verdicts; retry with the same frozen setup |
+| pioneer-final4 beat-loop MCP observer check | 2.8.0 | A second MCP client submitted a status request while native rendering held a script call; effect on result polling cannot be ruled out | Exclude the attempt; retry with the same frozen setup |
 
 These recoveries kept the tested model, provider, thinking level and native Pioneer sandbox.
 The shell-hook reproduction is tracked in [Pioneer issue #102](https://github.com/rock3r/pioneer/issues/102).
@@ -170,6 +172,13 @@ it:
 - The agent's stdout and stderr go to files (`--stdout-file`, `--stderr-file`). Otherwise
   pi's JSON events, which carry every viewed image as base64, pass Pioneer's 4 MiB in-memory
   limit.
+- During an active MCP run, observer checks only read `GET http://127.0.0.1:8722/get`.
+  This reads the existing response without submitting a script. The upstream bridge keeps
+  one shared latest result. Its Python lock belongs to each client instance, so a second
+  client can overwrite a response the actor is waiting for. Run full MCP status scripts
+  only before or after an MCP actor. A passive GET proves HTTP availability; it does not
+  prove that a new script would finish. This protocol limit was read in the installed
+  bridge source. The two observer-overlap attempts above are excluded, not measured task failures.
 - Scratch scenes and renders stay under `.plans/evals/scratch/`. Pioneer gives the actor
   access only to its work folder and the explicit runtime paths.
 - A harness error, a non-timeout controller exit, a scorer error, or an environment change
