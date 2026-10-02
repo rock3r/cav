@@ -40,6 +40,9 @@ After setup, start the bridge once per Cavalry session: Scripts menu > cav-bridg
 		summary: "Check every prerequisite without changing anything.",
 		run:     func(a *app, args []string) error { return cmdCheck(a, args, false) },
 	})
+	longHelp["doctor"] = `
+Exit code 0 when cav is ready, 2 when only the bridge is not running, 1 for any other
+problem. Each FAIL line is followed by the fix.`
 }
 
 type check struct {
@@ -145,9 +148,21 @@ func cmdCheck(a *app, args []string, fix bool) error {
 			fmt.Println("\nnot ready: fix the lines marked FAIL, then run `cav doctor` again.")
 		}
 	})
-	if !allOK && a.json {
-		// JSON output already carries ready=false; keep the exit code useful too.
-		return &cliError{code: exitError, msg: "not ready", data: map[string]any{"checks": checks}}
+	// doctor fails when something is not ready: exit 2 when only the bridge is missing,
+	// otherwise 1. setup in text mode still exits 0, because a bridge that is not started yet
+	// is the normal state right after an install.
+	if !allOK && (a.json || !fix) {
+		code := exitUnavailable
+		for _, c := range checks {
+			if !c.OK && !c.Optional && c.Name != "bridge" {
+				code = exitError
+			}
+		}
+		msg := "not ready"
+		if !a.json {
+			msg = "" // the report above already says so
+		}
+		return &cliError{code: code, msg: msg, data: map[string]any{"checks": checks}}
 	}
 	return nil
 }

@@ -157,7 +157,9 @@ func (a *app) finish(err error) int {
 		if ce.code == exitStillRunning {
 			label = "cav: "
 		}
-		fmt.Fprintln(os.Stderr, label+ce.msg)
+		if ce.msg != "" {
+			fmt.Fprintln(os.Stderr, label+ce.msg)
+		}
 		if ce.hint != "" {
 			fmt.Fprintln(os.Stderr, "hint: "+ce.hint)
 		}
