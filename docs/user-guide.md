@@ -5,7 +5,7 @@
 them inside the Cavalry app that is open on your desktop, shows you contact sheets of the
 result, checks it for common mistakes, and renders the final video.
 
-You need macOS (tested) or Windows (not tested yet), Cavalry 2.4 or newer (tested on 2.7.2 and 2.8.0),
+You need macOS (tested) or Windows (install and offline commands tested; driving Cavalry not tested yet), Cavalry 2.4 or newer (tested on 2.7.2 and 2.8.0),
 and ffmpeg. Some features, such as 2.5D cameras, physics and particles, need a Cavalry Pro
 licence.
 
@@ -170,6 +170,16 @@ impacts, kinetic type, transitions, beat sync), so any agent with a shell can le
 /plugin install cavalry@cavalry-skill
 ```
 
+In Codex:
+
+```bash
+codex plugin marketplace add rock3r/cavalry-skill
+```
+
+```bash
+codex plugin add cavalry@cavalry-skill
+```
+
 For other agents, copy `plugins/cavalry/skills/cavalry` into the agent's skills folder.
 
 In our tests, a mid-size model did as well with the CLI alone as with the CLI and the old,
@@ -208,6 +218,7 @@ boundary, because scripts can still read and write files through Cavalry's API.
 | A layer appears in the wrong place | `+y` is up, and `(0, 0)` is the centre. | Check positions with `cav layer <id>`. |
 | Text at the wrong position after a slide | Text is centred on its `x` by default. | Pass `align: 'left'` when `x` is the left edge. |
 | Physics or particles do not move in a sheet | They simulate only when frames render in order. | Use a step-1 range: `cav sheet 0-59:1`. |
+| `blocked: a sandbox` | An agent's sandbox stops `cav` from reaching `127.0.0.1` or writing `~/.cav`. | Allow `cav` to reach `127.0.0.1:8723` and write `~/.cav`, or use a relay (see "Agents in a sandbox"). |
 | `waiting for cav relay` | The agent is in spool mode but no relay is running. | Start `cav relay --spool <folder>` outside the sandbox. |
 | `cav rect` or `cav text` is an unknown command | Helpers are used inside scripts, not in the terminal. | Write the call in a `.js` file and run it with `cav run`. |
 

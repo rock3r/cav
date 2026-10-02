@@ -1,279 +1,169 @@
 # cavalry-skill
 
-Tools that let coding agents make motion graphics in [Cavalry](https://cavalry.studio), the 2D
-motion design app. There are three parts:
+Make motion graphics in [Cavalry](https://cavalry.studio), the 2D motion design app, from a
+terminal. You, or a coding agent working for you, write short scripts. `cav` runs them inside
+the Cavalry window that is open on your desktop, shows you contact sheets, checks the result
+for common mistakes, and renders the video, with music if you want.
 
 | Part | What it is |
 |---|---|
-| `cav` | A command-line tool. It runs JavaScript inside a running Cavalry, renders frames, contact sheets and videos, inspects scenes, finds music beats, and searches the API and docs offline. `cav guide` prints the workflow, the traps and motion design recipes. |
-| The `cavalry` skill | A short entry point for agents: it checks the setup and sends the agent to `cav guide`. |
-| Plugin packaging | The skill as a Claude Code plugin, an [Agent Plugins](https://agent-plugins.org) plugin and a Codex plugin, with marketplace entries. |
+| `cav` | A command-line tool for macOS and Windows. It runs JavaScript in Cavalry, renders frames, contact sheets and MP4 videos, inspects scenes, finds the beats in a music track, and searches the Cavalry API and docs offline. `cav guide` explains the workflow and has motion design recipes. |
+| cav-bridge | A small Cavalry script that `cav` talks to. `cav setup` installs it. |
+| `cavalry` skill | A short entry point for coding agents. It checks the setup and sends the agent to `cav guide`. Packaged as a Claude Code plugin and a Codex plugin. |
 
-There is no MCP server. Driving Cavalry always needs a desktop with Cavalry running, so a shell
-is always there. A CLI costs the agent no context until it asks for help.
+There is no MCP server. Cavalry always runs on a desktop, so a shell is always there, and a
+command-line tool costs an agent no context until it asks for help.
 
-Documentation: the [user guide](docs/user-guide.md) covers installing, the workflow, music
-sync, agents and troubleshooting. [Architecture](docs/architecture.md) explains how the parts
-fit together, for people who change the code, and [evaluation](docs/evaluation.md) describes
-how we measure it.
+## Requirements
+
+- Cavalry 2.4 or newer. Tested on 2.7.2 and 2.8.0.
+- macOS or Windows. See [What was tested](#what-was-tested) for the details on Windows.
+- ffmpeg, for videos with audio and for beat detection (`brew install ffmpeg`, or
+  `winget install Gyan.FFmpeg`).
 
 ## Install
 
-**1. The CLI.** macOS:
+**1. Install `cav`.** On macOS:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/rock3r/cavalry-skill/main/install.sh | sh
 ```
 
-Windows (PowerShell):
+On Windows, in PowerShell:
 
 ```powershell
 irm https://raw.githubusercontent.com/rock3r/cavalry-skill/main/install.ps1 | iex
 ```
 
-The installer checks the download against `checksums.txt`, then runs `cav setup`. Setup is safe
-to run again. It creates a secret token, copies the bridge script into Cavalry's Scripts folder,
-checks Cavalry and ffmpeg, and builds the offline docs index.
+The installer checks the download against the release checksums, then runs `cav setup`.
 
-**2. Start the bridge.** In Cavalry, click **Scripts > cav-bridge** and keep its small window open.
-The first time, Cavalry asks whether you trust the script. Then check everything:
+**2. Start the bridge.** In Cavalry, click **Scripts > cav-bridge** and keep its small window
+open. Do this once each time you start Cavalry. Then check everything:
 
 ```bash
 cav doctor
 ```
 
-**3. The plugin (optional).** In Claude Code:
+**3. Optional: add the agent plugin.** In Claude Code:
 
 ```text
 /plugin marketplace add rock3r/cavalry-skill
 /plugin install cavalry@cavalry-skill
 ```
 
-Other agents: copy `plugins/cavalry/skills/cavalry` into the agent's skills folder
-(OpenCode reads `.opencode/skills/`, `.claude/skills/` and `.agents/skills/`).
-
-## Update
+In Codex:
 
 ```bash
-cav version --check    # reports a newer release, changes nothing
-cav update             # shows the release, asks, verifies the checksum, then runs cav setup
+codex plugin marketplace add rock3r/cavalry-skill
 ```
 
-cav never updates itself without asking. After an update, if `cav doctor` says the running bridge
-is older, close the cav-bridge window in Cavalry and start it again. The plugin updates through
-the marketplace: `/plugin marketplace update cavalry-skill`.
+```bash
+codex plugin add cavalry@cavalry-skill
+```
+
+Other agents: copy `plugins/cavalry/skills/cavalry` into the agent's skills folder.
+
+**Agents in a sandbox.** Some agent sandboxes block connections to `127.0.0.1` or writes
+outside the project. `cav doctor` then reports `blocked: a sandbox`. Either allow `cav` to
+reach `127.0.0.1:8723`, or run `cav relay` outside the sandbox and let `cav` work through a
+folder: see [Agents in a sandbox](docs/user-guide.md#agents-in-a-sandbox).
+
+## Try it
+
+```bash
+cav scene new --width 1920 --height 1080 --fps 60 --seconds 4
+cav guide            # the workflow, with a first script to copy
+cav run title.js     # run your script inside Cavalry
+cav sheet            # look at 12 frames in renders/sheet.png
+cav check            # find problems a viewer would notice
+cav render -o out/title.mp4
+```
+
+The [user guide](docs/user-guide.md) walks through a first animation, music sync and
+troubleshooting.
 
 ## Commands
 
 | Command | What it does |
 |---|---|
-| `cav setup` / `cav doctor` | Install or check everything (token, bridge script, Cavalry, ffmpeg, docs, running bridge) |
-| `cav status` | Bridge version, scene path, unsaved changes, comp size, fps and frame range |
-| `cav scene new\|comp\|open\|save` | New scene with comp settings (refuses to discard unsaved work), change comp, open, save |
-| `cav run <file.js>... \| -e <code> \| -` | Run JavaScript in Cavalry with the helper library preloaded; prints the return value |
-| `cav job wait [<id>]` | Wait for a long job (default: the last one); a timeout means "still running", not "failed" |
-| `cav tree` / `cav layer <id>` | Layer tree; one layer's parent, bounding box, transform, animated attributes and keys |
-| `cav frame [n...]` | Render frames to PNG |
-| `cav sheet [frames]` | Render frames into one labelled contact sheet (optionally with beat numbers) |
-| `cav check` | Find common problems before rendering: long still stretches, tiny or clipped text, off-frame layers, empty start or end |
-| `cav render [-o out.mp4] [--audio track]` | Render the comp to MP4, check the frame count, mux audio with ffmpeg |
-| `cav beats <audio>` | Tempo, beats and downbeats as frame numbers |
-| `cav api <words>` / `cav docs <words>` / `cav types <word>` | Offline search: API signatures, Cavalry docs, layer type ids |
-| `cav helpers [word]` | Reference for the helper library (the global `cav` inside scripts) |
+| `cav setup` / `cav doctor` | Install or check everything: token, bridge script, Cavalry, ffmpeg, docs, running bridge |
 | `cav guide [topic]` | How to work: workflow, design recipes, music sync, traps, native features |
-| `cav relay --spool <dir>` | Forward jobs for agents whose sandbox blocks 127.0.0.1 |
-| `cav version [--check]` / `cav update` | Versions and updates |
+| `cav status` | The bridge, the open scene and the active comp |
+| `cav scene new\|comp\|open\|save` | New scene (refuses to discard unsaved work), change the comp, open, save |
+| `cav run <file.js>... \| -e <code>` | Run JavaScript in Cavalry with the helper library loaded; prints the return value |
+| `cav job wait [<id>]` | Wait for a long job; a timeout means "still running", not "failed" |
+| `cav tree` / `cav layer <id>` | The layer tree; one layer's position, bounding box and keys |
+| `cav frame [n...]` / `cav sheet [frames]` | Render frames to PNG, or a labelled contact sheet |
+| `cav check` | Long still stretches, small, clipped or hidden text, off-frame layers, empty start or end |
+| `cav render [-o out.mp4] [--audio track]` | Render to MP4, check the frame count, add the music |
+| `cav beats <audio>` | Tempo, beats and downbeats as frame numbers |
+| `cav api` / `cav docs` / `cav types` / `cav helpers` | Offline search: API, Cavalry docs, layer types, the helper library |
+| `cav relay --spool <dir>` | Forward commands for agents whose sandbox blocks `cav` |
+| `cav version [--check]` / `cav update` | Versions, and updates that ask before they install |
 
 Every command accepts `--json`. Exit codes: 0 ok, 1 error, 2 bridge not reachable, 3 job still
-running, 4 bridge lost. Set `CAV_LOG=file.jsonl` to log every call.
+running, 4 bridge lost.
 
-## How it works
+## Update
 
-```
-agent shell ── cav ── HTTP 127.0.0.1:8723 (token) ──> cav-bridge.js (UI script in Cavalry)
-                 │                                       runs the job, publishes the result,
-                 └─ reads ~/.cav/jobs/<id>.json <───────  and writes it to ~/.cav/jobs/<id>.json
+```bash
+cav update
 ```
 
-- Jobs are files: the CLI writes the script to `~/.cav/jobs/`, and the bridge reads it. Results
-  also go to a file, so a long job survives a client timeout (`cav job wait`).
-- The bridge publishes job state and stores results. When Cavalry is busy, `cav` waits
-  and reports that it is not answering.
-- Round trip: about 60 ms for a small job (measured on an M-series Mac, Cavalry 2.7.2).
-- The helper library is sent once per bridge session and reloaded when its version changes.
+It shows the new release, asks, checks the download, and runs `cav setup`. If `cav doctor`
+then says the running bridge is older, close the cav-bridge window in Cavalry and start it
+again. Update the plugin with `/plugin marketplace update cavalry-skill` in Claude Code.
 
-## What was verified
+## How well it works
 
-Tested on macOS with Cavalry 2.7.2. On 2026-10-01, live tests also passed on Cavalry 2.8.0:
-65 core helper checks and 14 native helper checks (measured). Windows paths and scripts are
-written but **not tested** on Windows. `cav guide traps` and `cav guide native` list the
-verified traps and recipes.
+We gave the same 11 motion design briefs to an agent with a mid-size model (GLM-5.3 Flash) in
+three ways, and compared the results with automatic checks and a blind judge (measured on
+Cavalry 2.8.0):
 
-## Evaluation
+| Agent used | Tasks passed | Mean time | Mean tokens |
+|---|---|---|---|
+| `cav` and the skill | 8 of 11 | 1,177 s | 1.22 M |
+| `cav` only | 8 of 11 | 1,025 s | 0.98 M |
+| the upstream cavalry-mcp server | 3 of 11 | 1,604 s | 3.22 M |
 
-Measured on Cavalry **2.8.0**, with `zai/glm-5.3-flash`, medium thinking, through
-Pioneer's native sandbox. Each run had a new scene and a 30-minute deadline. The CLI
-and skill were frozen at `cadd3c6`. Pioneer was 0.4.4 and Pi was 0.84.2.
+`cav` did most of the work: with or without the skill, the agent passed far more tasks with a
+third of the tokens. The skill did not add a measurable gain, so 1.0 moved its guidance into
+`cav guide`, where every agent can read it. The method, the full tables and the problems we
+found are in [the evaluation](docs/evaluation.md).
 
-There are 11 original tasks per arm: eight used for tuning and three held out
-(quote-card, map-route and countdown). The plugin arm gets the CLI and skill;
-baseline gets the CLI alone; cavalry-mcp gets the upstream MCP server, with the CLI hidden.
-Infrastructure and provider failures were excluded and replaced with the same setup.
-Normal task deadlines remain in the sample. Missing deliverables fail automatic checks.
+## What was tested
 
-GPT 6.1 Sol (`gpt-6.1-sol`) through Codex CLI 0.159.2 judged every available contact-sheet
-pair in two fresh sessions, with swapped order and no tools or answer-key access.
-Wins count judgments, rather than tasks. Claims are the judge's marks; unknown claims
-remain in the denominator. Sheets cannot establish audio, exact beat timing, fidelity
-to input fixtures or vector construction. Automatic audio and beat checks are separate.
-Pairs without final videos have no blind verdict; their automatic failures remain counted.
+| What | macOS | Windows |
+|---|---|---|
+| Install from the release, `cav setup`, offline commands | tested | tested (Windows 11, x64) |
+| Driving Cavalry: jobs, sheets, checks, renders | tested (65 helper and 14 native-feature checks live) | not tested |
+| Claude Code and Codex plugins, with a sandboxed agent through `cav relay` | tested | not tested |
 
-All figures below are **measured**. Mean tokens include input, output and cached reads.
-Mean times include the normal deadlines. Original and repeat runs are never pooled.
+## Documentation
 
-### All tasks
+- [User guide](docs/user-guide.md): install, the first animation, music, agents, troubleshooting.
+- [Architecture](docs/architecture.md): how the parts fit together, for people who change the code.
+- [Evaluation](docs/evaluation.md): how we measure it, and the results.
+- [Changelog](CHANGELOG.md) and [releasing](RELEASING.md).
 
-| Arm | Cavalry | Measured runs | Automatic passes | Mean time (s) | Mean tokens | Timeouts |
-|---|---|---|---|---|---|---|
-| plugin | 2.8.0 | 11 | 8/11 | 1,176.7 | 1,219,232 | 1 |
-| baseline | 2.8.0 | 11 | 8/11 | 1,025.3 | 982,121 | 1 |
-| cavalry-mcp | 2.8.0 | 11 | 3/11 | 1,604.0 | 3,221,162 | 8 |
+## Development
 
-#### Blind comparison: plugin vs baseline
-
-Judge: gpt-6.1-sol through Codex. Each available pair was judged in both orders.
-
-| Arm | Cavalry | Wins | Claims met | Unknown claims |
-|---|---|---|---|---|
-| plugin | 2.8.0 | 9/18 | 63/90 | 22 |
-| baseline | 2.8.0 | 9/18 | 66/90 | 22 |
-
-Ties: 0/18. Both passes agreed on 8/9 pairs. Unknown claims are included in the claim denominator.
-
-Not judgeable: promo-music (plugin: final video missing). Its automatic result is retained.
-
-Not judgeable: ui-walkthrough (baseline: final video missing). Its automatic result is retained.
-
-Pairs selected for a separate once-only repeat: beat-loop.
-
-#### Blind comparison: plugin vs cavalry-mcp
-
-Judge: gpt-6.1-sol through Codex. Each available pair was judged in both orders.
-
-| Arm | Cavalry | Wins | Claims met | Unknown claims |
-|---|---|---|---|---|
-| plugin | 2.8.0 | 6/6 | 30/30 | 0 |
-| cavalry-mcp | 2.8.0 | 0/6 | 28/30 | 2 |
-
-Ties: 0/6. Both passes agreed on 3/3 pairs. Unknown claims are included in the claim denominator.
-
-Not judgeable: beat-loop (cavalry-mcp: final video missing). Its automatic result is retained.
-
-Not judgeable: countdown (cavalry-mcp: final video missing). Its automatic result is retained.
-
-Not judgeable: kinetic-title (cavalry-mcp: final video missing). Its automatic result is retained.
-
-Not judgeable: logo-sting (cavalry-mcp: final video missing). Its automatic result is retained.
-
-Not judgeable: map-route (cavalry-mcp: final video missing). Its automatic result is retained.
-
-Not judgeable: promo-music (plugin: final video missing; cavalry-mcp: final video missing). Its automatic result is retained.
-
-Not judgeable: transition-pack (cavalry-mcp: final video missing). Its automatic result is retained.
-
-Not judgeable: ui-walkthrough (cavalry-mcp: final video missing). Its automatic result is retained.
-
-
-### Held-out tasks
-
-| Arm | Cavalry | Measured runs | Automatic passes | Mean time (s) | Mean tokens | Timeouts |
-|---|---|---|---|---|---|---|
-| plugin | 2.8.0 | 3 | 3/3 | 1,166.7 | 1,863,384 | 0 |
-| baseline | 2.8.0 | 3 | 3/3 | 841.2 | 792,833 | 0 |
-| cavalry-mcp | 2.8.0 | 3 | 1/3 | 1,437.0 | 3,291,794 | 2 |
-
-#### Blind comparison: plugin vs baseline
-
-Judge: gpt-6.1-sol through Codex. Each available pair was judged in both orders.
-
-| Arm | Cavalry | Wins | Claims met | Unknown claims |
-|---|---|---|---|---|
-| plugin | 2.8.0 | 4/6 | 20/30 | 9 |
-| baseline | 2.8.0 | 2/6 | 20/30 | 10 |
-
-Ties: 0/6. Both passes agreed on 3/3 pairs. Unknown claims are included in the claim denominator.
-
-#### Blind comparison: plugin vs cavalry-mcp
-
-Judge: gpt-6.1-sol through Codex. Each available pair was judged in both orders.
-
-| Arm | Cavalry | Wins | Claims met | Unknown claims |
-|---|---|---|---|---|
-| plugin | 2.8.0 | 2/2 | 10/10 | 0 |
-| cavalry-mcp | 2.8.0 | 0/2 | 10/10 | 0 |
-
-Ties: 0/2. Both passes agreed on 1/1 pairs. Unknown claims are included in the claim denominator.
-
-Not judgeable: countdown (cavalry-mcp: final video missing). Its automatic result is retained.
-
-Not judgeable: map-route (cavalry-mcp: final video missing). Its automatic result is retained.
-
-### Separate once-only repeats
-
-Repeated once after winner disagreement in the original image orders: beat-loop (plugin, baseline).
-The repeat used the byte-identical frozen snapshot and the same native setup.
-No repeat pair had two final videos, so no repeat judge was called.
-A disagreement in a repeat does not trigger another repeat. These results are separate.
-
-#### All tasks
-
-| Arm | Cavalry | Measured runs | Automatic passes | Mean time (s) | Mean tokens | Timeouts |
-|---|---|---|---|---|---|---|
-| plugin | 2.8.0 | 1 | 0/1 | 1,806.2 | 1,213,699 | 1 |
-| baseline | 2.8.0 | 1 | 1/1 | 1,020.4 | 809,625 | 0 |
-
-##### Blind comparison: plugin vs baseline
-
-No judge was called for this group because no contact-sheet pair was available.
-
-| Arm | Cavalry | Wins | Claims met | Unknown claims |
-|---|---|---|---|---|
-| plugin | 2.8.0 | not measured | not measured | not measured |
-| baseline | 2.8.0 | not measured | not measured | not measured |
-
-No completed contact-sheet pairs were judgeable in this group.
-
-Not judgeable: beat-loop (plugin: final video missing). Its automatic result is retained.
-
-These figures replace the historical Cavalry 2.7.2 plugin/baseline figures:
-12/14 and 14/14 automatic passes; 10 and 16 blind wins; 118/130 and 111/130 claims;
-833 s and 864 s mean time; 1.17 M and 1.01 M mean tokens. Those figures pooled
-originals and repeats and used Claude Sonnet. The new originals use 11 runs per arm,
-a different judge and Pioneer, so the difference is not an isolated skill effect.
-The invalid MCP 1/8 figure, all of `iterpioneer-final`, and iteration 6 tasks started
-at or after 15:56 on 2026-09-28 remain excluded.
-
-See [the evaluation method and full tuning tables](docs/evaluation.md).
+```bash
+go test ./...
+node --test assets/helpers/test/*.test.js assets/bridge/test/*.test.js
+cav scene new --force --width 1280 --height 720 --fps 30 --seconds 3   # a throwaway scene
+cav run assets/helpers/test/live.js                                    # live checks in Cavalry
+claude plugin validate . --strict
+```
 
 ## Credits
 
-- [cavalry-mcp](https://github.com/m18h/cavalry-mcp) by Michael Essandoh (MIT): the bridge script
-  is derived from its bridge, and the token handshake, API reference and docs search ideas come
-  from it. See `NOTICE`.
+- [cavalry-mcp](https://github.com/m18h/cavalry-mcp) by Michael Essandoh (MIT): the bridge
+  script is derived from its bridge, and the token handshake, API reference and docs search
+  ideas come from it. See `NOTICE`.
 - [cavalry-types](https://github.com/scenery-io/cavalry-types) by Remco Janssen (MIT): API names
   and signatures.
 - Cavalry is made by Scene Group (now part of Canva). This project is not affiliated with them.
   The Cavalry docs are not included; `cav docs update` downloads them to your own computer.
 
-## Development
-
-```bash
-go test ./...                    # Go tests (search, beats, packaging contracts)
-node --test assets/helpers/test/*.test.js  # helper unit tests
-node --test assets/bridge/test/*.test.js   # the bridge adds no globals and restores api after a job
-cav scene new --force --width 1280 --height 720 --fps 30 --seconds 3   # throwaway scene!
-cav run assets/helpers/test/live.js                                    # live helper tests
-claude plugin validate . --strict
-```
-
-Releases: see [RELEASING.md](RELEASING.md). Licence: MIT.
+Licence: MIT.

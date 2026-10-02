@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.0.1
+
+Fixes found by installing 1.0.0 from the release and using it through the Claude Code and
+Codex plugins.
+
+- Inside an agent's sandbox, `cav` said the bridge was "not running" when the sandbox had
+  blocked the connection. It now says `blocked: a sandbox` and explains the fix: allow
+  `127.0.0.1:8723` and `~/.cav`, or use `cav relay`. `cav doctor` also checks that it can
+  write its jobs folder.
+- Through `cav relay`, the "job running" line came after the result, so agents waited for
+  jobs that had already finished. The line now comes first, as in a direct run.
+- `cav doctor` exited 0 even when it reported a problem. It now exits 2 when only the bridge is
+  not running and 1 for other problems. With `--json` it prints one object.
+- The install from the release, `cav setup` and the offline commands were tested on Windows 11
+  (x64). Driving Cavalry on Windows is still not tested.
+
 ## 1.0.0
 
 The first public release. It lets you, or a coding agent, build, check and render motion
