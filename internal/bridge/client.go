@@ -102,6 +102,8 @@ var (
 	ErrStillRunning = errors.New("job still running")
 	// ErrUnknownJob means no job with that id is queued, running or stored.
 	ErrUnknownJob = errors.New("unknown job")
+	// ErrBlocked means a sandbox around cav refused the connection or a job-file write.
+	ErrBlocked = errors.New("a sandbox blocked cav")
 	// ErrProtocol means the running bridge speaks another request format than this cav.
 	ErrProtocol = errors.New("cav and cav-bridge do not match")
 	// ErrLost means the bridge stopped answering while the job was in flight.
@@ -119,7 +121,15 @@ const slowHint = "Cavalry accepted the connection but did not answer in time. It
 // because a busy Cavalry answers late; a stopped bridge refuses at once.
 const answerTimeout = 30 * time.Second
 
+// SandboxHint says what to do when an agent's sandbox blocks cav.
+const SandboxHint = "cav runs inside a sandbox (for example an agent's) that blocks connections to 127.0.0.1 or writes to ~/.cav. " +
+	"Either let cav connect to 127.0.0.1:8723 and write ~/.cav, or use spool mode: run `cav relay --spool <folder in the project>` " +
+	"outside the sandbox, and put that folder's path in a `.cav-spool` file in the project (see `cav help relay`)"
+
 func unreachable(base string, err error) error {
+	if errors.Is(err, syscall.EPERM) || errors.Is(err, syscall.EACCES) {
+		return fmt.Errorf("%w: %w: connecting to %s was not permitted. %s", ErrUnavailable, ErrBlocked, base, SandboxHint)
+	}
 	if errors.Is(err, syscall.ECONNREFUSED) {
 		return fmt.Errorf("%w at %s: %s", ErrUnavailable, base, unavailableHint)
 	}

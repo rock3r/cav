@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -102,7 +103,13 @@ func cmdCheck(a *app, args []string, fix bool) error {
 	default:
 		checks = append(checks, check{Name: "bridge-script", Detail: "missing: " + target, Fix: "cav setup"})
 	}
-	_ = os.MkdirAll(config.JobsDir(), 0o700)
+	if err := writable(config.JobsDir()); err != nil {
+		fix := "check the permissions of " + config.JobsDir()
+		if errors.Is(err, os.ErrPermission) {
+			fix = bridge.SandboxHint
+		}
+		checks = append(checks, check{Name: "jobs", Detail: "cannot write " + config.JobsDir() + ": " + err.Error(), Fix: fix})
+	}
 
 	// 3. Cavalry itself.
 	checks = append(checks, cavalryInstallCheck())
@@ -128,30 +135,33 @@ func cmdCheck(a *app, args []string, fix bool) error {
 			allOK = false
 		}
 	}
-	a.emit(map[string]any{"ready": allOK, "checks": checks, "version": version}, func() {
-		for _, c := range checks {
-			mark := "ok  "
-			if !c.OK {
-				mark = "FAIL"
-				if c.Optional {
-					mark = "warn"
+	// With --json a failing check prints one error object (below), not a report and then an error.
+	if allOK || !a.json || fix {
+		a.emit(map[string]any{"ready": allOK, "checks": checks, "version": version}, func() {
+			for _, c := range checks {
+				mark := "ok  "
+				if !c.OK {
+					mark = "FAIL"
+					if c.Optional {
+						mark = "warn"
+					}
+				}
+				fmt.Printf("%s %-14s %s\n", mark, c.Name, c.Detail)
+				if !c.OK && c.Fix != "" {
+					fmt.Printf("     %-14s fix: %s\n", "", c.Fix)
 				}
 			}
-			fmt.Printf("%s %-14s %s\n", mark, c.Name, c.Detail)
-			if !c.OK && c.Fix != "" {
-				fmt.Printf("     %-14s fix: %s\n", "", c.Fix)
+			if allOK {
+				fmt.Println("\nready: cav can drive Cavalry.")
+			} else {
+				fmt.Println("\nnot ready: fix the lines marked FAIL, then run `cav doctor` again.")
 			}
-		}
-		if allOK {
-			fmt.Println("\nready: cav can drive Cavalry.")
-		} else {
-			fmt.Println("\nnot ready: fix the lines marked FAIL, then run `cav doctor` again.")
-		}
-	})
+		})
+	}
 	// doctor fails when something is not ready: exit 2 when only the bridge is missing,
-	// otherwise 1. setup in text mode still exits 0, because a bridge that is not started yet
+	// otherwise 1. setup still exits 0 and reports ready=false, because a bridge that is not started yet
 	// is the normal state right after an install.
-	if !allOK && (a.json || !fix) {
+	if !allOK && !fix {
 		code := exitUnavailable
 		for _, c := range checks {
 			if !c.OK && !c.Optional && c.Name != "bridge" {
@@ -162,7 +172,7 @@ func cmdCheck(a *app, args []string, fix bool) error {
 		if !a.json {
 			msg = "" // the report above already says so
 		}
-		return &cliError{code: code, msg: msg, data: map[string]any{"checks": checks}}
+		return &cliError{code: code, msg: msg, data: map[string]any{"ready": false, "checks": checks, "version": version}}
 	}
 	return nil
 }
@@ -255,6 +265,10 @@ func bridgeCheck(a *app) check {
 		return check{Name: "bridge", Detail: fmt.Sprintf("listening on %s:%d but not answering (Cavalry is busy: a long script, a render or an open dialog box)", c.Host, c.Port),
 			Fix: "wait for the running script or render to finish, or close any open dialog box in Cavalry, then try again"}
 	}
+	if errors.Is(err, bridge.ErrBlocked) {
+		return check{Name: "bridge", Detail: fmt.Sprintf("blocked: a sandbox does not let cav connect to %s:%d, so cav cannot tell whether the bridge runs", c.Host, c.Port),
+			Fix: bridge.SandboxHint}
+	}
 	if err != nil {
 		return check{Name: "bridge", Detail: fmt.Sprintf("not running on %s:%d", c.Host, c.Port),
 			Fix: "open Cavalry, then Scripts menu > cav-bridge, and keep its window open"}
@@ -279,4 +293,18 @@ func bridgeCheck(a *app) check {
 			Fix: "close the cav-bridge window in Cavalry and start it again from the Scripts menu"}
 	}
 	return check{Name: "bridge", OK: true, Detail: fmt.Sprintf("running v%s on %s:%d", got, c.Host, c.Port)}
+}
+
+// writable creates dir if needed and checks that cav can write a file in it.
+func writable(dir string) error {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	f, err := os.CreateTemp(dir, ".write-check-*")
+	if err != nil {
+		return err
+	}
+	name := f.Name()
+	f.Close()
+	return os.Remove(name)
 }

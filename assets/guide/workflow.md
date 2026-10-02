@@ -10,6 +10,7 @@ Other guides: `cav guide design` (motion recipes), `cav guide music` (beat sync)
 
 Run `cav doctor`. If it reports `FAIL bridge`, ask the user to open Cavalry and click
 **Scripts > cav-bridge**, and keep its window open. Do not try other ways to reach Cavalry.
+If it reports `blocked: a sandbox`, your sandbox stops `cav`: show the user the fix it prints.
 
 ## 2. The workflow (follow it in order)
 

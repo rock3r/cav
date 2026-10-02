@@ -9,6 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -64,6 +65,14 @@ func helpersSemver() string {
 	return "0"
 }
 
+// blockedWrite explains a job-file write that a sandbox refused.
+func blockedWrite(dir string, err error) error {
+	if errors.Is(err, fs.ErrPermission) {
+		return fmt.Errorf("%w: %w: cannot write job files to %s. %s", bridge.ErrUnavailable, bridge.ErrBlocked, dir, bridge.SandboxHint)
+	}
+	return err
+}
+
 // jobDir is where the CLI writes job files that Cavalry reads.
 func jobDir(c *bridge.Client) string {
 	if c.Spool != "" {
@@ -96,12 +105,12 @@ func (a *app) execJS(code string, o execOpts) (*jobOutcome, error) {
 	c := bridge.New()
 	dir := jobDir(c)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return nil, err
+		return nil, blockedWrite(dir, err)
 	}
 	req := &bridge.Request{ID: bridge.NewID(), Restricted: os.Getenv("CAV_RESTRICTED") == "1"}
 	jsPath := filepath.Join(dir, req.ID+".js")
 	if err := os.WriteFile(jsPath, []byte(code), 0o600); err != nil {
-		return nil, err
+		return nil, blockedWrite(dir, err)
 	}
 	req.File = jsPath
 	if o.helpers {

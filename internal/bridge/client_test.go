@@ -2,6 +2,9 @@ package bridge
 
 import (
 	"errors"
+	"net"
+	"os"
+	"syscall"
 	"testing"
 )
 
@@ -21,5 +24,17 @@ func TestProtocolError(t *testing.T) {
 		if got := errors.Is(err, ErrProtocol); got != tc.bad {
 			t.Errorf("%s: ProtocolError = %v", tc.name, err)
 		}
+	}
+}
+
+// A sandbox refuses the connection with EPERM; that is not a stopped bridge.
+func TestUnreachableSandbox(t *testing.T) {
+	blocked := unreachable("http://127.0.0.1:8723", &net.OpError{Op: "dial", Err: os.NewSyscallError("connect", syscall.EPERM)})
+	if !errors.Is(blocked, ErrBlocked) || !errors.Is(blocked, ErrUnavailable) {
+		t.Errorf("EPERM: %v", blocked)
+	}
+	refused := unreachable("http://127.0.0.1:8723", &net.OpError{Op: "dial", Err: os.NewSyscallError("connect", syscall.ECONNREFUSED)})
+	if errors.Is(refused, ErrBlocked) || !errors.Is(refused, ErrUnavailable) {
+		t.Errorf("ECONNREFUSED: %v", refused)
 	}
 }

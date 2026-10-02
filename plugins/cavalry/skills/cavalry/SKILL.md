@@ -16,6 +16,8 @@ The `cav` CLI does the work and carries its own guides. This skill only gets you
    - `FAIL bridge`: ask the user to open Cavalry and click **Scripts > cav-bridge**, and to
      keep its window open. Wait, then run `cav doctor` again. Do not reach Cavalry any other
      way.
+   - `blocked: a sandbox`: your sandbox stops `cav`. Show the user the fix that `cav doctor`
+     prints (allow `cav` to reach 127.0.0.1:8723, or run `cav relay` outside the sandbox).
 2. Run `cav guide` and follow it. It covers the workflow, script rules and a done checklist.
    Read `cav guide design` before a creative task and `cav guide music` when there is music.
    `cav helpers` lists the script library; `cav help <command>` explains each command.
