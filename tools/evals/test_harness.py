@@ -193,7 +193,8 @@ class BlindFolders(unittest.TestCase):
                 original_key = json.loads((data / 'judge' / 'fresh' / 'key.json').read_text())
                 for suffix in ('', '-swap'):
                     (data / 'judge' / f'fresh{suffix}' / 'one' / 'verdict.json').write_text('saved verdict')
-                cases.append({'id': 'two', 'prompt': 'brief two', 'rubric': ['claim']})
+                # A newly ready task can precede a retained pair in the task list.
+                cases.insert(0, {'id': 'two', 'prompt': 'brief two', 'rubric': ['claim']})
                 tasks.write_text(json.dumps({'tasks': cases}))
                 for arm in ('plugin', 'baseline'):
                     directory = data / 'runs' / 'iterfresh' / 'two' / f'{arm}__model'

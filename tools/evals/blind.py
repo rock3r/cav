@@ -63,6 +63,15 @@ def prepare(args):
             continue
         first = [args.a, args.b]
         rng.shuffle(first)
+        if keep and task['id'] in previous['']:
+            retained = previous[''][task['id']]
+            if (not isinstance(retained, dict) or set(retained) != {'A', 'B'} or
+                    not all(isinstance(value, str) for value in retained.values()) or
+                    set(retained.values()) != {args.a, args.b}):
+                raise ValueError('invalid retained blind mapping; preserve the prior comparison')
+            first = [retained['A'], retained['B']]
+            if previous['-swap'].get(task['id']) != {'A': first[1], 'B': first[0]}:
+                raise ValueError('retained passes are not swapped; preserve the prior comparison')
         for suffix, order, k in (("", first, key), ("-swap", first[::-1], key_swap)):
             d = EVALS / "judge" / f"{judge_name(args)}{suffix}" / task["id"]
             claims = "\n".join(f"{i + 1}. {c}" for i, c in enumerate(task["rubric"]))

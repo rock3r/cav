@@ -143,7 +143,8 @@ input hashes and logs go to `judge-logs/`. `unblind` validates verdicts too and 
 claims separately. `--via pioneer` remains available for a configured Pi judge model.
 
 Use `prepare --keep-existing` to add pairs as their runs finish. It preserves prior verdicts
-and checks that their inputs and A/B mappings have not changed. This lets judging proceed
+and checks that their inputs and A/B mappings have not changed. It reuses prior mappings
+when a newly ready task precedes an existing pair. This lets judging proceed
 while later tasks run. Use `judge.py --skip-existing` to retain validated judgments.
 
 ## Running through Pioneer
