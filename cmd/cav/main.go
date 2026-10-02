@@ -240,10 +240,11 @@ Commands:
 Every command accepts --json (machine-readable output on stdout).
 Exit codes: 0 ok, 1 error, 2 bridge not reachable, 3 job still running, 4 bridge lost.
 Run "cav help <command>" for details.
+New to cav? Run "cav guide" first: it explains the workflow from plan to render.
 `)
 }
 
-var helpOrder = []string{"setup", "doctor", "status", "run", "job", "scene", "tree", "layer", "frame", "sheet", "check", "render", "beats", "api", "docs", "helpers", "relay", "version", "update"}
+var helpOrder = []string{"setup", "doctor", "status", "run", "job", "scene", "tree", "layer", "frame", "sheet", "check", "render", "beats", "api", "docs", "helpers", "guide", "relay", "version", "update"}
 
 func order(name string) int {
 	for i, n := range helpOrder {

@@ -66,6 +66,42 @@ func init() {
 	})
 }
 
+// guideTopics lists the guides in the order `cav guide` presents them.
+var guideTopics = []string{"workflow", "design", "music", "traps", "native"}
+
+func init() {
+	register(command{
+		name:    "guide",
+		args:    "[workflow|design|music|traps|native]",
+		summary: "Print how to make motion graphics with cav: workflow, design, music, traps.",
+		run:     cmdGuide,
+	})
+	longHelp["guide"] = `
+Without a topic, prints the workflow guide. Read it before your first build.
+
+  workflow  the build-review-check-render loop, script rules and a done checklist
+  design    motion recipes: entrances, impacts, kinetic type, transitions, holds
+  music     beat grids and syncing motion to music
+  traps     Cavalry scripting behaviours that fail silently, and how cav avoids them
+  native    duplicators, stagger, text effects, filters, 2.5D, particles and other nodes
+`
+}
+
+func cmdGuide(a *app, args []string) error {
+	topic := "workflow"
+	if len(args) > 0 {
+		topic = strings.ToLower(args[0])
+	}
+	b, err := assets.Guide.ReadFile("guide/" + topic + ".md")
+	if err != nil {
+		return fmt.Errorf("unknown guide %q: choose one of %s", topic, strings.Join(guideTopics, ", "))
+	}
+	a.emit(map[string]any{"topic": topic, "topics": guideTopics, "text": string(b)}, func() {
+		fmt.Print(string(b))
+	})
+	return nil
+}
+
 func cmdHelpers(a *app, args []string) error {
 	var lines []string
 	for _, l := range strings.Split(string(assets.HelpersJS), "\n") {
