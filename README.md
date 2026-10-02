@@ -136,6 +136,7 @@ found are in [the evaluation](docs/evaluation.md).
 | What | macOS | Windows |
 |---|---|---|
 | Install from the release, `cav setup`, offline commands | tested | tested (Windows 11, x64) |
+| `cav update` from 1.0.0 to 1.0.1 | tested | tested |
 | Driving Cavalry: jobs, sheets, checks, renders | tested (65 helper and 14 native-feature checks live) | not tested |
 | Claude Code and Codex plugins, with a sandboxed agent through `cav relay` | tested | not tested |
 
