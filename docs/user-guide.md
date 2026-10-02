@@ -5,7 +5,7 @@
 them inside the Cavalry app that is open on your desktop, shows you contact sheets of the
 result, checks it for common mistakes, and renders the final video.
 
-You need macOS (tested) or Windows (not tested yet), Cavalry 2.4 or newer (tested on 2.7.2),
+You need macOS (tested) or Windows (not tested yet), Cavalry 2.4 or newer (tested on 2.7.2 and 2.8.0),
 and ffmpeg. Some features, such as 2.5D cameras, physics and particles, need a Cavalry Pro
 licence.
 

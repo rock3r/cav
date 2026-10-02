@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 
@@ -186,8 +187,8 @@ func cavalryInstallCheck() check {
 	return check{Name: "cavalry", Detail: "Cavalry supports macOS and Windows only", Optional: true}
 }
 
-// Tested against 2.7.2. The bridge needs 2.4 or newer.
-const testedCavalry = "2.7.2"
+// Cavalry versions cav was tested on. The bridge needs 2.4 or newer.
+var testedCavalry = []string{"2.7.2", "2.8.0"}
 
 func versionCheck(v string) check {
 	c := check{Name: "cavalry", OK: true, Detail: "version " + v}
@@ -195,8 +196,8 @@ func versionCheck(v string) check {
 		c.OK = false
 		c.Detail += " is too old (needs 2.4.0 or newer)"
 		c.Fix = "update Cavalry"
-	} else if v != testedCavalry {
-		c.Detail += " (cav is tested on " + testedCavalry + ")"
+	} else if !slices.Contains(testedCavalry, v) {
+		c.Detail += " (cav is tested on " + strings.Join(testedCavalry, " and ") + ")"
 	}
 	return c
 }
