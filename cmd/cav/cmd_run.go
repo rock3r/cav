@@ -7,7 +7,6 @@ import (
 	"flag"
 	"fmt"
 	"github.com/rock3r/cav/internal/config"
-	"io"
 	"os"
 	"strings"
 	"time"
@@ -25,6 +24,9 @@ func init() {
 	longHelp["run"] = `
 The code runs inside a function, so use "return" to send a value back.
 Several files run in order as one job. "-" reads the code from stdin.
+The timeout includes input preparation, including pipes waiting for EOF. If input
+preparation times out before a script is captured, no native job was submitted;
+supply complete input to a new run. Resume cannot reconstruct a partially read stream.
 
 The helper library (global "cav", see "cav helpers") is loaded before your code.
 It is loaded once per bridge session and reloaded when its version changes.
@@ -71,11 +73,14 @@ func cmdRun(a *app, args []string) error {
 		}
 		return a.printResult(o)
 	}
+	if a.resumeBudget > 0 && *expr == "" {
+		return usageErr("script input was not captured; no native job was submitted. Supply complete input to a new run; resuming cannot reconstruct an incomplete input stream")
+	}
 	switch {
 	case *expr != "":
 		code, source = *expr, "-e"
 	case len(pos) == 1 && pos[0] == "-":
-		b, err := io.ReadAll(os.Stdin)
+		b, err := readScriptInput(a.ctx, "-")
 		if err != nil {
 			return err
 		}
@@ -83,9 +88,9 @@ func cmdRun(a *app, args []string) error {
 	case len(pos) > 0:
 		var parts []string
 		for i, p := range pos {
-			b, err := os.ReadFile(p)
+			b, err := readScriptInput(a.ctx, p)
 			if err != nil {
-				return usageErr("cannot read %s: %v", p, err)
+				return err
 			}
 			if i < len(pos)-1 && len(pos) > 1 {
 				// Each earlier file runs in its own function, so its `return` ends only that

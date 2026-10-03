@@ -141,6 +141,9 @@ func (a *app) executeOperation(run func(*app, []string) error, resumeBudget time
 			code = exitStillRunning
 		}
 		hint := fmt.Sprintf("Inspect with cav operation status %s; continue with cav operation resume %s. Do not retry the original command.", a.op.ID, a.op.ID)
+		if a.op.Command[0] == "run" && len(a.op.Jobs) == 0 && a.op.Phase == "preparation" {
+			hint = fmt.Sprintf("Input preparation did not finish; no native job was submitted. Preserve the complete script and supply it to a new run. Inspect the local record with cav operation status %s; resume cannot reconstruct an incomplete input stream.", a.op.ID)
+		}
 		if errors.Is(err, bridge.ErrDisconnected) || errors.Is(err, bridge.ErrSessionChanged) {
 			code = exitLost
 			hint = fmt.Sprintf("Inspect with cav operation status %s. Preserve staged artifacts and reconcile the native outcome before resuming or abandoning. A partial file is not completion; do not retry the original command.", a.op.ID)

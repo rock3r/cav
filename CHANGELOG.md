@@ -12,6 +12,8 @@
   incomplete motion coverage, and preserve timeout recovery when ffmpeg/ffprobe is killed.
 - Gate new submissions during resume against other pending operations, and derive total
   deadlines from parsed command options, including single-dash timeout flags.
+- Bound script input preparation (including pipes) without abandoned reader goroutines,
+  and never evaluate Duplicator counts after dependency inspection fails.
 - Preserve signed macOS Cav.app bundles across install/update; require Developer ID,
   Hardened Runtime, timestamps, notarization, stapling and final artifact verification
   for release builds. Keep development credential-free and other platform layouts intact.

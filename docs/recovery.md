@@ -17,6 +17,10 @@ cav operation resume <operation-id> --timeout 90m --json
 The timeout is one budget for preparation, bridge waits, rendering, muxing and validation.
 A deadline that interrupts ffmpeg or ffprobe returns exit 3 and retains staged output;
 it does not classify the killed subprocess as a mux/validation failure.
+Script input preparation also observes the budget, including stdin waiting for EOF and
+named-pipe paths. An input timeout before any job was prepared means no native submission
+occurred. A partial stream cannot be reconstructed on resume: preserve the complete source
+and supply it to a new run instead. The incomplete local record is retained for inspection.
 A resume gets a fresh budget. It reads completed job checkpoints and waits for a pending
 job, then continues the remaining command phases. Waiting for a metadata job with
 `cav job wait <job-id>` completes only that job; it does not start rendering. Raw job-wait
@@ -58,8 +62,9 @@ cav refuses to submit remaining jobs into a different bridge window. Older bridg
 no session identity, so the operator must confirm the original scene/session. Renders and
 profiles also check the active comp and scene path. These checks cannot detect all edits
 inside the same scene. Keep the same CLI build while resuming: changed generated job code
-is rejected. A recovered `run` uses its recorded script rather than rereading changed files
-or stdin; async runs become synchronous waits on recovery.
+is rejected. After a script job was prepared, a recovered `run` uses that recorded script
+rather than rereading changed files or stdin; async runs become synchronous waits on recovery.
+Input preparation that never captured a script cannot be resumed.
 
 ## Stale or failed operations
 

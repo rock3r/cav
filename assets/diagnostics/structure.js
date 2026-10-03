@@ -23,12 +23,13 @@ for (var i=0; i<Math.min(ids.length,limits.layers); i++) {
  if(type==='duplicator') {
   // Read counts only on recognized distributions with no connected, animated or expression counts.
   var gen=read(id,'distribution',function(){return api.getCurrentGeneratorType(id,'generator');},null);node.distribution=gen;
-  var ins=read(id,'count-connections',function(){return api.getInConnectedAttributes(id)||[];},[]);
-  var anim=read(id,'count-animation',function(){return api.getAnimatedAttributes(id)||[];},[]);
+  var ins=read(id,'count-connections',function(){return api.getInConnectedAttributes(id)||[];},null);
+  var anim=read(id,'count-animation',function(){return api.getAnimatedAttributes(id)||[];},null);
   var counts=gen==='gridDistribution'?['generator.count.x','generator.count.y']: /^(linearDistribution|circleDistribution|randomDistribution|roseDistribution)$/.test(gen)?['generator.count']:[];
   if(!counts.length) skipped.push({inspection:'copy-count',layer:id,reason:'unsupported distribution'});
-  var total=1,known=counts.length>0;
-  for(var c=0;c<counts.length;c++){
+  var dependenciesKnown=ins!==null&&anim!==null;
+  var total=1,known=counts.length>0&&dependenciesKnown;
+  for(var c=0;known&&c<counts.length;c++){
    var attr=counts[c];
    var expr=read(id,'count-expression',function(){return api.getAttributeExpression(id,attr);},'unknown');
    var driven=ins.concat(anim).some(function(a){return a===attr||a==='generator.count'||a==='generator';});
@@ -37,7 +38,7 @@ for (var i=0; i<Math.min(ids.length,limits.layers); i++) {
    if(typeof n!=='number'||n<0||!isFinite(n)){known=false;break;}total*=n;
   }
   if(known&&isFinite(total))node.copies=total;
-  else if(counts.length)skipped.push({inspection:'copy-count',layer:id,reason:'connected, animated, expression-driven or invalid count'});
+  else if(counts.length)skipped.push({inspection:'copy-count',layer:id,reason:dependenciesKnown?'connected, animated, expression-driven or invalid count':'dependency inspection failed; count not evaluated'});
  }
  layers.push(node);
 }
