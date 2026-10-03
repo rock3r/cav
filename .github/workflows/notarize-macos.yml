@@ -1,0 +1,19 @@
+name: Notarized artifact smoke
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version matching the trusted commit (no leading v)'
+        required: true
+      ref:
+        description: 'Commit reachable from the default branch'
+        required: true
+permissions:
+  contents: read
+jobs:
+  artifacts:
+    uses: ./.github/workflows/macos-release-artifacts.yml
+    with:
+      version: ${{ inputs.version }}
+      ref: ${{ inputs.ref }}
+    secrets: inherit

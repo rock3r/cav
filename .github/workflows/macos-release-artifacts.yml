@@ -1,0 +1,84 @@
+name: macOS release artifacts
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+      ref:
+        required: true
+        type: string
+    secrets:
+      APPLE_DEVELOPER_ID_P12:
+        required: true
+      APPLE_DEVELOPER_ID_P12_PASSWORD:
+        required: true
+      APPLE_SIGNING_KEYCHAIN_PASSWORD:
+        required: true
+      APPLE_DEVELOPER_IDENTITY:
+        required: true
+      APPLE_NOTARY_API_KEY:
+        required: true
+      APPLE_NOTARY_API_KEY_ID:
+        required: true
+      APPLE_NOTARY_API_ISSUER:
+        required: true
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.validate.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+      - id: validate
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          TRUSTED_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          sha="$(git rev-parse HEAD)"
+          git fetch --no-tags origin "+refs/heads/$TRUSTED_BRANCH:refs/remotes/origin/$TRUSTED_BRANCH"
+          git merge-base --is-ancestor "$sha" "origin/$TRUSTED_BRANCH"
+          tools/check-versions.sh "$RELEASE_VERSION"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+  artifacts:
+    needs: validate
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate.outputs.sha }}
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Build signed artifacts (never publish)
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          APPLE_DEVELOPER_ID_P12: ${{ secrets.APPLE_DEVELOPER_ID_P12 }}
+          APPLE_DEVELOPER_ID_P12_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_P12_PASSWORD }}
+          APPLE_SIGNING_KEYCHAIN_PASSWORD: ${{ secrets.APPLE_SIGNING_KEYCHAIN_PASSWORD }}
+          APPLE_DEVELOPER_IDENTITY: ${{ secrets.APPLE_DEVELOPER_IDENTITY }}
+          APPLE_NOTARY_API_KEY: ${{ secrets.APPLE_NOTARY_API_KEY }}
+          APPLE_NOTARY_API_KEY_ID: ${{ secrets.APPLE_NOTARY_API_KEY_ID }}
+          APPLE_NOTARY_API_ISSUER: ${{ secrets.APPLE_NOTARY_API_ISSUER }}
+        run: tools/ci-macos-release.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+      - name: Credential cleanup fallback
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/cav-signing.keychain-db" 2>/dev/null || true
+          rm -f "$RUNNER_TEMP/cav-developer-id.p12" "$RUNNER_TEMP/cav-notary.p8"

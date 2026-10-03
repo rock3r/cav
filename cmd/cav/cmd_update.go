@@ -44,7 +44,7 @@ cav version --check   only reports whether a newer release exists
 cav update            shows what would change and asks before installing
 cav update --yes      installs without asking (for scripts)
 The download is checked against the release's checksums.txt. After replacing the
-binary, cav runs "cav setup" so the Cavalry bridge script is updated too; restart
+installation, cav runs "cav setup" so the Cavalry bridge script is updated too; restart
 the bridge window in Cavalry when setup says so. cav never updates itself silently.`
 }
 
@@ -175,17 +175,27 @@ func cmdUpdate(a *app, args []string) error {
 	if want == "" || want != hex.EncodeToString(sum[:]) {
 		return fail(exitError, "checksum mismatch for "+assetName()+"; not installed", "try again later, or install manually from "+r.URL)
 	}
-	bin, err := extractBinary(archive)
-	if err != nil {
-		return err
-	}
 	self, err := os.Executable()
 	if err != nil {
 		return err
 	}
-	self, _ = filepath.EvalSymlinks(self)
-	if err := replaceBinary(self, bin); err != nil {
-		return fail(exitError, "cannot replace "+self+": "+err.Error(), "install manually from "+r.URL)
+	self, err = filepath.EvalSymlinks(self)
+	if err != nil {
+		return err
+	}
+	if runtime.GOOS == "darwin" {
+		self, err = installMacBundle(archive, self)
+		if err != nil {
+			return fail(exitError, "bundle update failed: "+err.Error(), "use the current install.sh to install the complete signed bundle from "+r.URL)
+		}
+	} else {
+		bin, e := extractBinary(archive)
+		if e != nil {
+			return e
+		}
+		if err = replaceBinary(self, bin); err != nil {
+			return fail(exitError, "cannot replace "+self+": "+err.Error(), "install manually from "+r.URL)
+		}
 	}
 	// Run setup with the new binary so the bridge script matches.
 	out, _ := exec.Command(self, "setup", "--no-docs").CombinedOutput()
