@@ -21,8 +21,12 @@ working, and `cav doctor` suggests a restart.
 
 1. Set the plugin version everywhere: `tools/check-versions.sh --set 1.1.0`.
 2. Add a section for the version to `CHANGELOG.md`, then commit: `Release 1.1.0`.
-3. Build: `tools/release.sh v1.1.0`. It runs the tests, then writes `dist/` with one archive per
+3. Build on a macOS signing host with provisioned Apple configuration:
+   `tools/release.sh v1.1.0`. It runs the tests, then writes `dist/` with one archive per
    platform (`cav_<os>_<arch>.tar.gz` or `.zip`), `checksums.txt` and the install scripts.
+   macOS archives preserve the full signed, notarized, stapled Cav.app. Real Apple checks
+   are mandatory; missing credentials fail before mutation. For credential-free fixture
+   builds only, use `tools/release.sh v<current-version> --dev`.
 4. Run the live helper tests in a throwaway Cavalry scene (see README, Development).
 5. **Only with the maintainer's approval**: tag and publish.
 
@@ -35,3 +39,15 @@ working, and `cav doctor` suggests a restart.
 archive against `checksums.txt`. The plugin updates through the marketplace, which reads the
 `version` in `plugins/cavalry/.claude-plugin/plugin.json`: bump it on every release, or users
 never see the update.
+
+See [macOS notarization](docs/NOTARIZATION.md) for the seven repository secrets, temporary
+keychain/API-key cleanup, final extracted-artifact verification and the artifact-only
+`notarize-macos.yml` smoke. The reusable workflow requires a commit reachable from the
+default branch and matching manifest version before privileged work. It never publishes.
+Checksums follow every signing/stapling/archive mutation. Development archives are not
+signed release artifacts. Already-shipped old macOS updater binaries require migration
+through the current installer so that the full bundle survives.
+
+The optional bridgeSession field and completed-ID deduplication retain protocol-1 request
+and result compatibility. They add capability for new bridges while the operation ledger
+also works with older running protocol-1 bridges. No tag or release is created by builds.

@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Persist render/check/run operations with phase-aware recovery, total wait budgets,
+  duplicate prevention, read-only status and explicit unknown-outcome reconciliation.
+- Add cheap structural performance warnings, bounded checks, chronological measured
+  profiling, partial progress and truthful failed/skipped coverage.
+- Preserve signed macOS Cav.app bundles across install/update; require Developer ID,
+  Hardened Runtime, timestamps, notarization, stapling and final artifact verification
+  for release builds. Keep development credential-free and other platform layouts intact.
+
 ## 1.0.2
 
 - The project is now called `cav`, and the repository moved to

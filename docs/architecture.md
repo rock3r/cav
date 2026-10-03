@@ -24,7 +24,8 @@ guidance now lives in the CLI, where every agent can reach it.
 Main limits today:
 
 - The bridge runs on Cavalry's single JavaScript thread. One slow script blocks every
-  other request, including status checks.
+  other scene request. Status now reads existing state without queuing scene work,
+  but its HTTP read can still time out while a native call blocks the UI thread.
 - Starting or restarting the bridge needs the Cavalry GUI (Scripts menu).
 - Windows is untested.
 
@@ -42,7 +43,8 @@ Main limits today:
 | Installers | `install.sh`, `install.ps1` | shell, PowerShell | Download a release, verify its checksum, run `cav setup`. |
 
 The Go binary embeds the bridge script, the helper library, the guides and the API reference
-(`assets/assets.go`). One file is enough to install and repair everything.
+(`assets/assets.go`). The complete signed Cav.app is required for macOS distribution; its executable embeds
+the runtime scripts and guides. Linux/Windows retain bare binary distribution.
 
 The evaluation harness lives in `tools/evals/`. Its run data, fixtures, frozen snapshots
 and scratch scenes live in `.plans/evals/`, which is not committed. The README summarises
@@ -56,6 +58,8 @@ its method and results.
 | `~/.cav/jobs/<id>.js` | `cav` | The job script. Deleted after the job finishes. |
 | `~/.cav/jobs/<id>.json` | bridge | The job result. Kept for a day, so `cav job wait <id>` works after the fact. |
 | `~/.cav/jobs/cav-helpers-<version>.js` | `cav` | The helper library the bridge preloads. |
+| `~/.cav/operations/<id>.json` | cav | Durable command phases, jobs, output and partial checkpoints; private, retained. |
+| `~/.cav/operations/profile-<id>/` | cav/bridge | Cumulative measured samples and optional PNGs. |
 | `~/.cav/last-job` | `cav` | Id of the most recent job, for `cav job wait` without an id. |
 | `~/.cav/cache/docs/` | `cav docs update` | Downloaded Cavalry docs pages and the search index. |
 | `<Cavalry Scripts>/cav-bridge.js` | `cav setup` | The bridge script. macOS: `~/Library/Application Support/Cavalry/Scripts`. Windows: `%APPDATA%\Cavalry\Scripts`. |
@@ -237,27 +241,22 @@ Forge Dynamics and particles simulate only when frames render in order, so a ste
 
 ### `cav check`
 
-`cav check` runs one job that inspects the active comp. It reports the problems we saw most
-often in agent-made animations:
+`cav check` first runs the bounded structural pass in `assets/diagnostics/structure.js`.
+It reads metadata/connections, warns on per-copy JavaScript (including duplicated source
+layers), nested Duplicators, fan-out and simulations, and provides supported static copy
+estimates. It makes no frame changes, bounding-box calls or renders. `--quick` stops there.
 
-| Finding | Rule |
-|---|---|
-| `still` | A stretch longer than `--max-still` (1.5 s) where no large layer and fewer than three small layers change. Keys, oscillators, noise and particles count as change. Also reported when over half of the piece is still. |
-| `text` | Text smaller than 28 px at 1080 px frame height. |
-| `offframe` | Visible text or a large shape that never comes inside the frame, on a layer whose transform is not animated. |
-| `clipped` / `edge` | Resting text cut by the frame edge, or closer than 3 % of the frame height to it. |
-| `overflow` | Resting text that spills out of the nearest filled shape drawn below it (a pill, button or field), or whose side padding on a wide shape is under half the text height. |
-| `hidden` | Resting text partly covered by an opaque shape drawn above it, unless a translucent overlay larger than a quarter of the frame dims it on purpose (a modal backdrop). |
-| `blank` | An empty start of 0.75 s or more, or an empty end of 1 s or more (from quick low-resolution renders). |
-| `keys` | Keys after the comp end. |
+Default visual checking bounds layers, animated attributes/keyframes and frame evaluations.
+Every caught inspection error and omitted check appears in failures/skipped coverage; the
+original playhead is restored in finally. Simulations skip jumping visual checks. Blank
+head/tail duration is deliberately outside this bounded pass. Historical visual rules were
+tuned on saved evaluation scenes; that evidence does not validate this new sampling policy.
 
-Every playhead move re-evaluates the scene, so the check batches its reads by frame. It
-queues every lookup it needs for a frame, then visits each frame once. It samples up to 30
-frames, plus the frame 2 later for each, to tell resting layers from moving ones. On the
-eval scenes it takes 1 to 9 s.
-
-These rules were tuned on 36 saved eval scenes. Every finding on those scenes was checked
-against a rendered frame.
+Optional profiling runs a small frame set in one chronological job. Simulations use only
+consecutive initial frames. It writes partial progress between native calls, measures
+setFrame and optional PNG API calls separately, and restores the original playhead on
+normal/recoverable completion. The first sample's cache state is unknown. No layer is
+mutated for attribution. See [diagnostic semantics](recovery.md).
 
 ### Beats
 
@@ -296,7 +295,8 @@ Both searches use BM25 over tokens with camelCase splitting and light stemming
 - An older running bridge with the same protocol is a warning, not a failure. Restarting the
   bridge window brings the new version.
 - `cav update` downloads a GitHub release, verifies it against the release's
-  `checksums.txt`, replaces the binary and runs `cav setup`. It asks first unless `--yes` is
+  `checksums.txt`, preserves and verifies the whole signed macOS bundle (or replaces the
+  Linux/Windows binary), and runs `cav setup`. It asks first unless `--yes` is
   given, and nothing updates on its own.
 - One semver version covers the CLI, the plugins, the skill, the bridge script and the helper
   library. `cav version` prints the CLI, the helper library (with its hash) and the bridge
@@ -326,3 +326,25 @@ The live tests delete every layer in the active comp. Run them only after
 - `cav check` does not catch every layout fault. A panel's content built outside the panel's
   group is caught only when text ends up hidden behind the panel.
 - The Windows installer and paths have not run on Windows.
+
+## Durable operations
+
+`internal/operation` stores private atomic command checkpoints. `render`, `check` and `run`
+are operation-aware; other commands retain raw job semantics. Dispatch records the original
+command and working directory, then applies a total context deadline. Internal JavaScript
+calls checkpoint a prepared job and uncertain submission intent before POST. Completed
+results are cached in the operation, independently of the bridge's one-day result cache.
+Replaying a command consumes these jobs in order; changed code is rejected. No uncertain
+job is re-submitted. Successful output is printed only after its completion checkpoint.
+
+A kernel file lock serializes clients sharing CAV_HOME. Pending native jobs gate new
+operations even after their CLI exits; unknown/stale records require explicit reconciliation
+and abandonment. Read-only status observes atomic snapshots and existing GET/result files.
+New bridges provide optional bridgeSession identity and completed-ID deduplication while
+remaining compatible with protocol 1; old bridges require manual session confirmation.
+
+Rendering stages video/mux beside the destination and atomically publishes by hard link
+without overwriting existing files. ffmpeg and ffprobe honor the remaining CLI context.
+Complete muxes and cached bridge work survive replay. Native blocking work can continue
+past the deadline; no cancellation or heartbeat claims to interrupt it. See
+[recovery](recovery.md) and [macOS release packaging](NOTARIZATION.md) for limits.

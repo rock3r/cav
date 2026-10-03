@@ -47,9 +47,20 @@ its main thread, so a long script, a render or a dialog box makes it answer late
 to 30 s for each answer, and `cav job wait` keeps waiting for a job that is still running.
 Check whether Cavalry shows a dialog box, and ask the user to close it. In the evaluations this
 happened a few times without a visible cause (not explained yet; an 11-minute idle test did not
-reproduce it). Waiting a minute and trying again worked each time.
+reproduce it). Those historical retries did not provide command recovery. Use `cav operation status`
+and `cav operation resume` for new run/check/render operations; do not resubmit a build
+or render while the prior outcome is unknown.
 
 ## Agents in a sandbox
 
 If the agent's sandbox blocks 127.0.0.1, run `cav relay --spool <dir>` outside the sandbox and
 set `CAV_SPOOL=<dir>` for the agent. See `cav help relay`.
+
+## macOS bundle migration
+
+Current releases contain a Developer ID signed, notarized and stapled Cav.app. The current
+installer preserves the entire app under the bin folder's `.cav-bundles` directory and
+creates a `cav` symlink for terminal use. Current self-update preserves the bundle too.
+An already-installed old updater cannot preserve the new archive, so run the current
+installer once to migrate. Do not extract only Contents/MacOS/cav, remove quarantine,
+repair signatures or downgrade a release to ad-hoc signing.
