@@ -3,12 +3,10 @@ package main
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
 	"math"
 	"os"
 	"os/exec"
@@ -528,27 +526,14 @@ func safeName(s string) string {
 }
 
 func fileDigest(ctx context.Context, path string) (string, error) {
-	f, err := os.Open(path)
+	out, err := runInputWorker(ctx, "hash", path)
 	if err != nil {
 		return "", err
 	}
-	defer f.Close()
-	h := sha256.New()
-	buf := make([]byte, 64*1024)
-	for {
-		if e := ctx.Err(); e != nil {
-			return "", e
-		}
-		n, e := f.Read(buf)
-		if n > 0 {
-			h.Write(buf[:n])
-		}
-		if e == io.EOF {
-			break
-		}
-		if e != nil {
-			return "", e
-		}
+	digest := strings.TrimSpace(string(out))
+	decoded, err := hex.DecodeString(digest)
+	if err != nil || len(decoded) != 32 {
+		return "", fmt.Errorf("invalid input digest")
 	}
-	return hex.EncodeToString(h.Sum(nil)), nil
+	return digest, nil
 }

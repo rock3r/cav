@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -32,6 +33,9 @@ func fixtureBridgeWithGet(t *testing.T, handler func(bridge.Request), get http.H
 	t.Setenv("CAV_HOME", home)
 	t.Setenv("CAV_SPOOL", "")
 	t.Setenv("CAV_RELAYED", "1")
+	// The fixture's owned input workers may run this race-instrumented test binary.
+	// Do not charge its artificial exit sleep to command I/O deadline tests.
+	t.Setenv("GORACE", os.Getenv("GORACE")+" atexit_sleep_ms=0")
 	if err := os.MkdirAll(config.JobsDir(), 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -355,6 +359,28 @@ func TestParsedTimeoutSpellingsControlOperationDeadline(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestFailedCheckpointDurabilityPreventsNativePost(t *testing.T) {
+	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+		t.Skip("directory fsync permission fixture requires unprivileged Unix")
+	}
+	posts := 0
+	fixtureBridgeWithGet(t, func(req bridge.Request) { posts++ }, func(w http.ResponseWriter, r *http.Request) {
+		// Prepared intent was saved before Probe. Break only the next publication
+		// barrier: writes/renames are allowed, directory-open for sync is denied.
+		if err := os.Chmod(filepath.Join(config.Home(), "operations"), 0300); err != nil {
+			t.Error(err)
+		}
+		fmt.Fprint(w, `{"type":"hello","protocol":1}`)
+	})
+	t.Cleanup(func() { os.Chmod(filepath.Join(config.Home(), "operations"), 0700) })
+	if code := (&app{json: true}).dispatch([]string{"run", "-e", "return 1", "--no-helpers", "--timeout", "2s"}); code != exitError {
+		t.Fatalf("exit=%d", code)
+	}
+	if posts != 0 {
+		t.Fatal("submitted native work after a checkpoint durability failure")
 	}
 }
 func TestPreparedCheckpointAndChangedSession(t *testing.T) {

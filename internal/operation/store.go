@@ -87,13 +87,14 @@ func Load(home, id string) (*Record, error) {
 	return &r, nil
 }
 
-// Save uses a unique temporary file and fsync before atomic publication.
+// Save syncs the file and publishes it with platform-specific durability barriers.
+// A failed publication barrier must prevent callers from submitting native work.
 func Save(home string, r *Record) error {
 	p, err := Path(home, r.ID)
 	if err != nil {
 		return err
 	}
-	if err = os.MkdirAll(filepath.Dir(p), 0700); err != nil {
+	if err = ensureCheckpointDir(filepath.Dir(p)); err != nil {
 		return err
 	}
 	r.Updated = time.Now().UTC()
@@ -117,12 +118,49 @@ func Save(home string, r *Record) error {
 	if err = f.Close(); err != nil {
 		return err
 	}
-	return os.Rename(f.Name(), p)
+	return publishCheckpoint(f.Name(), p)
+}
+
+// Publish each newly created directory through the same durable namespace barrier.
+// Lock must use this too: otherwise it could create unsynced directories that Save
+// subsequently mistakes for pre-existing durable parents.
+func ensureCheckpointDir(dir string) error {
+	st, err := os.Stat(dir)
+	if err == nil {
+		if !st.IsDir() {
+			return fmt.Errorf("checkpoint path is not a directory: %s", dir)
+		}
+		return nil
+	}
+	if !os.IsNotExist(err) {
+		return err
+	}
+	parent := filepath.Dir(dir)
+	if parent == dir {
+		return err
+	}
+	if err := ensureCheckpointDir(parent); err != nil {
+		return err
+	}
+	tmp, err := os.MkdirTemp(parent, ".checkpoint-dir-")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp)
+	if err := publishCheckpointDirectory(tmp, dir); err != nil {
+		// Another client may have published the same directory. Recheck the final
+		// namespace, and execute its barrier before considering creation complete.
+		if st, e := os.Stat(dir); e == nil && st.IsDir() {
+			return persistExistingCheckpointDirectory(dir)
+		}
+		return err
+	}
+	return nil
 }
 
 // Lock is kernel-owned. A crashed process releases it; no unsafe stale-lock stealing.
 func Lock(home string) (func(), error) {
-	if err := os.MkdirAll(filepath.Join(home, "operations"), 0700); err != nil {
+	if err := ensureCheckpointDir(filepath.Join(home, "operations")); err != nil {
 		return nil, err
 	}
 	f, err := os.OpenFile(filepath.Join(home, "operations", "client.lock"), os.O_CREATE|os.O_RDWR, 0600)

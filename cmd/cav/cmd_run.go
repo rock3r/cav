@@ -80,7 +80,7 @@ func cmdRun(a *app, args []string) error {
 	case *expr != "":
 		code, source = *expr, "-e"
 	case len(pos) == 1 && pos[0] == "-":
-		b, err := readScriptInput(a.ctx, "-")
+		b, err := readStdinInput(a.ctx)
 		if err != nil {
 			return err
 		}

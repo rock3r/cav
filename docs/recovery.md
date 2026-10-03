@@ -21,6 +21,10 @@ Script input preparation also observes the budget, including stdin waiting for E
 named-pipe paths. An input timeout before any job was prepared means no native submission
 occurred. A partial stream cannot be reconstructed on resume: preserve the complete source
 and supply it to a new run instead. The incomplete local record is retained for inspection.
+Audio hashing uses a streaming owned helper under the same deadline; opening a FIFO without
+a writer or reading a stalled stream cannot retain the operation lock indefinitely.
+These preparation guarantees apply to direct operation dispatch. The existing spool-client
+forwarding path reads stdin before operation dispatch and does not yet bound that input read.
 A resume gets a fresh budget. It reads completed job checkpoints and waits for a pending
 job, then continues the remaining command phases. Waiting for a metadata job with
 `cav job wait <job-id>` completes only that job; it does not start rendering. Raw job-wait
@@ -31,6 +35,12 @@ the job ID are saved **before** POST. If acknowledgement is lost, delivery is `u
 resumption only looks for that same job's result, including with an older running bridge.
 It never posts that job again. A `prepared` checkpoint that has not attempted POST can be
 submitted safely. New bridges also return stored results for completed duplicate IDs.
+
+Checkpoint publication syncs file data and the parent directory after rename on Unix;
+Windows uses [MoveFileExW](https://learn.microsoft.com/windows/win32/api/winbase/nf-winbase-movefileexw)
+with replacement and write-through publication. Newly created checkpoint directories use
+the same namespace barrier. A barrier failure prevents POST. This relies on the underlying
+filesystem honoring its persistence primitives; fixtures do not simulate a machine power cut.
 
 `cav status`, `cav job status <id>` and `cav operation status <id>` read existing state.
 They never queue metadata or rendering. `cav scene info` explicitly retrieves scene
