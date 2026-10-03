@@ -161,16 +161,18 @@ func TestRenderPreparatoryTimeoutResume(t *testing.T) {
 func TestUncertainSubmissionNeverReposted(t *testing.T) {
 	var mu sync.Mutex
 	var requests []bridge.Request
+	release := make(chan struct{})
 	fixtureBridge(t, func(req bridge.Request) {
 		mu.Lock()
 		requests = append(requests, req)
 		mu.Unlock()
-		time.Sleep(80 * time.Millisecond)
+		<-release
 	})
 	a := &app{json: true}
-	if c := a.dispatch([]string{"run", "-e", "return 42", "--no-helpers", "--timeout", "20ms"}); c != exitStillRunning {
+	if c := a.dispatch([]string{"run", "-e", "return 42", "--no-helpers", "--timeout", "2s"}); c != exitStillRunning {
 		t.Fatalf("exit %d", c)
 	}
+	close(release)
 	r, e := operation.Load(config.Home(), a.op.ID)
 	if e != nil {
 		t.Fatal(e)
