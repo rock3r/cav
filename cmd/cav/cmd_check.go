@@ -521,7 +521,11 @@ func (a *app) partialCheck(out []finding, failures, skipped []map[string]any, me
 			fmt.Printf("%s %s %q: %s\n  fix: %s\n", f.Kind, f.Layer, f.Name, f.Detail, f.Fix)
 		}
 		for _, r := range measured {
-			fmt.Printf("profile frame %d (%s): setFrame %d ms, PNG %v ms, restored=%t\n", r.Frame, r.Category, r.SetFrameMS, r.RenderPNGMS, r.Restored)
+			pngTiming := "not sampled"
+			if r.RenderPNGMS != nil {
+				pngTiming = fmt.Sprintf("%d ms", *r.RenderPNGMS)
+			}
+			fmt.Printf("profile frame %d (%s): setFrame %d ms, PNG %s, restored=%t\n", r.Frame, r.Category, r.SetFrameMS, pngTiming, r.Restored)
 		}
 		fmt.Printf("%d findings; %d failed, %d skipped inspections; clean=%t\n", len(out), len(failures), len(skipped), complete && len(out) == 0)
 	})

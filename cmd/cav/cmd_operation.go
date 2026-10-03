@@ -173,7 +173,7 @@ func cmdOperation(a *app, args []string) error {
 		c.Host = r.Host
 		c.Port = r.Port
 		c.Spool = r.Spool
-		if r.Status != "complete" && len(r.Jobs) > 0 {
+		if r.Status != "complete" && r.Status != "abandoned" && len(r.Jobs) > 0 {
 			j := r.Jobs[len(r.Jobs)-1]
 			if j.Result == nil {
 				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
