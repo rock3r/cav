@@ -388,8 +388,8 @@ func cmdSceneCheck(a *app, args []string) error {
 		if err = a.checkpoint("validation"); err != nil {
 			return err
 		}
-		if hasSimulations(metadata) {
-			skipped = append(skipped, map[string]any{"inspection": "visual", "reason": "simulation requires chronological evaluation; use --profile for bounded consecutive frames"})
+		if needsChronological(metadata) {
+			skipped = append(skipped, map[string]any{"inspection": "visual", "reason": "simulation present or layer-type coverage incomplete; use --profile for bounded consecutive frames"})
 		} else if err = a.jsCall(fmt.Sprintf("var limits={layers:%d,samples:%d,frames:%d,ms:%d};\n", min(*maxLayers, 200), *samples, *samples*2, (*timeout/2).Milliseconds())+checkJS, *timeout, &d); err != nil {
 			failures = append(failures, map[string]any{"inspection": "visual", "error": err.Error()})
 			// A queued/timed-out job must be resumed before any further submissions.
@@ -409,12 +409,12 @@ func cmdSceneCheck(a *app, args []string) error {
 		for _, r := range measured {
 			failures = append(failures, r.Failures...)
 		}
-		if hasSimulations(metadata) && metadata.End-metadata.Start+1 > *samples {
-			skipped = append(skipped, map[string]any{"inspection": "profile-coverage", "reason": "simulation sampled only consecutive initial frames"})
+		if needsChronological(metadata) && metadata.End-metadata.Start+1 > *samples {
+			skipped = append(skipped, map[string]any{"inspection": "profile-coverage", "reason": "chronological profile sampled only consecutive initial frames"})
 		}
 	}
 	var out = perf
-	if !*quick && d.Layers == 0 {
+	if !*quick && metadata.TotalLayers != nil && *metadata.TotalLayers == 0 {
 		out = append(out, finding{Kind: "empty", Detail: "the active comp has no layers", Fix: "build the scene first"})
 	}
 	// Still stretches: frames where no large layer and fewer than three small layers change.
@@ -547,21 +547,35 @@ type structureEdge struct {
 	ToAttr   string `json:"toAttr"`
 }
 type structureData struct {
-	Start     int              `json:"start"`
-	End       int              `json:"end"`
-	FPS       float64          `json:"fps"`
-	Frame     int              `json:"frame"`
-	Comp      string           `json:"comp"`
-	ScenePath string           `json:"scenePath"`
-	Layers    []structureLayer `json:"layers"`
-	Edges     []structureEdge  `json:"edges"`
-	Failures  []map[string]any `json:"failures"`
-	Skipped   []map[string]any `json:"skipped"`
+	TotalLayers *int             `json:"totalLayers"`
+	Start       int              `json:"start"`
+	End         int              `json:"end"`
+	FPS         float64          `json:"fps"`
+	Frame       int              `json:"frame"`
+	Comp        string           `json:"comp"`
+	ScenePath   string           `json:"scenePath"`
+	Layers      []structureLayer `json:"layers"`
+	Edges       []structureEdge  `json:"edges"`
+	Failures    []map[string]any `json:"failures"`
+	Skipped     []map[string]any `json:"skipped"`
 }
 
 func hasSimulations(d structureData) bool {
 	for _, l := range d.Layers {
 		if isSimulation(l.Type) {
+			return true
+		}
+	}
+	return false
+}
+
+// Missing layer types cannot establish that jumping frames is safe for simulations.
+func needsChronological(d structureData) bool {
+	if hasSimulations(d) || d.TotalLayers == nil || *d.TotalLayers != len(d.Layers) {
+		return true
+	}
+	for _, l := range d.Layers {
+		if l.Type == "" || l.Type == "unknown" {
 			return true
 		}
 	}
@@ -641,14 +655,19 @@ type profileResult struct {
 	Failures    []map[string]any `json:"failures"`
 }
 
-func (a *app) profileScene(d structureData, n int, images bool, timeout time.Duration) ([]profileResult, error) {
+func profileFrames(d structureData, n int) []int {
 	frames := evenFrames(n, d.Start, d.End)
-	if hasSimulations(d) {
+	if needsChronological(d) {
 		frames = nil
 		for f := d.Start; f <= d.End && len(frames) < n; f++ {
 			frames = append(frames, f)
 		}
 	}
+	return frames
+}
+
+func (a *app) profileScene(d structureData, n int, images bool, timeout time.Duration) ([]profileResult, error) {
+	frames := profileFrames(d, n)
 	b, _ := assets.Diagnostics.ReadFile("diagnostics/profile.js")
 	dir := filepath.Join(config.Home(), "operations", "profile-"+a.op.ID)
 	if err := os.MkdirAll(dir, 0700); err != nil {

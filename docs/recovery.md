@@ -103,13 +103,13 @@ See [Duplicator](https://cavalry.studio/docs/nodes/shapes/duplicator/),
 
 Default visual checks inspect at most 200 layers and six frame evaluations, with bounded
 animated attributes/keyframes. They restore the original playhead in `finally`. Stateful
-simulations skip these visual checks because jumping among resting/key frames would give
+simulations, or incomplete layer-type coverage, skip these visual checks because jumping among resting/key frames would give
 misleading results. Blank-run duration is skipped; review a sheet to assess empty heads
 and tails. `failures`, `skipped`, `complete` and `clean` make this coverage explicit. No
 complete clean verdict is emitted when a material inspection failed or was skipped.
 
 Profiling uses up to three representative frames, or consecutive initial frames for
-simulations, in one chronological job. The first sample is labelled
+simulations or incomplete layer-type coverage, in one chronological job. The first sample is labelled
 `first-evaluation-cache-state-unknown`; cav does not flush caches or promise a cold scene.
 Later samples are `subsequent-evaluation`. `setFrameMs` times the setFrame call;
 `renderPNGMs` separately times optional 10 percent PNG rendering. Lazy evaluation can

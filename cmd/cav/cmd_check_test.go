@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"github.com/rock3r/cav/internal/bridge"
+	"reflect"
 	"testing"
 )
 
@@ -86,3 +87,53 @@ func TestJavaScriptDuplicatedSourceAndGlobalTransform(t *testing.T) {
 		t.Fatalf("global transform mislabeled per-copy: %v", f)
 	}
 }
+
+func TestSkippedSimulationVisualsDoNotReportEmpty(t *testing.T) {
+	posts := 0
+	fixtureBridge(t, func(req bridge.Request) {
+		posts++
+		fixtureResult(t, req.ID, map[string]any{"start": 0, "end": 60, "fps": 30, "totalLayers": 1, "layers": []any{map[string]any{"id": "sim#1", "name": "particles", "type": "particleShape"}}, "edges": []any{}})
+	})
+	a := &app{json: true}
+	if code := a.dispatch([]string{"check", "--timeout", "1s"}); code != 0 {
+		t.Fatal(code)
+	}
+	var data struct {
+		Findings []finding        `json:"findings"`
+		Skipped  []map[string]any `json:"skipped"`
+	}
+	if err := json.Unmarshal(a.op.Data, &data); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range data.Findings {
+		if f.Kind == "empty" {
+			t.Fatal("uninspected visual result reported an empty comp")
+		}
+	}
+	if posts != 1 || len(data.Skipped) == 0 {
+		t.Fatalf("simulation visuals not skipped: posts=%d data=%+v", posts, data)
+	}
+}
+
+func TestIncompleteLayerCoverageProfilesConsecutiveFrames(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		total  *int
+		layers []structureLayer
+		want   []int
+	}{
+		{"complete static", intPointer(1), []structureLayer{{Type: "basicShape"}}, []int{10, 20, 30}},
+		{"truncated before simulation", intPointer(2), []structureLayer{{Type: "basicShape"}}, []int{10, 11, 12}},
+		{"failed type", intPointer(1), []structureLayer{{Type: "unknown"}}, []int{10, 11, 12}},
+		{"missing total", nil, []structureLayer{{Type: "basicShape"}}, []int{10, 11, 12}},
+		{"known simulation", intPointer(1), []structureLayer{{Type: "particleShape"}}, []int{10, 11, 12}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := profileFrames(structureData{Start: 10, End: 30, TotalLayers: tc.total, Layers: tc.layers}, 3)
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("frames=%v want=%v", got, tc.want)
+			}
+		})
+	}
+}
+func intPointer(n int) *int { return &n }
