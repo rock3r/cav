@@ -3,7 +3,8 @@
   "name": "cav-dev",
   "description": "Development scripts only. The cav CLI is written in Go.",
   "scripts": {
-    "test:helpers": "node --test assets/helpers/test",
-    "test:bridge": "node --test assets/bridge/test"
+    "test:helpers": "node --test assets/helpers/test/*.test.js",
+    "test:bridge": "node --test assets/bridge/test/*.test.js",
+    "test:diagnostics": "node --test assets/diagnostics/test/*.test.js"
   }
 }
