@@ -8,6 +8,8 @@
   render artifacts and preserve partial output without retrying native work.
 - Add cheap structural performance warnings, bounded checks, chronological measured
   profiling, partial progress and truthful failed/skipped coverage.
+- Bind resumed visual checks to the original scene/comp, skip stillness conclusions for
+  incomplete motion coverage, and preserve timeout recovery when ffmpeg/ffprobe is killed.
 - Preserve signed macOS Cav.app bundles across install/update; require Developer ID,
   Hardened Runtime, timestamps, notarization, stapling and final artifact verification
   for release builds. Keep development credential-free and other platform layouts intact.

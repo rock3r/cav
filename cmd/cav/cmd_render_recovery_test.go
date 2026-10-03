@@ -244,3 +244,72 @@ func TestRealMP4ValidationRejectsShortOrTruncatedRender(t *testing.T) {
 		})
 	}
 }
+
+func TestRenderSubprocessDeadlineRemainsResumable(t *testing.T) {
+	for _, tool := range []string{"ffmpeg", "ffprobe"} {
+		t.Run(tool, func(t *testing.T) {
+			posts := 0
+			fixtureBridge(t, func(req bridge.Request) {
+				posts++
+				if posts == 1 {
+					renderMetadataFixture(t, req.ID)
+					return
+				}
+				if err := os.WriteFile(filepath.Join(renderFixtureStage(t, req), "video.mp4"), []byte("native output"), 0600); err != nil {
+					t.Error(err)
+				}
+				fixtureResult(t, req.ID, map[string]any{"ms": 1})
+			})
+			bin := t.TempDir()
+			marker := filepath.Join(bin, "started")
+			if err := os.WriteFile(filepath.Join(bin, "ffprobe"), []byte("#!/bin/sh\necho 6\n"), 0755); err != nil {
+				t.Fatal(err)
+			}
+			// exec keeps the disposable sleeping child as the direct subprocess so the
+			// command context kills it without leaving descendants or inherited pipes.
+			script := fmt.Sprintf("#!/bin/sh\necho started > '%s'\nexec sleep 30\n", marker)
+			if err := os.WriteFile(filepath.Join(bin, tool), []byte(script), 0755); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+			out := filepath.Join(t.TempDir(), "final.mp4")
+			args := []string{"render", "-o", out, "--timeout", "2s"}
+			if tool == "ffmpeg" {
+				audio := filepath.Join(t.TempDir(), "audio.wav")
+				if err := os.WriteFile(audio, []byte("fixture audio"), 0600); err != nil {
+					t.Fatal(err)
+				}
+				args = append(args, "--audio", audio)
+			}
+			a := &app{json: true}
+			if code := a.dispatch(args); code != exitStillRunning {
+				t.Fatalf("exit=%d error=%s", code, a.op.Error)
+			}
+			if _, err := os.Stat(marker); err != nil {
+				t.Fatalf("deadline did not occur inside the subprocess: %v", err)
+			}
+			if a.op.Status == "failed" || a.op.FailureReason != "wait-timeout" || posts != 2 {
+				t.Fatalf("posts=%d record=%+v", posts, a.op)
+			}
+			if _, err := os.Stat(out); !os.IsNotExist(err) {
+				t.Fatalf("incomplete output published: %v", err)
+			}
+			// A fresh wait budget continues local postprocessing/validation using cached
+			// native results; it must not render again.
+			if err := os.WriteFile(filepath.Join(bin, "ffprobe"), []byte("#!/bin/sh\necho 6\n"), 0755); err != nil {
+				t.Fatal(err)
+			}
+			if tool == "ffmpeg" {
+				if err := os.WriteFile(filepath.Join(bin, "ffmpeg"), []byte("#!/bin/sh\nfor arg; do last=$arg; done\nprintf muxed > \"$last\"\n"), 0755); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if code := (&app{json: true}).dispatch([]string{"operation", "resume", a.op.ID, "--timeout", "2s"}); code != exitOK {
+				t.Fatalf("resume exit=%d", code)
+			}
+			if posts != 2 {
+				t.Fatalf("resume repeated native work: posts=%d", posts)
+			}
+		})
+	}
+}

@@ -15,6 +15,8 @@ cav operation resume <operation-id> --timeout 90m --json
 ```
 
 The timeout is one budget for preparation, bridge waits, rendering, muxing and validation.
+A deadline that interrupts ffmpeg or ffprobe returns exit 3 and retains staged output;
+it does not classify the killed subprocess as a mux/validation failure.
 A resume gets a fresh budget. It reads completed job checkpoints and waits for a pending
 job, then continues the remaining command phases. Waiting for a metadata job with
 `cav job wait <job-id>` completes only that job; it does not start rendering. Raw job-wait
@@ -129,8 +131,12 @@ See [Duplicator](https://cavalry.studio/docs/nodes/shapes/duplicator/),
 [context propagation](https://cavalry.studio/docs/getting-started/key-concepts/context/).
 
 Default visual checks inspect at most 200 layers and six frame evaluations, with bounded
-animated attributes/keyframes. They restore the original playhead in `finally`. Stateful
-simulations, or incomplete layer-type coverage, skip these visual checks because jumping among resting/key frames would give
+animated attributes/keyframes. They restore the original playhead in `finally`.
+Visual jobs verify the original scene/comp identity before reading or changing the playhead,
+including after a resume. Whole-comp stillness conclusions are skipped when motion
+inspection has failed or skipped work; missing samples are not evidence of a hold.
+Stateful simulations, or incomplete layer-type coverage, skip these visual checks because
+jumping among resting/key frames would give
 misleading results. Blank-run duration is skipped; review a sheet to assess empty heads
 and tails. `failures`, `skipped`, `complete` and `clean` make this coverage explicit. No
 complete clean verdict is emitted when a material inspection failed or was skipped.

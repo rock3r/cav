@@ -424,6 +424,9 @@ return { ms: Date.now() - t };`, jsString(st.Comp.ID), jsString(st.ScenePath), j
 				var stderr bytes.Buffer
 				cmd.Stderr = &stderr
 				if err = cmd.Run(); err != nil {
+					if cause := a.ctx.Err(); cause != nil {
+						return fmt.Errorf("ffmpeg mux interrupted: %w", cause)
+					}
 					return fmt.Errorf("ffmpeg mux failed: %s: %w", strings.TrimSpace(stderr.String()), err)
 				}
 				got, e := probeFramesContext(a.ctx, partial)
@@ -480,6 +483,9 @@ return { ms: Date.now() - t };`, jsString(st.Comp.ID), jsString(st.ScenePath), j
 func probeFramesContext(ctx context.Context, path string) (int, error) {
 	out, err := exec.CommandContext(ctx, "ffprobe", "-v", "error", "-count_packets", "-select_streams", "v:0", "-show_entries", "stream=nb_read_packets", "-of", "csv=p=0", path).Output()
 	if err != nil {
+		if cause := ctx.Err(); cause != nil {
+			return 0, cause
+		}
 		return 0, err
 	}
 	n, err := strconv.Atoi(strings.TrimSpace(strings.Split(string(out), "\n")[0]))

@@ -137,3 +137,58 @@ func TestIncompleteLayerCoverageProfilesConsecutiveFrames(t *testing.T) {
 	}
 }
 func intPointer(n int) *int { return &n }
+
+func TestWholeCompStillnessRequiresCompleteMotionCoverage(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		failures  []map[string]any
+		skipped   []map[string]any
+		wantStill bool
+	}{
+		{name: "complete", wantStill: true},
+		{name: "frame budget", skipped: []map[string]any{{"inspection": "visual-frame", "frame": 20, "reason": "sample or time budget"}}},
+		{name: "layer budget", skipped: []map[string]any{{"inspection": "visual-layers", "reason": "layer limit", "count": 1}}},
+		{name: "failed evaluation", failures: []map[string]any{{"inspection": "visual-frame", "frame": 20, "error": "bounds unavailable"}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			posts := 0
+			fixtureBridge(t, func(req bridge.Request) {
+				posts++
+				if posts == 1 {
+					fixtureResult(t, req.ID, map[string]any{"comp": "original", "scenePath": "scratch.cv", "start": 0, "end": 120, "fps": 30, "totalLayers": 1, "layers": []any{map[string]any{"id": "shape", "type": "basicShape"}}})
+					return
+				}
+				// Later motion is missing because inspection was skipped/failed. Its absence
+				// must not become an affirmative claim that the rest of the comp is still.
+				fixtureResult(t, req.ID, map[string]any{"start": 0, "end": 120, "fps": 30, "height": 1080, "layers": 1, "segs": [][3]float64{{0, 10, 0}}, "failures": tc.failures, "skipped": tc.skipped})
+			})
+			a := &app{json: true}
+			if code := a.dispatch([]string{"check", "--timeout", "2s"}); code != 0 {
+				t.Fatal(code)
+			}
+			var data struct {
+				Findings []finding        `json:"findings"`
+				Skipped  []map[string]any `json:"skipped"`
+			}
+			if err := json.Unmarshal(a.op.Data, &data); err != nil {
+				t.Fatal(err)
+			}
+			still := false
+			for _, f := range data.Findings {
+				still = still || f.Kind == "still"
+			}
+			if still != tc.wantStill {
+				t.Fatalf("still=%v want=%v: %+v", still, tc.wantStill, data)
+			}
+			if !tc.wantStill {
+				found := false
+				for _, s := range data.Skipped {
+					found = found || s["inspection"] == "stillness"
+				}
+				if !found {
+					t.Fatal("incomplete stillness coverage was not reported")
+				}
+			}
+		})
+	}
+}

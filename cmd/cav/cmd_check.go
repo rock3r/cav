@@ -34,6 +34,7 @@ Progress is saved between samples and visible with cav operation status <id>.
 The original playhead is restored in finally on normal completion and recoverable
 errors. A blocking native call can exceed --timeout; no heartbeat/cancel interrupts it.
 Failures and skipped checks are explicit; clean is true only for complete coverage.
+Whole-comp stillness conclusions are skipped when motion inspection is incomplete.
 Blank-run duration requires a sheet review and is skipped in this bounded pass.
 Findings do not change the exit code; timeout returns 3 with partial results and an
 operation ID to resume. Use --json for agents.
@@ -53,6 +54,8 @@ type finding struct {
 }
 
 const checkJS = `
+if (api.getActiveComp() !== expected.comp || api.getSceneFilePath() !== expected.scenePath)
+  throw new Error('active scene/comp changed; restore the operation scene before checking');
 var original = api.getFrame(), began=Date.now(), failures=[], skipped=[], evaluations=0;
 try {
 var comp = api.getActiveComp();
@@ -382,6 +385,7 @@ func cmdSceneCheck(a *app, args []string) error {
 	skipped := metadata.Skipped
 	var measured []profileResult
 	var d checkData
+	visualComplete := false
 	if *quick {
 		skipped = append(skipped, map[string]any{"inspection": "visual", "reason": "quick mode"})
 	} else {
@@ -390,7 +394,7 @@ func cmdSceneCheck(a *app, args []string) error {
 		}
 		if needsChronological(metadata) {
 			skipped = append(skipped, map[string]any{"inspection": "visual", "reason": "simulation present or layer-type coverage incomplete; use --profile for bounded consecutive frames"})
-		} else if err = a.jsCall(fmt.Sprintf("var limits={layers:%d,samples:%d,frames:%d,ms:%d};\n", min(*maxLayers, 200), *samples, *samples*2, (*timeout/2).Milliseconds())+checkJS, *timeout, &d); err != nil {
+		} else if err = a.jsCall(fmt.Sprintf("var expected={comp:%s,scenePath:%s};\nvar limits={layers:%d,samples:%d,frames:%d,ms:%d};\n", jsString(metadata.Comp), jsString(metadata.ScenePath), min(*maxLayers, 200), *samples, *samples*2, (*timeout/2).Milliseconds())+checkJS, *timeout, &d); err != nil {
 			failures = append(failures, map[string]any{"inspection": "visual", "error": err.Error()})
 			// A queued/timed-out job must be resumed before any further submissions.
 			if a.ctx.Err() != nil || (len(a.op.Jobs) > 0 && a.op.Jobs[len(a.op.Jobs)-1].Result == nil) {
@@ -399,6 +403,7 @@ func cmdSceneCheck(a *app, args []string) error {
 		} else {
 			failures = append(failures, d.Failures...)
 			skipped = append(skipped, d.Skipped...)
+			visualComplete = len(d.Failures) == 0 && len(d.Skipped) == 0
 		}
 	}
 	if *profile {
@@ -418,7 +423,7 @@ func cmdSceneCheck(a *app, args []string) error {
 		out = append(out, finding{Kind: "empty", Detail: "the active comp has no layers", Fix: "build the scene first"})
 	}
 	// Still stretches: frames where no large layer and fewer than three small layers change.
-	if d.Layers > 0 {
+	if d.Layers > 0 && visualComplete {
 		gaps := stillGaps(d.Segs, d.Start, d.End)
 		stillFrames := 0.0
 		for _, g := range gaps {
@@ -437,6 +442,8 @@ func cmdSceneCheck(a *app, args []string) error {
 					Fix:    "move something larger during the hold (a slow drift or scale breathe on the main text or shapes), start the next section earlier, or shorten the comp"})
 			}
 		}
+	} else if d.Layers > 0 {
+		skipped = append(skipped, map[string]any{"inspection": "stillness", "reason": "incomplete visual motion coverage; whole-comp stillness cannot be established"})
 	}
 	scale := 1080 / d.Height
 	for _, t := range d.Texts {

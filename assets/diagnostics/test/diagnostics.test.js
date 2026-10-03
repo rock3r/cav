@@ -9,6 +9,34 @@ test('failed native sample restores the playhead and reports partial results',()
 test('between-sample budget returns skipped work without changing the playhead',()=>{let changes=0;const r=run('profile',{getActiveComp:()=> 'comp',getSceneFilePath:()=> 'scratch.cv',getFrame:()=>8,setFrame:()=>{changes++},writeToFile:()=>{}},{sample:{comp:'comp',scenePath:'scratch.cv',frames:[0,1,2],progress:'/scratch/progress',ms:-1}});assert.equal(r.profile.length,0);assert.ok(r.skipped.length);assert.equal(changes,1)});
 
 const visual=fs.readFileSync(path.join(__dirname,'../../../cmd/cav/cmd_check.go'),'utf8').match(/const checkJS = `([\s\S]*?)`/)[1];
-function visualAPI(){let frame=7;const moves=[];return {moves,get frame(){return frame},api:{getFrame:()=>frame,setFrame:f=>{frame=f;moves.push(f)},getActiveComp:()=> 'comp',getCompLayers:()=>['shape'],getLayerType:()=> 'basicShape',getNiceName:()=> 'shape',getParent:()=> 'comp',getChildren:()=>[],getInFrame:()=>0,getOutFrame:()=>20,getAnimatedAttributes:()=>[],hasFill:()=>true,getBoundingBox:()=>{throw Error('bounds unavailable')},get:(id,a)=>({startFrame:0,endFrame:20,resolution:{x:1920,y:1080},fps:30,hidden:false,opacity:100,scale:{x:1,y:1},'material.materialColor':{a:255}}[a])}};}
-test('bounded visual checks report failed bounds and restore the actual original playhead',()=>{const f=visualAPI(),r=vm.runInNewContext('(function(){'+visual+'})()',{api:f.api,limits:{layers:200,samples:3,frames:6,ms:1000}});assert.equal(f.frame,7);assert.ok(r.failures.length);assert.ok(f.moves.length<=7);assert.equal(f.moves.at(-1),7)});
-test('unexpected visual errors still execute playhead restoration',()=>{const f=visualAPI();f.api.getCompLayers=()=>{throw Error('inspection failed')};assert.throws(()=>vm.runInNewContext('(function(){'+visual+'})()',{api:f.api,limits:{layers:200,samples:3,frames:6,ms:1000}}),/inspection failed/);assert.equal(f.moves.at(-1),7)});
+function visualAPI(){let frame=7;const moves=[];return {moves,get frame(){return frame},api:{getFrame:()=>frame,setFrame:f=>{frame=f;moves.push(f)},getActiveComp:()=> 'comp',getSceneFilePath:()=> 'scratch.cv',getCompLayers:()=>['shape'],getLayerType:()=> 'basicShape',getNiceName:()=> 'shape',getParent:()=> 'comp',getChildren:()=>[],getInFrame:()=>0,getOutFrame:()=>20,getAnimatedAttributes:()=>[],hasFill:()=>true,getBoundingBox:()=>{throw Error('bounds unavailable')},get:(id,a)=>({startFrame:0,endFrame:20,resolution:{x:1920,y:1080},fps:30,hidden:false,opacity:100,scale:{x:1,y:1},'material.materialColor':{a:255}}[a])}};}
+test('bounded visual checks report failed bounds and restore the actual original playhead',()=>{const f=visualAPI(),r=vm.runInNewContext('(function(){'+visual+'})()',{api:f.api,expected:{comp:'comp',scenePath:'scratch.cv'},limits:{layers:200,samples:3,frames:6,ms:1000}});assert.equal(f.frame,7);assert.ok(r.failures.length);assert.ok(f.moves.length<=7);assert.equal(f.moves.at(-1),7)});
+test('unexpected visual errors still execute playhead restoration',()=>{const f=visualAPI();f.api.getCompLayers=()=>{throw Error('inspection failed')};assert.throws(()=>vm.runInNewContext('(function(){'+visual+'})()',{api:f.api,expected:{comp:'comp',scenePath:'scratch.cv'},limits:{layers:200,samples:3,frames:6,ms:1000}}),/inspection failed/);assert.equal(f.moves.at(-1),7)});
+
+test('resumed visual checks reject a changed comp or scene before reading or changing the playhead',()=>{
+  for (const change of ['comp','scene']) {
+    const f=visualAPI();
+    if(change==='comp')f.api.getActiveComp=()=> 'new-comp';
+    else f.api.getSceneFilePath=()=> 'new-scene.cv';
+    f.api.getFrame=()=>{throw Error('must guard before reading playhead')};
+    f.api.getCompLayers=()=>{throw Error('must not inspect changed scene')};
+    assert.throws(()=>vm.runInNewContext('(function(){'+visual+'})()',{
+      api:f.api,expected:{comp:'comp',scenePath:'scratch.cv'},limits:{layers:200,samples:3,frames:6,ms:1000}
+    }),/active scene\/comp changed/);
+    assert.deepEqual(f.moves,[]);
+  }
+});
+test('motion beyond the frame budget remains explicitly uninspected',()=>{
+  const f=visualAPI(),read=f.api.get;
+  f.api.getAnimatedAttributes=()=> ['position.x'];
+  f.api.getKeyframeTimes=()=> [0,2,4,6,8,10,12,14,16,18,20];
+  f.api.get=(id,attr)=>attr==='position.x'?f.frame:read(id,attr);
+  f.api.getBoundingBox=()=> ({left:0,right:100,bottom:0,top:100,width:100,height:100});
+  const r=vm.runInNewContext('(function(){'+visual+'})()',{
+    api:f.api,expected:{comp:'comp',scenePath:'scratch.cv'},limits:{layers:200,samples:3,frames:6,ms:1000}
+  });
+  assert.equal(r.evaluations,6);
+  assert.ok(r.skipped.some(s=>s.inspection==='visual-frame'));
+  assert.ok(r.segs.every(s=>s[1]<20));
+  assert.equal(f.frame,7);
+});
