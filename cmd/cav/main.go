@@ -2,16 +2,18 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/rock3r/cav/assets"
 	"os"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/rock3r/cav/assets"
 	"github.com/rock3r/cav/internal/bridge"
+	"github.com/rock3r/cav/internal/operation"
 )
 
 // Set by the release build with -ldflags "-X main.version=...".
@@ -38,10 +40,16 @@ var commands []command
 func register(c command) { commands = append(commands, c) }
 
 type app struct {
-	json    bool
-	started time.Time
-	argv    []string
-	logJob  map[string]any
+	json        bool
+	started     time.Time
+	argv        []string
+	logJob      map[string]any
+	op          *operation.Record
+	jobCursor   int
+	outputData  map[string]any
+	outputHuman func()
+	emitting    bool
+	ctx         context.Context
 }
 
 // cliError carries an exit code and an optional hint.
@@ -99,7 +107,12 @@ func (a *app) dispatch(args []string) int {
 				printHelp(c.name)
 				return exitOK
 			}
-			err := c.run(a, args[1:])
+			var err error
+			if trackedCommands[c.name] && a.op == nil {
+				err = a.startOperation(args, c.run)
+			} else {
+				err = c.run(a, args[1:])
+			}
 			return a.finish(err)
 		}
 	}
@@ -169,8 +182,18 @@ func (a *app) finish(err error) int {
 
 // emit prints a successful result: JSON when --json is set, otherwise the human form.
 func (a *app) emit(data map[string]any, human func()) {
+	if a.op != nil && !a.emitting {
+		b, _ := json.Marshal(data)
+		a.op.Data = b
+		a.outputData = data
+		a.outputHuman = human
+		return
+	}
 	if a.json {
 		out := map[string]any{"ok": true}
+		if a.op != nil {
+			out["operation"] = a.op.ID
+		}
 		for k, v := range data {
 			out[k] = v
 		}
@@ -246,7 +269,7 @@ New to cav? Run "cav guide" first: it explains the workflow from plan to render.
 `)
 }
 
-var helpOrder = []string{"setup", "doctor", "status", "run", "job", "scene", "tree", "layer", "frame", "sheet", "check", "render", "beats", "api", "docs", "helpers", "guide", "relay", "version", "update"}
+var helpOrder = []string{"setup", "doctor", "status", "run", "job", "operation", "scene", "tree", "layer", "frame", "sheet", "check", "render", "beats", "api", "docs", "helpers", "guide", "relay", "version", "update"}
 
 func order(name string) int {
 	for i, n := range helpOrder {

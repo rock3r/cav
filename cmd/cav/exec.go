@@ -102,6 +102,9 @@ type jobOutcome struct {
 
 // execJS runs code inside Cavalry and waits for it.
 func (a *app) execJS(code string, o execOpts) (*jobOutcome, error) {
+	if a.op != nil {
+		return a.operationJob(code, o)
+	}
 	c := bridge.New()
 	dir := jobDir(c)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
@@ -146,7 +149,9 @@ func (a *app) execJS(code string, o execOpts) (*jobOutcome, error) {
 
 func (a *app) waitJob(c *bridge.Client, out *jobOutcome, timeout time.Duration, progress bool) (*jobOutcome, error) {
 	started := time.Now()
+	state := bridge.StateQueued
 	onState := func(s bridge.State) {
+		state = s
 		if progress && !a.json && s == bridge.StateRunning {
 			fmt.Fprintf(os.Stderr, "cav: job %s running; waiting for its result\n", out.id)
 		}
@@ -161,7 +166,7 @@ func (a *app) waitJob(c *bridge.Client, out *jobOutcome, timeout time.Duration, 
 				code: exitStillRunning,
 				msg:  err.Error(),
 				hint: fmt.Sprintf("The job keeps running inside Cavalry. This is not a failure. Wait for it with `cav job wait %s`.", out.id),
-				data: map[string]any{"job": out.id, "status": "running", "waitedSeconds": int(time.Since(started).Seconds())},
+				data: map[string]any{"job": out.id, "status": state, "waitedSeconds": int(time.Since(started).Seconds())},
 			}
 		}
 		return nil, err

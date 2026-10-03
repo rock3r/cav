@@ -100,3 +100,11 @@ test('cav-bridge refuses another protocol and reports its own', () => {
 	assert.strictEqual(future.error.code, 'protocol')
 	assert.strictEqual(future.value, null, 'the job must not run')
 })
+
+test('completed duplicate IDs return stored results without executing again',()=>{
+ const c=makeCavalry(),context=vm.createContext({api:c.api,ui:c.ui,cavalry:c.cavalry,console:{log(){},info(){},warn(){},error(){}}});context.globalThis=context;
+ vm.runInContext(BRIDGE,context);
+ const request=JSON.stringify({id:'dedup',token:TOKEN,code:'globalThis.executions=(globalThis.executions||0)+1;return globalThis.executions'});
+ c.posts.push(request,request);c.timers[0].onTimeout();
+ assert.equal(context.executions,1);assert.equal(JSON.parse(c.getResult).value,1);
+});

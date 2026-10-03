@@ -40,7 +40,7 @@ Examples:
   cav run scene1.js scene2.js --timeout 30m`
 	register(command{
 		name:    "job",
-		args:    "wait [<id>] [--timeout 30m]",
+		args:    "wait [<id>] [--timeout 30m] | status <id>",
 		summary: "Wait for a job that is still running and print its result.",
 		run:     cmdJob,
 	})
@@ -57,6 +57,16 @@ func cmdRun(a *app, args []string) error {
 		return err
 	}
 	var code, source string
+	if a.op != nil && len(a.op.Jobs) > 0 {
+		j := a.op.Jobs[0]
+		// Recovery always waits, even when the original invocation submitted asynchronously.
+		*async = false
+		o, e := a.execJS(j.Code, execOpts{helpers: j.Helpers, timeout: *timeout, async: *async, source: "resumed run", progress: true})
+		if e != nil {
+			return e
+		}
+		return a.printResult(o)
+	}
 	switch {
 	case *expr != "":
 		code, source = *expr, "-e"
@@ -84,6 +94,9 @@ func cmdRun(a *app, args []string) error {
 		code, source = strings.Join(parts, "\n"), strings.Join(pos, "+")
 	default:
 		return usageErr("run needs a file, -e <code>, or - for stdin")
+	}
+	if err := a.checkpoint("execution"); err != nil {
+		return err
 	}
 	o, err := a.execJS(code, execOpts{helpers: !*noHelpers, timeout: *timeout, async: *async, source: source, progress: true})
 	if err != nil {
@@ -144,6 +157,20 @@ func cmdJob(a *app, args []string) error {
 			return usageErr("no recent job; usage: cav job wait <id>")
 		}
 		pos = append(pos, strings.TrimSpace(string(b)))
+	}
+	if len(pos) == 2 && pos[0] == "status" {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		state, res, e := bridge.New().Inspect(ctx, pos[1])
+		data := map[string]any{"job": pos[1], "status": state}
+		if res != nil {
+			data["result"] = res
+		}
+		if e != nil {
+			data["detail"] = e.Error()
+		}
+		a.emit(data, func() { fmt.Printf("job %s: %s\n", pos[1], state) })
+		return nil
 	}
 	if len(pos) != 2 || pos[0] != "wait" {
 		return usageErr("usage: cav job wait [<id>] (without an id: the most recent job)")

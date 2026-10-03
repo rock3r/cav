@@ -56,6 +56,7 @@ type Result struct {
 	Error         *ScriptError    `json:"error"`
 	MS            int64           `json:"ms"`
 	BridgeVersion string          `json:"bridgeVersion,omitempty"`
+	BridgeSession string          `json:"bridgeSession,omitempty"`
 	Protocol      int             `json:"protocol,omitempty"`
 }
 
@@ -91,6 +92,7 @@ const (
 	StateQueued  State = "queued"
 	StateRunning State = "running"
 	StateDone    State = "done"
+	StateUnknown State = "unknown"
 	// StateBusy means Cavalry has not answered for a while; the job is probably still working.
 	StateBusy State = "busy"
 )
@@ -115,7 +117,7 @@ const unavailableHint = "Start Cavalry, then run Scripts > cav-bridge and keep i
 // slowHint explains a bridge that accepts the connection but answers late. Cavalry serves
 // requests on its UI thread, so a long script, a render or an open dialog box delays
 // the answer.
-const slowHint = "Cavalry accepted the connection but did not answer in time. It may be busy (a long script, a render or an open dialog box); wait, then try again."
+const slowHint = "Cavalry accepted the connection but did not answer in time. It may be busy (a long script, a render or an open dialog box); inspect existing status and wait; do not resubmit work whose delivery is uncertain."
 
 // answerTimeout is how long cav waits for the bridge to answer one request. It is long
 // because a busy Cavalry answers late; a stopped bridge refuses at once.
@@ -135,7 +137,7 @@ func unreachable(base string, err error) error {
 	}
 	var ne net.Error
 	if errors.As(err, &ne) && ne.Timeout() {
-		return fmt.Errorf("%w at %s: no answer within %s. %s", ErrUnavailable, base, answerTimeout, slowHint)
+		return fmt.Errorf("%w at %s: %w (no answer before the request deadline). %s", ErrUnavailable, base, err, slowHint)
 	}
 	return fmt.Errorf("%w at %s: %v. %s", ErrUnavailable, base, err, unavailableHint)
 }
@@ -222,7 +224,10 @@ func (c *Client) Submit(ctx context.Context, r *Request) error {
 // Wait blocks until the job finishes, the timeout passes (ErrStillRunning), or the
 // bridge disappears (ErrLost). onState is called when the state changes.
 func (c *Client) Wait(ctx context.Context, id string, timeout time.Duration, onState func(State)) (*Result, error) {
-	r, err := c.wait(ctx, id, timeout, onState)
+	if !validJobID(id) {
+		return nil, fmt.Errorf("invalid job id")
+	}
+	r, err := c.wait(ctx, id, timeout, StateUnknown, onState)
 	if err == nil {
 		if perr := ProtocolError(r); perr != nil {
 			return nil, perr
@@ -246,12 +251,14 @@ func ProtocolError(r *Result) error {
 
 const protocolHint = "Run `cav setup` to install the matching bridge script, then close the cav-bridge window in Cavalry and start it again from the Scripts menu"
 
-func (c *Client) wait(ctx context.Context, id string, timeout time.Duration, onState func(State)) (*Result, error) {
+func (c *Client) wait(ctx context.Context, id string, timeout time.Duration, initial State, onState func(State)) (*Result, error) {
 	if c.Spool != "" {
-		return c.waitSpool(ctx, id, timeout, onState)
+		return c.waitSpool(ctx, id, timeout, initial, onState)
 	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	deadline := time.Now().Add(timeout)
-	state := StateQueued
+	state := initial
 	set := func(s State) {
 		if s != state {
 			state = s
@@ -266,7 +273,7 @@ func (c *Client) wait(ctx context.Context, id string, timeout time.Duration, onS
 	var idleSince time.Time
 	warnedBusy := false
 	for i := 0; ; i++ {
-		if r, ok := readResultFile(jobFile); ok {
+		if r, ok := readResultFile(jobFile); ok && r.ID == id {
 			set(StateDone)
 			return r, nil
 		}
@@ -304,16 +311,19 @@ func (c *Client) wait(ctx context.Context, id string, timeout time.Duration, onS
 		} else if time.Since(lastSeen) > 120*time.Second {
 			// Cavalry cannot answer while a native operation blocks it (for example deleting
 			// hundreds of layers), so only give up after a long silence.
-			return nil, fmt.Errorf("%w (job %s). Cavalry may have crashed or the bridge window was closed. %s", ErrLost, id, unavailableHint)
+			return nil, fmt.Errorf("%w (job %s). Its state is unknown: a blocking native call, closed bridge or crashed app can all cause this silence. %s", ErrLost, id, unavailableHint)
 		} else if time.Since(lastSeen) > 10*time.Second && onState != nil && !warnedBusy {
 			warnedBusy = true
-			onState(StateBusy)
+			set(StateBusy)
 		}
 		if time.Now().After(deadline) {
 			return nil, fmt.Errorf("%w: job %s is %s after %s", ErrStillRunning, id, state, timeout)
 		}
 		select {
 		case <-ctx.Done():
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				return nil, fmt.Errorf("%w: job %s is %s after %s", ErrStillRunning, id, state, timeout)
+			}
 			return nil, ctx.Err()
 		case <-time.After(pollDelay(i)):
 		}
@@ -337,13 +347,13 @@ func (c *Client) getRaw(ctx context.Context) ([]byte, error) {
 	return io.ReadAll(resp.Body)
 }
 
-func (c *Client) waitSpool(ctx context.Context, id string, timeout time.Duration, onState func(State)) (*Result, error) {
+func (c *Client) waitSpool(ctx context.Context, id string, timeout time.Duration, initial State, onState func(State)) (*Result, error) {
 	deadline := time.Now().Add(timeout)
 	resPath := filepath.Join(c.Spool, id+".res.json")
 	statePath := filepath.Join(c.Spool, id+".state")
-	state := StateQueued
+	state := initial
 	for i := 0; ; i++ {
-		if r, ok := readResultFile(resPath); ok {
+		if r, ok := readResultFile(resPath); ok && r.ID == id {
 			if onState != nil {
 				onState(StateDone)
 			}
@@ -363,6 +373,9 @@ func (c *Client) waitSpool(ctx context.Context, id string, timeout time.Duration
 		}
 		select {
 		case <-ctx.Done():
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				return nil, fmt.Errorf("%w: job %s is %s after %s", ErrStillRunning, id, state, timeout)
+			}
 			return nil, ctx.Err()
 		case <-time.After(pollDelay(i)):
 		}
@@ -412,4 +425,92 @@ func Cleanup(id string) {
 func exists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+// Inspect reads existing state without submitting code. A silent native call is busy,
+// not proof of a crash. Old bridges expose only the current job; others are unknown.
+func (c *Client) Inspect(ctx context.Context, id string) (State, *Result, error) {
+	if !validJobID(id) {
+		return StateUnknown, nil, fmt.Errorf("invalid job id")
+	}
+	dir := config.JobsDir()
+	suffix := ".json"
+	if c.Spool != "" {
+		dir = c.Spool
+		suffix = ".res.json"
+	}
+	if r, ok := readResultFile(filepath.Join(dir, id+suffix)); ok && r.ID == id {
+		return StateDone, r, ProtocolError(r)
+	}
+	if c.Spool != "" {
+		if b, e := os.ReadFile(filepath.Join(dir, id+".state")); e == nil {
+			s := State(bytes.TrimSpace(b))
+			if s == StateRunning || s == StateQueued || s == StateBusy {
+				return s, nil, nil
+			}
+		}
+		return StateUnknown, nil, nil
+	}
+	b, e := c.getRaw(ctx)
+	if e != nil {
+		return ConnectionState(e), nil, e
+	}
+	var head struct {
+		Type string `json:"type"`
+		ID   string `json:"id"`
+	}
+	if e = json.Unmarshal(b, &head); e != nil {
+		return StateUnknown, nil, e
+	}
+	if head.ID == id {
+		if head.Type == "running" {
+			return StateRunning, nil, nil
+		}
+		if head.Type == "result" {
+			var r Result
+			if e = json.Unmarshal(b, &r); e != nil {
+				return StateUnknown, nil, e
+			}
+			return StateDone, &r, ProtocolError(&r)
+		}
+	}
+	return StateUnknown, nil, nil
+}
+func validJobID(id string) bool {
+	if id == "" {
+		return false
+	}
+	for _, r := range id {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '_' || r == '-') {
+			return false
+		}
+	}
+	return true
+}
+
+// SubmitDeadline uses the complete operation budget instead of a shorter HTTP timeout.
+// Ambiguous delivery must be checkpointed by the caller before invoking this method.
+func (c *Client) SubmitDeadline(ctx context.Context, r *Request) error {
+	clone := *c
+	clone.http = &http.Client{}
+	return clone.Submit(ctx, r)
+}
+
+// WaitAccepted retains known queue acceptance while waiting for an operation job.
+func (c *Client) WaitAccepted(ctx context.Context, id string, timeout time.Duration, state State, onState func(State)) (*Result, error) {
+	if !validJobID(id) {
+		return nil, fmt.Errorf("invalid job id")
+	}
+	r, e := c.wait(ctx, id, timeout, state, onState)
+	if e == nil {
+		e = ProtocolError(r)
+	}
+	return r, e
+}
+func ConnectionState(err error) State {
+	var ne net.Error
+	if errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &ne) && ne.Timeout()) {
+		return StateBusy
+	}
+	return StateUnknown
 }

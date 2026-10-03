@@ -2,9 +2,13 @@ package main
 
 import (
 	"bytes"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"os/exec"
@@ -14,6 +18,8 @@ import (
 	"time"
 
 	"github.com/rock3r/cav/internal/bridge"
+	"github.com/rock3r/cav/internal/config"
+	"github.com/rock3r/cav/internal/operation"
 	"github.com/rock3r/cav/internal/sheet"
 )
 
@@ -52,7 +58,10 @@ layers that are missing, off-screen, the wrong size or the wrong colour.`
 Renders the active comp through Cavalry's render queue (an item named "cav render"),
 checks the frame count with ffprobe, and muxes --audio with ffmpeg (AAC, trimmed to
 the video length). A full render can take minutes: cav reports "still running"
-(exit code 3) after --timeout and you can resume with "cav job wait <id>".`
+(exit code 3) after --timeout and continue the complete command with "cav operation resume <id>".
+The timeout includes metadata, render, mux and validation. Outputs are staged beside
+the destination and published without overwriting existing files. Staging is retained
+as recovery evidence. ffprobe is required. Raw job wait completes only one job.`
 }
 
 func outDir() string {
@@ -254,11 +263,42 @@ func cmdRender(a *app, args []string) error {
 	fs := flag.NewFlagSet("render", flag.ContinueOnError)
 	out := fs.String("o", "", "output MP4 (default renders/<comp>.mp4)")
 	audio := fs.String("audio", "", "audio file to mux in")
-	start := fs.Int("start", -1, "first frame (default: comp start)")
-	end := fs.Int("end", -1, "last frame, inclusive (default: comp end)")
+	start := fs.Int("start", -1, "first frame")
+	end := fs.Int("end", -1, "last frame, inclusive")
 	scale := fs.Int("scale", 100, "resolution scale in percent")
-	timeout := fs.Duration("timeout", 30*time.Minute, "report 'still running' after this long")
-	if _, err := parseFlags(fs, args); err != nil {
+	timeout := fs.Duration("timeout", 30*time.Minute, "total operation wait budget")
+	pos, err := parseFlags(fs, args)
+	if err != nil {
+		return err
+	}
+	if len(pos) > 0 || *timeout <= 0 || *scale < 1 || *scale > 100 {
+		return usageErr("invalid render arguments, timeout or scale (1..100)")
+	}
+	if *out != "" {
+		p, e := filepath.Abs(*out)
+		if e != nil {
+			return e
+		}
+		a.op.IntendedOutputs = []string{p}
+	}
+	if *audio != "" {
+		p, e := filepath.Abs(*audio)
+		if e != nil {
+			return e
+		}
+		digest, e := fileDigest(a.ctx, p)
+		if e != nil {
+			return e
+		}
+		if a.op.Inputs == nil {
+			a.op.Inputs = map[string]string{}
+		}
+		if previous, ok := a.op.Inputs[p]; ok && previous != digest {
+			return fmt.Errorf("audio input changed since the operation started: %s", p)
+		}
+		a.op.Inputs[p] = digest
+	}
+	if err = a.checkpoint("waiting-for-metadata"); err != nil {
 		return err
 	}
 	st, err := getScene(a)
@@ -271,40 +311,87 @@ func cmdRender(a *app, args []string) error {
 	if *end < 0 {
 		*end = st.Comp.EndFrame
 	}
+	if *end < *start || st.Comp.FPS <= 0 {
+		return usageErr("invalid frame range or comp fps")
+	}
 	if *out == "" {
-		*out = filepath.Join(outDir(), safeName(st.Comp.Name)+".mp4")
+		dir := a.op.OutputDir
+		if dir == "" {
+			dir = outDir()
+		}
+		*out = filepath.Join(dir, safeName(st.Comp.Name)+".mp4")
 	}
-	if ext := strings.ToLower(filepath.Ext(*out)); ext != ".mp4" {
-		return usageErr("cav render writes MP4 video; for single images use `cav frame <n> -o file.png`, for a review use `cav sheet`")
+	if strings.ToLower(filepath.Ext(*out)) != ".mp4" {
+		return usageErr("cav render writes MP4; use cav frame for images")
 	}
-	absOut, _ := filepath.Abs(*out)
-	if err := os.MkdirAll(filepath.Dir(absOut), 0o755); err != nil {
+	absOut, err := filepath.Abs(*out)
+	if err != nil {
 		return err
 	}
 	if *audio != "" {
-		if _, err := os.Stat(*audio); err != nil {
-			return usageErr("audio file %s: %v", *audio, err)
+		p, e := filepath.Abs(*audio)
+		if e != nil {
+			return e
 		}
-		if _, err := exec.LookPath("ffmpeg"); err != nil {
+		*audio = p
+		if _, e = os.Stat(p); e != nil {
+			return e
+		}
+		if _, e = exec.LookPath("ffmpeg"); e != nil {
 			return fail(exitError, "ffmpeg is needed to mux audio", ffmpegFix())
 		}
 	}
-	base := strings.TrimSuffix(filepath.Base(absOut), filepath.Ext(absOut))
-	videoBase := base
-	if *audio != "" {
-		videoBase = base + ".video"
+	if err = os.MkdirAll(filepath.Dir(absOut), 0755); err != nil {
+		return err
 	}
-	videoPath := filepath.Join(filepath.Dir(absOut), videoBase+".mp4")
-	_ = os.Remove(videoPath)
+	stage := filepath.Join(filepath.Dir(absOut), ".cav-"+a.op.ID)
+	if len(a.op.Outputs) == 0 {
+		if _, e := os.Lstat(absOut); !os.IsNotExist(e) {
+			return fmt.Errorf("output already exists or cannot be inspected: %s", absOut)
+		}
+		records, e := filepath.Glob(filepath.Join(config.Home(), "operations", "*.json"))
+		if e != nil {
+			return e
+		}
+		for _, p := range records {
+			b, e := os.ReadFile(p)
+			if e != nil {
+				return e
+			}
+			var r operation.Record
+			if e = json.Unmarshal(b, &r); e != nil {
+				return e
+			}
+			if r.ID != a.op.ID {
+				for _, o := range r.Outputs {
+					if o == absOut && r.Status != "complete" && r.Status != "abandoned" {
+						return fmt.Errorf("output reserved by operation %s; resume or inspect it", r.ID)
+					}
+				}
+			}
+		}
+		a.op.Outputs = []string{absOut}
+		a.op.IntendedOutputs = []string{absOut}
+		if err = a.checkpoint("rendering"); err != nil {
+			return err
+		}
+	}
+	if err = os.MkdirAll(stage, 0700); err != nil {
+		return err
+	}
+	videoPath := filepath.Join(stage, "video.mp4")
 	code := fmt.Sprintf(`
-var comp = api.getActiveComp(), rq = null;
-api.getRenderQueueItems().forEach(function (id) { if (api.getNiceName(id) === 'cav render') rq = id });
-if (!rq) { rq = api.addRenderQueueItem(comp); api.rename(rq, 'cav render') }
-if (api.getCurrentGeneratorType(rq, 'generator') !== 'renderMP4') api.setGenerator(rq, 'generator', 'renderMP4');
-api.set(rq, { filePath: %s, fileName: %s, frameRange: [%d, %d], resolutionScale: %d, ensureUniqueNames: false });
+if (api.getActiveComp() !== %s || api.getSceneFilePath() !== %s) throw new Error('active scene/comp changed; restore the operation scene before rendering');
+var rq = api.addRenderQueueItem(api.getActiveComp());
+api.rename(rq, %s);
+api.setGenerator(rq, 'generator', 'renderMP4');
+api.set(rq, { filePath: %s, fileName: 'video', frameRange: [%d, %d], resolutionScale: %d, ensureUniqueNames: false });
 var t = Date.now();
 api.render(rq);
-return { ms: Date.now() - t };`, jsString(filepath.ToSlash(filepath.Dir(absOut))), jsString(videoBase), *start, *end, *scale)
+return { ms: Date.now() - t };`, jsString(st.Comp.ID), jsString(st.ScenePath), jsString("cav render "+a.op.ID), jsString(filepath.ToSlash(stage)), *start, *end, *scale)
+	if err = a.checkpoint("rendering"); err != nil {
+		return err
+	}
 	o, err := a.execJS(code, execOpts{timeout: *timeout, source: "cav render", progress: true})
 	if err != nil {
 		return err
@@ -312,37 +399,91 @@ return { ms: Date.now() - t };`, jsString(filepath.ToSlash(filepath.Dir(absOut))
 	if !o.result.OK {
 		return scriptErr(o)
 	}
-	if _, err := os.Stat(videoPath); err != nil {
-		return fail(exitError, "Cavalry finished but "+videoPath+" does not exist", "check the render queue in Cavalry (Window > Render Manager)")
-	}
 	expected := *end - *start + 1
-	got := probeFrames(videoPath)
-	result := map[string]any{"expectedFrames": expected, "frames": got, "fps": st.Comp.FPS}
+	finalStage := videoPath
 	if *audio != "" {
-		dur := float64(expected) / st.Comp.FPS
-		cmd := exec.Command("ffmpeg", "-y", "-v", "error", "-i", videoPath, "-i", *audio,
-			"-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
-			"-t", fmt.Sprintf("%.3f", dur), absOut)
-		var stderr bytes.Buffer
-		cmd.Stderr = &stderr
-		if err := cmd.Run(); err != nil {
-			return fail(exitError, "ffmpeg mux failed: "+strings.TrimSpace(stderr.String()), "the video without audio is at "+videoPath)
+		if err = a.checkpoint("postprocessing"); err != nil {
+			return err
 		}
-		_ = os.Remove(videoPath)
+		finalStage = filepath.Join(stage, "mux.mp4")
+		// Only a partial, operation-owned mux may be replaced. The native video is retained.
+		if !a.op.Completed["mux"] {
+			if _, e := os.Stat(finalStage); os.IsNotExist(e) {
+				digest, e := fileDigest(a.ctx, *audio)
+				if e != nil {
+					return e
+				}
+				if a.op.Inputs[*audio] != digest {
+					return fmt.Errorf("audio input changed before mux")
+				}
+				partial := filepath.Join(stage, "mux.partial.mp4")
+				cmd := exec.CommandContext(a.ctx, "ffmpeg", "-y", "-v", "error", "-i", videoPath, "-i", *audio, "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-t", fmt.Sprintf("%.3f", float64(expected)/st.Comp.FPS), partial)
+				var stderr bytes.Buffer
+				cmd.Stderr = &stderr
+				if err = cmd.Run(); err != nil {
+					return fmt.Errorf("ffmpeg mux failed: %s: %w", strings.TrimSpace(stderr.String()), err)
+				}
+				got, e := probeFramesContext(a.ctx, partial)
+				if e != nil {
+					return e
+				}
+				if got != expected {
+					return fmt.Errorf("mux has %d frames; expected %d", got, expected)
+				}
+				if err = os.Link(partial, finalStage); err != nil {
+					return err
+				}
+			} else if e != nil {
+				return e
+			}
+			// A complete mux published before a crash is retained even if its checkpoint was lost.
+			a.op.Completed["mux"] = true
+			if err = a.checkpoint("postprocessing"); err != nil {
+				return err
+			}
+		}
+
+	}
+	if err = a.checkpoint("validation"); err != nil {
+		return err
+	}
+	if err = a.ctx.Err(); err != nil {
+		return err
+	}
+	got, err := probeFramesContext(a.ctx, finalStage)
+	if err != nil {
+		return fmt.Errorf("video validation failed (staged video retained): %w", err)
+	}
+	if got != expected {
+		return fmt.Errorf("video has %d frames; expected %d (staged video retained)", got, expected)
+	}
+	// Hard-link publication is atomic and never overwrites another command's output.
+	// Staging shares the destination filesystem. Retain the source link as recovery evidence.
+	if err = os.Link(finalStage, absOut); err != nil {
+		src, se := os.Stat(finalStage)
+		dst, de := os.Stat(absOut)
+		if se != nil || de != nil || !os.SameFile(src, dst) {
+			return fmt.Errorf("cannot publish without overwriting %s: %w", absOut, err)
+		}
+	}
+	result := map[string]any{"file": absOut, "frames": got, "expectedFrames": expected, "fps": st.Comp.FPS, "staging": stage}
+	if *audio != "" {
 		result["audio"] = *audio
 	}
-	result["file"] = absOut
-	a.emit(result, func() {
-		fmt.Printf("%s\n%d frames (expected %d) at %g fps", absOut, got, expected, st.Comp.FPS)
-		if *audio != "" {
-			fmt.Printf(", audio from %s", *audio)
-		}
-		fmt.Println()
-		if got >= 0 && got != expected {
-			fmt.Println("warning: the frame count differs from the requested range")
-		}
-	})
+	a.emit(result, func() { fmt.Printf("%s\n%d frames at %g fps\n", absOut, got, st.Comp.FPS) })
 	return nil
+}
+
+func probeFramesContext(ctx context.Context, path string) (int, error) {
+	out, err := exec.CommandContext(ctx, "ffprobe", "-v", "error", "-count_packets", "-select_streams", "v:0", "-show_entries", "stream=nb_read_packets", "-of", "csv=p=0", path).Output()
+	if err != nil {
+		return 0, err
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(strings.Split(string(out), "\n")[0]))
+	if err != nil || n <= 0 {
+		return 0, fmt.Errorf("invalid ffprobe frame count %q", out)
+	}
+	return n, nil
 }
 
 func probeFrames(path string) int {
@@ -372,4 +513,30 @@ func safeName(s string) string {
 		s = "render"
 	}
 	return s
+}
+
+func fileDigest(ctx context.Context, path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	h := sha256.New()
+	buf := make([]byte, 64*1024)
+	for {
+		if e := ctx.Err(); e != nil {
+			return "", e
+		}
+		n, e := f.Read(buf)
+		if n > 0 {
+			h.Write(buf[:n])
+		}
+		if e == io.EOF {
+			break
+		}
+		if e != nil {
+			return "", e
+		}
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
