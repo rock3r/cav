@@ -176,6 +176,8 @@ Licence: MIT.
 `cav operation status <id>` and `cav operation resume <id> --timeout 90m` instead of
 retrying the command. `cav check --quick --json` avoids playhead changes, bounds and renders;
 `--profile` adds a small measured frame set. Failures and skipped coverage are explicit.
+A between-sample profile budget limit remains skipped coverage, including when no sample
+finishes; it is not an API failure.
 See [operation recovery](docs/recovery.md) for states, concurrency and remaining limits.
 
 macOS releases preserve a signed, notarized and stapled `Cav.app`; the installer exposes

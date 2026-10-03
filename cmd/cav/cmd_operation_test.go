@@ -288,12 +288,14 @@ func TestResumeGatesQueuedAndUncertainOperationsBeforeNewSubmission(t *testing.T
 				t.Fatal(err)
 			}
 			t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+			t.Setenv("CAV_RESTRICTED", "1")
 			a := &app{json: true}
 			out := filepath.Join(t.TempDir(), "final.mp4")
 			if code := a.dispatch([]string{"render", "-o", out, "--timeout", "2s"}); code != exitStillRunning {
 				t.Fatal(code)
 			}
 			renderMetadataFixture(t, posts[0].ID)
+			t.Setenv("CAV_RESTRICTED", "0")
 			b := &app{json: true}
 			if code := b.dispatch([]string{"run", "-e", "return 1", "--async", "--no-helpers"}); code != exitOK {
 				t.Fatal(code)
@@ -322,8 +324,8 @@ func TestResumeGatesQueuedAndUncertainOperationsBeforeNewSubmission(t *testing.T
 			if code := (&app{json: true}).dispatch([]string{"operation", "resume", a.op.ID, "--timeout", "2s"}); code != exitOK {
 				t.Fatalf("resume after B completed exit=%d", code)
 			}
-			if len(posts) != 3 {
-				t.Fatalf("native jobs repeated: posts=%d", len(posts))
+			if len(posts) != 3 || !posts[2].Restricted {
+				t.Fatalf("remaining phase repeated or restriction weakened: posts=%d", len(posts))
 			}
 		})
 	}
@@ -390,7 +392,8 @@ func TestPreparedCheckpointAndChangedSession(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	r := &operation.Record{Schema: 1, ID: "prepared-fixture", Command: []string{"run", "-e", "return 7", "--no-helpers"}, Cwd: cwd, Host: config.Host(), Port: config.Port(), Phase: "execution", Status: "unknown", Session: "previous-window", Jobs: []*operation.Job{{ID: "prepared-job", Code: "return 7", Phase: "execution", Submission: "prepared", State: bridge.StateUnknown}}}
+	restricted := false
+	r := &operation.Record{Restricted: &restricted, Schema: 1, ID: "prepared-fixture", Command: []string{"run", "-e", "return 7", "--no-helpers"}, Cwd: cwd, Host: config.Host(), Port: config.Port(), Phase: "execution", Status: "unknown", Session: "previous-window", Jobs: []*operation.Job{{ID: "prepared-job", Code: "return 7", Phase: "execution", Submission: "prepared", State: bridge.StateUnknown}}}
 	if e = operation.Save(config.Home(), r); e != nil {
 		t.Fatal(e)
 	}
@@ -467,5 +470,77 @@ func TestRecoveredRenderRejectsChangedAudio(t *testing.T) {
 	defer mu.Unlock()
 	if posts != 1 {
 		t.Fatalf("changed input submitted %d jobs", posts)
+	}
+}
+
+func TestPreparedResumePreservesRestrictionMode(t *testing.T) {
+	for _, tc := range []struct {
+		name                    string
+		original, resumed, want bool
+	}{
+		{"restricted relay restarted permissive", true, false, true},
+		{"resume applies tighter restriction", false, true, true},
+		{"permissive mode retained", false, false, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var posts []bridge.Request
+			fixtureBridge(t, func(req bridge.Request) {
+				posts = append(posts, req)
+				if len(posts) == 2 {
+					fixtureResult(t, req.ID, 2)
+				}
+			})
+			t.Setenv("CAV_RESTRICTED", "0")
+			blocker := &app{json: true}
+			if code := blocker.dispatch([]string{"run", "-e", "return 1", "--async", "--no-helpers"}); code != exitOK {
+				t.Fatal(code)
+			}
+			t.Setenv("CAV_RESTRICTED", fmt.Sprint(map[bool]int{false: 0, true: 1}[tc.original]))
+			prepared := &app{json: true}
+			if code := prepared.dispatch([]string{"run", "-e", "return 2", "--async", "--no-helpers"}); code != exitStillRunning {
+				t.Fatal(code)
+			}
+			if len(posts) != 1 || len(prepared.op.Jobs) != 1 || prepared.op.Jobs[0].Submission != "prepared" {
+				t.Fatal("fixture did not leave prepared work")
+			}
+			fixtureResult(t, blocker.op.Jobs[0].ID, 1)
+			t.Setenv("CAV_RESTRICTED", fmt.Sprint(map[bool]int{false: 0, true: 1}[tc.resumed]))
+			if code := (&app{json: true}).dispatch([]string{"operation", "resume", prepared.op.ID, "--timeout", "1s"}); code != exitOK {
+				t.Fatal(code)
+			}
+			if len(posts) != 2 || posts[1].ID != prepared.op.Jobs[0].ID || posts[1].Restricted != tc.want {
+				t.Fatalf("posts=%d; resumed restriction=%t, want=%t", len(posts), posts[len(posts)-1].Restricted, tc.want)
+			}
+		})
+	}
+}
+
+func TestLegacyRestrictionUnknownAllowsResultsButNotSubmission(t *testing.T) {
+	posts := 0
+	fixtureBridge(t, func(req bridge.Request) { posts++ })
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &operation.Record{Schema: 1, ID: "legacy-restriction", Command: []string{"run", "-e", "return 7", "--no-helpers"}, Cwd: cwd, Host: config.Host(), Port: config.Port(), Phase: "execution", Status: "unknown", Jobs: []*operation.Job{{ID: "legacy-job", Code: "return 7", Phase: "execution", Submission: "prepared", State: bridge.StateUnknown}}}
+	if err := operation.Save(config.Home(), r); err != nil {
+		t.Fatal(err)
+	}
+	if code := (&app{json: true}).dispatch([]string{"operation", "resume", r.ID, "--timeout", "1s"}); code != exitError {
+		t.Fatalf("unknown restriction allowed submission: exit=%d", code)
+	}
+	if posts != 0 {
+		t.Fatal("legacy job was submitted without a recorded restriction mode")
+	}
+	r.Jobs[0].Submission = "accepted"
+	fixtureResult(t, r.Jobs[0].ID, 7)
+	if err := operation.Save(config.Home(), r); err != nil {
+		t.Fatal(err)
+	}
+	if code := (&app{json: true}).dispatch([]string{"operation", "resume", r.ID, "--timeout", "1s"}); code != exitOK {
+		t.Fatalf("legacy result could not be recovered: exit=%d", code)
+	}
+	if posts != 0 {
+		t.Fatal("legacy result recovery submitted new work")
 	}
 }

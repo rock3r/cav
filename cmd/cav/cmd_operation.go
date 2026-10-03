@@ -26,7 +26,10 @@ an uncertain job, including on older bridges. Unknown or expired results need hu
 inspection; do not retry the original command. A fresh timeout bounds each resume's
 entire wait, including preparation. Native calls may continue after cav exits.
 Records are retained in ~/.cav/operations. Resume uses the original working directory
-and transport. Keep that directory, inputs, scene and bridge session intact until done.
+and transport. The original restricted mode is retained across resumes; a stricter
+current mode is also enforced. Legacy records without a restriction setting can wait
+for existing jobs but cannot submit remaining work. Keep that directory, inputs, scene
+and bridge session intact until done.
 A kernel lock serializes operation clients; crashes release the lock automatically.
 abandon <id> --acknowledge-unknown-outcome marks only local recovery abandoned after
 manual reconciliation. It does not cancel native work.
@@ -74,7 +77,8 @@ func (a *app) startOperation(args []string, run func(*app, []string) error) erro
 	if err != nil {
 		return err
 	}
-	a.op = &operation.Record{OutputDir: defaultDir, Schema: 1, ID: bridge.NewID(), Command: append([]string(nil), args...), Cwd: cwd, Host: c.Host, Port: c.Port, Spool: c.Spool, Phase: "preparation", Status: "running", Jobs: []*operation.Job{}}
+	restricted := os.Getenv("CAV_RESTRICTED") == "1"
+	a.op = &operation.Record{Restricted: &restricted, OutputDir: defaultDir, Schema: 1, ID: bridge.NewID(), Command: append([]string(nil), args...), Cwd: cwd, Host: c.Host, Port: c.Port, Spool: c.Spool, Phase: "preparation", Status: "running", Jobs: []*operation.Job{}}
 	if err = operation.Save(config.Home(), a.op); err != nil {
 		return err
 	}
@@ -314,6 +318,9 @@ func (a *app) operationJob(code string, o execOpts) (*jobOutcome, error) {
 	c.ExpectedSession = a.op.Session
 	dir := jobDir(c)
 	if j.Submission == "prepared" {
+		if a.op.Restricted == nil {
+			return nil, fmt.Errorf("operation restriction mode was not recorded; refusing to submit remaining work")
+		}
 		if err := a.ctx.Err(); err != nil {
 			return nil, err
 		}
@@ -329,7 +336,7 @@ func (a *app) operationJob(code string, o execOpts) (*jobOutcome, error) {
 		if err := os.WriteFile(p, []byte(code), 0600); err != nil {
 			return nil, err
 		}
-		req := &bridge.Request{ID: j.ID, File: p, Restricted: os.Getenv("CAV_RESTRICTED") == "1"}
+		req := &bridge.Request{ID: j.ID, File: p, Restricted: *a.op.Restricted || os.Getenv("CAV_RESTRICTED") == "1"}
 		if o.helpers {
 			p, e := ensurePreload(dir)
 			if e != nil {

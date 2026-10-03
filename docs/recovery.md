@@ -35,6 +35,10 @@ the job ID are saved **before** POST. If acknowledgement is lost, delivery is `u
 resumption only looks for that same job's result, including with an older running bridge.
 It never posts that job again. A `prepared` checkpoint that has not attempted POST can be
 submitted safely. New bridges also return stored results for completed duplicate IDs.
+The original operation restriction mode is persisted before preparation; resuming under
+a permissive relay cannot remove the original process-launching API restrictions. A
+stricter current mode also applies. Older records without a recorded mode can recover
+existing results but refuse new submissions, because their original mode is unknown.
 
 Checkpoint publication syncs file data and the parent directory after rename on Unix;
 Windows uses [MoveFileExW](https://learn.microsoft.com/windows/win32/api/winbase/nf-winbase-movefileexw)

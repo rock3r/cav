@@ -192,3 +192,56 @@ func TestWholeCompStillnessRequiresCompleteMotionCoverage(t *testing.T) {
 		})
 	}
 }
+
+func TestProfileCoverageAndFailuresRemainSeparate(t *testing.T) {
+	for _, tc := range []struct {
+		name              string
+		samples           []profileResult
+		failures, skipped []map[string]any
+	}{
+		{name: "budget after sample", samples: []profileResult{{Frame: 0}}, skipped: []map[string]any{{"inspection": "profile-sample", "reason": "time budget", "remaining": float64(2)}}},
+		{name: "budget before first sample", skipped: []map[string]any{{"inspection": "profile-sample", "reason": "time budget", "remaining": float64(3)}}},
+		{name: "restore failure without samples", failures: []map[string]any{{"inspection": "playhead-restore", "error": "unavailable"}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			posts := 0
+			fixtureBridge(t, func(req bridge.Request) {
+				posts++
+				if posts == 1 {
+					fixtureResult(t, req.ID, map[string]any{"comp": "scratch", "scenePath": "scratch.cv", "start": 0, "end": 30, "fps": 30, "totalLayers": 1, "layers": []structureLayer{{ID: "sim", Type: "particleShape"}}})
+					return
+				}
+				fixtureResult(t, req.ID, map[string]any{"profile": tc.samples, "failures": tc.failures, "skipped": tc.skipped, "restored": len(tc.failures) == 0, "restoreMs": 1})
+			})
+			a := &app{json: true}
+			if code := a.dispatch([]string{"check", "--profile", "--timeout", "1s"}); code != exitOK {
+				t.Fatal(code)
+			}
+			var data struct {
+				Failures, Skipped []map[string]any
+				Profile           []profileResult
+				Complete, Clean   bool
+			}
+			if err := json.Unmarshal(a.op.Data, &data); err != nil {
+				t.Fatal(err)
+			}
+			if posts != 2 || len(data.Profile) != len(tc.samples) || len(data.Failures) != len(tc.failures) || data.Complete || data.Clean {
+				t.Fatalf("incorrect profile classification: %+v", data)
+			}
+			for _, item := range tc.skipped {
+				found := false
+				for _, got := range data.Skipped {
+					found = found || reflect.DeepEqual(got, item)
+				}
+				if !found {
+					t.Fatalf("missing skipped coverage %v: %+v", item, data)
+				}
+			}
+			for _, sample := range data.Profile {
+				if len(sample.Failures) != 0 {
+					t.Fatalf("coverage or global failure assigned to a sample: %+v", sample)
+				}
+			}
+		})
+	}
+}

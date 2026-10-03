@@ -410,7 +410,11 @@ func cmdSceneCheck(a *app, args []string) error {
 		}
 	}
 	if *profile {
-		measured, err = a.profileScene(metadata, *samples, *profileRender, *timeout)
+		var inspected profileInspection
+		inspected, err = a.profileScene(metadata, *samples, *profileRender, *timeout)
+		measured = inspected.Profile
+		failures = append(failures, inspected.Failures...)
+		skipped = append(skipped, inspected.Skipped...)
 		if err != nil {
 			return a.partialCheck(perf, failures, skipped, measured, err)
 		}
@@ -676,12 +680,20 @@ func profileFrames(d structureData, n int) []int {
 	return frames
 }
 
-func (a *app) profileScene(d structureData, n int, images bool, timeout time.Duration) ([]profileResult, error) {
+type profileInspection struct {
+	Profile   []profileResult  `json:"profile"`
+	Failures  []map[string]any `json:"failures"`
+	Skipped   []map[string]any `json:"skipped"`
+	Restored  bool             `json:"restored"`
+	RestoreMS int64            `json:"restoreMs"`
+}
+
+func (a *app) profileScene(d structureData, n int, images bool, timeout time.Duration) (profileInspection, error) {
 	frames := profileFrames(d, n)
 	b, _ := assets.Diagnostics.ReadFile("diagnostics/profile.js")
 	dir := filepath.Join(config.Home(), "operations", "profile-"+a.op.ID)
 	if err := os.MkdirAll(dir, 0700); err != nil {
-		return nil, err
+		return profileInspection{}, err
 	}
 	sample := map[string]any{"frames": frames, "comp": d.Comp, "scenePath": d.ScenePath, "progress": filepath.ToSlash(filepath.Join(dir, "progress.json")), "ms": (timeout / 2).Milliseconds()}
 	if images {
@@ -689,31 +701,18 @@ func (a *app) profileScene(d structureData, n int, images bool, timeout time.Dur
 	}
 	a.op.Progress = filepath.Join(dir, "progress.json")
 	if err := a.checkpoint("profiling"); err != nil {
-		return nil, err
+		return profileInspection{}, err
 	}
 	j, _ := json.Marshal(sample)
-	var result struct {
-		Profile   []profileResult  `json:"profile"`
-		Failures  []map[string]any `json:"failures"`
-		Skipped   []map[string]any `json:"skipped"`
-		Restored  bool             `json:"restored"`
-		RestoreMS int64            `json:"restoreMs"`
-	}
+	var result profileInspection
 	if err := a.jsCall("var sample="+string(j)+";\n"+string(b), timeout, &result); err != nil {
-		return nil, err
+		return profileInspection{}, err
 	}
 	for i := range result.Profile {
 		result.Profile[i].Restored = result.Restored
 		result.Profile[i].RestoreMS = result.RestoreMS
 	}
-	if len(result.Profile) > 0 {
-		result.Profile[len(result.Profile)-1].Failures = append(result.Profile[len(result.Profile)-1].Failures, result.Failures...)
-		result.Profile[len(result.Profile)-1].Failures = append(result.Profile[len(result.Profile)-1].Failures, result.Skipped...)
-	}
-	if len(result.Profile) == 0 && len(result.Failures)+len(result.Skipped) > 0 {
-		return nil, fmt.Errorf("profiling incomplete: %v %v", result.Failures, result.Skipped)
-	}
-	return result.Profile, nil
+	return result, nil
 }
 
 // stillGaps returns the frame ranges where no large layer changes and fewer than three small

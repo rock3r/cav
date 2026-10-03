@@ -34,6 +34,7 @@ type Record struct {
 	Cwd             string            `json:"cwd"`
 	Host            string            `json:"host"`
 	Port            int               `json:"port"`
+	Restricted      *bool             `json:"restricted,omitempty"` // nil: legacy restriction mode unknown
 	Session         string            `json:"bridgeSession,omitempty"`
 	Spool           string            `json:"spool,omitempty"`
 	Phase           string            `json:"phase"`
