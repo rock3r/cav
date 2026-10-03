@@ -107,7 +107,7 @@ func TestRenderPreparatoryTimeoutResume(t *testing.T) {
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	out := filepath.Join(t.TempDir(), "result.mp4")
 	a := &app{json: true}
-	code := a.dispatch([]string{"render", "-o", out, "--timeout", "30ms"})
+	code := a.dispatch([]string{"render", "-o", out, "--timeout", "2s"})
 	if code != exitStillRunning {
 		t.Fatalf("exit=%d", code)
 	}
@@ -317,15 +317,20 @@ func TestRecoveryLogKeepsJobTelemetry(t *testing.T) {
 	}
 }
 func TestRecoveredRenderRejectsChangedAudio(t *testing.T) {
+	var mu sync.Mutex
 	posts := 0
-	fixtureBridge(t, func(req bridge.Request) { posts++ })
+	fixtureBridge(t, func(req bridge.Request) {
+		mu.Lock()
+		posts++
+		mu.Unlock()
+	})
 	audio := filepath.Join(t.TempDir(), "audio.wav")
 	if e := os.WriteFile(audio, []byte("original"), 0600); e != nil {
 		t.Fatal(e)
 	}
 	a := &app{json: true}
 	out := filepath.Join(t.TempDir(), "video.mp4")
-	if c := a.dispatch([]string{"render", "-o", out, "--audio", audio, "--timeout", "100ms"}); c != exitStillRunning {
+	if c := a.dispatch([]string{"render", "-o", out, "--audio", audio, "--timeout", "2s"}); c != exitStillRunning {
 		t.Fatal(c)
 	}
 	if len(a.op.IntendedOutputs) != 1 || a.op.IntendedOutputs[0] != out {
@@ -337,6 +342,8 @@ func TestRecoveredRenderRejectsChangedAudio(t *testing.T) {
 	if c := (&app{json: true}).dispatch([]string{"operation", "resume", a.op.ID, "--timeout", "1s"}); c != exitError {
 		t.Fatalf("changed audio accepted: %d", c)
 	}
+	mu.Lock()
+	defer mu.Unlock()
 	if posts != 1 {
 		t.Fatalf("changed input submitted %d jobs", posts)
 	}
