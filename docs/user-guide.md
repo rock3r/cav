@@ -114,7 +114,7 @@ Four rules prevent most surprises:
   silently, such as colour keys given as hex strings or keys on `rotation` instead of
   `rotation.z`.
 
-A long script can outlive the CLI's wait budget. `run`, `render` and `check` print an
+A long script can outlive the CLI's wait budget. `scene open`, `frame`, `sheet`, `run`, `render` and `check` print an
 operation ID. Inspect and resume the complete command without submitting it again:
 
 ```sh
@@ -281,3 +281,10 @@ Use `cav check --quick --json` for cheap structural performance warnings. Add `-
 for measured sampling, or `--profile-render` to time low-resolution PNG calls too. Default
 checks are bounded; inspect `failures`, `skipped`, `complete` and `clean` before treating a
 scene as reviewed. Blank heads/tails still need a sheet review.
+
+Quick structural checks include referenced pre-comps and report their composition paths.
+For slow later regions, use `cav check --profile-frames 840,1560,1908 --max-warmup 2000
+--timeout 30m --json`. Simulation targets automatically render at 10 percent after
+chronological warm-up from the comp start. Warm-up cost is separate from sample timings;
+the extra-frame allowance defaults to 600. Keep default profiling for a small initial
+sample, and use repeated measurements before claiming a performance improvement.

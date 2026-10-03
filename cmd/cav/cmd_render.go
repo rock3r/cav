@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"os/exec"
@@ -15,7 +16,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rock3r/cav/internal/bridge"
 	"github.com/rock3r/cav/internal/config"
 	"github.com/rock3r/cav/internal/operation"
 	"github.com/rock3r/cav/internal/sheet"
@@ -24,13 +24,13 @@ import (
 func init() {
 	register(command{
 		name:    "frame",
-		args:    "[frame...] [--scale 50] [-o file.png|dir]",
+		args:    "[frame...] [--scale 50] [-o file.png|dir] [--timeout 5m]",
 		summary: "Render single frames to PNG (the current frame if none is given).",
 		run:     cmdFrame,
 	})
 	register(command{
 		name:    "sheet",
-		args:    "[frames] [--count 12] [--scale 25] [--cols N] [--bpm B] [-o sheet.png]",
+		args:    "[frames] [--count 12] [--scale 25] [--cols N] [--bpm B] [-o sheet.png] [--timeout 5m]",
 		summary: "Render frames and tile them into one labelled contact sheet.",
 		run:     cmdSheet,
 	})
@@ -44,6 +44,11 @@ Simulations (Forge Dynamics, particles) only advance when frames render in order
 use a step-1 range such as 0-59:1 to preview them.
 Each tile is labelled "f<frame> <seconds>s". With --bpm, the label also shows the beat
 number (b1 is the first beat), so you can check that hits land on the beat.
+Frame and sheet commands return operation IDs. After --timeout (default 5m), resume
+that operation rather than rendering again. At most 120 frames per command, scale 1..100.
+Images are staged beside the output and published after the native job finishes.
+The original playhead is restored in finally after normal completion or a recoverable error.
+Images replace existing outputs; sheets retain the staged sheet, and --keep retains frame PNGs.
 Look at the sheet image after every build step: it is the fastest way to catch
 layers that are missing, off-screen, the wrong size or the wrong colour.`
 	register(command{
@@ -71,85 +76,225 @@ func outDir() string {
 	return "renders"
 }
 
-// renderFrames renders the given frames to dir/f_<frame>.png inside one job.
-func (a *app) renderFrames(frames []int, scale int, dir string) ([]string, error) {
-	abs, _ := filepath.Abs(dir)
-	if err := os.MkdirAll(abs, 0o755); err != nil {
+// frameRenderJS restores the playhead even when one native render fails.
+const frameRenderJS = `
+if (api.getActiveComp() !== sample.comp || api.getSceneFilePath() !== sample.scenePath)
+  throw new Error('active scene/comp changed; restore the operation scene before resuming');
+var cur = api.getFrame(), out = [];
+try {
+  sample.frames.forEach(function (f) {
+    api.setFrame(f);
+    var p = sample.dir + '/f_' + f;
+    api.renderPNGFrame(p, sample.scale);
+    if (!api.filePathExists(p + '.png')) throw new Error('Cavalry did not write ' + p + '.png');
+    out.push(p + '.png');
+  });
+} finally { api.setFrame(cur) }
+return out;`
+
+// The operation's stable staging path keeps the native script identical on resume.
+func (a *app) renderFrames(frames []int, scale int, dir string, st *sceneState) ([]string, error) {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
 	}
-	fr, _ := json.Marshal(frames)
-	code := fmt.Sprintf(`
-var frames = %s, dir = %s, scale = %d, cur = api.getFrame(), out = [];
-frames.forEach(function (f) { api.setFrame(f); var p = dir + '/f_' + f; api.renderPNGFrame(p, scale); out.push(p + '.png') });
-api.setFrame(cur);
-return out;`, fr, jsString(filepath.ToSlash(abs)), scale)
-	var paths []string
-	timeout := time.Duration(max(2, len(frames))) * 30 * time.Second
-	if err := a.jsCall(code, timeout, &paths); err != nil {
+	sample, err := json.Marshal(map[string]any{"frames": frames, "dir": filepath.ToSlash(dir), "scale": scale, "comp": st.Comp.ID, "scenePath": st.ScenePath})
+	if err != nil {
 		return nil, err
+	}
+	var paths []string
+	if err = a.jsCall("var sample = "+string(sample)+";\n"+frameRenderJS, 5*time.Minute, &paths); err != nil {
+		return nil, err
+	}
+	if len(paths) != len(frames) {
+		return nil, fmt.Errorf("Cavalry returned %d images for %d frames", len(paths), len(frames))
 	}
 	for i, p := range paths {
 		paths[i] = filepath.FromSlash(p)
-		if _, err := os.Stat(paths[i]); err != nil {
-			return nil, fmt.Errorf("Cavalry did not write %s", paths[i])
+		expected := filepath.Join(dir, fmt.Sprintf("f_%d.png", frames[i]))
+		if paths[i] != expected {
+			return nil, fmt.Errorf("unexpected frame output: %s", paths[i])
+		}
+		info, err := os.Stat(paths[i])
+		if err != nil || !info.Mode().IsRegular() {
+			return nil, fmt.Errorf("Cavalry did not write a regular image: %s", paths[i])
 		}
 	}
 	return paths, nil
+}
+
+func (a *app) publishedImages() (bool, error) {
+	if !a.op.Completed["images-published"] {
+		return false, nil
+	}
+	for _, p := range a.op.Outputs {
+		info, err := os.Stat(p)
+		if err != nil || !info.Mode().IsRegular() {
+			return true, fmt.Errorf("published image is missing: %s", p)
+		}
+	}
+	var data map[string]any
+	if err := json.Unmarshal(a.op.Data, &data); err != nil {
+		return true, err
+	}
+	a.emit(data, func() {
+		for _, p := range a.op.Outputs {
+			fmt.Println(p)
+		}
+	})
+	return true, nil
+}
+
+// Image commands intentionally replace their outputs, including iterative sheets.
+// Copy to a sibling temporary file before rename; retain native staging for recovery.
+func publishImage(ctx context.Context, src, dst string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	info, err := in.Stat()
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("image source is not a regular file: %s", src)
+	}
+	if err = os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return err
+	}
+	out, err := os.CreateTemp(filepath.Dir(dst), ".cav-publish-*.png")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(out.Name())
+	defer out.Close()
+	buf := make([]byte, 64*1024)
+	for {
+		if err = ctx.Err(); err != nil {
+			return err
+		}
+		n, e := in.Read(buf)
+		if n > 0 {
+			if _, err = out.Write(buf[:n]); err != nil {
+				return err
+			}
+		}
+		if e == io.EOF {
+			break
+		}
+		if e != nil {
+			return e
+		}
+	}
+	if err = out.Chmod(0o644); err != nil {
+		return err
+	}
+	if err = out.Sync(); err != nil {
+		return err
+	}
+	if err = out.Close(); err != nil {
+		return err
+	}
+	if err = ctx.Err(); err != nil {
+		return err
+	}
+	return os.Rename(out.Name(), dst)
 }
 
 func cmdFrame(a *app, args []string) error {
 	fs := flag.NewFlagSet("frame", flag.ContinueOnError)
 	scale := fs.Int("scale", 50, "render scale in percent")
 	out := fs.String("o", "", "output file (one frame) or folder")
+	timeout := fs.Duration("timeout", 5*time.Minute, "total image operation wait budget")
 	pos, err := parseFlags(fs, args)
 	if err != nil {
 		return err
 	}
+	if *timeout <= 0 || *scale < 1 || *scale > 100 {
+		return usageErr("invalid timeout or scale (1..100)")
+	}
 	var frames []int
-	for _, p := range pos {
-		f, err := parseFrameList(p, nil)
+	if len(pos) > 0 {
+		frames, err = parseFrameListLimit(strings.Join(pos, ","), 120)
 		if err != nil {
 			return err
 		}
-		frames = append(frames, f...)
-	}
-	if len(frames) == 0 {
-		var cur int
-		if err := a.jsCall("return api.getFrame()", time.Minute, &cur); err != nil {
-			return err
-		}
-		frames = []int{cur}
-	}
-	dir := outDir()
-	single := ""
-	if *out != "" {
-		if strings.HasSuffix(strings.ToLower(*out), ".png") && len(frames) == 1 {
-			single = *out
-			dir = filepath.Dir(*out)
-		} else {
-			dir = *out
+		if len(frames) == 0 {
+			return usageErr("no frames specified")
 		}
 	}
-	paths, err := a.renderFrames(frames, *scale, dir)
+	if err = a.beginOperationBudget(*timeout); err != nil {
+		return err
+	}
+	if done, e := a.publishedImages(); done || e != nil {
+		return e
+	}
+	if err = a.checkpoint("waiting-for-metadata"); err != nil {
+		return err
+	}
+	st, err := getScene(a)
 	if err != nil {
 		return err
 	}
+	if len(frames) == 0 {
+		frames = []int{st.Frame}
+	}
+	dir, single := a.op.OutputDir, ""
+	if *out != "" {
+		abs, e := filepath.Abs(*out)
+		if e != nil {
+			return e
+		}
+		if strings.HasSuffix(strings.ToLower(abs), ".png") && len(frames) == 1 {
+			single = abs
+			dir = filepath.Dir(abs)
+		} else {
+			dir = abs
+		}
+	}
+	outputs := make([]string, len(frames))
+	for i, f := range frames {
+		outputs[i] = filepath.Join(dir, fmt.Sprintf("f_%d.png", f))
+	}
 	if single != "" {
-		if err := os.Rename(paths[0], single); err != nil {
+		outputs[0] = single
+	}
+	a.op.IntendedOutputs = outputs
+	staging := filepath.Join(dir, ".cav-frame-"+a.op.ID)
+	if err = a.checkpoint("rendering-images"); err != nil {
+		return err
+	}
+	paths, err := a.renderFrames(frames, *scale, staging, st)
+	if err != nil {
+		return err
+	}
+	if err = a.checkpoint("publishing-images"); err != nil {
+		return err
+	}
+	for i, p := range paths {
+		if err = publishImage(a.ctx, p, outputs[i]); err != nil {
 			return err
 		}
-		paths[0], _ = filepath.Abs(single)
 	}
-	a.emit(map[string]any{"frames": frames, "files": paths}, func() {
-		for _, p := range paths {
+	a.op.Outputs = outputs
+	a.emit(map[string]any{"frames": frames, "files": outputs, "staging": staging}, func() {
+		for _, p := range outputs {
 			fmt.Println(p)
 		}
 	})
-	return nil
+	a.op.Completed["images-published"] = true
+	return a.checkpoint("publication-complete")
 }
 
 // parseFrameList understands "12" (count, needs comp range), "0,30,60" and "0-600:30".
 func parseFrameList(spec string, compRange *[2]int) ([]int, error) {
+	return parseFrameListLimit(spec, 0)
+}
+
+func parseFrameListLimit(spec string, limit int) ([]int, error) {
 	spec = strings.TrimSpace(spec)
 	var out []int
 	for _, part := range strings.Split(spec, ",") {
@@ -173,14 +318,24 @@ func parseFrameList(spec string, compRange *[2]int) ([]int, error) {
 			if err1 != nil || err2 != nil || y < x {
 				return nil, usageErr("bad range %q (use start-end:step)", part)
 			}
-			for f := x; f <= y; f += step {
+			for f := x; f <= y; {
+				if limit > 0 && len(out) >= limit {
+					return nil, usageErr("too many frames (max %d)", limit)
+				}
 				out = append(out, f)
+				if y-f < step {
+					break
+				}
+				f += step
 			}
 			continue
 		}
 		n, err := strconv.Atoi(part)
 		if err != nil {
 			return nil, usageErr("bad frame %q", part)
+		}
+		if limit > 0 && len(out) >= limit {
+			return nil, usageErr("too many frames (max %d)", limit)
 		}
 		out = append(out, n)
 	}
@@ -210,29 +365,64 @@ func cmdSheet(a *app, args []string) error {
 	offset := fs.Float64("offset", 0, "with --bpm: time of the first beat in seconds")
 	keep := fs.Bool("keep", false, "keep the single frame PNGs")
 	count := fs.Int("count", 12, "number of evenly spread frames when no frames are given")
+	timeout := fs.Duration("timeout", 5*time.Minute, "total image operation wait budget")
 	pos, err := parseFlags(fs, args)
 	if err != nil {
+		return err
+	}
+	if *timeout <= 0 || *scale < 1 || *scale > 100 || *count < 1 || *count > 120 || *cols < 0 || *cols > 120 || *bpm < 0 || math.IsNaN(*bpm) || math.IsInf(*bpm, 0) || math.IsNaN(*offset) || math.IsInf(*offset, 0) {
+		return usageErr("invalid sheet arguments (scale 1..100, count 1..120, cols 0..120, positive timeout)")
+	}
+	var frames []int
+	if len(pos) > 0 {
+		frames, err = parseFrameListLimit(strings.Join(pos, ","), 120)
+		if err != nil {
+			return err
+		}
+		if len(frames) == 0 {
+			return usageErr("no frames specified")
+		}
+	}
+	if err = a.beginOperationBudget(*timeout); err != nil {
+		return err
+	}
+	if done, e := a.publishedImages(); done || e != nil {
+		return e
+	}
+	if err = a.checkpoint("waiting-for-metadata"); err != nil {
 		return err
 	}
 	st, err := getScene(a)
 	if err != nil {
 		return err
 	}
-	var frames []int
+	if st.Comp.EndFrame < st.Comp.StartFrame || st.Comp.FPS <= 0 || math.IsNaN(st.Comp.FPS) || math.IsInf(st.Comp.FPS, 0) {
+		return fmt.Errorf("invalid comp frame range or FPS")
+	}
 	if len(pos) == 0 {
 		frames = evenFrames(*count, st.Comp.StartFrame, st.Comp.EndFrame)
-	} else if frames, err = parseFrameList(strings.Join(pos, ","), nil); err != nil {
-		return err
-	}
-	if len(frames) > 120 {
-		return usageErr("%d frames is too many for one sheet (max 120); use a larger step", len(frames))
 	}
 	if *out == "" {
-		*out = filepath.Join(outDir(), "sheet.png")
+		*out = filepath.Join(a.op.OutputDir, "sheet.png")
 	}
-	tmp := filepath.Join(filepath.Dir(*out), ".frames-"+bridge.NewID())
-	paths, err := a.renderFrames(frames, *scale, tmp)
+	abs, err := filepath.Abs(*out)
 	if err != nil {
+		return err
+	}
+	staging := filepath.Join(filepath.Dir(abs), ".cav-sheet-"+a.op.ID)
+	tmp := filepath.Join(staging, "frames")
+	a.op.IntendedOutputs = []string{abs}
+	if err = a.checkpoint("rendering-images"); err != nil {
+		return err
+	}
+	paths, err := a.renderFrames(frames, *scale, tmp, st)
+	if err != nil {
+		return err
+	}
+	if err = a.checkpoint("building-sheet"); err != nil {
+		return err
+	}
+	if err = a.ctx.Err(); err != nil {
 		return err
 	}
 	tiles := make([]sheet.Tile, len(paths))
@@ -245,17 +435,28 @@ func cmdSheet(a *app, args []string) error {
 		}
 		tiles[i] = sheet.Tile{Path: p, Label: label}
 	}
-	w, h, err := sheet.Build(tiles, *out, sheet.Options{Cols: *cols})
+	built := filepath.Join(staging, "sheet.png")
+	w, h, err := sheet.Build(tiles, built, sheet.Options{Cols: *cols})
 	if err != nil {
 		return err
 	}
-	if !*keep {
-		_ = os.RemoveAll(tmp)
+	if err = a.checkpoint("publishing-images"); err != nil {
+		return err
 	}
-	abs, _ := filepath.Abs(*out)
-	a.emit(map[string]any{"sheet": abs, "frames": frames, "width": w, "height": h}, func() {
+	if err = publishImage(a.ctx, built, abs); err != nil {
+		return err
+	}
+	a.op.Outputs = []string{abs}
+	a.emit(map[string]any{"sheet": abs, "frames": frames, "width": w, "height": h, "staging": staging}, func() {
 		fmt.Printf("%s  (%d frames, %dx%d)\nopen or view this image to review the animation\n", abs, len(frames), w, h)
 	})
+	a.op.Completed["images-published"] = true
+	if err = a.checkpoint("publication-complete"); err != nil {
+		return err
+	}
+	if !*keep {
+		return os.RemoveAll(tmp)
+	}
 	return nil
 }
 

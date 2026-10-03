@@ -28,6 +28,10 @@ If it reports `blocked: a sandbox`, your sandbox stops `cav`: show the user the 
    bounding box, keys).
 6. **Check**: start with `cav check --quick --json` for structural performance warnings.
    `cav check` adds bounded visual checks; `--profile` optionally measures a small frame set.
+   Quick metadata includes referenced pre-comps. For later slow regions, select
+   `--profile-frames F,...`; simulations render intervening frames from the comp start,
+   so set `--max-warmup` explicitly when more than 600 extra frames are needed.
+   Read warm-up time separately from sample time; repeat before claiming a speedup.
    Read failures and skipped coverage, and use a sheet to review blank starts/ends. Fix
    each finding or explain why it is intended. Warnings describe risk, not measured blame.
 7. **Save**: `cav scene save scenes/<name>.cv`.
@@ -133,3 +137,9 @@ retries. Resume preserves completed work and refuses to overwrite an existing fi
 The updated bridge detects changed sessions; older bridges require you to confirm that the
 original scene/session is still active. Keep inputs and the CLI build unchanged while
 recovering. Native calls cannot be interrupted by a heartbeat or CLI timeout.
+
+Scene opening, frame export and sheets also return operation IDs. Set `scene open
+--timeout 15m` for large scenes. An open call returning can precede native scene readiness;
+resume the operation instead of opening twice. Frame/sheet jobs restore the playhead on
+recoverable errors and retain staging for recovery. Preserve the scene, inputs and CLI
+build until completion; do not retry an export while its native job is unresolved.
