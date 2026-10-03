@@ -25,7 +25,9 @@ printf '%s' "$APPLE_NOTARY_API_KEY" | base64 --decode > "$key"
 security create-keychain -p "$APPLE_SIGNING_KEYCHAIN_PASSWORD" "$keychain"
 security set-keychain-settings -lut 21600 "$keychain"
 security unlock-keychain -p "$APPLE_SIGNING_KEYCHAIN_PASSWORD" "$keychain"
-security import "$certificate" -P "$APPLE_DEVELOPER_ID_P12_PASSWORD" -t cert -f pkcs12 -k "$keychain" >/dev/null
+# Trust the signing tool explicitly so headless runners never wait for a key-access prompt.
+security import "$certificate" -P "$APPLE_DEVELOPER_ID_P12_PASSWORD" -T /usr/bin/codesign -t cert -f pkcs12 -k "$keychain" >/dev/null
 security list-keychains -d user -s "$keychain"
+security default-keychain -d user -s "$keychain"
 security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$APPLE_SIGNING_KEYCHAIN_PASSWORD" "$keychain" >/dev/null
 APPLE_NOTARY_API_KEY_PATH="$key" tools/release.sh "v$RELEASE_VERSION"
