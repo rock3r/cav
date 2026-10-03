@@ -23,6 +23,10 @@ On Windows, in PowerShell:
 irm https://raw.githubusercontent.com/rock3r/cav/main/install.ps1 | iex
 ```
 
+On macOS the installer preserves the full signed Cav.app under `~/.local/bin/.cav-bundles`
+and exposes its executable with the `~/.local/bin/cav` symlink. See
+[macOS distribution](NOTARIZATION.md) for migration from old updaters.
+
 The installer puts `cav` in `~/.local/bin` (Windows: `%LOCALAPPDATA%\cav\bin`), checks the
 download against the release checksums, and runs `cav setup`. Setup creates a secret token
 in `~/.cav/token`, copies the bridge script into Cavalry's Scripts folder, and checks that
@@ -110,20 +114,24 @@ Four rules prevent most surprises:
   silently, such as colour keys given as hex strings or keys on `rotation` instead of
   `rotation.z`.
 
-A long script is not a failed script. If `cav run` is still waiting when `--timeout` passes
-(10 minutes by default), it prints the job id and exits with code 3. The job keeps running in
-Cavalry. Continue waiting with:
+A long script can outlive the CLI's wait budget. `run`, `render` and `check` print an
+operation ID. Inspect and resume the complete command without submitting it again:
 
-```bash
-cav job wait              # the most recent job
-cav job wait <id>         # a specific job
+```sh
+cav operation status <operation-id> --json
+cav operation resume <operation-id> --timeout 30m --json
 ```
+
+`cav job wait <job-id>` still waits for one raw job. Waiting for preparatory metadata does
+not resume a render. Keep the original scene and inputs unchanged during recovery. See
+[operation recovery](recovery.md) for unknown outcomes, partial checks and stale records.
 
 ## Everyday commands
 
 | Task | Command |
 |---|---|
-| See what is open | `cav status`, `cav tree` |
+| Inspect existing bridge state | `cav status` |
+| Retrieve scene metadata and structure | `cav scene info`, `cav tree` |
 | Inspect a layer (position, bounding box, keys) | `cav layer <id>`, `cav layer <id> --attrs` |
 | Change the comp size, length or background | `cav scene comp --seconds 8 --bg '#101014'` |
 | Render one frame | `cav frame 90 -o renders/f90.png` |
@@ -212,7 +220,8 @@ boundary, because scripts can still read and write files through Cavalry's API.
 | `listening ... but not answering` | Cavalry is busy with a long script or render, or a dialog box is open. | Wait for the job, or close the dialog in Cavalry, then try again. |
 | `running v1.0.0; v1.1.0 is installed` | You updated `cav` but Cavalry still runs the old bridge. It still works. | Close the cav-bridge window and start it again from the Scripts menu. |
 | `cav and cav-bridge do not match` or `speaks protocol` | The running bridge and `cav` use different request formats. `cav` will not send jobs. | Run `cav setup`, then close the cav-bridge window and start it again from the Scripts menu. |
-| Exit code 3, "still running" | The job took longer than `--timeout`. | `cav job wait <id>`. It is not an error. |
+| Exit code 3, pending/unknown | The job took longer than `--timeout`. | `cav operation status <id>`, then `cav operation resume <id>`. Do not retry the original command. |
+| Exit code 4, bridge lost/session changed | The original result is unresolved. | Stop automatic waiting, preserve partial output, and inspect the operation. File growth is not completion; reconcile before a new render. |
 | `unknown job` | The id is wrong, or the result is older than a day. | Check the id. `cav job wait` without an id waits for the most recent job. |
 | "Cavalry is busy (not answering)" during a job | A Cavalry operation is blocking the app, for example deleting hundreds of layers. | Keep waiting. `cav` gives up only after 120 s of silence. |
 | A layer appears in the wrong place | `+y` is up, and `(0, 0)` is the centre. | Check positions with `cav layer <id>`. |
@@ -254,8 +263,8 @@ Exit codes:
 | 0 | Success |
 | 1 | Error (for example, the script threw) |
 | 2 | The bridge cannot be reached |
-| 3 | The job is still running |
-| 4 | The bridge stopped answering during a job |
+| 3 | Wait budget expired; native outcome pending or unknown |
+| 4 | Bridge lost/refused or operation session changed; preserve partial output and inspect |
 
 Environment variables:
 
@@ -267,3 +276,8 @@ Environment variables:
 | `CAV_OUT_DIR` | Default folder for sheets and frames (default `renders`). |
 | `CAV_BRIDGE_PORT` | The bridge port (default 8723). |
 | `CAV_SCRIPTS_DIR` | Cavalry's Scripts folder, if it is not in the usual place. |
+
+Use `cav check --quick --json` for cheap structural performance warnings. Add `--profile`
+for measured sampling, or `--profile-render` to time low-resolution PNG calls too. Default
+checks are bounded; inspect `failures`, `skipped`, `complete` and `clean` before treating a
+scene as reviewed. Blank heads/tails still need a sheet review.

@@ -46,7 +46,42 @@ fi
 
 tar -xzf "$tmp/$asset" -C "$tmp"
 mkdir -p "$BIN_DIR"
-install -m 0755 "$tmp/cav" "$BIN_DIR/cav"
+if [ "$os" = darwin ]; then
+  app="$(find "$tmp" -type d -name Cav.app -prune)"
+  if [ -n "$app" ]; then
+    # Verify the complete downloaded bundle; never repair signatures or remove quarantine.
+    test -x "$app/Contents/MacOS/cav"
+    codesign --verify --deep --strict "$app"
+    metadata="$(codesign -d --verbose=4 "$app" 2>&1)"
+    printf '%s\n' "$metadata" | grep -q '^Authority=Developer ID Application:'
+    printf '%s\n' "$metadata" | grep -q '^Timestamp='
+    printf '%s\n' "$metadata" | grep -q 'flags=.*runtime'
+    xcrun stapler validate "$app"
+    spctl --assess --type execute "$app"
+    mkdir -p "$BIN_DIR/.cav-bundles"
+    destination="$(mktemp -d "$BIN_DIR/.cav-bundles/install.XXXXXX")"
+    # ditto keeps signature/ticket metadata and modes across filesystems.
+    ditto "$app" "$destination/Cav.app"
+    codesign --verify --deep --strict "$destination/Cav.app"
+    xcrun stapler validate "$destination/Cav.app"
+    spctl --assess --type execute "$destination/Cav.app"
+    destination="$(cd "$destination" && pwd)"
+    ln -s "$destination/Cav.app/Contents/MacOS/cav" "$tmp/cav-link"
+    # Move on the destination filesystem so replacing an existing symlink/file is atomic.
+    link_stage="$destination/path-link"
+    mv "$tmp/cav-link" "$link_stage"
+    mv -f "$link_stage" "$BIN_DIR/cav"
+  elif [ "${CAV_ALLOW_LEGACY_MACOS:-}" = 1 ] && [ "$VERSION" != latest ]; then
+    # Explicit opt-in for historical bare-binary releases only.
+    if [ -L "$BIN_DIR/cav" ]; then echo "refusing legacy downgrade through an installed bundle link" >&2; exit 1; fi
+    install -m 0755 "$tmp/cav" "$BIN_DIR/cav"
+  else
+    echo 'cav: signed Cav.app missing; historical releases require a pinned CAV_VERSION and CAV_ALLOW_LEGACY_MACOS=1' >&2
+    exit 1
+  fi
+else
+  install -m 0755 "$tmp/cav" "$BIN_DIR/cav"
+fi
 echo "cav: installed $BIN_DIR/cav"
 
 case ":$PATH:" in

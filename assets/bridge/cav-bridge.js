@@ -38,6 +38,8 @@
 ;(function () {
 var BRIDGE_VERSION = '1.0.2'
 var PROTOCOL = 1
+// Optional, backwards-compatible identity for this particular bridge window.
+var SESSION_ID = String(Date.now()) + '-' + String(Math.random()).slice(2)
 var MIN_CAVALRY_VERSION = '2.4.0'
 var HOST = '127.0.0.1'
 var PORT = 8723
@@ -243,9 +245,13 @@ function execute(request) {
 	return response
 }
 
+var processingPosts = false
 function BridgeCallbacks() {
 	// onPost must be an own property: Cavalry's native side may not resolve prototype methods.
 	this.onPost = function () {
+  if (processingPosts) return
+  processingPosts = true
+  try {
 		while (server.postCount() > 0) {
 			var post = server.getNextPost()
 			var request
@@ -263,6 +269,20 @@ function BridgeCallbacks() {
 				console.error('cav-bridge: request needs `id` and `code` or `file`')
 				continue
 			}
+            // Completed IDs are idempotent. An old bridge need not support this:
+            // the CLI never re-posts an uncertain submission on any bridge version.
+            if (!/^[A-Za-z0-9_-]+$/.test(String(request.id))) continue
+            var compatible = request.protocol === undefined || request.protocol === PROTOCOL
+            var resultPath = JOBS_DIR + '/' + String(request.id) + '.json'
+            try {
+                if (compatible && api.filePathExists(resultPath)) {
+                    var prior = JSON.parse(String(api.readFromFile(resultPath)))
+                    if (prior.type === 'result' && prior.id === String(request.id)) {
+                        server.setResultForGet(JSON.stringify(prior))
+                        continue
+                    }
+                }
+            } catch (err) {}
 			var wanted = request.protocol === undefined ? 1 : request.protocol
 			var response
 			if (wanted !== PROTOCOL) {
@@ -271,13 +291,14 @@ function BridgeCallbacks() {
 					error: { code: 'protocol', message: 'cav-bridge ' + BRIDGE_VERSION + ' speaks protocol ' + PROTOCOL + ', but this cav speaks protocol ' + wanted } }
 			} else {
 				server.setResultForGet(
-					JSON.stringify({ type: 'running', id: String(request.id), startedAt: Date.now(), bridgeVersion: BRIDGE_VERSION, protocol: PROTOCOL }),
+					JSON.stringify({ type: 'running', id: String(request.id), startedAt: Date.now(), bridgeVersion: BRIDGE_VERSION, bridgeSession: SESSION_ID, protocol: PROTOCOL }),
 				)
 				response = execute(request)
 				jobCount++
 				lastJobAt = Date.now()
 			}
-			response.bridgeVersion = BRIDGE_VERSION
+			response.bridgeSession = SESSION_ID
+   response.bridgeVersion = BRIDGE_VERSION
 			response.protocol = PROTOCOL
 			var text = JSON.stringify(response)
 			try {
@@ -287,6 +308,7 @@ function BridgeCallbacks() {
 			}
 			server.setResultForGet(text)
 		}
+  } finally { processingPosts = false }
 	}
 }
 
@@ -294,6 +316,7 @@ server.setResultForGet(
 	JSON.stringify({
 		type: 'hello',
 		bridge: 'cav-bridge',
+  bridgeSession: SESSION_ID,
 		bridgeVersion: BRIDGE_VERSION,
 		protocol: PROTOCOL,
 		cavalryVersion: api.getCavalryVersion(),

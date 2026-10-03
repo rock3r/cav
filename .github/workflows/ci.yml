@@ -1,0 +1,32 @@
+name: Fixture checks
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  fixtures:
+    name: Fixtures (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Go race tests and static checks
+        run: |
+          go test -race ./...
+          go vet ./...
+      - name: Development archives for all five targets
+        # No Apple credentials, live bridge access, release tags or publication.
+        run: |
+          version="$(node -p "require('./plugins/cavalry/plugin.json').version")"
+          tools/release.sh "v$version" --dev

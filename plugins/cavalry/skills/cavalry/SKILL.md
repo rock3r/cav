@@ -24,3 +24,18 @@ The `cav` CLI does the work and carries its own guides. This skill only gets you
 3. Work only in new scenes (`cav scene new`). Never use `--force` on the user's own work.
 4. You cannot see Cavalry: look at `cav sheet` images after every change, and run
    `cav check` before you render.
+
+5. Start diagnostics with `cav check --quick --json`. Treat performance findings as
+   structural risks; add `--profile` for small measured samples. Inspect failed/skipped
+   coverage before calling the scene clean. A native call can exceed the CLI wait budget.
+6. After `run`, `check` or `render` times out, inspect the printed operation ID with
+   `cav operation status <id>` and continue with `cav operation resume <id> --timeout 30m`.
+   Do not retry the original command. Raw `cav job wait` completes only one bridge job,
+   including a render's preparatory metadata. Keep the original scene/session and inputs
+   unchanged during recovery; unknown outcomes require manual inspection.
+
+7. Use `cav render` for final video output; do not wait only for an MP4 to grow. On exit 4
+   (bridge disconnect or session change), stop automatic waiting, inspect the operation,
+   and preserve partial artifacts. File size/age is not completion or proof of a crash.
+   Reconcile an unknown outcome before abandoning and starting a new render; never
+   silently relaunch the app, retry or switch to chunk rendering.

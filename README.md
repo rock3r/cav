@@ -88,13 +88,14 @@ troubleshooting.
 |---|---|
 | `cav setup` / `cav doctor` | Install or check everything: token, bridge script, Cavalry, ffmpeg, docs, running bridge |
 | `cav guide [topic]` | How to work: workflow, design recipes, music sync, traps, native features |
-| `cav status` | The bridge, the open scene and the active comp |
+| `cav status` | Existing bridge state; no scene work is queued |
 | `cav scene new\|comp\|open\|save` | New scene (refuses to discard unsaved work), change the comp, open, save |
 | `cav run <file.js>... \| -e <code>` | Run JavaScript in Cavalry with the helper library loaded; prints the return value |
-| `cav job wait [<id>]` | Wait for a long job; a timeout means "still running", not "failed" |
+| `cav job wait [<id>]` | Wait for one raw job without continuing command phases |
+| `cav operation status/resume <id>` | Inspect or continue a complete render, check or run after a timeout |
 | `cav tree` / `cav layer <id>` | The layer tree; one layer's position, bounding box and keys |
 | `cav frame [n...]` / `cav sheet [frames]` | Render frames to PNG, or a labelled contact sheet |
-| `cav check` | Long still stretches, small, clipped or hidden text, off-frame layers, empty start or end |
+| `cav check [--quick] [--profile]` | Structural performance warnings and bounded visual/measured checks |
 | `cav render [-o out.mp4] [--audio track]` | Render to MP4, check the frame count, add the music |
 | `cav beats <audio>` | Tempo, beats and downbeats as frame numbers |
 | `cav api` / `cav docs` / `cav types` / `cav helpers` | Offline search: API, Cavalry docs, layer types, the helper library |
@@ -168,3 +169,18 @@ claude plugin validate . --strict
   The Cavalry docs are not included; `cav docs update` downloads them to your own computer.
 
 Licence: MIT.
+
+## Recovery, diagnostics and signed macOS bundles
+
+`render`, `check` and `run` return an operation ID. After a timeout, use
+`cav operation status <id>` and `cav operation resume <id> --timeout 90m` instead of
+retrying the command. `cav check --quick --json` avoids playhead changes, bounds and renders;
+`--profile` adds a small measured frame set. Failures and skipped coverage are explicit.
+A between-sample profile budget limit remains skipped coverage, including when no sample
+finishes; it is not an API failure.
+See [operation recovery](docs/recovery.md) for states, concurrency and remaining limits.
+
+macOS releases preserve a signed, notarized and stapled `Cav.app`; the installer exposes
+its executable on PATH through a symlink. Users of an already-shipped older updater should
+run the current installer once to migrate. Development builds stay credential-free; real
+release builds require signing. See [notarization](docs/NOTARIZATION.md).

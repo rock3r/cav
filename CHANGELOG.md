@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+- Persist render/check/run operations with phase-aware recovery, total wait budgets,
+  duplicate prevention, read-only status and explicit unknown-outcome reconciliation.
+- End waits promptly on refused bridge connections or changed sessions; expose unvalidated
+  render artifacts and preserve partial output without retrying native work.
+- Add cheap structural performance warnings, bounded checks, chronological measured
+  profiling, partial progress and truthful failed/skipped coverage.
+- Bind resumed visual checks to the original scene/comp, skip stillness conclusions for
+  incomplete motion coverage, and preserve timeout recovery when ffmpeg/ffprobe is killed.
+- Gate new submissions during resume against other pending operations, and derive total
+  deadlines from parsed command options, including single-dash timeout flags.
+- Bound script input preparation (including pipes) without abandoned reader goroutines,
+  and never evaluate Duplicator counts after dependency inspection fails.
+- Bound streaming audio hashes by the operation deadline and persist checkpoint renames
+  and newly created directories before allowing native submission.
+- Preserve signed macOS Cav.app bundles across install/update; require Developer ID,
+  Hardened Runtime, timestamps, notarization, stapling and final artifact verification
+  for release builds. Keep development credential-free and other platform layouts intact.
+
 ## 1.0.2
 
 - The project is now called `cav`, and the repository moved to

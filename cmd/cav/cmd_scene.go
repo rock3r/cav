@@ -1,12 +1,15 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/rock3r/cav/internal/bridge"
 )
 
 func init() {
@@ -399,14 +402,17 @@ func cmdLayer(a *app, args []string) error {
 
 func init() {
 	register(command{
-		name:    "status",
-		args:    "",
-		summary: "Show the bridge, the open scene and the active comp.",
+		name: "status", args: "", summary: "Inspect existing bridge state without queuing scene work.",
 		run: func(a *app, args []string) error {
-			if c := bridgeCheck(a); !c.OK {
-				return fail(exitUnavailable, "bridge: "+c.Detail, c.Fix)
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			payload, err := bridge.New().Probe(ctx)
+			if err != nil {
+				a.emit(map[string]any{"status": bridge.ConnectionState(err), "detail": err.Error()}, func() { fmt.Printf("bridge busy or unavailable: %v\n", err) })
+				return nil
 			}
-			return sceneInfo(a)
+			a.emit(map[string]any{"bridge": payload}, func() { fmt.Println(prettyAny(payload)) })
+			return nil
 		},
 	})
 }

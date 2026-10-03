@@ -20,3 +20,8 @@ var LayerTypes []byte
 //
 //go:embed guide/*.md
 var Guide embed.FS
+
+// Diagnostics holds metadata and measured sampling scripts.
+//
+//go:embed diagnostics/*.js
+var Diagnostics embed.FS

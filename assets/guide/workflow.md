@@ -26,13 +26,15 @@ If it reports `blocked: a sandbox`, your sandbox stops `cav`: show the user the 
    list, `--bpm 120` to see beat numbers.
 5. **Fix numbers, not guesses**: `cav tree` (ids and structure), `cav layer <id>` (position,
    bounding box, keys).
-6. **Check**: `cav check` finds still stretches, text too small to read, text cut by or too
-   near the frame edge, text spilling out of its button or pill, hidden text, layers outside
-   the frame and empty frames at the start or end. Fix every finding, or say why it is
-   intended.
+6. **Check**: start with `cav check --quick --json` for structural performance warnings.
+   `cav check` adds bounded visual checks; `--profile` optionally measures a small frame set.
+   Read failures and skipped coverage, and use a sheet to review blank starts/ends. Fix
+   each finding or explain why it is intended. Warnings describe risk, not measured blame.
 7. **Save**: `cav scene save scenes/<name>.cv`.
 8. **Render**: `cav render -o renders/final.mp4 [--audio music.wav]`. Check the frame count
-   it prints.
+   it prints. Use the printed operation ID for waiting; do not replace it with a file-growth
+   loop. A refused bridge or changed session returns exit 4: stop, inspect, and preserve
+   partial output. File size/age does not establish completion or explain an app exit.
 
 ## 3. Writing scripts
 
@@ -74,8 +76,9 @@ Rules that keep scripts working:
   up with `cav.find('name')`.
 - Look up API names with `cav api <word>` and node attributes with `cav docs <node name>` and
   `cav layer <id> --attrs`. Do not guess attribute names.
-- A long build is not a failure: if `cav run` exits with code 3, the job is still running.
-  Run `cav job wait <id>`.
+- A long build is not a failure: if `cav run` exits with code 3, its native outcome is pending or unknown.
+  Use `cav operation status <id>` and `cav operation resume <id>`. Do not retry the
+  original command. Raw `cav job wait <job-id>` finishes only one job, including metadata.
 
 ## 4. Make it look professional
 
@@ -120,3 +123,13 @@ Details: `cav guide music`.
   count matches.
 - Tell the user the file paths, and what you could not check (for example, you cannot hear
   the music).
+
+## Operation recovery
+
+`render`, `check` and `run` record their phases and job IDs before submission. A render's
+--timeout includes metadata, native rendering, postprocessing and validation. Status does
+not queue scene work. If the outcome is unknown, inspect the same operation; never stack
+retries. Resume preserves completed work and refuses to overwrite an existing final file.
+The updated bridge detects changed sessions; older bridges require you to confirm that the
+original scene/session is still active. Keep inputs and the CLI build unchanged while
+recovering. Native calls cannot be interrupted by a heartbeat or CLI timeout.

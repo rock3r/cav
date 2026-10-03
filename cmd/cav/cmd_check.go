@@ -1,55 +1,69 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
-	"image/png"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
-	"github.com/rock3r/cav/internal/bridge"
+	"github.com/rock3r/cav/assets"
+	"github.com/rock3r/cav/internal/config"
 )
 
 func init() {
 	register(command{
 		name:    "check",
-		args:    "[--min-text 28] [--max-still 1.5]",
-		summary: "Find common problems before you render: still stretches, tiny text, off-frame or empty frames.",
+		args:    "[--quick] [--profile [--profile-render]] [--samples 3] [--timeout 2m]",
+		summary: "Find structural performance risks and bounded visual problems before rendering.",
 		run:     cmdSceneCheck,
 	})
-	longHelp["check"] = `
-cav check looks at the active comp and reports problems that viewers notice:
-  still     stretches longer than --max-still seconds where nothing is animated
-  text      text smaller than --min-text px (scaled to a 1080 px tall frame)
-  offframe  text or large shapes that never come inside the frame
-  clipped   text cut by the frame edge
-  edge      text closer than 3 % of the frame height to an edge
-  overflow  text that spills out of, or crowds, the button, pill or field it sits on
-  hidden    text partly covered by an opaque shape drawn above it
-  blank     blank frames at the start or the end (a long empty tail)
-  keys      keyframes after the end of the comp (they never play)
-Each finding says what to change. Exit code 0 even with findings; use --json to read them.
-Keys, oscillators, noise and particles count as motion. Motion on a small layer (under 6 %
-of the frame height) counts only when at least three small layers move at the same time.
-Text and shapes are checked where they rest (the middle of their visible time); faint
-layers (opacity under 50) are skipped.`
+	longHelp["check"] = `Always runs cheap metadata/connection diagnostics first. Findings include stable kinds,
+layer IDs/names, evidence, remedies and supported copy-count estimates. These are
+structural warnings, not measured attribution.
+--quick performs only this pass: no frame changes, bounding boxes or rendering.
+Default visual checks cover at most 200 layers and 6 frame evaluations. --samples
+sets 1..12 representative samples; --max-layers bounds metadata (default 1000).
+--profile measures up to 3 representative frames (or consecutive initial frames for
+simulations). --profile-render also times 10 percent PNG rendering separately.
+setFrameMs measures that API call only; lazy work may occur inside renderPNGMs.
+The first sample has unknown cache state; later samples are subsequent evaluations.
+Progress is saved between samples and visible with cav operation status <id>.
+The original playhead is restored in finally on normal completion and recoverable
+errors. A blocking native call can exceed --timeout; no heartbeat/cancel interrupts it.
+Failures and skipped checks are explicit; clean is true only for complete coverage.
+Whole-comp stillness conclusions are skipped when motion inspection is incomplete.
+Blank-run duration requires a sheet review and is skipped in this bounded pass.
+Findings do not change the exit code; timeout returns 3 with partial results and an
+operation ID to resume. Use --json for agents.
+--min-text (28) and --max-still (1.5 seconds) tune visual findings.`
 }
 
 type finding struct {
-	Kind   string `json:"kind"`
-	Layer  string `json:"layer,omitempty"`
-	Name   string `json:"name,omitempty"`
-	Detail string `json:"detail"`
-	Fix    string `json:"fix"`
+	Kind            string   `json:"kind"`
+	Layer           string   `json:"layer,omitempty"`
+	Name            string   `json:"name,omitempty"`
+	Detail          string   `json:"detail"`
+	Fix             string   `json:"fix"`
+	Severity        string   `json:"severity,omitempty"`
+	Evidence        any      `json:"evidence,omitempty"`
+	EstimatedCopies *float64 `json:"estimatedCopies,omitempty"`
+	Attribution     string   `json:"attribution,omitempty"`
 }
 
 const checkJS = `
+if (api.getActiveComp() !== expected.comp || api.getSceneFilePath() !== expected.scenePath)
+  throw new Error('active scene/comp changed; restore the operation scene before checking');
+var original = api.getFrame(), began=Date.now(), failures=[], skipped=[], evaluations=0;
+try {
 var comp = api.getActiveComp();
 var start = api.get(comp, 'startFrame'), end = api.get(comp, 'endFrame');
 var res = api.get(comp, 'resolution');
 var W = res.x / 2, H = res.y / 2;
-var ids = api.getCompLayers(false);
+var allIds = api.getCompLayers(false), ids=allIds.slice(0,limits.layers);
+if(ids.length<allIds.length)skipped.push({inspection:"visual-layers",reason:"layer limit",count:allIds.length-ids.length});
 var segs = [], texts = [], late = [], shapes = [];
 var driverTypes = { oscillator: 1, noise: 1, spring: 1, wave: 1, particleShape: 2, forgeDynamicsShape: 2 };
 // setFrame re-evaluates the whole scene, so every lookup is batched by frame: at[f] holds the
@@ -58,23 +72,24 @@ var at = {};
 function when(f, fn) { f = Math.round(f); (at[f] = at[f] || []).push(fn) }
 function flush() {
   Object.keys(at).map(Number).sort(function (x, y) { return x - y }).forEach(function (f) {
-    api.setFrame(f);
-    at[f].forEach(function (fn) { try { fn() } catch (e) {} });
+    if(evaluations>=limits.frames || Date.now()-began>limits.ms){skipped.push({inspection:"visual-frame",frame:f,reason:"sample or time budget"});return;}
+    evaluations++;api.setFrame(f);
+    at[f].forEach(function (fn) { try { fn() } catch (e) {failures.push({inspection:"visual-frame",frame:f,error:String(e)});} });
   });
   at = {};
 }
 function visibleRange(id) {
   var a = start, b = end, p = id;
   while (p && p !== comp) {
-    try { a = Math.max(a, api.getInFrame(p)); b = Math.min(b, api.getOutFrame(p)) } catch (e) {}
-    try { if (api.get(p, 'hidden')) return null } catch (e) {}
+    try { a = Math.max(a, api.getInFrame(p)); b = Math.min(b, api.getOutFrame(p)) } catch (e) {failures.push({inspection:"visual-api",error:String(e)});}
+    try { if (api.get(p, 'hidden')) return null } catch (e) {failures.push({inspection:"visual-api",error:String(e)});}
     p = api.getParent(p);
   }
   return a <= b ? [a, b] : null;
 }
 // Motion on a layer smaller than 6 % of the frame height (a small dot) is hard to notice.
 function small(id) {
-  try { var b = api.getBoundingBox(id, true); return Math.max(b.width, b.height) < 0.06 * res.y } catch (e) { return false }
+  try { var b = api.getBoundingBox(id, true); return Math.max(b.width, b.height) < 0.06 * res.y } catch (e) { failures.push({inspection:"visual-api",error:String(e)});return false }
 }
 var transformKeys = {};
 function movesItself(id) {
@@ -83,15 +98,16 @@ function movesItself(id) {
   return false;
 }
 ids.forEach(function (id) {
+  if(Date.now()-began>limits.ms){skipped.push({inspection:"visual-layer",layer:id,reason:"time budget"});return;}
   var type = api.getLayerType(id);
   var range = visibleRange(id);
   if (driverTypes[type] === 2 && range) segs.push([range[0], range[1], 0]);
   if (driverTypes[type] === 1) {
     var outs = [];
-    try { outs = api.getOutConnectedAttributes(id) || [] } catch (e) {}
+    try { outs = api.getOutConnectedAttributes(id) || [] } catch (e) {failures.push({inspection:"visual-api",error:String(e)});}
     outs.forEach(function (attr) {
       var targets = [];
-      try { targets = api.getOutConnections(id, attr) || [] } catch (e) {}
+      try { targets = api.getOutConnections(id, attr) || [] } catch (e) {failures.push({inspection:"visual-api",error:String(e)});}
       targets.forEach(function (t) {
         var layer = String(t).split('.')[0], r = visibleRange(layer);
         if (!r) return;
@@ -101,11 +117,13 @@ ids.forEach(function (id) {
     });
   }
   var anim = [];
-  try { anim = api.getAnimatedAttributes(id) } catch (e) {}
+  try { anim = api.getAnimatedAttributes(id) } catch (e) {failures.push({inspection:"visual-api",error:String(e)});}
+  if(anim.length>64){skipped.push({inspection:"animated-attributes",layer:id,reason:"attribute limit"});anim=anim.slice(0,64);}
   anim.forEach(function (attr) {
     if (/^(position|scale|rotation)/.test(attr)) transformKeys[id] = 1;
     var times = [];
-    try { times = api.getKeyframeTimes(id, attr) } catch (e) {}
+    try { times = api.getKeyframeTimes(id, attr) } catch (e) {failures.push({inspection:"visual-api",error:String(e)});}
+    if(times.length>64){skipped.push({inspection:"keyframes",layer:id,reason:"keyframe limit"});times=times.slice(0,64);}
     times.sort(function (x, y) { return x - y });
     for (var i = 0; i < times.length; i++) {
       if (times[i] > end) late.push({ id: id, name: api.getNiceName(id), attr: attr, frame: times[i] });
@@ -126,7 +144,7 @@ ids.forEach(function (id) {
   // A word built from one-letter layers (cav.glyphs) is checked as one text.
   if (range && type === 'group') {
     var kids = [], word = '';
-    try { kids = api.getChildren(id) || [] } catch (e) {}
+    try { kids = api.getChildren(id) || [] } catch (e) {failures.push({inspection:"visual-api",error:String(e)});}
     var letters = kids.filter(function (k) {
       if (api.getLayerType(k) !== 'textShape') return false;
       var tx = api.get(k, 'text'); tx = String(tx && tx.text !== undefined ? tx.text : tx);
@@ -142,35 +160,35 @@ ids.forEach(function (id) {
 // top; a smaller number is drawn above a larger one.
 var order = {}, counter = 0;
 (function walk(list) {
-  list.forEach(function (id) { order[id] = counter++; var k = []; try { k = api.getChildren(id) || [] } catch (e) {} walk(k) });
+  list.forEach(function (id) { if(ids.indexOf(id)<0 || counter>=limits.layers)return;order[id] = counter++; var k = []; try { k = api.getChildren(id) || [] } catch (e) {failures.push({inspection:"visual-api",error:String(e)});} walk(k) });
 })(api.getCompLayers(true));
 function isAncestor(a, b) { var p = b; while (p && p !== comp) { if (p === a) return true; p = api.getParent(p) } return false }
 function opaque(id) {
-  try { if (!api.hasFill(id)) return false } catch (e) { return false }
-  try { var c = api.get(id, 'material.materialColor'); if (c && c.a !== undefined && c.a < 240) return false } catch (e) {}
+  try { if (!api.hasFill(id)) return false } catch (e) { failures.push({inspection:"visual-api",error:String(e)});return false }
+  try { var c = api.get(id, 'material.materialColor'); if (c && c.a !== undefined && c.a < 240) return false } catch (e) {failures.push({inspection:"visual-api",error:String(e)});}
   return true;
 }
-// Sample the whole comp at up to 30 frames (and 2 frames later, to see what is moving fast).
+// Sample the whole comp at the configured small frame count (and 2 frames later, to see what is moving fast).
 // A layer "rests" on a sample where it is visible (opacity over 50 through its parents) and
 // moves less than 0.3 % of the frame height in 2 frames; a slow drift still counts as resting.
-var n = Math.max(1, Math.min(30, Math.floor((end - start) / 6)));
+var n = Math.max(1, Math.min(limits.samples, Math.floor((end - start) / 6)));
 var samples = [];
 for (var i = 0; i < n; i++) samples.push(Math.round(start + (end - start) * (i + 0.5) / n));
 function look(s) {
   var op = 1, sc = 1, p = s.id;
   while (p && p !== comp) {
-    try { op *= api.get(p, 'opacity') / 100 } catch (e) {}
-    try { sc *= Math.abs(api.get(p, 'scale').y) } catch (e) {}
+    try { op *= api.get(p, 'opacity') / 100 } catch (e) {failures.push({inspection:"visual-api",error:String(e)});}
+    try { sc *= Math.abs(api.get(p, 'scale').y) } catch (e) {failures.push({inspection:"visual-api",error:String(e)});}
     p = api.getParent(p);
   }
   if (s.type === 'word') {
     // A word is as visible as its most visible letter (typed or cascading letters start hidden).
     var most = 0;
-    (api.getChildren(s.id) || []).forEach(function (k) { try { most = Math.max(most, api.get(k, 'opacity') / 100) } catch (e) {} });
+    (api.getChildren(s.id) || []).forEach(function (k) { try { most = Math.max(most, api.get(k, 'opacity') / 100) } catch (e) {failures.push({inspection:"visual-api",error:String(e)});} });
     op *= most;
   }
   var b = null;
-  try { b = api.getBoundingBox(s.id, true) } catch (e) {}
+  try { b = api.getBoundingBox(s.id, true) } catch (e) {failures.push({inspection:"visual-api",error:String(e)});}
   return { op: op, sc: sc, b: b };
 }
 samples.forEach(function (f) {
@@ -276,8 +294,8 @@ shapes.forEach(function (s) {
     }
   }
 });
-api.setFrame(start);
-return { start: start, end: end, fps: api.get(comp, 'fps'), height: res.y, segs: segs, texts: texts, late: late.slice(0, 20), off: off.slice(0, 20), clipped: clipped.slice(0, 20), tight: tight.slice(0, 20), overflow: overflow.slice(0, 20), hidden: hidden.slice(0, 20), layers: ids.length };`
+return { failures:failures, skipped:skipped, evaluations:evaluations,  start: start, end: end, fps: api.get(comp, 'fps'), height: res.y, segs: segs, texts: texts, late: late.slice(0, 20), off: off.slice(0, 20), clipped: clipped.slice(0, 20), tight: tight.slice(0, 20), overflow: overflow.slice(0, 20), hidden: hidden.slice(0, 20), layers: ids.length };
+} finally { api.setFrame(original); }`
 
 type checkData struct {
 	Start  int          `json:"start"`
@@ -325,26 +343,94 @@ type checkData struct {
 		Frame int    `json:"frame"`
 		By    string `json:"by"`
 	} `json:"hidden"`
-	Layers int `json:"layers"`
+	Layers   int              `json:"layers"`
+	Failures []map[string]any `json:"failures"`
+	Skipped  []map[string]any `json:"skipped"`
 }
 
 func cmdSceneCheck(a *app, args []string) error {
 	fs := flag.NewFlagSet("check", flag.ContinueOnError)
-	minText := fs.Float64("min-text", 28, "smallest readable text size at 1080 px frame height")
+	minText := fs.Float64("min-text", 28, "smallest readable text size at 1080px")
 	maxStill := fs.Float64("max-still", 1.5, "longest still stretch in seconds")
-	if _, err := parseFlags(fs, args); err != nil {
+	quick := fs.Bool("quick", false, "metadata only; no frame changes, bounds or renders")
+	profile := fs.Bool("profile", false, "measure a small frame set")
+	profileRender := fs.Bool("profile-render", false, "also measure 10 percent PNG rendering")
+	samples := fs.Int("samples", 3, "profile/visual samples (1..12)")
+	maxLayers := fs.Int("max-layers", 1000, "metadata layers (1..10000); visual cap is 200")
+	timeout := fs.Duration("timeout", 2*time.Minute, "total operation wait budget")
+	pos, err := parseFlags(fs, args)
+	if err != nil {
 		return err
 	}
+	if len(pos) > 0 || *samples < 1 || *samples > 12 || *maxLayers < 1 || *maxLayers > 10000 || *timeout <= 0 || *minText <= 0 || *maxStill < 0 {
+		return usageErr("invalid check limits")
+	}
+	if *quick && (*profile || *profileRender) {
+		return usageErr("--quick cannot be combined with profiling")
+	}
+	if *profileRender {
+		*profile = true
+	}
+	if err := a.beginOperationBudget(*timeout); err != nil {
+		return err
+	}
+	if err = a.checkpoint("waiting-for-metadata"); err != nil {
+		return err
+	}
+	b, _ := assets.Diagnostics.ReadFile("diagnostics/structure.js")
+	limits := fmt.Sprintf("var limits={layers:%d,edges:10000,ms:%d};\n", *maxLayers, (*timeout / 2).Milliseconds())
+	var metadata structureData
+	if err = a.jsCall(limits+string(b), *timeout, &metadata); err != nil {
+		return err
+	}
+	perf := performanceFindings(metadata)
+	failures := metadata.Failures
+	skipped := metadata.Skipped
+	var measured []profileResult
 	var d checkData
-	if err := a.jsCall(checkJS, 5*time.Minute, &d); err != nil {
-		return err
+	visualComplete := false
+	if *quick {
+		skipped = append(skipped, map[string]any{"inspection": "visual", "reason": "quick mode"})
+	} else {
+		if err = a.checkpoint("validation"); err != nil {
+			return err
+		}
+		if needsChronological(metadata) {
+			skipped = append(skipped, map[string]any{"inspection": "visual", "reason": "simulation present or layer-type coverage incomplete; use --profile for bounded consecutive frames"})
+		} else if err = a.jsCall(fmt.Sprintf("var expected={comp:%s,scenePath:%s};\nvar limits={layers:%d,samples:%d,frames:%d,ms:%d};\n", jsString(metadata.Comp), jsString(metadata.ScenePath), min(*maxLayers, 200), *samples, *samples*2, (*timeout/2).Milliseconds())+checkJS, *timeout, &d); err != nil {
+			failures = append(failures, map[string]any{"inspection": "visual", "error": err.Error()})
+			// A queued/timed-out job must be resumed before any further submissions.
+			if a.ctx.Err() != nil || (len(a.op.Jobs) > 0 && a.op.Jobs[len(a.op.Jobs)-1].Result == nil) {
+				return a.partialCheck(perf, failures, skipped, measured, err)
+			}
+		} else {
+			failures = append(failures, d.Failures...)
+			skipped = append(skipped, d.Skipped...)
+			visualComplete = len(d.Failures) == 0 && len(d.Skipped) == 0
+		}
 	}
-	var out []finding
-	if d.Layers == 0 {
+	if *profile {
+		var inspected profileInspection
+		inspected, err = a.profileScene(metadata, *samples, *profileRender, *timeout)
+		measured = inspected.Profile
+		failures = append(failures, inspected.Failures...)
+		skipped = append(skipped, inspected.Skipped...)
+		if err != nil {
+			return a.partialCheck(perf, failures, skipped, measured, err)
+		}
+		for _, r := range measured {
+			failures = append(failures, r.Failures...)
+		}
+		if needsChronological(metadata) && metadata.End-metadata.Start+1 > *samples {
+			skipped = append(skipped, map[string]any{"inspection": "profile-coverage", "reason": "chronological profile sampled only consecutive initial frames"})
+		}
+	}
+	var out = perf
+	if !*quick && metadata.TotalLayers != nil && *metadata.TotalLayers == 0 {
 		out = append(out, finding{Kind: "empty", Detail: "the active comp has no layers", Fix: "build the scene first"})
 	}
 	// Still stretches: frames where no large layer and fewer than three small layers change.
-	if d.Layers > 0 {
+	if d.Layers > 0 && visualComplete {
 		gaps := stillGaps(d.Segs, d.Start, d.End)
 		stillFrames := 0.0
 		for _, g := range gaps {
@@ -363,6 +449,8 @@ func cmdSceneCheck(a *app, args []string) error {
 					Fix:    "move something larger during the hold (a slow drift or scale breathe on the main text or shapes), start the next section earlier, or shorten the comp"})
 			}
 		}
+	} else if d.Layers > 0 {
+		skipped = append(skipped, map[string]any{"inspection": "stillness", "reason": "incomplete visual motion coverage; whole-comp stillness cannot be established"})
 	}
 	scale := 1080 / d.Height
 	for _, t := range d.Texts {
@@ -420,104 +508,211 @@ func cmdSceneCheck(a *app, args []string) error {
 			Detail: fmt.Sprintf("key on %s at frame %d is after the comp end (%d)", l.Attr, l.Frame, d.End),
 			Fix:    "move the key inside the comp, or lengthen the comp with cav scene comp --frames"})
 	}
-	// Blank frames at the start and the end, from quick 10 % renders.
-	if d.Layers > 0 {
-		if f, err := a.blankRun(d.Start, d.End, d.FPS); err == nil {
-			out = append(out, f...)
+	// Blank-tail inspection is explicitly skipped: a few images cannot establish duration.
+	skipped = append(skipped, map[string]any{"inspection": "blank", "reason": "bounded check cannot establish blank-run duration; inspect a sheet"})
+	return a.partialCheck(out, failures, skipped, measured, nil)
+}
+
+func (a *app) partialCheck(out []finding, failures, skipped []map[string]any, measured []profileResult, cause error) error {
+	if cause != nil {
+		failures = append(failures, map[string]any{"inspection": "interrupted", "error": cause.Error()})
+	}
+	complete := len(failures) == 0 && len(skipped) == 0
+	data := map[string]any{"findings": out, "count": len(out), "complete": complete, "clean": complete && len(out) == 0, "failures": failures, "skipped": skipped, "profile": measured}
+	// Preserve partial results BEFORE returning a timeout to the agent.
+	if a.op != nil {
+		b, _ := json.Marshal(data)
+		a.op.Data = b
+		if err := a.checkpoint(a.op.Phase); err != nil {
+			return err
 		}
 	}
-	a.emit(map[string]any{"findings": out, "count": len(out)}, func() {
-		if len(out) == 0 {
-			fmt.Println("no problems found")
-			return
-		}
+	if cause != nil {
+		return cause
+	}
+	a.emit(data, func() {
 		for _, f := range out {
-			who := ""
-			if f.Layer != "" {
-				who = fmt.Sprintf(" %s %q", f.Layer, f.Name)
-			}
-			fmt.Printf("%-8s%s: %s\n         fix: %s\n", f.Kind, who, f.Detail, f.Fix)
+			fmt.Printf("%s %s %q: %s\n  fix: %s\n", f.Kind, f.Layer, f.Name, f.Detail, f.Fix)
 		}
+		for _, r := range measured {
+			pngTiming := "not sampled"
+			if r.RenderPNGMS != nil {
+				pngTiming = fmt.Sprintf("%d ms", *r.RenderPNGMS)
+			}
+			fmt.Printf("profile frame %d (%s): setFrame %d ms, PNG %s, restored=%t\n", r.Frame, r.Category, r.SetFrameMS, pngTiming, r.Restored)
+		}
+		fmt.Printf("%d findings; %d failed, %d skipped inspections; clean=%t\n", len(out), len(failures), len(skipped), complete && len(out) == 0)
 	})
 	return nil
 }
 
-// blankRun reports long runs of blank frames at the start or the end of the comp.
-func (a *app) blankRun(start, end int, fps float64) ([]finding, error) {
-	step := int(fps / 4)
-	if step < 1 {
-		step = 1
-	}
-	var frames []int
-	for f := end; f > end-int(3*fps) && f > start; f -= step {
-		frames = append(frames, f)
-	}
-	for f := start; f < start+int(2*fps) && f < end; f += step {
-		frames = append(frames, f)
-	}
-	dir := filepath.Join(os.TempDir(), "cav-check-"+bridge.NewID())
-	defer os.RemoveAll(dir)
-	paths, err := a.renderFrames(frames, 10, dir)
-	if err != nil {
-		return nil, err
-	}
-	blank := map[int]bool{}
-	for i, p := range paths {
-		blank[frames[i]] = isBlank(p)
-	}
-	var out []finding
-	tail := 0
-	for f := end; f > end-int(3*fps) && f > start; f -= step {
-		if !blank[f] {
-			break
-		}
-		tail = end - f + step
-	}
-	if secs := float64(tail) / fps; secs >= 1.0 {
-		out = append(out, finding{Kind: "blank", Detail: fmt.Sprintf("the last %.1f s look empty", secs),
-			Fix: "if the brief does not ask for an exit to empty, end on a finished frame (hold the lockup); if it does, shorten the comp or end the exit closer to the last frame. Do not lengthen holds the brief sized"})
-	}
-	head := 0
-	for f := start; f < start+int(2*fps) && f < end; f += step {
-		if !blank[f] {
-			break
-		}
-		head = f - start + step
-	}
-	if secs := float64(head) / fps; secs >= 0.75 {
-		out = append(out, finding{Kind: "blank", Detail: fmt.Sprintf("the first %.1f s look empty", secs),
-			Fix: "bring the first element in within about half a second"})
-	}
-	return out, nil
+type structureLayer struct {
+	Distribution string   `json:"distribution,omitempty"`
+	ID           string   `json:"id"`
+	Name         string   `json:"name"`
+	Type         string   `json:"type"`
+	Parent       string   `json:"parent"`
+	Copies       *float64 `json:"copies"`
+}
+type structureEdge struct {
+	From     string `json:"from"`
+	FromAttr string `json:"fromAttr"`
+	To       string `json:"to"`
+	ToAttr   string `json:"toAttr"`
+}
+type structureData struct {
+	TotalLayers *int             `json:"totalLayers"`
+	Start       int              `json:"start"`
+	End         int              `json:"end"`
+	FPS         float64          `json:"fps"`
+	Frame       int              `json:"frame"`
+	Comp        string           `json:"comp"`
+	ScenePath   string           `json:"scenePath"`
+	Layers      []structureLayer `json:"layers"`
+	Edges       []structureEdge  `json:"edges"`
+	Failures    []map[string]any `json:"failures"`
+	Skipped     []map[string]any `json:"skipped"`
 }
 
-// isBlank is true when the frame is (nearly) one flat colour.
-func isBlank(path string) bool {
-	f, err := os.Open(path)
-	if err != nil {
-		return false
-	}
-	defer f.Close()
-	img, err := png.Decode(f)
-	if err != nil {
-		return false
-	}
-	b := img.Bounds()
-	var n, sum, sum2 float64
-	for y := b.Min.Y; y < b.Max.Y; y += 2 {
-		for x := b.Min.X; x < b.Max.X; x += 2 {
-			r, g, bl, _ := img.At(x, y).RGBA()
-			l := (0.3*float64(r) + 0.59*float64(g) + 0.11*float64(bl)) / 257
-			n++
-			sum += l
-			sum2 += l * l
+func hasSimulations(d structureData) bool {
+	for _, l := range d.Layers {
+		if isSimulation(l.Type) {
+			return true
 		}
 	}
-	if n == 0 {
+	return false
+}
+
+// Missing layer types cannot establish that jumping frames is safe for simulations.
+func needsChronological(d structureData) bool {
+	if hasSimulations(d) || d.TotalLayers == nil || *d.TotalLayers != len(d.Layers) {
 		return true
 	}
-	mean := sum / n
-	return sum2/n-mean*mean < 16 // standard deviation under 4 levels
+	for _, l := range d.Layers {
+		if l.Type == "" || l.Type == "unknown" {
+			return true
+		}
+	}
+	return false
+}
+func isSimulation(t string) bool {
+	return t == "particleShape" || t == "forgeDynamicsShape" || t == "javaScriptEmitter" || t == "spring"
+}
+func performanceFindings(d structureData) []finding {
+	out := []finding{}
+	nodes := map[string]structureLayer{}
+	fan := map[string][]structureEdge{}
+	for _, l := range d.Layers {
+		nodes[l.ID] = l
+	}
+	for _, e := range d.Edges {
+		fan[e.From] = append(fan[e.From], e)
+	}
+	add := func(kind string, l structureLayer, detail, fix string, evidence any, count *float64) {
+		out = append(out, finding{Kind: kind, Layer: l.ID, Name: l.Name, Detail: detail, Fix: fix, Severity: "warning", Attribution: "structural-risk-not-measured", Evidence: evidence, EstimatedCopies: count})
+	}
+	for _, l := range d.Layers {
+		if l.Distribution == "customDistribution" {
+			add("perf-javascript-distribution", l, "custom JavaScript distribution can be expensive to evaluate", "replace custom distribution with native distribution or bake its points", map[string]any{"distribution": l.Distribution}, nil)
+		}
+		if len(fan[l.ID]) >= 32 {
+			add("perf-fanout", l, fmt.Sprintf("%d outgoing connections", len(fan[l.ID])), "reduce repeated connections; share native drivers and precompute repeated values", fan[l.ID], nil)
+		}
+		if isSimulation(l.Type) {
+			add("perf-simulation", l, "stateful simulation may require every intervening frame", "preview consecutive frames from the comp start; bake/cache simulation before large renders", map[string]any{"type": l.Type}, nil)
+		}
+		for _, e := range fan[l.ID] {
+			dst, ok := nodes[e.To]
+			if !ok {
+				continue
+			}
+			if strings.HasPrefix(strings.ToLower(l.Type), "javascript") {
+				// Duplicator shape attributes are per-copy; its own position/scale are global.
+				if dst.Type == "duplicator" && strings.HasPrefix(e.ToAttr, "shape") && e.ToAttr != "shapes" {
+					add("perf-copy-javascript", dst, "JavaScript feeds a per-copy Duplicator attribute; evaluation may multiply across copies", "replace per-copy JavaScript with native distribution/modifier drivers, reduce copies, or bake values", map[string]any{"driver": l, "connection": e}, dst.Copies)
+				}
+				// A duplicated source or a source group can pull JavaScript in index context too.
+				seen := map[string]bool{}
+				source := dst
+				for source.ID != "" && !seen[source.ID] {
+					seen[source.ID] = true
+					for _, shapeEdge := range fan[source.ID] {
+						duplicator, ok := nodes[shapeEdge.To]
+						if ok && duplicator.Type == "duplicator" && strings.HasPrefix(shapeEdge.ToAttr, "shapes") {
+							add("perf-copy-javascript", duplicator, "a duplicated source depends on JavaScript; index context may multiply its evaluation", "replace the source driver with native behaviour or bake static values; reduce duplicate counts", map[string]any{"driver": l, "source": dst, "connection": e, "duplication": shapeEdge}, duplicator.Copies)
+						}
+					}
+					source = nodes[source.Parent]
+				}
+			}
+
+			if l.Type == "duplicator" && dst.Type == "duplicator" && strings.HasPrefix(e.ToAttr, "shapes") {
+				var count *float64
+				if l.Copies != nil && dst.Copies != nil {
+					v := *l.Copies * *dst.Copies
+					count = &v
+				}
+				add("perf-nested-duplication", dst, "Duplicator shapes feed another Duplicator", "flatten duplication or reduce both copy counts; bake static source geometry", map[string]any{"source": l, "connection": e}, count)
+			}
+		}
+	}
+	return out
+}
+
+type profileResult struct {
+	Frame       int              `json:"frame"`
+	Category    string           `json:"category"`
+	SetFrameMS  int64            `json:"setFrameMs"`
+	RenderPNGMS *int64           `json:"renderPNGMs,omitempty"`
+	RestoreMS   int64            `json:"restoreMs"`
+	Restored    bool             `json:"restored"`
+	Failures    []map[string]any `json:"failures"`
+}
+
+func profileFrames(d structureData, n int) []int {
+	frames := evenFrames(n, d.Start, d.End)
+	if needsChronological(d) {
+		frames = nil
+		for f := d.Start; f <= d.End && len(frames) < n; f++ {
+			frames = append(frames, f)
+		}
+	}
+	return frames
+}
+
+type profileInspection struct {
+	Profile   []profileResult  `json:"profile"`
+	Failures  []map[string]any `json:"failures"`
+	Skipped   []map[string]any `json:"skipped"`
+	Restored  bool             `json:"restored"`
+	RestoreMS int64            `json:"restoreMs"`
+}
+
+func (a *app) profileScene(d structureData, n int, images bool, timeout time.Duration) (profileInspection, error) {
+	frames := profileFrames(d, n)
+	b, _ := assets.Diagnostics.ReadFile("diagnostics/profile.js")
+	dir := filepath.Join(config.Home(), "operations", "profile-"+a.op.ID)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return profileInspection{}, err
+	}
+	sample := map[string]any{"frames": frames, "comp": d.Comp, "scenePath": d.ScenePath, "progress": filepath.ToSlash(filepath.Join(dir, "progress.json")), "ms": (timeout / 2).Milliseconds()}
+	if images {
+		sample["images"] = filepath.ToSlash(dir)
+	}
+	a.op.Progress = filepath.Join(dir, "progress.json")
+	if err := a.checkpoint("profiling"); err != nil {
+		return profileInspection{}, err
+	}
+	j, _ := json.Marshal(sample)
+	var result profileInspection
+	if err := a.jsCall("var sample="+string(j)+";\n"+string(b), timeout, &result); err != nil {
+		return profileInspection{}, err
+	}
+	for i := range result.Profile {
+		result.Profile[i].Restored = result.Restored
+		result.Profile[i].RestoreMS = result.RestoreMS
+	}
+	return result, nil
 }
 
 // stillGaps returns the frame ranges where no large layer changes and fewer than three small
