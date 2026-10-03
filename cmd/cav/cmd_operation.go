@@ -30,6 +30,9 @@ and transport. Keep that directory, inputs, scene and bridge session intact unti
 A kernel lock serializes operation clients; crashes release the lock automatically.
 abandon <id> --acknowledge-unknown-outcome marks only local recovery abandoned after
 manual reconciliation. It does not cancel native work.
+A refused bridge connection or changed session ends the wait with exit 4 and an unknown
+native outcome. Status exposes unvalidated staged render artifacts; file growth or age
+is not proof of completion or a crash. Preserve them and reconcile before retrying.
 Raw cav job wait still waits for just one job; it does not continue command phases.`
 }
 func (a *app) checkpoint(phase string) error {
@@ -106,6 +109,7 @@ func (a *app) executeOperation(run func(*app, []string) error, timeout time.Dura
 	}
 	a.logJob["operation"] = a.op.ID
 	a.op.Error = ""
+	a.op.FailureReason = ""
 	a.op.Status = "running"
 	err := run(a, a.op.Command[1:])
 	if err == nil {
@@ -124,6 +128,7 @@ func (a *app) executeOperation(run func(*app, []string) error, timeout time.Dura
 		}
 	} else {
 		a.op.Error = err.Error()
+		a.op.FailureReason = operationFailureReason(err)
 		a.op.Status = "failed"
 		var ce *cliError
 		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, bridge.ErrStillRunning) || errors.Is(err, bridge.ErrLost) || errors.Is(err, bridge.ErrUnknownJob) || errors.Is(err, bridge.ErrUnavailable) || (errors.As(err, &ce) && ce.code == exitStillRunning) {
@@ -143,7 +148,12 @@ func (a *app) executeOperation(run func(*app, []string) error, timeout time.Dura
 		if a.op.Status != "failed" {
 			code = exitStillRunning
 		}
-		return &cliError{code: code, msg: err.Error(), hint: fmt.Sprintf("Inspect with cav operation status %s; continue with cav operation resume %s. Do not retry the original command.", a.op.ID, a.op.ID), data: map[string]any{"operation": a.op.ID, "phase": a.op.Phase, "status": a.op.Status, "jobs": operation.View(a.op).Jobs, "partial": json.RawMessage(a.op.Data)}}
+		hint := fmt.Sprintf("Inspect with cav operation status %s; continue with cav operation resume %s. Do not retry the original command.", a.op.ID, a.op.ID)
+		if errors.Is(err, bridge.ErrDisconnected) || errors.Is(err, bridge.ErrSessionChanged) {
+			code = exitLost
+			hint = fmt.Sprintf("Inspect with cav operation status %s. Preserve staged artifacts and reconcile the native outcome before resuming or abandoning. A partial file is not completion; do not retry the original command.", a.op.ID)
+		}
+		return &cliError{code: code, msg: err.Error(), hint: hint, data: map[string]any{"operation": a.op.ID, "phase": a.op.Phase, "status": a.op.Status, "failureReason": a.op.FailureReason, "jobs": operation.View(a.op).Jobs, "partial": json.RawMessage(a.op.Data), "renderProgress": renderProgress(a.op)}}
 	}
 	if a.outputData != nil {
 		a.emitting = true
@@ -173,13 +183,17 @@ func cmdOperation(a *app, args []string) error {
 		c.Host = r.Host
 		c.Port = r.Port
 		c.Spool = r.Spool
+		c.ExpectedSession = r.Session
 		if r.Status != "complete" && r.Status != "abandoned" && len(r.Jobs) > 0 {
 			j := r.Jobs[len(r.Jobs)-1]
 			if j.Result == nil {
 				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 				defer cancel()
-				state, result, _ := c.Inspect(ctx, j.ID)
-
+				state, result, inspectionErr := c.Inspect(ctx, j.ID)
+				if inspectionErr != nil {
+					r.FailureReason = operationFailureReason(inspectionErr)
+					r.Error = inspectionErr.Error()
+				}
 				r.Status = string(state)
 				if state == bridge.StateDone {
 					r.Status = "ready-to-resume"
@@ -191,6 +205,9 @@ func cmdOperation(a *app, args []string) error {
 			}
 		}
 		data := map[string]any{"operation": operation.View(r)}
+		if progress := renderProgress(r); progress != nil {
+			data["renderProgress"] = progress
+		}
 		if r.Progress != "" {
 			if b, e := os.ReadFile(r.Progress); e == nil {
 				var v any
@@ -201,6 +218,12 @@ func cmdOperation(a *app, args []string) error {
 		}
 		a.emit(data, func() {
 			fmt.Printf("%s: %s (%s), updated %s\n", r.ID, r.Status, r.Phase, r.Updated.Format(time.RFC3339))
+			if r.Error != "" {
+				fmt.Printf("  %s: %s\n", r.FailureReason, r.Error)
+			}
+			if progress, ok := data["renderProgress"]; ok {
+				fmt.Printf("render artifacts (file activity is not completion):\n%s\n", prettyAny(progress))
+			}
 			for _, j := range r.Jobs {
 				fmt.Printf("  %s %s %s\n", j.ID, j.Phase, j.State)
 			}
@@ -290,6 +313,7 @@ func (a *app) operationJob(code string, o execOpts) (*jobOutcome, error) {
 		return out, nil
 	}
 	c := bridge.New()
+	c.ExpectedSession = a.op.Session
 	dir := jobDir(c)
 	if j.Submission == "prepared" {
 		if err := a.ctx.Err(); err != nil {
@@ -327,6 +351,7 @@ func (a *app) operationJob(code string, o execOpts) (*jobOutcome, error) {
 				a.op.Session = session
 			}
 		}
+		c.ExpectedSession = a.op.Session
 		// Record intent BEFORE POST. Lost acknowledgements never cause a second submission.
 		j.Submission = "uncertain"
 		if err := operation.Save(config.Home(), a.op); err != nil {
@@ -392,7 +417,9 @@ func pendingOperation(c *bridge.Client) error {
 		for _, j := range r.Jobs {
 			if j.Result == nil && j.Submission != "prepared" {
 				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-				state, _, _ := c.Inspect(ctx, j.ID)
+				inspector := *c
+				inspector.ExpectedSession = r.Session
+				state, _, _ := inspector.Inspect(ctx, j.ID)
 				cancel()
 				if state != bridge.StateDone {
 					return &cliError{code: exitStillRunning, msg: fmt.Sprintf("operation %s still has a %s job; no new work submitted", r.ID, state), hint: "inspect or resume that operation; stale/unknown outcomes require manual reconciliation before operation abandon --acknowledge-unknown-outcome", data: map[string]any{"operation": r.ID, "job": j.ID, "status": state, "phase": r.Phase}}
@@ -409,4 +436,45 @@ func (a *app) recordJobResult(r *bridge.Result) {
 	if r.Error != nil {
 		a.logJob["jobError"] = r.Error.Message
 	}
+}
+
+func operationFailureReason(err error) string {
+	switch {
+	case errors.Is(err, bridge.ErrDisconnected):
+		return "bridge-disconnected"
+	case errors.Is(err, bridge.ErrSessionChanged):
+		return "bridge-session-changed"
+	case errors.Is(err, bridge.ErrLost):
+		return "bridge-unresponsive"
+	case errors.Is(err, bridge.ErrStillRunning), errors.Is(err, context.DeadlineExceeded):
+		return "wait-timeout"
+	default:
+		return "inspection-or-command-failed"
+	}
+}
+
+// File activity is diagnostic evidence only. Neither a size nor a stale timestamp
+// validates a render, proves a crash, or allows resubmission of an uncertain job.
+func renderProgress(r *operation.Record) map[string]any {
+	if r.Render == nil {
+		return nil
+	}
+	files := []map[string]any{}
+	for _, name := range []string{"video.mp4", "mux.partial.mp4", "mux.mp4"} {
+		p := filepath.Join(r.Render.Stage, name)
+		st, err := os.Stat(p)
+		if os.IsNotExist(err) {
+			continue
+		}
+		f := map[string]any{"file": p, "validation": "unvalidated"}
+		if err != nil {
+			f["error"] = err.Error()
+		} else {
+			f["bytes"] = st.Size()
+			f["modified"] = st.ModTime().UTC()
+			f["secondsSinceModification"] = max(0, time.Since(st.ModTime()).Seconds())
+		}
+		files = append(files, f)
+	}
+	return map[string]any{"staging": r.Render.Stage, "expectedFrames": r.Render.ExpectedFrames, "fps": r.Render.FPS, "artifacts": files}
 }

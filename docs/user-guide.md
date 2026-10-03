@@ -220,7 +220,8 @@ boundary, because scripts can still read and write files through Cavalry's API.
 | `listening ... but not answering` | Cavalry is busy with a long script or render, or a dialog box is open. | Wait for the job, or close the dialog in Cavalry, then try again. |
 | `running v1.0.0; v1.1.0 is installed` | You updated `cav` but Cavalry still runs the old bridge. It still works. | Close the cav-bridge window and start it again from the Scripts menu. |
 | `cav and cav-bridge do not match` or `speaks protocol` | The running bridge and `cav` use different request formats. `cav` will not send jobs. | Run `cav setup`, then close the cav-bridge window and start it again from the Scripts menu. |
-| Exit code 3, "still running" | The job took longer than `--timeout`. | `cav operation status <id>`, then `cav operation resume <id>`. Do not retry the original command. |
+| Exit code 3, pending/unknown | The job took longer than `--timeout`. | `cav operation status <id>`, then `cav operation resume <id>`. Do not retry the original command. |
+| Exit code 4, bridge lost/session changed | The original result is unresolved. | Stop automatic waiting, preserve partial output, and inspect the operation. File growth is not completion; reconcile before a new render. |
 | `unknown job` | The id is wrong, or the result is older than a day. | Check the id. `cav job wait` without an id waits for the most recent job. |
 | "Cavalry is busy (not answering)" during a job | A Cavalry operation is blocking the app, for example deleting hundreds of layers. | Keep waiting. `cav` gives up only after 120 s of silence. |
 | A layer appears in the wrong place | `+y` is up, and `(0, 0)` is the centre. | Check positions with `cav layer <id>`. |
@@ -262,8 +263,8 @@ Exit codes:
 | 0 | Success |
 | 1 | Error (for example, the script threw) |
 | 2 | The bridge cannot be reached |
-| 3 | The job is still running |
-| 4 | The bridge stopped answering during a job |
+| 3 | Wait budget expired; native outcome pending or unknown |
+| 4 | Bridge lost/refused or operation session changed; preserve partial output and inspect |
 
 Environment variables:
 

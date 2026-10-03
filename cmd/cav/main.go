@@ -24,7 +24,7 @@ const (
 	exitOK           = 0
 	exitError        = 1 // usage error or script error
 	exitUnavailable  = 2 // bridge not reachable
-	exitStillRunning = 3 // wait timed out, job still queued or running
+	exitStillRunning = 3 // wait timed out; native outcome pending or unknown
 	exitLost         = 4 // bridge vanished while a job was in flight
 )
 
@@ -263,7 +263,7 @@ Commands:
 	}
 	fmt.Print(`
 Every command accepts --json (machine-readable output on stdout).
-Exit codes: 0 ok, 1 error, 2 bridge not reachable, 3 job still running, 4 bridge lost.
+Exit codes: 0 ok, 1 error, 2 bridge not reachable, 3 native outcome pending/unknown, 4 bridge lost.
 Run "cav help <command>" for details.
 New to cav? Run "cav guide" first: it explains the workflow from plan to render.
 `)

@@ -101,8 +101,9 @@ have replaced it.
 | The script threw | result with `ok: false`, message, line | 1 |
 | Nobody listens on the port | connection refused | 2 |
 | Cavalry accepts the connection but does not answer in 30 s | "listening but not answering" | 2 |
-| The job is still queued or running when `--timeout` passes | job id and "still running" | 3 |
-| The bridge stopped answering for 120 s during a job | "bridge lost" | 4 |
+| The wait budget expires without a result | operation/job id and pending/unknown native outcome | 3 |
+| A job wait sees connection refusal or an operation sees a changed session | bridge lost, unknown native outcome and retained artifacts | 4 |
+| A raw job wait sees no answer for 120 s | "bridge lost", unknown native outcome | 4 |
 | `cav job wait` on an id that is not queued, running or stored | "unknown job" after 5 s | 1 |
 
 After 10 s without an answer during a job, `cav` prints "Cavalry is busy (not answering)"
@@ -182,7 +183,9 @@ full list is in `cav guide traps`):
 ### Long jobs and `cav job wait`
 
 `cav run --timeout 10m` waits up to ten minutes, then exits with code 3 and the job id. The
-job keeps running inside Cavalry. `cav job wait <id>` resumes waiting. Because results are
+native call may keep running inside Cavalry; timeout does not prove it is alive or complete.
+`cav operation resume <id>` continues a tracked command. `cav job wait <id>` waits only
+for one job. Because results are
 kept for a day, `cav job wait` also works for a job that has already finished and been
 printed.
 

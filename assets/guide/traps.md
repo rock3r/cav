@@ -58,6 +58,10 @@ already handles the trap.
 - A timeout does not prove a native job stopped. Inspect/resume the printed operation ID
   with `cav operation status/resume <id>`; never retry the original command. Raw
   `cav job wait <job-id>` waits only for that job and cannot continue render phases.
+- An MP4 that stops growing is not a reliable job-status signal. Use operation status/resume,
+  keep partial artifacts, and stop automatic waiting on exit 4 (bridge disconnect/session
+  change). A missing crash report does not establish an out-of-memory kill. A success result
+  still needs the requested frame count before publication; never silently retry or chunk.
 - `api.newScene()` throws away unsaved work without asking. `cav scene new` refuses when there
   are unsaved changes; never pass `--force` on the user's own scene without asking.
 - The first time the bridge starts, Cavalry asks "Do you trust this script?". The user must answer.

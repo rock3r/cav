@@ -33,3 +33,9 @@ The `cav` CLI does the work and carries its own guides. This skill only gets you
    Do not retry the original command. Raw `cav job wait` completes only one bridge job,
    including a render's preparatory metadata. Keep the original scene/session and inputs
    unchanged during recovery; unknown outcomes require manual inspection.
+
+7. Use `cav render` for final video output; do not wait only for an MP4 to grow. On exit 4
+   (bridge disconnect or session change), stop automatic waiting, inspect the operation,
+   and preserve partial artifacts. File size/age is not completion or proof of a crash.
+   Reconcile an unknown outcome before abandoning and starting a new render; never
+   silently relaunch the app, retry or switch to chunk rendering.

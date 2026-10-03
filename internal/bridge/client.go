@@ -109,7 +109,9 @@ var (
 	// ErrProtocol means the running bridge speaks another request format than this cav.
 	ErrProtocol = errors.New("cav and cav-bridge do not match")
 	// ErrLost means the bridge stopped answering while the job was in flight.
-	ErrLost = errors.New("bridge stopped answering while the job was in flight")
+	ErrLost           = errors.New("bridge stopped answering while the job was in flight")
+	ErrDisconnected   = errors.New("bridge connection refused before job completion")
+	ErrSessionChanged = errors.New("bridge session changed before job completion")
 )
 
 const unavailableHint = "Start Cavalry, then run Scripts > cav-bridge and keep its window open. `cav doctor` checks every step."
@@ -143,10 +145,11 @@ func unreachable(base string, err error) error {
 }
 
 type Client struct {
-	Host  string
-	Port  int
-	Spool string
-	http  *http.Client
+	Host            string
+	Port            int
+	Spool           string
+	ExpectedSession string // optional operation identity; older bridges omit this
+	http            *http.Client
 }
 
 func New() *Client {
@@ -274,6 +277,10 @@ func (c *Client) wait(ctx context.Context, id string, timeout time.Duration, ini
 	warnedBusy := false
 	for i := 0; ; i++ {
 		if r, ok := readResultFile(jobFile); ok && r.ID == id {
+			if err := c.checkSession(r.BridgeSession, id); err != nil {
+				set(StateUnknown)
+				return nil, err
+			}
 			set(StateDone)
 			return r, nil
 		}
@@ -281,10 +288,15 @@ func (c *Client) wait(ctx context.Context, id string, timeout time.Duration, ini
 		if err == nil {
 			lastSeen = time.Now()
 			var head struct {
-				Type string `json:"type"`
-				ID   string `json:"id"`
+				Type    string `json:"type"`
+				ID      string `json:"id"`
+				Session string `json:"bridgeSession"`
 			}
 			_ = json.Unmarshal(payload, &head)
+			if err := c.checkSession(head.Session, id); err != nil {
+				set(StateUnknown)
+				return nil, err
+			}
 			// A job that is not running, has no script waiting and no stored result is unknown
 			// (a wrong id, or a result pruned after a day). Say so instead of waiting forever.
 			if head.ID != id && head.Type != "running" && !exists(scriptFile) && !exists(jobFile) {
@@ -308,6 +320,19 @@ func (c *Client) wait(ctx context.Context, id string, timeout time.Duration, ini
 					}
 				}
 			}
+		} else if errors.Is(err, syscall.ECONNREFUSED) {
+			// Refusal proves the listener is absent, unlike a silent native call. It does
+			// not prove a crash or lost output: check a result that may have arrived last.
+			if r, ok := readResultFile(jobFile); ok && r.ID == id {
+				if e := c.checkSession(r.BridgeSession, id); e != nil {
+					set(StateUnknown)
+					return nil, e
+				}
+				set(StateDone)
+				return r, nil
+			}
+			set(StateUnknown)
+			return nil, fmt.Errorf("%w: %w (job %s). Cavalry or its bridge may have exited; the native outcome is unknown. Preserve partial output and inspect the operation before retrying.", ErrLost, ErrDisconnected, id)
 		} else if time.Since(lastSeen) > 120*time.Second {
 			// Cavalry cannot answer while a native operation blocks it (for example deleting
 			// hundreds of layers), so only give up after a long silence.
@@ -354,6 +379,9 @@ func (c *Client) waitSpool(ctx context.Context, id string, timeout time.Duration
 	state := initial
 	for i := 0; ; i++ {
 		if r, ok := readResultFile(resPath); ok && r.ID == id {
+			if e := c.checkSession(r.BridgeSession, id); e != nil {
+				return nil, e
+			}
 			if onState != nil {
 				onState(StateDone)
 			}
@@ -440,6 +468,9 @@ func (c *Client) Inspect(ctx context.Context, id string) (State, *Result, error)
 		suffix = ".res.json"
 	}
 	if r, ok := readResultFile(filepath.Join(dir, id+suffix)); ok && r.ID == id {
+		if e := c.checkSession(r.BridgeSession, id); e != nil {
+			return StateUnknown, nil, e
+		}
 		return StateDone, r, ProtocolError(r)
 	}
 	if c.Spool != "" {
@@ -453,13 +484,20 @@ func (c *Client) Inspect(ctx context.Context, id string) (State, *Result, error)
 	}
 	b, e := c.getRaw(ctx)
 	if e != nil {
+		if errors.Is(e, syscall.ECONNREFUSED) {
+			return StateUnknown, nil, fmt.Errorf("%w: %w (job %s)", ErrLost, ErrDisconnected, id)
+		}
 		return ConnectionState(e), nil, e
 	}
 	var head struct {
-		Type string `json:"type"`
-		ID   string `json:"id"`
+		Type    string `json:"type"`
+		ID      string `json:"id"`
+		Session string `json:"bridgeSession"`
 	}
 	if e = json.Unmarshal(b, &head); e != nil {
+		return StateUnknown, nil, e
+	}
+	if e = c.checkSession(head.Session, id); e != nil {
 		return StateUnknown, nil, e
 	}
 	if head.ID == id {
@@ -513,4 +551,11 @@ func ConnectionState(err error) State {
 		return StateBusy
 	}
 	return StateUnknown
+}
+
+func (c *Client) checkSession(session, id string) error {
+	if c.ExpectedSession != "" && session != "" && c.ExpectedSession != session {
+		return fmt.Errorf("%w: %w (job %s); a new bridge cannot finish the original native call; preserve outputs and inspect the operation", ErrLost, ErrSessionChanged, id)
+	}
+	return nil
 }

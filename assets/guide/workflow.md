@@ -32,7 +32,9 @@ If it reports `blocked: a sandbox`, your sandbox stops `cav`: show the user the 
    each finding or explain why it is intended. Warnings describe risk, not measured blame.
 7. **Save**: `cav scene save scenes/<name>.cv`.
 8. **Render**: `cav render -o renders/final.mp4 [--audio music.wav]`. Check the frame count
-   it prints.
+   it prints. Use the printed operation ID for waiting; do not replace it with a file-growth
+   loop. A refused bridge or changed session returns exit 4: stop, inspect, and preserve
+   partial output. File size/age does not establish completion or explain an app exit.
 
 ## 3. Writing scripts
 
@@ -74,7 +76,7 @@ Rules that keep scripts working:
   up with `cav.find('name')`.
 - Look up API names with `cav api <word>` and node attributes with `cav docs <node name>` and
   `cav layer <id> --attrs`. Do not guess attribute names.
-- A long build is not a failure: if `cav run` exits with code 3, the job is still running.
+- A long build is not a failure: if `cav run` exits with code 3, its native outcome is pending or unknown.
   Use `cav operation status <id>` and `cav operation resume <id>`. Do not retry the
   original command. Raw `cav job wait <job-id>` finishes only one job, including metadata.
 

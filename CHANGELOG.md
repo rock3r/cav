@@ -4,6 +4,8 @@
 
 - Persist render/check/run operations with phase-aware recovery, total wait budgets,
   duplicate prevention, read-only status and explicit unknown-outcome reconciliation.
+- End waits promptly on refused bridge connections or changed sessions; expose unvalidated
+  render artifacts and preserve partial output without retrying native work.
 - Add cheap structural performance warnings, bounded checks, chronological measured
   profiling, partial progress and truthful failed/skipped coverage.
 - Preserve signed macOS Cav.app bundles across install/update; require Developer ID,

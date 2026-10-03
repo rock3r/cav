@@ -33,6 +33,15 @@ job makes an operation `ready-to-resume`, rather than complete. Inspection does 
 checkpoint timestamps. Silence cannot distinguish a blocking native call from a stopped
 app. A heartbeat or cancellation cannot interrupt a native call inside Cavalry.
 
+A refused HTTP bridge connection ends a job wait promptly with exit 4 and
+`failureReason: bridge-disconnected`. A new session on an updated bridge returns
+`bridge-session-changed`, including when the original job's script file remains on disk.
+The operation's native outcome stays `unknown`: a lost bridge does not by itself prove
+that Cavalry crashed or that its output was lost. A stored result for the original job
+still takes precedence. Older bridges without session IDs and remote spool transports
+cannot provide the same restart evidence; their unresolved outcomes need inspection.
+Timeouts from a blocked native call remain `busy` or `unknown`, with no automatic retry.
+
 A kernel lock prevents simultaneous operation clients sharing `CAV_HOME`. After a CLI
 exits, a pending native job still gates new operations on the same transport. The relay
 runs forwarded operations in its own state folder; inspect/resume through the same relay.
@@ -73,6 +82,24 @@ an already-published result after a crash. The destination filesystem must suppo
 links. Staging and prior installed app bundles are retained as recovery evidence; clean
 them manually only after confirming completion. Render queue items use operation-specific
 names and are not automatically removed from the scene.
+
+## Render stopped partway through
+
+Use `cav render` and its operation ID instead of a loop that only watches the MP4 grow.
+`operation status` reads staged artifact sizes, modification times and ages, plus the
+expected frame count, without submitting a scene query or running ffprobe. These files
+are explicitly `unvalidated`. A large file is not a finished render, and an unchanged
+file may reflect a slow frame, buffering, a closed bridge or an exited app. File activity
+alone never changes the operation's state or justifies restarting it.
+
+When the bridge disconnects or restarts, stop automatic waiting and inspect the saved
+scene, original result and staged output. Preserve partial files. Resuming the operation
+only waits for the recorded native job and never re-submits it, even after an app restart.
+If the original call cannot finish, reconcile the unknown outcome and explicitly abandon
+that operation before attempting a new render to a new output path. cav does not relaunch
+the app, silently start shorter chunks, remove partial artifacts or infer an OOM kill
+from a missing crash report. A job reporting success must still pass exact frame-count
+validation before publication; a short or unreadable video is rejected and retained.
 
 ## Choose an inspection cost
 

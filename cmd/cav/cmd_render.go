@@ -55,13 +55,15 @@ layers that are missing, off-screen, the wrong size or the wrong colour.`
 		run:     cmdRender,
 	})
 	longHelp["render"] = `
-Renders the active comp through Cavalry's render queue (an item named "cav render"),
+Renders the active comp through Cavalry's render queue (an operation-specific item),
 checks the frame count with ffprobe, and muxes --audio with ffmpeg (AAC, trimmed to
 the video length). A full render can take minutes: cav reports "still running"
 (exit code 3) after --timeout and continue the complete command with "cav operation resume <id>".
 The timeout includes metadata, render, mux and validation. Outputs are staged beside
 the destination and published without overwriting existing files. Staging is retained
-as recovery evidence. ffprobe is required. Raw job wait completes only one job.`
+as recovery evidence. A refused bridge or changed session returns exit 4 with an unknown
+native outcome. operation status shows unvalidated file size/age; neither proves completion.
+ffprobe is required. Raw job wait completes only one job.`
 }
 
 func outDir() string {
@@ -380,6 +382,7 @@ func cmdRender(a *app, args []string) error {
 		return err
 	}
 	videoPath := filepath.Join(stage, "video.mp4")
+	a.op.Render = &operation.Render{Stage: stage, ExpectedFrames: *end - *start + 1, FPS: st.Comp.FPS}
 	code := fmt.Sprintf(`
 if (api.getActiveComp() !== %s || api.getSceneFilePath() !== %s) throw new Error('active scene/comp changed; restore the operation scene before rendering');
 var rq = api.addRenderQueueItem(api.getActiveComp());

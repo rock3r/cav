@@ -22,6 +22,11 @@ import (
 
 // This fixture never starts or contacts Cavalry. Both requests and files are disposable.
 func fixtureBridge(t *testing.T, handler func(bridge.Request)) *httptest.Server {
+	return fixtureBridgeWithGet(t, handler, func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"type":"hello","bridge":"cav-bridge","protocol":1}`)
+	})
+}
+func fixtureBridgeWithGet(t *testing.T, handler func(bridge.Request), get http.HandlerFunc) *httptest.Server {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("CAV_HOME", home)
@@ -44,7 +49,7 @@ func fixtureBridge(t *testing.T, handler func(bridge.Request)) *httptest.Server 
 			w.WriteHeader(200)
 			return
 		}
-		fmt.Fprint(w, `{"type":"hello","bridge":"cav-bridge","protocol":1}`)
+		get(w, r)
 	}))
 	host, port, _ := net.SplitHostPort(strings.TrimPrefix(srv.URL, "http://"))
 	t.Setenv("CAV_BRIDGE_HOST", host)

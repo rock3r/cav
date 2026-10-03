@@ -31,8 +31,9 @@ It is loaded once per bridge session and reloaded when its version changes.
 Values on globalThis survive between runs until the bridge restarts.
 
 A long job is not a failed job. When --timeout passes, cav exits with code 3 and
-prints the job id; the job keeps running in Cavalry. Wait for it with
-"cav job wait <id>". Use --async to return the job id at once.
+prints the operation and job IDs; the native outcome is pending or unknown. Inspect and continue with
+"cav operation status <id>" and "cav operation resume <id>". Raw "cav job wait"
+finishes only one job. Use --async to return the operation and job IDs at once.
 
 Examples:
   cav run build.js
@@ -41,7 +42,7 @@ Examples:
 	register(command{
 		name:    "job",
 		args:    "wait [<id>] [--timeout 30m] | status <id>",
-		summary: "Wait for a job that is still running and print its result.",
+		summary: "Wait for an existing job and print its result.",
 		run:     cmdJob,
 	})
 }
@@ -49,7 +50,7 @@ Examples:
 func cmdRun(a *app, args []string) error {
 	fs := flag.NewFlagSet("run", flag.ContinueOnError)
 	expr := fs.String("e", "", "code to run")
-	timeout := fs.Duration("timeout", 10*time.Minute, "wait this long before reporting the job as still running")
+	timeout := fs.Duration("timeout", 10*time.Minute, "maximum wait for a completed result")
 	async := fs.Bool("async", false, "return the job id without waiting")
 	noHelpers := fs.Bool("no-helpers", false, "do not preload the helper library")
 	pos, err := parseFlags(fs, args)
@@ -145,7 +146,7 @@ func printLogs(logs []bridge.LogLine) {
 
 func cmdJob(a *app, args []string) error {
 	fs := flag.NewFlagSet("job", flag.ContinueOnError)
-	timeout := fs.Duration("timeout", 30*time.Minute, "wait this long before reporting the job as still running")
+	timeout := fs.Duration("timeout", 30*time.Minute, "maximum wait for a completed result")
 	pos, err := parseFlags(fs, args)
 	if err != nil {
 		return err

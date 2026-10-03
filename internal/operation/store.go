@@ -22,6 +22,11 @@ type Job struct {
 	State         bridge.State   `json:"state"`
 	Result        *bridge.Result `json:"result,omitempty"`
 }
+type Render struct {
+	Stage          string  `json:"staging"`
+	ExpectedFrames int     `json:"expectedFrames"`
+	FPS            float64 `json:"fps"`
+}
 type Record struct {
 	Schema          int               `json:"schema"`
 	ID              string            `json:"id"`
@@ -43,6 +48,8 @@ type Record struct {
 	Completed       map[string]bool   `json:"completed,omitempty"`
 	Progress        string            `json:"progress,omitempty"`
 	Error           string            `json:"error,omitempty"`
+	FailureReason   string            `json:"failureReason,omitempty"`
+	Render          *Render           `json:"render,omitempty"`
 }
 
 var validID = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
