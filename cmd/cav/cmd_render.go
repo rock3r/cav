@@ -276,6 +276,9 @@ func cmdRender(a *app, args []string) error {
 	if len(pos) > 0 || *timeout <= 0 || *scale < 1 || *scale > 100 {
 		return usageErr("invalid render arguments, timeout or scale (1..100)")
 	}
+	if err := a.beginOperationBudget(*timeout); err != nil {
+		return err
+	}
 	if *out != "" {
 		p, e := filepath.Abs(*out)
 		if e != nil {

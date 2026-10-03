@@ -45,8 +45,10 @@ cannot provide the same restart evidence; their unresolved outcomes need inspect
 Timeouts from a blocked native call remain `busy` or `unknown`, with no automatic retry.
 
 A kernel lock prevents simultaneous operation clients sharing `CAV_HOME`. After a CLI
-exits, a pending native job still gates new operations on the same transport. The relay
-runs forwarded operations in its own state folder; inspect/resume through the same relay.
+exits, a pending native job still gates new operations on the same transport. cav also
+runs the same gate before any new submission during resume, excluding the resumed
+operation itself. Reading completed results or waiting on a recorded job remains allowed.
+The relay runs forwarded operations in its own state folder; inspect/resume through the same relay.
 Raw commands, independent `CAV_HOME` folders, other tools and GUI edits are outside this
 coordination. Avoid them until the operation completes.
 

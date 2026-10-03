@@ -42,29 +42,22 @@ func (a *app) checkpoint(phase string) error {
 	a.op.Phase = phase
 	return operation.Save(config.Home(), a.op)
 }
-func operationTimeout(args []string) time.Duration {
-	d := 30 * time.Minute
-	if len(args) > 0 {
-		if args[0] == "run" {
-			d = 10 * time.Minute
-		}
-		if args[0] == "check" {
-			d = 2 * time.Minute
-		}
+
+// Use the command's actual parsed duration, not a second scan of raw arguments.
+// Resume supplies its own fresh budget without changing recorded command inputs.
+func (a *app) beginOperationBudget(parsed time.Duration) error {
+	if a.op == nil {
+		return nil
 	}
-	for i, s := range args {
-		if strings.HasPrefix(s, "--timeout=") {
-			if v, e := time.ParseDuration(strings.TrimPrefix(s, "--timeout=")); e == nil {
-				d = v
-			}
-		}
-		if s == "--timeout" && i+1 < len(args) {
-			if v, e := time.ParseDuration(args[i+1]); e == nil {
-				d = v
-			}
-		}
+	budget := parsed
+	if a.resumeBudget > 0 {
+		budget = a.resumeBudget
 	}
-	return d
+	if budget <= 0 {
+		return usageErr("timeout must be positive")
+	}
+	a.ctx, a.operationCancel = context.WithTimeout(context.Background(), budget)
+	return nil
 }
 func (a *app) startOperation(args []string, run func(*app, []string) error) error {
 	unlock, err := operation.Lock(config.Home())
@@ -73,9 +66,6 @@ func (a *app) startOperation(args []string, run func(*app, []string) error) erro
 	}
 	defer unlock()
 	c := bridge.New()
-	if err := pendingOperation(c); err != nil {
-		return err
-	}
 	cwd, err := os.Getwd()
 	if err != nil {
 		return err
@@ -91,15 +81,17 @@ func (a *app) startOperation(args []string, run func(*app, []string) error) erro
 	if !a.json {
 		fmt.Fprintf(os.Stderr, "cav: operation %s; recover with cav operation resume %s\n", a.op.ID, a.op.ID)
 	}
-	return a.executeOperation(run, operationTimeout(args))
+	return a.executeOperation(run, 0)
 }
-func (a *app) executeOperation(run func(*app, []string) error, timeout time.Duration) error {
-	if timeout <= 0 {
-		return usageErr("timeout must be positive")
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	a.ctx = ctx
+func (a *app) executeOperation(run func(*app, []string) error, resumeBudget time.Duration) error {
+	a.ctx = context.Background()
+	a.resumeBudget = resumeBudget
+	a.operationCancel = nil
+	defer func() {
+		if a.operationCancel != nil {
+			a.operationCancel()
+		}
+	}()
 	a.jobCursor = 0
 	if a.op.Completed == nil {
 		a.op.Completed = map[string]bool{}
@@ -267,6 +259,9 @@ func cmdOperation(a *app, args []string) error {
 	if len(r.Command) == 0 || !trackedCommands[r.Command[0]] {
 		return fmt.Errorf("unsupported operation command")
 	}
+	if *timeout <= 0 {
+		return usageErr("timeout must be positive")
+	}
 	c := bridge.New()
 	if c.Host != r.Host || c.Port != r.Port || c.Spool != r.Spool {
 		return fmt.Errorf("transport differs from the recorded operation; restore its CAV_BRIDGE_HOST/PORT and spool settings")
@@ -317,6 +312,11 @@ func (a *app) operationJob(code string, o execOpts) (*jobOutcome, error) {
 	dir := jobDir(c)
 	if j.Submission == "prepared" {
 		if err := a.ctx.Err(); err != nil {
+			return nil, err
+		}
+		// The CLI lock does not cover accepted native work after another CLI exits.
+		// Resume may consume old results, but it must pass the gate before new POSTs.
+		if err := pendingOperation(a.ctx, c, a.op.ID); err != nil {
 			return nil, err
 		}
 		if err := os.MkdirAll(dir, 0700); err != nil {
@@ -400,7 +400,7 @@ func (a *app) operationJob(code string, o execOpts) (*jobOutcome, error) {
 
 // An exited CLI does not mean its native job stopped. Gate new operations against
 // pending jobs on the same transport, using existing state only.
-func pendingOperation(c *bridge.Client) error {
+func pendingOperation(ctx context.Context, c *bridge.Client, excludeID string) error {
 	files, err := filepath.Glob(filepath.Join(config.Home(), "operations", "*.json"))
 	if err != nil {
 		return err
@@ -411,16 +411,19 @@ func pendingOperation(c *bridge.Client) error {
 			return fmt.Errorf("invalid operation record %s: %w", p, e)
 		}
 		r := *loaded
-		if r.Status == "complete" || r.Status == "abandoned" || r.Host != c.Host || r.Port != c.Port || r.Spool != c.Spool {
+		if r.ID == excludeID || r.Status == "complete" || r.Status == "abandoned" || r.Host != c.Host || r.Port != c.Port || r.Spool != c.Spool {
 			continue
 		}
 		for _, j := range r.Jobs {
 			if j.Result == nil && j.Submission != "prepared" {
-				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+				inspectionCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 				inspector := *c
 				inspector.ExpectedSession = r.Session
-				state, _, _ := inspector.Inspect(ctx, j.ID)
+				state, _, _ := inspector.Inspect(inspectionCtx, j.ID)
 				cancel()
+				if err := ctx.Err(); err != nil {
+					return err
+				}
 				if state != bridge.StateDone {
 					return &cliError{code: exitStillRunning, msg: fmt.Sprintf("operation %s still has a %s job; no new work submitted", r.ID, state), hint: "inspect or resume that operation; stale/unknown outcomes require manual reconciliation before operation abandon --acknowledge-unknown-outcome", data: map[string]any{"operation": r.ID, "job": j.ID, "status": state, "phase": r.Phase}}
 				}

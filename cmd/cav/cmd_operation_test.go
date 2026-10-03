@@ -238,9 +238,6 @@ func TestOperationLockAndPreparedRecovery(t *testing.T) {
 	if _, e = operation.Load(home, "../escape"); e == nil {
 		t.Fatal("unsafe id")
 	}
-	if d := operationTimeout([]string{"render", "--timeout=90m"}); d != 90*time.Minute {
-		t.Fatal(d)
-	}
 }
 
 func TestPendingOperationBlocksNewSubmissions(t *testing.T) {
@@ -265,6 +262,99 @@ func TestPendingOperationBlocksNewSubmissions(t *testing.T) {
 	r, e := operation.Load(config.Home(), a.op.ID)
 	if e != nil || r.Status != "abandoned" || len(r.Jobs) != 1 {
 		t.Fatalf("abandon: %v %v", r, e)
+	}
+}
+
+func TestResumeGatesQueuedAndUncertainOperationsBeforeNewSubmission(t *testing.T) {
+	for _, submission := range []string{"accepted", "uncertain"} {
+		t.Run(submission, func(t *testing.T) {
+			posts := []bridge.Request{}
+			fixtureBridge(t, func(req bridge.Request) {
+				posts = append(posts, req)
+				if len(posts) == 3 {
+					stage := renderFixtureStage(t, req)
+					if err := os.WriteFile(filepath.Join(stage, "video.mp4"), []byte("fixture video"), 0600); err != nil {
+						t.Error(err)
+					}
+					fixtureResult(t, req.ID, map[string]any{"ms": 1})
+				}
+			})
+			bin := t.TempDir()
+			if err := os.WriteFile(filepath.Join(bin, "ffprobe"), []byte("#!/bin/sh\necho 6\n"), 0755); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+			a := &app{json: true}
+			out := filepath.Join(t.TempDir(), "final.mp4")
+			if code := a.dispatch([]string{"render", "-o", out, "--timeout", "2s"}); code != exitStillRunning {
+				t.Fatal(code)
+			}
+			renderMetadataFixture(t, posts[0].ID)
+			b := &app{json: true}
+			if code := b.dispatch([]string{"run", "-e", "return 1", "--async", "--no-helpers"}); code != exitOK {
+				t.Fatal(code)
+			}
+			b.op.Jobs[0].Submission = submission
+			if err := operation.Save(config.Home(), b.op); err != nil {
+				t.Fatal(err)
+			}
+			// GET remains hello even though B is queued/uncertain. A may consume metadata,
+			// but cannot submit its render behind B's unresolved native work.
+			if code := (&app{json: true}).dispatch([]string{"operation", "resume", a.op.ID, "--timeout", "2s"}); code != exitStillRunning {
+				t.Fatalf("resume exit=%d", code)
+			}
+			r, err := operation.Load(config.Home(), a.op.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(posts) != 2 || len(r.Jobs) != 2 || r.Jobs[0].Result == nil || r.Jobs[1].Submission != "prepared" {
+				t.Fatalf("posts=%d jobs=%+v", len(posts), r.Jobs)
+			}
+			// Waiting on B's recorded job remains permitted, with no new POST.
+			if code := (&app{json: true}).dispatch([]string{"operation", "resume", b.op.ID, "--timeout", "100ms"}); code != exitStillRunning {
+				t.Fatalf("read-only wait exit=%d", code)
+			}
+			fixtureResult(t, posts[1].ID, 1)
+			if code := (&app{json: true}).dispatch([]string{"operation", "resume", a.op.ID, "--timeout", "2s"}); code != exitOK {
+				t.Fatalf("resume after B completed exit=%d", code)
+			}
+			if len(posts) != 3 {
+				t.Fatalf("native jobs repeated: posts=%d", len(posts))
+			}
+		})
+	}
+}
+
+func TestParsedTimeoutSpellingsControlOperationDeadline(t *testing.T) {
+	for _, command := range []string{"run", "render", "check"} {
+		for _, spelling := range [][]string{{"-timeout", "350ms"}, {"-timeout=350ms"}, {"--timeout", "350ms"}, {"--timeout=350ms"}} {
+			t.Run(command+" "+strings.Join(spelling, " "), func(t *testing.T) {
+				a := &app{json: true}
+				fixtureBridge(t, func(req bridge.Request) {
+					dl, ok := a.ctx.Deadline()
+					if !ok || time.Until(dl) > time.Second {
+						t.Errorf("parsed timeout did not bound operation context: deadline=%v", dl)
+						// Avoid a many-minute regression hang; cancel only on this failed assertion.
+						if a.operationCancel != nil {
+							a.operationCancel()
+						}
+					}
+				})
+				args := []string{command}
+				if command == "run" {
+					args = append(args, "-e", "return 1", "--no-helpers")
+				} else if command == "check" {
+					args = append(args, "--quick")
+				}
+				args = append(args, spelling...)
+				if code := a.dispatch(args); code != exitStillRunning {
+					t.Fatalf("exit=%d", code)
+				}
+				if a.op.FailureReason != "wait-timeout" {
+					t.Fatalf("record=%+v", a.op)
+				}
+			})
+		}
 	}
 }
 func TestPreparedCheckpointAndChangedSession(t *testing.T) {

@@ -371,6 +371,9 @@ func cmdSceneCheck(a *app, args []string) error {
 	if *profileRender {
 		*profile = true
 	}
+	if err := a.beginOperationBudget(*timeout); err != nil {
+		return err
+	}
 	if err = a.checkpoint("waiting-for-metadata"); err != nil {
 		return err
 	}

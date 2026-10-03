@@ -57,6 +57,9 @@ func cmdRun(a *app, args []string) error {
 	if err != nil {
 		return err
 	}
+	if err := a.beginOperationBudget(*timeout); err != nil {
+		return err
+	}
 	var code, source string
 	if a.op != nil && len(a.op.Jobs) > 0 {
 		j := a.op.Jobs[0]

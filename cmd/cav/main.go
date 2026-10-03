@@ -40,16 +40,18 @@ var commands []command
 func register(c command) { commands = append(commands, c) }
 
 type app struct {
-	json        bool
-	started     time.Time
-	argv        []string
-	logJob      map[string]any
-	op          *operation.Record
-	jobCursor   int
-	outputData  map[string]any
-	outputHuman func()
-	emitting    bool
-	ctx         context.Context
+	json            bool
+	started         time.Time
+	argv            []string
+	logJob          map[string]any
+	op              *operation.Record
+	jobCursor       int
+	outputData      map[string]any
+	outputHuman     func()
+	emitting        bool
+	ctx             context.Context
+	resumeBudget    time.Duration
+	operationCancel context.CancelFunc
 }
 
 // cliError carries an exit code and an optional hint.
