@@ -10,7 +10,8 @@
   paths in performance findings, and report incomplete membership scans explicitly.
 - Select profile frames with bounded chronological simulation warm-up, low-resolution
   rendering and separate warm-up timings/progress. Explicitly overwrite Cavalry progress
-  files so live status advances beyond the first checkpoint, and report refused writes.
+  files so live status advances beyond the first checkpoint, and report refused writes
+  once while allowing later checkpoints to recover.
 
 - Persist render/check/run operations with phase-aware recovery, total wait budgets,
   duplicate prevention, read-only status and explicit unknown-outcome reconciliation.

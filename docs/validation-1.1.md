@@ -35,7 +35,8 @@ verification are mandatory gates before publication.
 - This first full run exposed a native progress bug: `api.writeToFile` defaults to
   refusing existing files, so the progress JSON stopped at the first checkpoint while
   rendering continued. The fix passes explicit overwrite and records false-return
-  failures. Regression fixtures model the real overwrite behavior. The corrected native
+  failures once while retrying subsequent checkpoints. Fixtures also cover permanent
+  refusal and recovery after a transient refusal. Regression fixtures model the real overwrite behavior. The corrected native
   run published advancing checkpoints (690 and 1,320 warm-up frames, then 1,906 and all
   three samples with restoration). Its warm-up took 120,157 ms; PNG samples took 51,
   46 and 86 ms. The three image hashes matched the initial run exactly.
@@ -59,7 +60,7 @@ remain pending. The intentional PNG failure retains its native failure result.
 - Profile fixtures cover explicit late targets, chronological PNG evaluation of every
   intervening frame, separate warm-up/sample timing, budget exhaustion, failed warm-up,
   changed scene identity, and playhead restoration.
-- `go vet ./...`, Go race tests and all 34 explicit Node fixtures pass. Credential-free development
+- `go vet ./...`, Go race tests and all 35 explicit Node fixtures pass. Credential-free development
   archives build for macOS arm64/amd64, Windows arm64/amd64 and Linux amd64.
 - The signed macOS pipeline from PR #2 has a successful
   [notarized artifact smoke run](https://github.com/rock3r/cav/actions/runs/37152868668).

@@ -136,6 +136,19 @@ test('profile replaces existing progress through warm-up, samples and restoratio
 test('a refused progress write is reported without losing playhead restoration',()=>{
  const f=chronologicalAPI();f.api.writeToFile=()=>false;
  const r=run('profile',f.api,{sample:chronoSample});
- assert.ok(r.failures.some(f=>f.inspection==='progress-write'&&f.error.includes('refused')));
+ assert.equal(r.failures.filter(f=>f.inspection==='progress-write').length,1);
+ assert.ok(r.failures[0].error.includes('refused'));
  assert.equal(r.restored,true);assert.equal(f.current,9);
+});
+
+test('progress can recover after a refused write without repeating the failure',()=>{
+ const f=chronologicalAPI();let attempts=0,progress;
+ f.api.writeToFile=(path,content)=>{
+  if(++attempts<=2)return false;
+  progress=JSON.parse(content);return true;
+ };
+ const r=run('profile',f.api,{sample:chronoSample});
+ assert.ok(attempts>2);assert.equal(r.failures.filter(f=>f.inspection==='progress-write').length,1);
+ assert.equal(progress.restored,true);assert.equal(progress.profile.length,2);
+ assert.equal(progress.failures.length,1);
 });
