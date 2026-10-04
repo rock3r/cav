@@ -22,4 +22,4 @@ Ask for a motion graphic in Cavalry. The skill starts with `cav doctor`, follows
 
 ## Support and license
 
-Report issues at [rock3r/cav](https://github.com/rock3r/cav/issues). The plugin and CLI are MIT licensed; see [LICENSE](LICENSE). Cavalry is made by Scene Group, now part of Canva. This community project is not affiliated with them.
+Report issues at [GitHub Issues](https://github.com/rock3r/cav/issues). Cav collects no data; see the [privacy policy](privacy.md). The plugin and CLI are MIT licensed; see [LICENSE](LICENSE). Cavalry is made by Scene Group, now part of Canva. This community project is not affiliated with them.

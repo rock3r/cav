@@ -22,6 +22,9 @@
     "longDescription": "Plan, build and render motion graphics in a running Cavalry app from the shell with the cav CLI: logo stings, kinetic type, lower thirds, charts, UI walkthroughs, transitions and animations synced to music. Needs Cavalry 2.4 or newer on macOS or Windows, the cav CLI, and the cav-bridge script open in Cavalry.",
     "developerName": "Sebastiano Poggi",
     "category": "Creativity",
+    "websiteURL": "https://github.com/rock3r/cav",
+    "supportURL": "https://github.com/rock3r/cav/issues",
+    "privacyPolicyURL": "https://github.com/rock3r/cav/blob/main/plugins/cavalry/privacy.md",
     "capabilities": [
       "Build and animate Cavalry scenes",
       "Render frames, contact sheets and MP4 video",
