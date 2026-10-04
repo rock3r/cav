@@ -4,7 +4,8 @@
 
 ## 1.1.2
 
-- Display the plugin as Cav in Claude, Codex and marketplace metadata.
+- Display the plugin as Cav in Claude, Codex and marketplace metadata. State that it is
+  not affiliated with Cavalry, Scene Group or Canva.
 - Add website, GitHub Issues support and privacy-policy links to the plugin listing.
   The privacy policy states that the plugin collects no data.
 - Include a plugin README covering setup, local execution, downloads, support and license

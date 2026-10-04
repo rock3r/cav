@@ -2,6 +2,8 @@
 
 Cav does not collect any data. The plugin contains no analytics, telemetry, tracking, or developer-operated data collection service. It does not sell or share personal data.
 
+Cav is a community plugin and is not affiliated with Cavalry, Scene Group, or Canva.
+
 ## Local operation
 
 The plugin helps your coding agent run the `cav` CLI against the Cavalry app on your computer. Scene inspection, script execution, and rendering use a local bridge. Rendered files, bridge authentication, and operation records stay on your filesystem; they are not sent to Cav's developer.

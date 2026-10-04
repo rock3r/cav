@@ -165,7 +165,7 @@ claude plugin validate . --strict
   ideas come from it. See `NOTICE`.
 - [cavalry-types](https://github.com/scenery-io/cavalry-types) by Remco Janssen (MIT): API names
   and signatures.
-- Cavalry is made by Scene Group (now part of Canva). This project is not affiliated with them.
+- Cavalry is made by Scene Group (now part of Canva). Cav is a community plugin and is not affiliated with Cavalry, Scene Group, or Canva.
   The Cavalry docs are not included; `cav docs update` downloads them to your own computer.
 
 Licence: MIT.
