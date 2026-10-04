@@ -6,7 +6,7 @@
 
 ;(function () {
 	var cav = {}
-	cav.VERSION = '1.1.0'
+	cav.VERSION = '1.1.1'
 
 	//@ # cav helpers (global `cav`, loaded before every `cav run`)
 	//@ Coordinates: (0,0) is the comp centre, +x right, +y UP. Frames are integers.
@@ -1121,15 +1121,16 @@
 		var original = api.getActiveComp(),
 			frame = api.getFrame(),
 			settings = cav.comp(),
-			sub = api.createComp(name)
-		api.set(sub, {
-			resolution: [o.width || settings.width, o.height || settings.height],
-			fps: o.fps || settings.fps,
-			startFrame: o.start === undefined ? settings.start : o.start,
-			endFrame: o.end === undefined ? settings.end : o.end,
-			backgroundColor: { r: 0, g: 0, b: 0, a: 0 },
-		})
+			sub
 		try {
+			sub = api.createComp(name)
+			api.set(sub, {
+				resolution: [o.width || settings.width, o.height || settings.height],
+				fps: o.fps || settings.fps,
+				startFrame: o.start === undefined ? settings.start : o.start,
+				endFrame: o.end === undefined ? settings.end : o.end,
+				backgroundColor: { r: 0, g: 0, b: 0, a: 0 },
+			})
 			api.setActiveComp(sub)
 			build(sub)
 		} finally {

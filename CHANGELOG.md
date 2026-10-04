@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.1.1
+
 - Inspect hand-off seams using bounded frame pairs from a full-comp video or native
   renders. Report changed pixels, bounding boxes, intended cuts and omitted coverage.
 - Add chronological sparse previews with `frames --keep-every` and composition selection

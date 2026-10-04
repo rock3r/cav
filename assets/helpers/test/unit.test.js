@@ -308,3 +308,29 @@ test('above handles frontmost siblings without using the no-op empty reorder', (
 	)
 	assert.equal(cav.below, cav.order)
 })
+
+test('precomp restores comp/playhead when new-comp setup itself fails', () => {
+	const { cav, api, layers } = mockEnv()
+	let comp = 'root',
+		frame = 17
+	api.getActiveComp = () => comp
+	api.getFrame = () => frame
+	api.setActiveComp = (c) => {
+		comp = c
+	}
+	api.setFrame = (f) => {
+		frame = f
+	}
+	api.createComp = () => {
+		comp = 'sub'
+		frame = 0
+		layers.sub = { attrs: {} }
+		return 'sub'
+	}
+	api.set = () => {
+		throw Error('setup failed')
+	}
+	assert.throws(() => cav.precomp('test', () => {}), /setup failed/)
+	assert.equal(comp, 'root')
+	assert.equal(frame, 17)
+})
