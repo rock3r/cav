@@ -38,7 +38,7 @@ var onPath = cav.duplicator('onPath', cav.star('s', 5, 16), { type: 'path', coun
 
 ## Per-copy JavaScript (official docs; additional 2.8 observations)
 
-JavaScript utilities receive `ctx.index` and `ctx.count` from a Duplicator. The context also
+JavaScript utilities require Pro. They receive `ctx.index` and `ctx.count` from a Duplicator. The context also
 reaches utilities connected to the source's children: a text or colour utility can produce
 one value per copy. The official JavaScript Utility example connects a string expression to
 `text.string` on the source Text Shape:
