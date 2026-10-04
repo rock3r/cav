@@ -51,3 +51,11 @@ func TestSaveDoesNotReportSuccessWhenDirectorySyncFails(t *testing.T) {
 		t.Fatal("publication without its durability barrier reported success")
 	}
 }
+
+func TestViewOmitsReconciledSourceWithoutMutatingRecord(t *testing.T) {
+	r := &Record{Jobs: []*Job{{Code: "current"}}, ReconciledJobs: []*Job{{Code: "old attempt"}}}
+	v := View(r)
+	if v.Jobs[0].Code != "" || v.ReconciledJobs[0].Code != "" || r.ReconciledJobs[0].Code != "old attempt" {
+		t.Fatal("status leaked or mutated replay source")
+	}
+}

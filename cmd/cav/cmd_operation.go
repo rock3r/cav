@@ -16,7 +16,7 @@ import (
 	"github.com/rock3r/cav/internal/operation"
 )
 
-var trackedCommands = map[string]bool{"render": true, "check": true, "run": true, "frame": true, "sheet": true}
+var trackedCommands = map[string]bool{"render": true, "check": true, "run": true, "frame": true, "sheet": true, "frames": true, "seams": true}
 
 func trackedCommand(args []string) bool {
 	return len(args) > 0 && (trackedCommands[args[0]] || (args[0] == "scene" && len(args) > 1 && args[1] == "open"))
@@ -40,6 +40,10 @@ manual reconciliation. It does not cancel native work.
 A refused bridge connection or changed session ends the wait with exit 4 and an unknown
 native outcome. Status exposes unvalidated staged render artifacts; file growth or age
 is not proof of completion or a crash. Preserve them and reconcile before retrying.
+For chunk renders only, resume ID --restart-chunk --acknowledge-unknown-outcome
+allows explicit recovery after reconciling old native work and reopening the same saved
+scene in a new idle bridge session. Inputs are rehashed. Completed segments are reused;
+uncertain jobs and their artifacts are retained before a fresh job ID is submitted.
 Raw cav job wait still waits for just one job; it does not continue command phases.`
 }
 func (a *app) checkpoint(phase string) error {
@@ -168,6 +172,7 @@ func (a *app) executeOperation(run func(*app, []string) error, resumeBudget time
 func cmdOperation(a *app, args []string) error {
 	fs := flag.NewFlagSet("operation", flag.ContinueOnError)
 	timeout := fs.Duration("timeout", 30*time.Minute, "total resume wait budget")
+	restart := fs.Bool("restart-chunk", false, "resume chunk rendering after a reconciled native restart")
 	acknowledge := fs.Bool("acknowledge-unknown-outcome", false, "abandon local recovery only; does not cancel native work")
 	pos, err := parseFlags(fs, args)
 	if err != nil {
@@ -175,6 +180,9 @@ func cmdOperation(a *app, args []string) error {
 	}
 	if len(pos) != 2 || (pos[0] != "status" && pos[0] != "resume" && pos[0] != "abandon") {
 		return usageErr("operation needs status|resume <id>")
+	}
+	if *restart && pos[0] != "resume" {
+		return usageErr("--restart-chunk is only valid for operation resume")
 	}
 	// Status is lock-free and read-only. Atomic checkpoints make concurrent reads safe.
 	if pos[0] == "status" {
@@ -279,6 +287,11 @@ func cmdOperation(a *app, args []string) error {
 	}
 	if err = os.Chdir(r.Cwd); err != nil {
 		return err
+	}
+	if *restart {
+		if err = restartChunk(r, *acknowledge, *timeout); err != nil {
+			return err
+		}
 	}
 	a.op = r
 
@@ -493,5 +506,5 @@ func renderProgress(r *operation.Record) map[string]any {
 		}
 		files = append(files, f)
 	}
-	return map[string]any{"staging": r.Render.Stage, "expectedFrames": r.Render.ExpectedFrames, "fps": r.Render.FPS, "artifacts": files}
+	return map[string]any{"staging": r.Render.Stage, "expectedFrames": r.Render.ExpectedFrames, "fps": r.Render.FPS, "artifacts": files, "validatedChunks": r.Render.Chunks, "chunkSize": r.Render.ChunkSize}
 }

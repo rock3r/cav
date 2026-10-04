@@ -4,8 +4,11 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,8 +24,11 @@ func init() {
 	})
 	longHelp["scene"] = `
 cav scene info
-    Scene path, unsaved changes, active comp settings and layer count.
+    Scene path, unsaved changes, comp settings, layer/node/key counts and bounded coverage.
+    Node counts include scene layers and comps; key counts sum animated attribute keys.
 cav scene new [--width 1920 --height 1080 --fps 60 --seconds 10 | --frames 600] [--bg #101014] [--force]
+    --range 0-3599 sets inclusive playback endpoints. --fps-preset accepts film, pal,
+    ntsc (30000/1001), web or smooth. Range conflicts with --frames/--seconds.
     Start an empty scene and set up its comp. It refuses when the open scene has
     unsaved changes, so it never throws away work. --force skips that check.
 cav scene comp [--width W --height H --fps F --seconds S | --frames N] [--bg #hex] [--motion-blur]
@@ -163,11 +169,23 @@ const sceneInfoJS = `
 var comp = api.getActiveComp();
 var res = api.get(comp, 'resolution');
 var bg = api.get(comp, 'backgroundColor');
+var all=api.getAllSceneLayers(),keyframes=0,keyQueries=0,countsComplete=true,countStart=Date.now();
+counting: for(var i=0;i<Math.min(all.length,10000);i++) {
+ var attrs=[];
+ try { attrs=api.getAnimatedAttributes(all[i])||[]; } catch(e) { countsComplete=false;continue; }
+ for(var k=0;k<attrs.length;k++) {
+  if(keyQueries++>=2000||Date.now()-countStart>500){countsComplete=false;break counting;}
+  try { keyframes+=(api.getKeyframeTimes(all[i],attrs[k])||[]).length; } catch(e) { countsComplete=false; }
+ }
+}
+if(all.length>10000)countsComplete=false;
 function hex(c) { function h(n) { var s = Math.round(n).toString(16); return s.length < 2 ? '0' + s : s } return '#' + h(c.r) + h(c.g) + h(c.b) }
 return {
   scenePath: api.getSceneFilePath(),
   unsaved: api.sceneHasUnsavedChanges(),
   cavalryVersion: api.getCavalryVersion(),
+  nodes: all.length, keyframes: keyframes, countsComplete: countsComplete,
+  warnings: keyframes>=10000?['high keyframe volume; consider procedural drivers and measure open/render cost']:[],
   comp: {
     id: comp, name: api.getNiceName(comp),
     width: res.x, height: res.y, fps: api.get(comp, 'fps'),
@@ -180,9 +198,13 @@ return {
 };`
 
 type sceneState struct {
-	ScenePath      string `json:"scenePath"`
-	Unsaved        bool   `json:"unsaved"`
-	CavalryVersion string `json:"cavalryVersion"`
+	Nodes          int      `json:"nodes"`
+	Keyframes      int      `json:"keyframes"`
+	CountsComplete bool     `json:"countsComplete"`
+	Warnings       []string `json:"warnings"`
+	ScenePath      string   `json:"scenePath"`
+	Unsaved        bool     `json:"unsaved"`
+	CavalryVersion string   `json:"cavalryVersion"`
 	Comp           struct {
 		ID             string  `json:"id"`
 		Name           string  `json:"name"`
@@ -231,7 +253,10 @@ func emitSceneInfo(a *app, st *sceneState) {
 		fmt.Printf("scene   %s\ncomp    %s (%s)  %dx%d  %g fps  frames %d-%d (%d frames, %.2f s)\n",
 			p, c.Name, c.ID, c.Width, c.Height, c.FPS, c.StartFrame, c.EndFrame, frames, float64(frames)/c.FPS)
 		fmt.Printf("        background %s  motion blur %v  layers %d (%d top level)\n", c.Background, c.MotionBlur, c.Layers, c.TopLevelLayers)
-		fmt.Printf("cavalry %s  playhead %d\n", st.CavalryVersion, st.Frame)
+		fmt.Printf("cavalry %s  playhead %d\nnodes %d; keyframes %d; counts complete=%t\n", st.CavalryVersion, st.Frame, st.Nodes, st.Keyframes, st.CountsComplete)
+		for _, warning := range st.Warnings {
+			fmt.Println("warning: " + warning)
+		}
 	})
 }
 
@@ -245,8 +270,32 @@ func sceneNew(a *app, sub string, args []string) error {
 	bg := fs.String("bg", "", "background colour, #rrggbb")
 	mb := fs.Bool("motion-blur", false, "turn on comp motion blur")
 	force := fs.Bool("force", false, "discard unsaved changes")
+	rangeSpec := fs.String("range", "", "inclusive playback range start-end")
+	preset := fs.String("fps-preset", "", "film (24), pal (25), ntsc (29.97), web (30), smooth (60)")
 	if _, err := parseFlags(fs, args); err != nil {
 		return err
+	}
+	if *preset != "" {
+		presets := map[string]float64{"film": 24, "pal": 25, "ntsc": 30000.0 / 1001, "web": 30, "smooth": 60}
+		v, ok := presets[*preset]
+		if !ok || *fps != 0 {
+			return usageErr("unknown fps preset or conflicting --fps")
+		}
+		*fps = v
+	}
+	if *w < 0 || *h < 0 || (*w == 0) != (*h == 0) ||
+		*fps < 0 || math.IsNaN(*fps) || math.IsInf(*fps, 0) ||
+		*secs < 0 || math.IsNaN(*secs) || math.IsInf(*secs, 0) ||
+		*frames < 0 || (*frames != 0 && *secs != 0) {
+		return usageErr("invalid or conflicting scene dimensions/duration/fps")
+	}
+	var playback []int
+	if *rangeSpec != "" {
+		var e error
+		playback, e = playbackRange(*rangeSpec)
+		if e != nil || *frames != 0 || *secs != 0 {
+			return usageErr("--range needs start-end and cannot combine with --frames/--seconds")
+		}
 	}
 	if sub == "new" {
 		if *w == 0 {
@@ -258,7 +307,7 @@ func sceneNew(a *app, sub string, args []string) error {
 		if *fps == 0 {
 			*fps = 60
 		}
-		if *secs == 0 && *frames == 0 {
+		if *secs == 0 && *frames == 0 && len(playback) == 0 {
 			*secs = 10
 		}
 		if *bg == "" {
@@ -290,7 +339,13 @@ func sceneNew(a *app, sub string, args []string) error {
 		fmt.Fprintf(&js, "var fps = api.get(comp, 'fps'); var n = %d > 0 ? %d : Math.round(%g * fps);\n", *frames, *frames, *secs)
 		js.WriteString("api.set(comp, {startFrame: 0, endFrame: n - 1, playbackStart: 0, playbackEnd: n - 1});\n")
 	}
-	js.WriteString("api.setFrame(0); return true;")
+	if len(playback) > 0 {
+		first, last := playback[0], playback[len(playback)-1]
+		fmt.Fprintf(&js, "api.set(comp, {startFrame:%d,endFrame:%d,playbackStart:%d,playbackEnd:%d}); api.setFrame(%d);", first, last, first, last, first)
+	} else {
+		js.WriteString("api.setFrame(api.get(comp,'startFrame'));")
+	}
+	js.WriteString("return true;")
 	if err := a.jsCall(js.String(), time.Minute, nil); err != nil {
 		return err
 	}
@@ -455,8 +510,27 @@ func init() {
 				a.emit(map[string]any{"status": bridge.ConnectionState(err), "detail": err.Error()}, func() { fmt.Printf("bridge busy or unavailable: %v\n", err) })
 				return nil
 			}
-			a.emit(map[string]any{"bridge": payload}, func() { fmt.Println(prettyAny(payload)) })
+			a.emit(map[string]any{"bridge": payload, "warnings": bridgeWarnings(payload)}, func() {
+				fmt.Println(prettyAny(payload))
+				for _, w := range bridgeWarnings(payload) {
+					fmt.Println("warning: " + w)
+				}
+			})
 			return nil
 		},
 	})
+}
+
+// Playback ranges are inclusive endpoints, not expanded sample lists.
+func playbackRange(spec string) ([]int, error) {
+	m := regexp.MustCompile(`^(\d+)-(\d+)$`).FindStringSubmatch(strings.TrimSpace(spec))
+	if m == nil {
+		return nil, usageErr("range needs inclusive start-end")
+	}
+	first, e1 := strconv.Atoi(m[1])
+	last, e2 := strconv.Atoi(m[2])
+	if e1 != nil || e2 != nil || last < first || last-first >= 100000 {
+		return nil, usageErr("range needs ordered endpoints and at most 100000 frames")
+	}
+	return []int{first, last}, nil
 }

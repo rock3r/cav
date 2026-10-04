@@ -50,7 +50,7 @@ type execOpts struct {
 
 // helpersVersion identifies the embedded helper library by content.
 func helpersVersion() string {
-	sum := sha256.Sum256(assets.HelpersJS)
+	sum := sha256.Sum256(helperSource())
 	return helpersSemver() + "+" + hex.EncodeToString(sum[:])[:10]
 }
 
@@ -84,13 +84,13 @@ func jobDir(c *bridge.Client) string {
 // ensurePreload writes the embedded helpers where the bridge can read them.
 func ensurePreload(dir string) (string, error) {
 	path := filepath.Join(dir, "cav-helpers-"+strings.ReplaceAll(helpersVersion(), "+", "-")+".js")
-	if b, err := os.ReadFile(path); err == nil && string(b) == string(assets.HelpersJS) {
+	if b, err := os.ReadFile(path); err == nil && string(b) == string(helperSource()) {
 		return path, nil
 	}
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", err
 	}
-	return path, os.WriteFile(path, assets.HelpersJS, 0o600)
+	return path, os.WriteFile(path, helperSource(), 0o600)
 }
 
 type jobOutcome struct {
@@ -102,6 +102,9 @@ type jobOutcome struct {
 
 // execJS runs code inside Cavalry and waits for it.
 func (a *app) execJS(code string, o execOpts) (*jobOutcome, error) {
+	if a.compSelector != "" {
+		code = selectedCompJS(a.compSelector, code)
+	}
 	if a.op != nil {
 		return a.operationJob(code, o)
 	}

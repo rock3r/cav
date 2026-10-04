@@ -80,3 +80,17 @@ these observations have not all been independently reproduced.
 - `api.newScene()` throws away unsaved work without asking. `cav scene new` refuses when there
   are unsaved changes; never pass `--force` on the user's own scene without asking.
 - The first time the bridge starts, Cavalry asks "Do you trust this script?". The user must answer.
+
+
+### Repeated key calls
+
+Two `cav.key` calls preserve earlier keys on a plain animated attribute in Cavalry 2.8.
+The helper submits each frame through `api.keyframe`; it does not disconnect the input.
+Inspect `cav.keys(layer)` after intervening setters/connections before assuming replacement.
+`api.disconnectInput` can delete keys. No merge option is needed for the verified case.
+
+### Boundary frame numbering
+
+`api.getOutFrame` is the first invisible frame in Cavalry 2.8, while `setOutFrame` takes
+an inclusive last-visible frame. `cav seams` compares the first invisible frame against
+its predecessor. A layer set to out 9 hands off at frame 10.

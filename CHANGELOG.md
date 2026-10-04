@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- Inspect hand-off seams using bounded frame pairs from a full-comp video or native
+  renders. Report changed pixels, bounding boxes, intended cuts and omitted coverage.
+- Add chronological sparse previews with `frames --keep-every` and composition selection
+  for frame, sheet and check. Restore both composition and playhead after native errors.
+- Render saved scenes in validated chunks with source/segment hashes, simulation replay,
+  retained partial attempts and explicit reconciliation after a native bridge restart.
+  Add `render --save` to save the named scene before submission.
+- Flag SkSL/input redeclarations, pre-comp size, dense keys and group filters as structural
+  risks. Add bounded scene node/key counts and key-volume warnings.
+- Add SkSL, pre-comp, variable-font axes, two-key drivers, typed per-copy drivers, connected
+  Look At and explicit above/below helpers. Font axes use ordered OpenType metadata.
+- Add inclusive scene ranges and fps presets. Warn about installed/running bridge mismatch
+  in version/status while keeping the plain version command offline.
+
 - Prefer a complete page title at the start of an offline docs query, so contextual queries
   such as `Look At duplicator` find the requested node before unrelated body matches.
 - Document per-copy JavaScript, SkSL input declarations, mode-dependent group opacity,

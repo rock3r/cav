@@ -292,3 +292,53 @@ sample, and use repeated measurements before claiming a performance improvement.
 Docs search prefers the longest complete page title at the start of a query. For example,
 `cav docs "Look At duplicator"` prioritizes Look At sections, then ranks sections by their
 relevance to the query. API search keeps its function-name ranking.
+
+
+## Long scenes and launch-video checks
+
+```sh
+cav scene new --range 0-3599 --fps-preset smooth
+cav scene info
+cav check --quick --comp section
+cav frames 0-599 --keep-every 10 --comp section -o out/preview
+cav render --save --chunk-frames 600 --audio track.wav -o out/final.mp4
+cav seams --video out/final.mp4 --allow-cuts 600,1200
+```
+
+`scene info` reports scene layer/comp nodes and key counts. `countsComplete` says whether
+its bounded metadata scan finished. Key-volume and shader warnings are risks to measure,
+not evidence that a particular node caused a slow render.
+
+`--comp` on frame, sheet, frames, check and seams accepts a node ID or a unique comp name.
+It restores the selected comp's playhead and the original comp/playhead on success or
+native failure. Duplicate names fail. Switching comps can mark the scene unsaved in
+Cavalry; save explicitly before chunk rendering.
+
+`frames` sorts requests, renders intervening frames from comp start and keeps every Nth
+requested frame. Its default budget is 10000 evaluations and at most 1000 retained PNGs.
+Unretained frames overwrite a single warm-up PNG. Increase `--max-evaluated` deliberately
+for longer previews. Ordinary sparse `frame` and `sheet` calls still skip intervening frames.
+
+`seams` compares f-1/f at in/out and opacity-key boundaries. A full-comp finished video
+preserves rendered simulation state; its frame zero must correspond to comp start.
+Native simulation sampling evaluates chronologically. Changed-pixel fractions and boxes
+are review signals, not proof of bugs. Intended cuts stay visible with `review:false`.
+Metadata omissions and the boundary cap are reported. Inspect referenced sections with
+`--comp`; reference time remapping is not inferred. Pixel boxes refer to sampled images.
+
+Chunk rendering needs a saved named scene, ffmpeg and ffprobe. Every new chunk replays
+from comp start, bounded by `--max-warmup`. Completed segments pass frame-count/hash
+checks before concatenation, audio muxing and final publication. The source file is hashed
+again before each chunk. Staging stays beside the final destination as recovery evidence.
+
+After a timeout, use ordinary `operation resume ID`; do not start another render. If
+Cavalry or the bridge has restarted, first inspect the old outcome and reopen the same
+saved scene. Then use `operation resume ID --restart-chunk --acknowledge-unknown-outcome`.
+This requires a different idle bridge session. It retains uncertain job/artifact evidence,
+reuses validated segments and gives reconciled chunk work a fresh ID. It never cancels
+or automatically resubmits native work. At most 1000 chunks are allowed.
+
+See `cav helpers` and `cav guide native` for guarded SkSL, pre-comp, real font-axis,
+two-key and typed per-copy drivers, connected Look At, and explicit above/below helpers.
+`cav version` checks the installed bridge file offline; `cav status` adds warnings about
+the running bridge from its existing probe.

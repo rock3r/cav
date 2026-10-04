@@ -1,12 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 
 	"github.com/rock3r/cav/assets"
+	"github.com/rock3r/cav/internal/config"
 
 	"github.com/rock3r/cav/internal/bridge"
 )
@@ -29,6 +33,7 @@ func cmdVersion(a *app, args []string) error {
 		"bridge":  bridgeVersionFromJS(),
 		"os":      runtime.GOOS + "/" + runtime.GOARCH,
 	}
+	data["warnings"] = bridgeWarnings(nil)
 	for _, s := range args {
 		if s == "--check" {
 			return checkUpdate(a, data)
@@ -36,6 +41,9 @@ func cmdVersion(a *app, args []string) error {
 	}
 	a.emit(data, func() {
 		fmt.Printf("cav %s (%s)\nhelpers %s\nbridge %s\n", version, data["os"], data["helpers"], data["bridge"])
+		for _, w := range bridgeWarnings(nil) {
+			fmt.Println("warning: " + w)
+		}
 	})
 	return nil
 }
@@ -129,4 +137,17 @@ func cmdHelpers(a *app, args []string) error {
 		fmt.Println(text)
 	})
 	return nil
+}
+
+func bridgeWarnings(payload map[string]any) []string {
+	warnings := make([]string, 0)
+	target := filepath.Join(config.ScriptsDir(), config.BridgeFile)
+	b, err := os.ReadFile(target)
+	if err == nil && !bytes.Equal(b, assets.BridgeJS) {
+		warnings = append(warnings, "installed bridge script differs from this CLI; run cav setup and reopen Scripts > cav-bridge")
+	}
+	if v, ok := payload["bridgeVersion"].(string); ok && v != bridgeVersionFromJS() {
+		warnings = append(warnings, "running bridge "+v+" differs from embedded "+bridgeVersionFromJS()+"; reopen Scripts > cav-bridge")
+	}
+	return warnings
 }
