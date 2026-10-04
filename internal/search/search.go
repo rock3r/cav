@@ -130,7 +130,10 @@ func (ix *Index) Search(query string, limit int) []Hit {
 }
 
 func normalizeTitle(s string) string {
-	return strings.Join(strings.Fields(strings.ToLower(s)), " ")
+	words := strings.FieldsFunc(strings.ToLower(s), func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+	})
+	return strings.Join(words, " ")
 }
 
 // Tokens splits text into lower-case words, also splitting camelCase and dotted names,

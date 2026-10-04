@@ -19,7 +19,7 @@ profiling gaps. See [1.1 validation](validation-1.1.md) for the actual test limi
 ## This follow-up
 
 - Offline docs search prefers the longest complete page title at the query's start,
-  case-insensitively and with normalized whitespace. `Look At duplicator` now prioritizes
+  case-insensitively and with normalized whitespace/punctuation. `Look At duplicator` now prioritizes
   Look At; BM25 still ranks sections within that title. API search is unchanged.
 - `cav guide traps` and `cav guide native` document the production traps: automatic SkSL
   input uniforms (distinct from required built-ins), per-copy JavaScript output types and

@@ -39,7 +39,10 @@ func TestSearchTitleWithContext(t *testing.T) {
 		{Name: "Look look", Title: "Look", Body: "look at duplicator"},
 		{Name: "Look At lookAt", Title: "Look At", Body: "aim at a target"},
 	})
-	for _, query := range []string{"Look At", "Look At duplicator", "  LOOK   At\tduplicator  "} {
+	for _, query := range []string{
+		"Look At", "Look At duplicator", "  LOOK   At\tduplicator  ",
+		"Look At: duplicator", "Look At—duplicator", "Look At/duplicator",
+	} {
 		t.Run(query, func(t *testing.T) {
 			hits := ix.Search(query, 3)
 			if len(hits) == 0 || hits[0].Index != 2 {
