@@ -27,7 +27,9 @@ cav scene new [--width 1920 --height 1080 --fps 60 --seconds 10 | --frames 600] 
     unsaved changes, so it never throws away work. --force skips that check.
 cav scene comp [--width W --height H --fps F --seconds S | --frames N] [--bg #hex] [--motion-blur]
     Change the active comp's settings without touching its layers.
-cav scene open <file.cv> [--force]
+cav scene open <file.cv> [--force] [--timeout 10m]
+    Wait for the scene to finish opening, including the follow-up scene-info job.
+    On timeout, resume the operation ID; do not open the scene a second time.
 cav scene save [<file.cv>]
     Without a path, saves in place (the scene must already have a path).`
 	register(command{
@@ -57,21 +59,54 @@ func cmdScene(a *app, args []string) error {
 	case "open":
 		fs := flag.NewFlagSet("scene open", flag.ContinueOnError)
 		force := fs.Bool("force", false, "open even if the current scene has unsaved changes")
+		timeout := fs.Duration("timeout", 10*time.Minute, "total scene-open wait budget")
 		pos, err := parseFlags(fs, rest)
 		if err != nil {
 			return err
 		}
-		if len(pos) != 1 {
-			return usageErr("usage: cav scene open <file.cv>")
+		if len(pos) != 1 || *timeout <= 0 {
+			return usageErr("usage: cav scene open <file.cv> [--timeout 10m]")
 		}
-		p, _ := filepath.Abs(pos[0])
-		if err := guardUnsaved(a, *force); err != nil {
+		if err := a.beginOperationBudget(*timeout); err != nil {
 			return err
 		}
-		if err := a.jsCall(fmt.Sprintf("api.openScene(%s, true); return true", jsString(p)), 5*time.Minute, nil); err != nil {
+		p, err := filepath.Abs(pos[0])
+		if err != nil {
 			return err
 		}
-		return sceneInfo(a)
+		digest, err := fileDigest(a.ctx, p)
+		if err != nil {
+			return err
+		}
+		if a.op.Inputs == nil {
+			a.op.Inputs = map[string]string{}
+		}
+		if previous, ok := a.op.Inputs[p]; ok && previous != digest {
+			return fmt.Errorf("scene input changed since the operation started: %s", p)
+		}
+		a.op.Inputs[p] = digest
+		if err = a.checkpoint("checking-unsaved-scene"); err != nil {
+			return err
+		}
+		if err = guardUnsaved(a, *force); err != nil {
+			return err
+		}
+		if err = a.checkpoint("opening-scene"); err != nil {
+			return err
+		}
+		if err = a.jsCall(fmt.Sprintf("api.openScene(%s, true); return true", jsString(p)), *timeout, nil); err != nil {
+			return err
+		}
+		if err = a.checkpoint("waiting-for-scene"); err != nil {
+			return err
+		}
+		var st sceneState
+		code := "var expectedScenePath = " + jsString(filepath.ToSlash(p)) + ";\n" + openedSceneGuardJS + sceneInfoJS
+		if err = a.jsCall(code, *timeout, &st); err != nil {
+			return err
+		}
+		emitSceneInfo(a, &st)
+		return nil
 	case "save":
 		code := `if (!api.getSceneFilePath()) throw new Error('the scene has never been saved: pass a path, e.g. cav scene save scenes/intro.cv'); return api.saveScene()`
 		var p string
@@ -118,6 +153,11 @@ func guardUnsaved(a *app, force bool) error {
 	}
 	return nil
 }
+
+const openedSceneGuardJS = `
+if (String(api.getSceneFilePath()).replace(/\\/g, '/') !== expectedScenePath)
+  throw new Error('opened scene changed; restore the operation scene before resuming');
+`
 
 const sceneInfoJS = `
 var comp = api.getActiveComp();
@@ -173,6 +213,11 @@ func sceneInfo(a *app) error {
 	if err != nil {
 		return err
 	}
+	emitSceneInfo(a, st)
+	return nil
+}
+
+func emitSceneInfo(a *app, st *sceneState) {
 	a.emit(map[string]any{"scene": st}, func() {
 		p := st.ScenePath
 		if p == "" {
@@ -188,7 +233,6 @@ func sceneInfo(a *app) error {
 		fmt.Printf("        background %s  motion blur %v  layers %d (%d top level)\n", c.Background, c.MotionBlur, c.Layers, c.TopLevelLayers)
 		fmt.Printf("cavalry %s  playhead %d\n", st.CavalryVersion, st.Frame)
 	})
-	return nil
 }
 
 func sceneNew(a *app, sub string, args []string) error {

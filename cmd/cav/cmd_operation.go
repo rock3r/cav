@@ -16,10 +16,14 @@ import (
 	"github.com/rock3r/cav/internal/operation"
 )
 
-var trackedCommands = map[string]bool{"render": true, "check": true, "run": true}
+var trackedCommands = map[string]bool{"render": true, "check": true, "run": true, "frame": true, "sheet": true}
+
+func trackedCommand(args []string) bool {
+	return len(args) > 0 && (trackedCommands[args[0]] || (args[0] == "scene" && len(args) > 1 && args[1] == "open"))
+}
 
 func init() {
-	register(command{name: "operation", args: "status <id> | resume <id> [--timeout 30m] | abandon <id> --acknowledge-unknown-outcome", summary: "Inspect or resume a complete render, check or run command.", run: cmdOperation})
+	register(command{name: "operation", args: "status <id> | resume <id> [--timeout 30m] | abandon <id> --acknowledge-unknown-outcome", summary: "Inspect or resume a render, check, run, frame, sheet or scene-open command.", run: cmdOperation})
 	longHelp["operation"] = `status reads checkpoints and existing bridge state; it never submits scene work.
 resume waits for recorded jobs, then continues remaining phases. It never re-submits
 an uncertain job, including on older bridges. Unknown or expired results need human
@@ -263,7 +267,7 @@ func cmdOperation(a *app, args []string) error {
 		a.emit(map[string]any{"operation": operation.View(r)}, func() { fmt.Printf("operation %s already complete\n%s\n", r.ID, prettyJSON(r.Data)) })
 		return nil
 	}
-	if len(r.Command) == 0 || !trackedCommands[r.Command[0]] {
+	if !trackedCommand(r.Command) {
 		return fmt.Errorf("unsupported operation command")
 	}
 	if *timeout <= 0 {

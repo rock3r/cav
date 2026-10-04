@@ -52,3 +52,69 @@ test('motion beyond the frame budget remains explicitly uninspected',()=>{
   assert.ok(r.segs.every(s=>s[1]<20));
   assert.equal(f.frame,7);
 });
+
+function nestedMetadata(){
+ const f=metadata(),types={rootRef:'compositionReference',sharedRef:'compositionReference',childRef:'compositionReference',childJS:'javaScript',childDup:'duplicator',physics:'particleShape'};
+ const owners={rootRef:'comp',sharedRef:'comp',childRef:'child',childJS:'child',childDup:'child',physics:'grandchild'};
+ const originalType=f.api.getLayerType;
+ Object.assign(f.api,{getCompLayers:()=>['rootRef','sharedRef'],getAllSceneLayers:()=>Object.keys(owners),getParentComp:id=>owners[id],getCompFromReference:id=>id==='childRef'?'grandchild':'child',getLayerType:id=>types[id]||originalType(id),getOutConnectedAttributes:id=>id==='childJS'?['output']:[],getOutConnections:()=>['childDup.shapePosition.x']});
+ return f;
+}
+test('metadata follows shared and nested pre-comps once without scene evaluation',()=>{
+ const f=nestedMetadata(),r=run('structure',f.api,{limits:{layers:20,edges:100,scan:100,comps:10,ms:1000}});
+ assert.equal(r.coverageComplete,true);assert.equal(r.compositions,3);assert.equal(r.totalLayers,6);
+ assert.deepEqual(Array.from(r.layers.find(l=>l.id==='physics').compPath),['comp','child','grandchild']);
+ assert.equal(r.layers.filter(l=>l.id==='childJS').length,1);
+ assert.ok(r.edges.some(e=>e.from==='childJS'&&e.to==='childDup'));
+ assert.equal(f.changed,0);
+});
+test('pre-comp scan limits, missing membership and cycles cannot claim complete coverage',()=>{
+ for(const mode of ['scan','membership','cycle','layers','comps']){
+  const f=nestedMetadata(),limits={layers:20,edges:100,scan:100,comps:10,ms:1000};
+  if(mode==='scan')limits.scan=1;
+  if(mode==='layers')limits.layers=2;
+  if(mode==='comps')limits.comps=1;
+  if(mode==='membership')f.api.getParentComp=()=>{throw Error('membership unavailable')};
+  if(mode==='cycle')f.api.getCompFromReference=id=>id==='childRef'?'comp':'child';
+  const r=run('structure',f.api,{limits});assert.equal(r.coverageComplete,false,mode);assert.ok(r.skipped.length||r.failures.length,mode);assert.equal(f.changed,0);
+ }
+});
+function chronologicalAPI(){let current=9;const frames=[],rendered=[],writes=[];return {frames,rendered,writes,get current(){return current},api:{getActiveComp:()=> 'comp',getSceneFilePath:()=> 'scratch.cv',getFrame:()=>current,setFrame:f=>{current=f;frames.push(f)},renderPNGFrame:p=>rendered.push({frame:current,path:p}),filePathExists:()=>true,writeToFile:(p,v)=>writes.push(JSON.parse(v))}};}
+const chronoSample={comp:'comp',scenePath:'scratch.cv',start:0,frames:[2,5],chronological:true,warmupCount:4,warmupImage:'/scratch/warmup',images:'/scratch',progress:'/scratch/progress',ms:1000};
+test('late simulation targets render every intervening frame and separate warm-up costs',()=>{
+ const f=chronologicalAPI(),r=run('profile',f.api,{sample:chronoSample});
+ assert.deepEqual(f.rendered.map(x=>x.frame),[0,1,2,3,4,5]);assert.equal(f.current,9);
+ assert.equal(r.warmup.frames,4);assert.equal(r.warmup.planned,4);assert.equal(r.warmup.evaluatedThrough,4);
+ assert.deepEqual(Array.from(r.profile,p=>p.frame),[2,5]);assert.ok(r.profile[0].category.includes('after-warmup'));
+ assert.equal(f.rendered.filter(x=>x.path==='/scratch/warmup').length,4);assert.equal(typeof r.warmup.ms,'number');
+});
+test('failed warm-up never measures an unwarmed target and restores once',()=>{
+ const f=chronologicalAPI();f.api.renderPNGFrame=()=>{throw Error('warm-up failed')};
+ const r=run('profile',f.api,{sample:chronoSample});
+ assert.equal(r.profile.length,0);assert.equal(r.failures[0].inspection,'profile-warmup');assert.equal(r.warmup.frames,0);assert.deepEqual(f.frames,[0,9]);assert.equal(r.restored,true);
+});
+test('warm-up budget expires between evaluations and retains partial progress',()=>{
+ const f=chronologicalAPI();let now=0;
+ const r=vm.runInNewContext('(function(){'+source('profile')+'})()',{api:f.api,sample:{...chronoSample,ms:2},Date:{now:()=>now++}});
+ assert.equal(r.profile.length,0);assert.ok(r.skipped.some(s=>s.inspection==='profile-warmup'));assert.equal(f.current,9);assert.equal(f.frames.at(-1),9);
+});
+test('profile rejects changed scene identity before touching the playhead',()=>{
+ const f=chronologicalAPI();f.api.getSceneFilePath=()=> 'other.cv';f.api.getFrame=()=>{throw Error('must guard first')};
+ assert.throws(()=>run('profile',f.api,{sample:chronoSample}),/profile scene changed/);assert.deepEqual(f.frames,[]);
+});
+const frameRender=fs.readFileSync(path.join(__dirname,'../../../cmd/cav/cmd_render.go'),'utf8').match(/const frameRenderJS = `([\s\S]*?)`/)[1];
+test('frame exports restore after a native failure and reject changed scenes before evaluation',()=>{
+ const f=chronologicalAPI();f.api.renderPNGFrame=()=>{throw Error('native render failed')};
+ const sample={comp:'comp',scenePath:'scratch.cv',frames:[2,5],dir:'/scratch',scale:10};
+ assert.throws(()=>vm.runInNewContext('(function(){'+frameRender+'})()',{api:f.api,sample}),/native render failed/);assert.deepEqual(f.frames,[2,9]);
+ f.frames.length=0;f.api.getActiveComp=()=> 'other';
+ assert.throws(()=>vm.runInNewContext('(function(){'+frameRender+'})()',{api:f.api,sample}),/active scene\/comp changed/);assert.deepEqual(f.frames,[]);
+});
+
+const openedSceneGuard=fs.readFileSync(path.join(__dirname,'../../../cmd/cav/cmd_scene.go'),'utf8').match(/const openedSceneGuardJS = `([\s\S]*?)`/)[1];
+test('scene-open guard normalizes Windows separators and rejects another scene',()=>{
+ const api={getSceneFilePath:()=> 'C:\\scenes\\large.cv'};
+ const execute=expectedScenePath=>vm.runInNewContext('(function(){'+openedSceneGuard+';return true})()',{api,expectedScenePath});
+ assert.equal(execute('C:/scenes/large.cv'),true);
+ assert.throws(()=>execute('C:/scenes/other.cv'),/opened scene changed/);
+});

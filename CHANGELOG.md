@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Recover scene opening through native loading and follow-up metadata with a configurable
+  total timeout and scene input hash; resume without reopening the scene.
+- Track frame/sheet exports with stable staging, resumable publication and playhead
+  restoration after native PNG failures.
+- Inspect referenced pre-comps without switching compositions, preserve composition
+  paths in performance findings, and report incomplete membership scans explicitly.
+- Select profile frames with bounded chronological simulation warm-up, low-resolution
+  rendering and separate warm-up timings/progress.
+
 - Persist render/check/run operations with phase-aware recovery, total wait budgets,
   duplicate prevention, read-only status and explicit unknown-outcome reconciliation.
 - End waits promptly on refused bridge connections or changed sessions; expose unvalidated

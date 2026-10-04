@@ -110,7 +110,7 @@ func (a *app) dispatch(args []string) int {
 				return exitOK
 			}
 			var err error
-			if trackedCommands[c.name] && a.op == nil {
+			if trackedCommand(args) && a.op == nil {
 				err = a.startOperation(args, c.run)
 			} else {
 				err = c.run(a, args[1:])

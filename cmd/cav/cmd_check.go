@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -16,18 +17,23 @@ import (
 func init() {
 	register(command{
 		name:    "check",
-		args:    "[--quick] [--profile [--profile-render]] [--samples 3] [--timeout 2m]",
+		args:    "[--quick] [--profile [--profile-render]] [--samples 3 | --profile-frames F,...] [--max-warmup 600] [--timeout 2m]",
 		summary: "Find structural performance risks and bounded visual problems before rendering.",
 		run:     cmdSceneCheck,
 	})
-	longHelp["check"] = `Always runs cheap metadata/connection diagnostics first. Findings include stable kinds,
+	longHelp["check"] = `Always runs bounded metadata/connection diagnostics first, including referenced pre-comps. Findings include stable kinds,
 layer IDs/names, evidence, remedies and supported copy-count estimates. These are
 structural warnings, not measured attribution.
 --quick performs only this pass: no frame changes, bounding boxes or rendering.
 Default visual checks cover at most 200 layers and 6 frame evaluations. --samples
 sets 1..12 representative samples; --max-layers bounds metadata (default 1000).
---profile measures up to 3 representative frames (or consecutive initial frames for
-simulations). --profile-render also times 10 percent PNG rendering separately.
+--profile measures representative frames (default 3), or consecutive initial frames
+for simulations. --profile-frames selects up to 12 frames or a range, sorted and deduplicated.
+Simulation windows render every intervening frame from the comp start at 10 percent;
+--max-warmup caps those extra evaluations (default 600). Targeted simulation sampling
+also renders measured frames. Warm-up counts/time are separate from sample timings.
+--profile-render times 10 percent PNG rendering for other samples too.
+--max-scan bounds pre-comp membership queries (default 10000); omitted coverage is explicit.
 setFrameMs measures that API call only; lazy work may occur inside renderPNGMs.
 The first sample has unknown cache state; later samples are subsequent evaluations.
 Progress is saved between samples and visible with cav operation status <id>.
@@ -44,6 +50,8 @@ operation ID to resume. Use --json for agents.
 type finding struct {
 	Kind            string   `json:"kind"`
 	Layer           string   `json:"layer,omitempty"`
+	Comp            string   `json:"comp,omitempty"`
+	CompPath        []string `json:"compPath,omitempty"`
 	Name            string   `json:"name,omitempty"`
 	Detail          string   `json:"detail"`
 	Fix             string   `json:"fix"`
@@ -355,6 +363,9 @@ func cmdSceneCheck(a *app, args []string) error {
 	quick := fs.Bool("quick", false, "metadata only; no frame changes, bounds or renders")
 	profile := fs.Bool("profile", false, "measure a small frame set")
 	profileRender := fs.Bool("profile-render", false, "also measure 10 percent PNG rendering")
+	profileSpec := fs.String("profile-frames", "", "selected frames or range (max 12); simulations warm up chronologically")
+	maxWarmup := fs.Int("max-warmup", 600, "maximum intervening simulation frames to render")
+	maxScan := fs.Int("max-scan", 10000, "maximum layer membership queries for referenced pre-comps (1..100000)")
 	samples := fs.Int("samples", 3, "profile/visual samples (1..12)")
 	maxLayers := fs.Int("max-layers", 1000, "metadata layers (1..10000); visual cap is 200")
 	timeout := fs.Duration("timeout", 2*time.Minute, "total operation wait budget")
@@ -362,8 +373,20 @@ func cmdSceneCheck(a *app, args []string) error {
 	if err != nil {
 		return err
 	}
-	if len(pos) > 0 || *samples < 1 || *samples > 12 || *maxLayers < 1 || *maxLayers > 10000 || *timeout <= 0 || *minText <= 0 || *maxStill < 0 {
+	if len(pos) > 0 || *maxWarmup < 0 || *maxWarmup > 100000 || *maxScan < 1 || *maxScan > 100000 || *samples < 1 || *samples > 12 || *maxLayers < 1 || *maxLayers > 10000 || *timeout <= 0 || *minText <= 0 || *maxStill < 0 {
 		return usageErr("invalid check limits")
+	}
+	if *profileSpec != "" {
+		*profile = true
+	}
+	emptyProfileSpec := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "profile-frames" && *profileSpec == "" {
+			emptyProfileSpec = true
+		}
+	})
+	if emptyProfileSpec {
+		return usageErr("--profile-frames must select at least one frame")
 	}
 	if *quick && (*profile || *profileRender) {
 		return usageErr("--quick cannot be combined with profiling")
@@ -378,15 +401,23 @@ func cmdSceneCheck(a *app, args []string) error {
 		return err
 	}
 	b, _ := assets.Diagnostics.ReadFile("diagnostics/structure.js")
-	limits := fmt.Sprintf("var limits={layers:%d,edges:10000,ms:%d};\n", *maxLayers, (*timeout / 2).Milliseconds())
+	limits := fmt.Sprintf("var limits={layers:%d,edges:10000,scan:%d,comps:64,ms:%d};\n", *maxLayers, *maxScan, (*timeout / 2).Milliseconds())
 	var metadata structureData
 	if err = a.jsCall(limits+string(b), *timeout, &metadata); err != nil {
 		return err
+	}
+	var plan profilePlan
+	if *profile {
+		plan, err = planProfile(metadata, *samples, *profileSpec, *maxWarmup)
+		if err != nil {
+			return err
+		}
 	}
 	perf := performanceFindings(metadata)
 	failures := metadata.Failures
 	skipped := metadata.Skipped
 	var measured []profileResult
+	var warmup *profileWarmup
 	var d checkData
 	visualComplete := false
 	if *quick {
@@ -395,13 +426,13 @@ func cmdSceneCheck(a *app, args []string) error {
 		if err = a.checkpoint("validation"); err != nil {
 			return err
 		}
-		if needsChronological(metadata) {
-			skipped = append(skipped, map[string]any{"inspection": "visual", "reason": "simulation present or layer-type coverage incomplete; use --profile for bounded consecutive frames"})
+		if needsChronological(metadata) || hasPrecomps(metadata) {
+			skipped = append(skipped, map[string]any{"inspection": "visual", "reason": "simulation, pre-comp or incomplete layer coverage; visual motion inspection omitted; use --profile for bounded sampling"})
 		} else if err = a.jsCall(fmt.Sprintf("var expected={comp:%s,scenePath:%s};\nvar limits={layers:%d,samples:%d,frames:%d,ms:%d};\n", jsString(metadata.Comp), jsString(metadata.ScenePath), min(*maxLayers, 200), *samples, *samples*2, (*timeout/2).Milliseconds())+checkJS, *timeout, &d); err != nil {
 			failures = append(failures, map[string]any{"inspection": "visual", "error": err.Error()})
 			// A queued/timed-out job must be resumed before any further submissions.
 			if a.ctx.Err() != nil || (len(a.op.Jobs) > 0 && a.op.Jobs[len(a.op.Jobs)-1].Result == nil) {
-				return a.partialCheck(perf, failures, skipped, measured, err)
+				return a.partialCheck(perf, failures, skipped, measured, err, warmup)
 			}
 		} else {
 			failures = append(failures, d.Failures...)
@@ -411,22 +442,27 @@ func cmdSceneCheck(a *app, args []string) error {
 	}
 	if *profile {
 		var inspected profileInspection
-		inspected, err = a.profileScene(metadata, *samples, *profileRender, *timeout)
+		inspected, err = a.profileScene(metadata, plan, *profileRender || (plan.Chronological && *profileSpec != ""), *timeout)
 		measured = inspected.Profile
+		warmup = inspected.Warmup
 		failures = append(failures, inspected.Failures...)
 		skipped = append(skipped, inspected.Skipped...)
 		if err != nil {
-			return a.partialCheck(perf, failures, skipped, measured, err)
+			return a.partialCheck(perf, failures, skipped, measured, err, warmup)
 		}
 		for _, r := range measured {
 			failures = append(failures, r.Failures...)
 		}
-		if needsChronological(metadata) && metadata.End-metadata.Start+1 > *samples {
-			skipped = append(skipped, map[string]any{"inspection": "profile-coverage", "reason": "chronological profile sampled only consecutive initial frames"})
+		if plan.Chronological && metadata.End-metadata.Start+1 > len(plan.Frames) {
+			reason := "chronological profile sampled only consecutive initial frames"
+			if *profileSpec != "" {
+				reason = "chronological profile sampled selected frames after warm-up; not whole-comp coverage"
+			}
+			skipped = append(skipped, map[string]any{"inspection": "profile-coverage", "reason": reason})
 		}
 	}
 	var out = perf
-	if !*quick && metadata.TotalLayers != nil && *metadata.TotalLayers == 0 {
+	if !*quick && metadata.TotalLayers != nil && *metadata.TotalLayers == 0 && len(metadata.Failures) == 0 && len(metadata.Skipped) == 0 && (metadata.CoverageComplete == nil || *metadata.CoverageComplete) {
 		out = append(out, finding{Kind: "empty", Detail: "the active comp has no layers", Fix: "build the scene first"})
 	}
 	// Still stretches: frames where no large layer and fewer than three small layers change.
@@ -510,15 +546,22 @@ func cmdSceneCheck(a *app, args []string) error {
 	}
 	// Blank-tail inspection is explicitly skipped: a few images cannot establish duration.
 	skipped = append(skipped, map[string]any{"inspection": "blank", "reason": "bounded check cannot establish blank-run duration; inspect a sheet"})
-	return a.partialCheck(out, failures, skipped, measured, nil)
+	return a.partialCheck(out, failures, skipped, measured, nil, warmup)
 }
 
-func (a *app) partialCheck(out []finding, failures, skipped []map[string]any, measured []profileResult, cause error) error {
+func (a *app) partialCheck(out []finding, failures, skipped []map[string]any, measured []profileResult, cause error, warmups ...*profileWarmup) error {
 	if cause != nil {
 		failures = append(failures, map[string]any{"inspection": "interrupted", "error": cause.Error()})
 	}
 	complete := len(failures) == 0 && len(skipped) == 0
 	data := map[string]any{"findings": out, "count": len(out), "complete": complete, "clean": complete && len(out) == 0, "failures": failures, "skipped": skipped, "profile": measured}
+	var warmup *profileWarmup
+	if len(warmups) > 0 {
+		warmup = warmups[0]
+	}
+	if warmup != nil {
+		data["warmup"] = warmup
+	}
 	// Preserve partial results BEFORE returning a timeout to the agent.
 	if a.op != nil {
 		b, _ := json.Marshal(data)
@@ -532,7 +575,14 @@ func (a *app) partialCheck(out []finding, failures, skipped []map[string]any, me
 	}
 	a.emit(data, func() {
 		for _, f := range out {
-			fmt.Printf("%s %s %q: %s\n  fix: %s\n", f.Kind, f.Layer, f.Name, f.Detail, f.Fix)
+			location := ""
+			if len(f.CompPath) > 1 {
+				location = " in " + strings.Join(f.CompPath, " > ")
+			}
+			fmt.Printf("%s %s %q%s: %s\n  fix: %s\n", f.Kind, f.Layer, f.Name, location, f.Detail, f.Fix)
+		}
+		if warmup != nil {
+			fmt.Printf("profile warm-up: %d/%d frames, %d ms (separate from sample timings)\n", warmup.Frames, warmup.Planned, warmup.MS)
 		}
 		for _, r := range measured {
 			pngTiming := "not sampled"
@@ -553,6 +603,8 @@ type structureLayer struct {
 	Type         string   `json:"type"`
 	Parent       string   `json:"parent"`
 	Copies       *float64 `json:"copies"`
+	Comp         string   `json:"comp,omitempty"`
+	CompPath     []string `json:"compPath,omitempty"`
 }
 type structureEdge struct {
 	From     string `json:"from"`
@@ -561,17 +613,18 @@ type structureEdge struct {
 	ToAttr   string `json:"toAttr"`
 }
 type structureData struct {
-	TotalLayers *int             `json:"totalLayers"`
-	Start       int              `json:"start"`
-	End         int              `json:"end"`
-	FPS         float64          `json:"fps"`
-	Frame       int              `json:"frame"`
-	Comp        string           `json:"comp"`
-	ScenePath   string           `json:"scenePath"`
-	Layers      []structureLayer `json:"layers"`
-	Edges       []structureEdge  `json:"edges"`
-	Failures    []map[string]any `json:"failures"`
-	Skipped     []map[string]any `json:"skipped"`
+	TotalLayers      *int             `json:"totalLayers"`
+	CoverageComplete *bool            `json:"coverageComplete"`
+	Start            int              `json:"start"`
+	End              int              `json:"end"`
+	FPS              float64          `json:"fps"`
+	Frame            int              `json:"frame"`
+	Comp             string           `json:"comp"`
+	ScenePath        string           `json:"scenePath"`
+	Layers           []structureLayer `json:"layers"`
+	Edges            []structureEdge  `json:"edges"`
+	Failures         []map[string]any `json:"failures"`
+	Skipped          []map[string]any `json:"skipped"`
 }
 
 func hasSimulations(d structureData) bool {
@@ -585,11 +638,11 @@ func hasSimulations(d structureData) bool {
 
 // Missing layer types cannot establish that jumping frames is safe for simulations.
 func needsChronological(d structureData) bool {
-	if hasSimulations(d) || d.TotalLayers == nil || *d.TotalLayers != len(d.Layers) {
+	if hasSimulations(d) || d.TotalLayers == nil || *d.TotalLayers != len(d.Layers) || (d.CoverageComplete != nil && !*d.CoverageComplete) {
 		return true
 	}
 	for _, l := range d.Layers {
-		if l.Type == "" || l.Type == "unknown" {
+		if l.Type == "" || l.Type == "unknown" || (l.Type == "compositionReference" && d.CoverageComplete == nil) {
 			return true
 		}
 	}
@@ -609,7 +662,7 @@ func performanceFindings(d structureData) []finding {
 		fan[e.From] = append(fan[e.From], e)
 	}
 	add := func(kind string, l structureLayer, detail, fix string, evidence any, count *float64) {
-		out = append(out, finding{Kind: kind, Layer: l.ID, Name: l.Name, Detail: detail, Fix: fix, Severity: "warning", Attribution: "structural-risk-not-measured", Evidence: evidence, EstimatedCopies: count})
+		out = append(out, finding{Kind: kind, Layer: l.ID, Name: l.Name, Comp: l.Comp, CompPath: l.CompPath, Detail: detail, Fix: fix, Severity: "warning", Attribution: "structural-risk-not-measured", Evidence: evidence, EstimatedCopies: count})
 	}
 	for _, l := range d.Layers {
 		if l.Distribution == "customDistribution" {
@@ -675,12 +728,76 @@ func profileFrames(d structureData, n int) []int {
 		frames = nil
 		for f := d.Start; f <= d.End && len(frames) < n; f++ {
 			frames = append(frames, f)
+			if f == d.End {
+				break
+			}
 		}
 	}
 	return frames
 }
 
+func hasPrecomps(d structureData) bool {
+	for _, l := range d.Layers {
+		if l.Type == "compositionReference" {
+			return true
+		}
+	}
+	return false
+}
+
+type profilePlan struct {
+	Frames        []int
+	Chronological bool
+	Start         int
+	Warmup        int
+}
+
+func planProfile(d structureData, n int, spec string, maxWarmup int) (profilePlan, error) {
+	plan := profilePlan{Chronological: needsChronological(d), Start: d.Start}
+	if d.End < d.Start || n < 1 || n > 12 || maxWarmup < 0 {
+		return plan, usageErr("invalid composition frame range or profile limits")
+	}
+	plan.Frames = profileFrames(d, n)
+	if spec != "" {
+		frames, err := parseFrameListLimit(spec, 12)
+		if err != nil {
+			return plan, err
+		}
+		if len(frames) == 0 {
+			return plan, usageErr("--profile-frames must select at least one frame")
+		}
+		sort.Ints(frames)
+		plan.Frames = nil
+		for _, f := range frames {
+			if f < d.Start || f > d.End {
+				return plan, usageErr("profile frame %d is outside composition range %d..%d", f, d.Start, d.End)
+			}
+			if len(plan.Frames) == 0 || plan.Frames[len(plan.Frames)-1] != f {
+				plan.Frames = append(plan.Frames, f)
+			}
+		}
+	}
+	if plan.Chronological {
+		// Bound arithmetic before converting a potentially large range to int.
+		span := uint64(plan.Frames[len(plan.Frames)-1]) - uint64(d.Start)
+		if span >= uint64(maxWarmup)+uint64(len(plan.Frames)) {
+			return plan, usageErr("selected simulation frames exceed --max-warmup %d; explicitly raise the allowance or select earlier frames", maxWarmup)
+		}
+		plan.Warmup = int(span) + 1 - len(plan.Frames)
+	}
+	return plan, nil
+}
+
+type profileWarmup struct {
+	Frames           int   `json:"frames"`
+	Planned          int   `json:"planned"`
+	MS               int64 `json:"ms"`
+	EvaluatedThrough *int  `json:"evaluatedThrough,omitempty"`
+	Rendered         bool  `json:"rendered"`
+}
+
 type profileInspection struct {
+	Warmup    *profileWarmup   `json:"warmup,omitempty"`
 	Profile   []profileResult  `json:"profile"`
 	Failures  []map[string]any `json:"failures"`
 	Skipped   []map[string]any `json:"skipped"`
@@ -688,16 +805,19 @@ type profileInspection struct {
 	RestoreMS int64            `json:"restoreMs"`
 }
 
-func (a *app) profileScene(d structureData, n int, images bool, timeout time.Duration) (profileInspection, error) {
-	frames := profileFrames(d, n)
+func (a *app) profileScene(d structureData, plan profilePlan, images bool, timeout time.Duration) (profileInspection, error) {
+	frames := plan.Frames
 	b, _ := assets.Diagnostics.ReadFile("diagnostics/profile.js")
 	dir := filepath.Join(config.Home(), "operations", "profile-"+a.op.ID)
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return profileInspection{}, err
 	}
-	sample := map[string]any{"frames": frames, "comp": d.Comp, "scenePath": d.ScenePath, "progress": filepath.ToSlash(filepath.Join(dir, "progress.json")), "ms": (timeout / 2).Milliseconds()}
+	sample := map[string]any{"chronological": plan.Chronological, "start": plan.Start, "warmupCount": plan.Warmup, "frames": frames, "comp": d.Comp, "scenePath": d.ScenePath, "progress": filepath.ToSlash(filepath.Join(dir, "progress.json")), "ms": (timeout / 2).Milliseconds()}
 	if images {
 		sample["images"] = filepath.ToSlash(dir)
+	}
+	if plan.Warmup > 0 {
+		sample["warmupImage"] = filepath.ToSlash(filepath.Join(dir, "warmup"))
 	}
 	a.op.Progress = filepath.Join(dir, "progress.json")
 	if err := a.checkpoint("profiling"); err != nil {

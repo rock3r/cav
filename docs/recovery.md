@@ -1,6 +1,6 @@
 # Operation recovery and performance diagnostics
 
-`cav render`, `cav check` and `cav run` record a complete operation separately from its
+`cav scene open`, `cav frame`, `cav sheet`, `cav render`, `cav check` and `cav run` record a complete operation separately from its
 bridge jobs. Other commands retain their raw-job behavior. An operation ID identifies the
 command, original working directory, transport, phase, jobs, intended output, partial
 results and completion checkpoints. Records under `~/.cav/operations/` are private (0600)
@@ -70,15 +70,43 @@ The relay runs forwarded operations in its own state folder; inspect/resume thro
 Raw commands, independent `CAV_HOME` folders, other tools and GUI edits are outside this
 coordination. Avoid them until the operation completes.
 
-Keep the input scene and audio intact during recovery. Audio content hashes, the original
+Keep the input scene and audio intact during recovery. Scene-open input and audio content hashes, the original
 default output directory and helper-library version are bound to the checkpoints. New bridges expose a session ID;
 cav refuses to submit remaining jobs into a different bridge window. Older bridges have
-no session identity, so the operator must confirm the original scene/session. Renders and
+no session identity, so the operator must confirm the original scene/session. Frame exports, renders and
 profiles also check the active comp and scene path. These checks cannot detect all edits
 inside the same scene. Keep the same CLI build while resuming: changed generated job code
 is rejected. After a script job was prepared, a recovered `run` uses that recorded script
 rather than rereading changed files or stdin; async runs become synchronous waits on recovery.
 Input preparation that never captured a script cannot be resumed.
+
+## Scene opening and image exports
+
+```sh
+cav scene open scenes/large.cv --timeout 15m --json
+cav frame 840 -o renders/f840.png --timeout 10m --json
+cav sheet 0-59:1 --timeout 10m --json
+```
+
+Scene opening defaults to a ten-minute total budget, covering input hashing, the unsaved
+scene guard, the open call and follow-up scene metadata. `api.openScene` returning does
+not mean the native scene is ready. If either native phase outlives the budget, resume
+the recorded operation; the original open call is never submitted twice. A changed input
+file is refused on resume. The follow-up query also checks the opened scene path.
+
+Frame and sheet commands default to a five-minute budget and at most 120 frames. Their
+native script binds the original scene/comp and restores the original playhead in
+`finally`, including a failed PNG call. Native PNGs go into a stable operation-specific
+staging directory beside the output. Resume waits for the recorded job, then publishes
+the frame files or builds and publishes the sheet. Images retain the existing behavior
+of replacing an output file; each file is copied to a sibling temporary file before
+rename. A multi-frame export is not an atomic publication of the whole set. Staging is
+retained, so an interrupted publication can be repeated without rerendering.
+
+The publication checkpoint is saved before sheet frame cleanup. `--keep` retains those
+frames; the staged sheet itself is retained regardless. Final publication checks the
+budget; sheet assembly can overrun it before that check returns. A native crash cannot
+guarantee playhead restoration. Keep the same scene and CLI build for recovery.
 
 ## Stale or failed operations
 
@@ -134,8 +162,11 @@ cav check --profile-render --samples 3 --timeout 2m --json
 ```
 
 The cheap pass reads comp/layer metadata and connections. It does not move the playhead,
-compute bounding boxes or render. Defaults bound metadata to 1,000 layers and 10,000
-connections, with time checks between layers. Known static distributions provide copy
+compute bounding boxes or render. Referenced pre-comps are traversed without changing the active comp. Layer membership
+is read once per scene and shared references are inspected once. Defaults bound metadata
+to 1,000 reachable layers, 10,000 connections, 64 compositions and 10,000 membership
+queries (`--max-scan`), with time checks between calls. Truncated scans, unresolved or
+cyclic references and accessor failures leave coverage explicitly incomplete. Known static distributions provide copy
 estimates; connected, animated, expression-driven and unsupported counts are omitted and
 reported as skipped. Distribution values may themselves invoke native accessors; cheap
 means avoiding explicit scene evaluation, not a guarantee that every metadata call returns
@@ -143,7 +174,7 @@ immediately.
 
 Stable warning kinds are `perf-copy-javascript`, `perf-nested-duplication`, `perf-fanout`
 , `perf-javascript-distribution` and `perf-simulation`. Findings carry the layer ID/name, connection/type evidence,
-`estimatedCopies` when supported, a remedy and `attribution: structural-risk-not-measured`.
+`comp` and `compPath`, `estimatedCopies` when supported, a remedy and `attribution: structural-risk-not-measured`.
 JavaScript on Duplicator shape attributes or its duplicated source can multiply across
 index context. The Duplicator's global transform is not labelled per-copy. Estimates are
 scoped to the named duplication connection; they are not a complete scene cost model.
@@ -156,7 +187,7 @@ animated attributes/keyframes. They restore the original playhead in `finally`.
 Visual jobs verify the original scene/comp identity before reading or changing the playhead,
 including after a resume. Whole-comp stillness conclusions are skipped when motion
 inspection has failed or skipped work; missing samples are not evidence of a hold.
-Stateful simulations, or incomplete layer-type coverage, skip these visual checks because
+Stateful simulations, referenced pre-comps, or incomplete layer-type coverage skip these visual checks because
 jumping among resting/key frames would give
 misleading results. Blank-run duration is skipped; review a sheet to assess empty heads
 and tails. `failures`, `skipped`, `complete` and `clean` make this coverage explicit. No
@@ -169,6 +200,29 @@ Later samples are `subsequent-evaluation`. `setFrameMs` times the setFrame call;
 `renderPNGMs` separately times optional 10 percent PNG rendering. Lazy evaluation can
 occur inside the PNG call, so these are API timings rather than exclusive GPU/render
 attribution. No layer is hidden, frozen or modified to attribute cost.
+
+To measure later regions, select up to twelve frames explicitly:
+
+```sh
+cav check --profile-frames 840,1560,1908 --max-warmup 2000 --timeout 30m --json
+```
+
+Selections are sorted, deduplicated and checked against the composition range. When a
+simulation is present or layer coverage is incomplete, the job starts at the comp start
+and renders every intervening frame at 10 percent. Selected frames also render at
+10 percent, even without `--profile-render`, so the next warm-up segment starts from an
+evaluated state. `--max-warmup` defaults to 600 and counts extra frames, excluding measured
+samples; a selection exceeding it is refused before frame evaluation. The example with
+start frame 0 has 1,906 warm-up frames and three measured samples. One warm-up image is
+overwritten each time; it is not a PNG sequence export.
+
+Warm-up counts, elapsed API time and the last warm-up frame are reported under `warmup`
+and separately from sample timings. A warmed first sample is labelled
+`first-measured-after-warmup-cache-state-unknown`. This does not reset simulation caches
+or establish a cold baseline. Budget checks run between evaluations, and an incomplete
+warm-up never produces a timing for the unwarmed target. Selected samples do not prove
+whole-comp performance or identify one layer as the cause. Compare changes with repeated
+runs before claiming a speedup from freezing or reducing keyframes.
 
 Each returned sample writes cumulative progress to an operation-owned file visible in
 `operation status`. A native call can overrun the total CLI budget; the job restores the
