@@ -4,10 +4,10 @@ description: Build professional motion graphics in Cavalry (the 2D motion design
 license: MIT
 compatibility: Needs Cavalry 2.4+ (tested on 2.7.2 and 2.8.0) on macOS or Windows, the `cav` CLI, and ffmpeg. Cavalry must be running with the cav-bridge script open.
 metadata:
-  version: "1.1.1"
+  version: "1.1.2"
 ---
 
-# Cavalry with `cav`
+# Cav: motion graphics in Cavalry
 
 The `cav` CLI does the work and carries its own guides. This skill only gets you started.
 
