@@ -1,7 +1,8 @@
 # Cavalry scripting traps
 
 Verified in Cavalry 2.7.2 unless a row says otherwise. "Helper" means the `cav` helper that
-already handles the trap.
+already handles the trap. Rows marked 2.8 were observed during launch-video production;
+these observations have not all been independently reproduced.
 
 ## Layers and transforms
 
@@ -14,6 +15,7 @@ already handles the trap.
 | `stroke.dashPattern` is a string. | An array throws `type must be string, but is array`. | `'12, 8'` (dash, gap). | `o.stroke.dash` accepts both |
 | `pivot` moves the layer so the pivot point sits at `position`. | Layer jumps when you change the pivot. | Move `position` by the same amount (times scale). | `cav.wipeIn` |
 | `api.reorder(a, b)` puts `a` below `b`. | A background ends up in front. | Reorder relative to the layer you want to sit under. | `cav.order(a, b)` |
+| Group opacity in Individual Shapes mode (official Group docs). | Overlapping children show through each other during a fade. | Use Artboard mode to apply opacity to the group as one image (see official Group docs). | |
 | Group in/out frames hide all children. | Children vanish outside the group's range. | Use this on purpose to cut between sections. | `o.in`, `o.out` |
 | `api.soloLayers([nested])` + `api.renderPNGFrame` | Blank render. | Solo the top-level ancestor, or render the full frame. | `cav frame` renders full frames |
 
@@ -48,6 +50,19 @@ already handles the trap.
 | Filters and masks are connections, not attributes. | | `api.connect(filter,'id',shape,'filters')`, `api.connect(mask,'id',target,'masks')`. | `cav.filter`, `cav.mask` |
 | Render queue range | Off-by-one frame counts were seen in one session. | `cav render` checks the count with ffprobe and prints it. | `cav render` |
 | `api.renderPNGFrame(path, scale)` appends `.png` and renders the frame set with `api.setFrame`. | | | `cav frame`, `cav sheet` |
+
+## Launch-video observations (Cavalry 2.8)
+
+| Trap | Symptom | Fix |
+|---|---|---|
+| Redeclaring a SkSL input uniform added in the Inputs UI. | The effect can silently fail to compile. | Use the input's name directly; Cavalry declares it. Keep required built-ins such as `uniform shader layer;` in filter code. |
+| A filter attached to a group. | In the observed scene it filtered each child instead of the composite. | For an effect over the flattened image, filter a pre-comp reference; verify the result on overlapping children. |
+| Hard-coded variable-font `fontAxes.N` indices. | A different axis animates without an error. | Inspect the selected font's axis order (its `fvar` table); indices are not portable between fonts. |
+| JavaScript output driving a Duplicator's `shapeRotation`. | Returning a scalar produces no rotation. | Return `{x: 0, y: 0, z: angle}` for the full attribute, or connect a scalar to `.z`. |
+| JavaScript output driving colour. | A hex string renders black. | Return a colour object `{r, g, b, a}` with the destination's channel ranges. |
+| Setting Look At's `target` as a value. | The copies do not aim at it. | Connect the target's `id` to Look At's `target`; adjust Offset for the source orientation (the observed +x arrow needed 90 degrees). |
+| Swapping whole text for individual glyph layers. | Kerning jumps at the hand-off. | Keep one text layer with Sub-Mesh where possible, or compare the two rendered boundary frames and align the glyphs. |
+| Shake or section boundaries. | The first shake frame retains an offset, or a covering shape arrives after a section ends. | Inspect frames f−1 and f at each hand-off, preferably from the final video so simulation state is correct. |
 
 ## Scripts and the bridge
 

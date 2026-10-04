@@ -11,8 +11,10 @@ import (
 // Doc is one searchable unit. Fields are weighted: a hit in Name counts most.
 type Doc struct {
 	Name string // e.g. function name or page title
-	Head string // e.g. signature or section heading
-	Body string
+	// Title optionally prefers a complete page title at the start of the query.
+	Title string
+	Head  string // e.g. signature or section heading
+	Body  string
 	// Boost multiplies the score (1 when zero).
 	Boost float64
 }
@@ -80,7 +82,8 @@ func (ix *Index) Search(query string, limit int) []Hit {
 	}
 	lowerQ := strings.ToLower(strings.TrimSpace(query))
 	N := float64(len(ix.docs))
-	var hits []Hit
+	hits := make([]Hit, 0, len(ix.docs))
+	var maxScore float64
 	for i := range ix.docs {
 		s := 0.0
 		matched := 0
@@ -106,12 +109,31 @@ func (ix *Index) Search(query string, limit int) []Hit {
 			s *= ix.docs[i].Boost
 		}
 		hits = append(hits, Hit{Index: i, Score: s})
+		maxScore = math.Max(maxScore, s)
 	}
+	// Page-title intent takes precedence over contextual words in the body. Keep
+	// longer complete titles ahead of shorter prefixes, then use BM25 within a
+	// title. API entries omit Title and retain their existing ranking.
+	queryTitle := normalizeTitle(query)
+	for i := range hits {
+		title := normalizeTitle(ix.docs[hits[i].Index].Title)
+		if title != "" && (queryTitle == title || strings.HasPrefix(queryTitle, title+" ")) {
+			hits[i].Score += float64(len(strings.Fields(title))) * (maxScore + 1)
+		}
+	}
+
 	sort.SliceStable(hits, func(a, b int) bool { return hits[a].Score > hits[b].Score })
 	if limit > 0 && len(hits) > limit {
 		hits = hits[:limit]
 	}
 	return hits
+}
+
+func normalizeTitle(s string) string {
+	words := strings.FieldsFunc(strings.ToLower(s), func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+	})
+	return strings.Join(words, " ")
 }
 
 // Tokens splits text into lower-case words, also splitting camelCase and dotted names,

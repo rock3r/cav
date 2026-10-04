@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Prefer a complete page title at the start of an offline docs query, so contextual queries
+  such as `Look At duplicator` find the requested node before unrelated body matches.
+- Document per-copy JavaScript, SkSL input declarations, mode-dependent group opacity,
+  variable-font axis indexing and animation hand-off traps from launch-video feedback.
+
 ## 1.1.0
 
 - Recover scene opening through native loading and follow-up metadata with a configurable
