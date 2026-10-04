@@ -17,7 +17,7 @@ import (
 )
 
 // Set by the release build with -ldflags "-X main.version=...".
-var version = "1.1.0-dev"
+var version = "1.1.1-dev"
 
 // Exit codes. Agents can branch on them without parsing text.
 const (
@@ -40,6 +40,8 @@ var commands []command
 func register(c command) { commands = append(commands, c) }
 
 type app struct {
+	requireSaved    bool
+	compSelector    string
 	json            bool
 	started         time.Time
 	argv            []string

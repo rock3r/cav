@@ -25,6 +25,8 @@ jobs:
         run: |
           go test -race ./...
           go vet ./...
+      - name: Native JavaScript fixtures
+        run: node --test assets/helpers/test/*.test.js assets/diagnostics/test/*.test.js assets/bridge/test/*.test.js
       - name: Development archives for all five targets
         # No Apple credentials, live bridge access, release tags or publication.
         run: |

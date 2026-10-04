@@ -6,7 +6,7 @@
 
 ;(function () {
 	var cav = {}
-	cav.VERSION = '1.1.0'
+	cav.VERSION = '1.1.1'
 
 	//@ # cav helpers (global `cav`, loaded before every `cav run`)
 	//@ Coordinates: (0,0) is the comp centre, +x right, +y UP. Frames are integers.
@@ -1088,6 +1088,187 @@
 			out[a] = api.getKeyframeTimes(l, a)
 		})
 		return out
+	}
+
+	//@
+	//@ ## Production guardrails
+	//@ cav.below(a, b) / cav.above(a, b)     explicit stacking relative to a sibling
+	//@ cav.precomp(name, build, options)    build in a new comp; restore comp/frame on error too
+	//@ cav.sksl(layer, code, {inputs})      attach a SkSL filter; inputs map names to numbers or {type,value}
+	//@ cav.axes(text, {wght:900, ROND:50})   use the selected font's actual fvar axis tags/ranges
+	//@ cav.driver(layer, attr, expression, {start,end,from=0,to=1})   JavaScript with a two-key n0 clock
+	//@ cav.copyDriver(layer, attr, expression)   typed per-copy JavaScript; destination-aware rotation and hex colours
+	//@ cav.lookAt(layer, target, {attr='rotation', offset=0})    connect target and orientation offset
+	cav.below = cav.order
+	cav.above = function (layer, other) {
+		layer = checkLayer(layer, 'cav.above')
+		other = checkLayer(other, 'cav.above')
+		if (layer === other) return layer
+		if (api.getParent(layer) !== api.getParent(other)) fail('cav.above: layers must be siblings')
+		var parent = api.getParent(other),
+			siblings = parent ? api.getChildren(parent) : api.getCompLayers(true),
+			i = siblings.indexOf(other)
+		if (i < 0) fail('cav.above: sibling order unavailable')
+		if (i === 0) {
+			api.reorder(layer, other)
+			api.reorder(other, layer)
+		} else if (siblings[i - 1] !== layer) api.reorder(layer, siblings[i - 1])
+		return layer
+	}
+	cav.precomp = function (name, build, o) {
+		o = o || {}
+		if (typeof build !== 'function') fail('cav.precomp requires a build function')
+		var original = api.getActiveComp(),
+			frame = api.getFrame(),
+			settings = cav.comp(),
+			sub
+		try {
+			sub = api.createComp(name)
+			api.set(sub, {
+				resolution: [o.width || settings.width, o.height || settings.height],
+				fps: o.fps || settings.fps,
+				startFrame: o.start === undefined ? settings.start : o.start,
+				endFrame: o.end === undefined ? settings.end : o.end,
+				backgroundColor: { r: 0, g: 0, b: 0, a: 0 },
+			})
+			api.setActiveComp(sub)
+			build(sub)
+		} finally {
+			api.setActiveComp(original)
+			api.setFrame(frame)
+		}
+		api.select([])
+		var reference = api.createCompReference(sub)
+		api.rename(reference, name)
+		api.select([])
+		return reference
+	}
+	cav.sksl = function (layer, code, o) {
+		layer = checkLayer(layer, 'cav.sksl')
+		o = o || {}
+		var inputs = o.inputs || {},
+			names = Object.keys(inputs)
+		var specs = names.map(function (name) {
+			if (!/^[A-Za-z_]\w*$/.test(name) || name === 'layer' || name === 'resolution')
+				fail('cav.sksl: invalid/reserved input ' + name)
+			var spec = inputs[name]
+			if (spec === null || spec === undefined) fail('cav.sksl: missing specification for ' + name)
+			var type = typeof spec === 'number' ? 'double' : spec.type
+			if (['double', 'double2', 'double3', 'double4', 'color', 'shader'].indexOf(type) < 0)
+				fail('cav.sksl: unsupported input type ' + type)
+			return { name: name, type: type, value: typeof spec === 'number' ? spec : spec.value }
+		})
+		var f = cav.create('skslFilter', api.getNiceName(layer) + ' SkSL')
+		specs.forEach(function (spec) {
+			var name = spec.name,
+				type = spec.type,
+				value = spec.value
+			var children = api.getAttrChildren(f, 'inputs')
+			var attr = children.filter(function (a) {
+				return (api.getCustomAttributeName(f, a) || api.getAttributeNiceName(f, a)) === name
+			})[0]
+			if (attr) {
+				if (api.getAttrType(f, attr) !== type) fail('cav.sksl: existing input type differs for ' + name)
+			} else {
+				api.addDynamic(f, 'inputs', type)
+				children = api.getAttrChildren(f, 'inputs')
+				attr = children[children.length - 1]
+				api.renameAttribute(f, attr, name)
+			}
+			if (value !== undefined) {
+				var d = {}
+				d[attr] = value
+				api.set(f, d)
+			}
+			// Strip only declarations of added inputs, never built-ins such as shader layer.
+			code = String(code).replace(
+				/\buniform\s+((?:(?:lowp|mediump|highp)\s+)?\w+)\s+([^;]+);/g,
+				function (declaration, type, variables) {
+					var kept = variables.split(',').filter(function (v) {
+						return !new RegExp('^\\s*' + name + '\\s*(?:$|\\[)').test(v)
+					})
+					return kept.length ? 'uniform ' + type + ' ' + kept.join(',') + ';' : ''
+				}
+			)
+		})
+		api.set(f, { code: String(code) })
+		api.connect(f, 'id', layer, 'filters')
+		return f
+	}
+	cav.axes = function (layer, values) {
+		layer = checkLayer(layer, 'cav.axes')
+		var font = api.get(layer, 'font'),
+			axes = (globalThis.CAV_FONT_AXES || {})[font.font]
+		if (!axes)
+			fail('cav.axes: unambiguous fvar metadata unavailable for ' + font.font + '; add the font folder to CAV_FONT_DIR')
+		var children = api.getAttrChildren(layer, 'fontAxes'),
+			mapped = Object.create(null),
+			d = {}
+		if (children.length !== axes.length) fail('cav.axes: native axis count differs from the font metadata')
+		axes.forEach(function (axis, i) {
+			if (api.getAttributeNiceName(layer, children[i]) !== axis.name)
+				fail('cav.axes: native axis order/name differs from fvar; refusing numeric index ' + i)
+			mapped[axis.tag] = { attr: children[i], min: axis.min, max: axis.max }
+		})
+		Object.keys(values).forEach(function (tag) {
+			var axis = mapped[tag],
+				value = values[tag]
+			if (!axis) fail('cav.axes: unknown axis ' + tag)
+			if (typeof value !== 'number' || !isFinite(value)) fail('cav.axes: finite value required for ' + tag)
+			if (value < axis.min || value > axis.max)
+				console.warn('cav.axes: ' + tag + ' clamped to ' + axis.min + '..' + axis.max)
+			d[axis.attr] = Math.max(axis.min, Math.min(axis.max, value))
+		})
+		api.set(layer, d)
+		return layer
+	}
+	cav.driver = function (layer, attr, expression, o) {
+		o = o || {}
+		layer = checkLayer(layer, 'cav.driver')
+		var start = o.start === undefined ? cav.comp().start : o.start,
+			end = o.end === undefined ? cav.comp().end : o.end
+		if (!(end > start)) fail('cav.driver: end must follow start')
+		var js = cav.create('javaScript', api.getNiceName(layer) + ' driver')
+		api.set(js, { expression: String(expression) })
+		cav.key(js, 'array.0', [
+			[start, o.from === undefined ? 0 : o.from],
+			[end, o.to === undefined ? 1 : o.to],
+		])
+		cav.connect(js, 'id', layer, ALIAS[attr] || attr)
+		return js
+	}
+	cav.copyDriver = function (layer, attr, expression) {
+		layer = checkLayer(layer, 'cav.copyDriver')
+		attr = ALIAS[attr] || attr
+		var type = api.getAttrType(layer, attr)
+		if (!type) fail('cav.copyDriver: unknown destination attribute ' + attr)
+		if (isColorAttr(attr)) type = 'color'
+		var code = 'var v=(' + expression + ');\n'
+		if (type === 'double' || type === 'int')
+			code +=
+				'if(v&&typeof v==="object"&&' +
+				JSON.stringify(attr === 'shapeRotation') +
+				')v=v.z;\nif(typeof v!=="number"||!isFinite(v))throw Error("scalar driver requires a finite number");\n'
+		if (type === 'double3')
+			code +=
+				'if(typeof v==="number")v={x:0,y:0,z:v};\nif(!v||![v.x,v.y,v.z].every(function(n){return typeof n==="number"&&isFinite(n)}))throw Error("rotation driver requires {x,y,z}");\n'
+		if (type === 'color')
+			code +=
+				'if(typeof v==="string"&&/^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(v)){var h=v.slice(1);v={r:parseInt(h.slice(0,2),16),g:parseInt(h.slice(2,4),16),b:parseInt(h.slice(4,6),16),a:h.length===8?parseInt(h.slice(6,8),16):255};}\nif(!v||![v.r,v.g,v.b,v.a].every(function(n){return typeof n==="number"&&isFinite(n)}))throw Error("colour driver requires {r,g,b,a}");\n'
+		var js = cav.create('javaScript', api.getNiceName(layer) + ' per-copy driver')
+		api.set(js, { expression: code + 'v' })
+		cav.connect(js, 'id', layer, attr)
+		return js
+	}
+	cav.lookAt = function (layer, target, o) {
+		o = o || {}
+		layer = checkLayer(layer, 'cav.lookAt')
+		target = checkLayer(target, 'cav.lookAt')
+		var aim = cav.create('lookAt', 'Look At ' + api.getNiceName(target))
+		api.connect(target, 'id', aim, 'target')
+		api.set(aim, { offset: o.offset || 0 })
+		api.connect(aim, 'id', layer, o.attr || 'rotation')
+		return aim
 	}
 
 	globalThis.cav = cav

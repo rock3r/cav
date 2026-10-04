@@ -1,7 +1,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const source=n=>fs.readFileSync(path.join(__dirname,'..',n+'.js'),'utf8');
 function run(n,api,vars){return vm.runInNewContext('(function(){'+source(n)+'})()',Object.assign({api},vars));}
-function metadata(){let changed=0;const api={getActiveComp:()=> 'comp',getCompLayers:()=>['js','dup','nested','sim'],get:(id,a)=>({startFrame:0,endFrame:20,fps:30,'generator.count':20}[a]),getFrame:()=>7,getLayerType:id=>({js:'javaScript',dup:'duplicator',nested:'duplicator',sim:'forgeDynamicsShape'}[id]),getNiceName:id=>id,getParent:()=> 'comp',getOutConnectedAttributes:id=>id==='js'?['output']:id==='dup'?['id']:[],getOutConnections:(id)=>id==='js'?['dup.shapePosition.x']:['nested.shapes'],getCurrentGeneratorType:()=> 'linearDistribution',getInConnectedAttributes:()=> [],getAnimatedAttributes:()=> [],getAttributeExpression:()=> '',getSceneFilePath:()=> 'scratch.cv',setFrame:()=>{changed++;throw Error('must not change frame')},getBoundingBox:()=>{throw Error('must not inspect bounds')},renderPNGFrame:()=>{throw Error('must not render')}};return {api,get changed(){return changed}};}
+function metadata(){let changed=0;const api={getActiveComp:()=> 'comp',getCompLayers:()=>['js','dup','nested','sim'],get:(id,a)=>({startFrame:0,endFrame:20,fps:30,'generator.count':20}[a]),getFrame:()=>7,getInFrame:()=>0,getOutFrame:()=>20,getKeyframeTimes:()=>[],getLayerType:id=>({js:'javaScript',dup:'duplicator',nested:'duplicator',sim:'forgeDynamicsShape'}[id]),getNiceName:id=>id,getParent:()=> 'comp',getOutConnectedAttributes:id=>id==='js'?['output']:id==='dup'?['id']:[],getOutConnections:(id)=>id==='js'?['dup.shapePosition.x']:['nested.shapes'],getCurrentGeneratorType:()=> 'linearDistribution',getInConnectedAttributes:()=> [],getAnimatedAttributes:()=> [],getAttributeExpression:()=> '',getSceneFilePath:()=> 'scratch.cv',setFrame:()=>{changed++;throw Error('must not change frame')},getBoundingBox:()=>{throw Error('must not inspect bounds')},renderPNGFrame:()=>{throw Error('must not render')}};return {api,get changed(){return changed}};}
 test('quick metadata reads structure/counts without evaluation or render',()=>{const f=metadata(),r=run('structure',f.api,{limits:{layers:10,edges:100,ms:1000}});assert.equal(f.changed,0);assert.equal(r.layers[1].copies,20);assert.equal(r.edges.length,2);assert.equal(r.failures.length,0)});
 test('failed and truncated metadata are explicit; driven counts are not evaluated',()=>{const f=metadata();f.api.getInConnectedAttributes=()=>['generator.count'];f.api.getNiceName=()=>{throw Error('metadata unavailable')};f.api.get=(id,a)=>{if(a==='generator.count')throw Error('count must not be evaluated');return {startFrame:0,endFrame:20,fps:30}[a]};const r=run('structure',f.api,{limits:{layers:2,edges:1,ms:1000}});assert.equal(r.layers[1].copies,null);assert.ok(r.failures.length);assert.ok(r.skipped.length)});
 test('failed dependency inspections never evaluate duplicator counts',()=>{
@@ -151,4 +151,29 @@ test('progress can recover after a refused write without repeating the failure',
  assert.ok(attempts>2);assert.equal(r.failures.filter(f=>f.inspection==='progress-write').length,1);
  assert.equal(progress.restored,true);assert.equal(progress.profile.length,2);
  assert.equal(progress.failures.length,1);
+});
+
+test('metadata reports key density, opacity boundaries and SkSL inputs without evaluating the scene',()=>{
+ const f=metadata();f.api.getCompLayers=()=>['shader','shape'];f.api.getLayerType=id=>id==='shader'?'skslFilter':'basicShape';
+ f.api.getAnimatedAttributes=id=>id==='shape'?['opacity','position.x']:[];
+ f.api.getKeyframeTimes=()=>Array.from({length:20},(_,i)=>i*2);
+ f.api.getAttrChildren=()=>['inputs.0'];f.api.getCustomAttributeName=()=> 'amount';
+ const get=f.api.get;f.api.get=(id,a)=>a==='code'?'uniform float amount;':get(id,a);
+ const r=run('structure',f.api,{limits:{layers:10,edges:100,keys:10,ms:1000}});
+ assert.equal(r.layers[1].keyframes,40);assert.ok(r.layers[1].sampledCurves.includes('position.x'));
+ assert.ok(r.layers[1].boundaries.includes(10));assert.equal(r.layers[0].uniforms[0],'amount');assert.equal(f.changed,0);
+});
+test('key query cap explicitly reports omitted curves',()=>{
+ const f=metadata();f.api.getAnimatedAttributes=()=>['opacity','position.x'];
+ const r=run('structure',f.api,{limits:{layers:10,edges:100,keys:1,ms:1000}});
+ assert.ok(r.skipped.some(s=>s.inspection==='keyframes'));assert.equal(f.changed,0);
+});
+
+
+test('out boundaries use native exclusive getters and truncation stays explicit',()=>{
+ const f=metadata();f.api.getOutFrame=()=>10;f.api.getAnimatedAttributes=()=>['opacity'];
+ f.api.getKeyframeTimes=()=>Array.from({length:130},(_,i)=>i);
+ const r=run('structure',f.api,{limits:{layers:10,edges:100,ms:1000}});
+ assert.ok(r.layers.every(l=>l.boundaries.includes(10)));
+ assert.ok(r.skipped.some(s=>s.inspection==='opacity-boundaries'&&s.count===10));
 });

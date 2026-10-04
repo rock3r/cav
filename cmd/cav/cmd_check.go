@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -358,6 +359,7 @@ type checkData struct {
 
 func cmdSceneCheck(a *app, args []string) error {
 	fs := flag.NewFlagSet("check", flag.ContinueOnError)
+	comp := fs.String("comp", "", "composition ID or unique name")
 	minText := fs.Float64("min-text", 28, "smallest readable text size at 1080px")
 	maxStill := fs.Float64("max-still", 1.5, "longest still stretch in seconds")
 	quick := fs.Bool("quick", false, "metadata only; no frame changes, bounds or renders")
@@ -373,6 +375,7 @@ func cmdSceneCheck(a *app, args []string) error {
 	if err != nil {
 		return err
 	}
+	a.compSelector = *comp
 	if len(pos) > 0 || *maxWarmup < 0 || *maxWarmup > 100000 || *maxScan < 1 || *maxScan > 100000 || *samples < 1 || *samples > 12 || *maxLayers < 1 || *maxLayers > 10000 || *timeout <= 0 || *minText <= 0 || *maxStill < 0 {
 		return usageErr("invalid check limits")
 	}
@@ -597,14 +600,20 @@ func (a *app) partialCheck(out []finding, failures, skipped []map[string]any, me
 }
 
 type structureLayer struct {
-	Distribution string   `json:"distribution,omitempty"`
-	ID           string   `json:"id"`
-	Name         string   `json:"name"`
-	Type         string   `json:"type"`
-	Parent       string   `json:"parent"`
-	Copies       *float64 `json:"copies"`
-	Comp         string   `json:"comp,omitempty"`
-	CompPath     []string `json:"compPath,omitempty"`
+	Keyframes     int      `json:"keyframes"`
+	SampledCurves []string `json:"sampledCurves"`
+	Boundaries    []int    `json:"boundaries"`
+	Reference     string   `json:"reference"`
+	Code          string   `json:"code"`
+	Uniforms      []string `json:"uniforms"`
+	Distribution  string   `json:"distribution,omitempty"`
+	ID            string   `json:"id"`
+	Name          string   `json:"name"`
+	Type          string   `json:"type"`
+	Parent        string   `json:"parent"`
+	Copies        *float64 `json:"copies"`
+	Comp          string   `json:"comp,omitempty"`
+	CompPath      []string `json:"compPath,omitempty"`
 }
 type structureEdge struct {
 	From     string `json:"from"`
@@ -665,6 +674,30 @@ func performanceFindings(d structureData) []finding {
 		out = append(out, finding{Kind: kind, Layer: l.ID, Name: l.Name, Comp: l.Comp, CompPath: l.CompPath, Detail: detail, Fix: fix, Severity: "warning", Attribution: "structural-risk-not-measured", Evidence: evidence, EstimatedCopies: count})
 	}
 	for _, l := range d.Layers {
+		if strings.Contains(strings.ToLower(l.Type), "sksl") {
+			add("perf-sksl", l, "custom shader/filter cost depends on code and affected pixels",
+				"profile the busy section at the intended output scale", map[string]any{"type": l.Type}, nil)
+			for _, name := range l.Uniforms {
+				if name != "" && uniformDeclaration(l.Code, name) {
+					add("sksl-input-redeclared", l, "SkSL code redeclares input "+name,
+						"remove the input declaration; keep required built-in uniforms", name, nil)
+				}
+			}
+		}
+		if len(l.SampledCurves) > 0 {
+			add("perf-sampled-keys", l, "curves contain mostly keys every 1–3 frames",
+				"consider a native driver or a two-key clock; compare open and render timings", l.SampledCurves, nil)
+		}
+		if l.Reference != "" {
+			count := 0
+			for _, child := range d.Layers {
+				if child.Comp == l.Reference {
+					count++
+				}
+			}
+			add("perf-precomp", l, fmt.Sprintf("references comp %s (%d inspected layers)", l.Reference, count),
+				"profile the reference; omitted membership is not an empty comp", map[string]any{"comp": l.Reference, "inspectedLayers": count}, nil)
+		}
 		if l.Distribution == "customDistribution" {
 			add("perf-javascript-distribution", l, "custom JavaScript distribution can be expensive to evaluate", "replace custom distribution with native distribution or bake its points", map[string]any{"distribution": l.Distribution}, nil)
 		}
@@ -678,6 +711,10 @@ func performanceFindings(d structureData) []finding {
 			dst, ok := nodes[e.To]
 			if !ok {
 				continue
+			}
+			if dst.Type == "group" && strings.HasPrefix(e.ToAttr, "filters") {
+				add("group-filter", dst, "a group filter may affect each child rather than the composite",
+					"verify overlapping children; filter a pre-comp reference for a composite effect", e, nil)
 			}
 			if strings.HasPrefix(strings.ToLower(l.Type), "javascript") {
 				// Duplicator shape attributes are per-copy; its own position/scale are global.
@@ -708,6 +745,14 @@ func performanceFindings(d structureData) []finding {
 				add("perf-nested-duplication", dst, "Duplicator shapes feed another Duplicator", "flatten duplication or reduce both copy counts; bake static source geometry", map[string]any{"source": l, "connection": e}, count)
 			}
 		}
+	}
+	keys := 0
+	for _, l := range d.Layers {
+		keys += l.Keyframes
+	}
+	if keys >= 10000 {
+		add("perf-keyframe-volume", structureLayer{Comp: d.Comp}, fmt.Sprintf("at least %d inspected keyframes", keys),
+			"consider procedural drivers; repeated open timings are needed to establish cost", keys, nil)
 	}
 	return out
 }
@@ -867,4 +912,17 @@ func stillGaps(segs [][3]float64, start, end int) [][2]float64 {
 		}
 	}
 	return gaps
+}
+
+func uniformDeclaration(code, name string) bool {
+	clean := regexp.MustCompile(`(?s)/\*.*?\*/|//[^\n]*`).ReplaceAllString(code, " ")
+	declarations := regexp.MustCompile(`\buniform\s+(?:(?:lowp|mediump|highp)\s+)?\w+\s+([^;]+);`).FindAllStringSubmatch(clean, -1)
+	for _, d := range declarations {
+		for _, v := range strings.Split(d[1], ",") {
+			if regexp.MustCompile(`^\s*` + regexp.QuoteMeta(name) + `\s*(?:$|\[)`).MatchString(v) {
+				return true
+			}
+		}
+	}
+	return false
 }

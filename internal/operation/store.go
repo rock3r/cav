@@ -22,7 +22,17 @@ type Job struct {
 	State         bridge.State   `json:"state"`
 	Result        *bridge.Result `json:"result,omitempty"`
 }
+type Chunk struct {
+	Start  int    `json:"start"`
+	End    int    `json:"end"`
+	Video  string `json:"video"`
+	Digest string `json:"sha256"`
+}
 type Render struct {
+	ChunkSize      int     `json:"chunkSize,omitempty"`
+	ScenePath      string  `json:"scenePath,omitempty"`
+	Comp           string  `json:"comp,omitempty"`
+	Chunks         []Chunk `json:"chunks,omitempty"`
 	Stage          string  `json:"staging"`
 	ExpectedFrames int     `json:"expectedFrames"`
 	FPS            float64 `json:"fps"`
@@ -50,6 +60,7 @@ type Record struct {
 	Progress        string            `json:"progress,omitempty"`
 	Error           string            `json:"error,omitempty"`
 	FailureReason   string            `json:"failureReason,omitempty"`
+	ReconciledJobs  []*Job            `json:"reconciledJobs,omitempty"`
 	Render          *Render           `json:"render,omitempty"`
 }
 
@@ -178,11 +189,16 @@ func Lock(home string) (func(), error) {
 // View omits replay source, keeping status output small and command-focused.
 func View(r *Record) *Record {
 	copy := *r
-	copy.Jobs = make([]*Job, len(r.Jobs))
-	for i, j := range r.Jobs {
-		v := *j
-		v.Code = ""
-		copy.Jobs[i] = &v
+	strip := func(jobs []*Job) []*Job {
+		out := make([]*Job, len(jobs))
+		for i, j := range jobs {
+			v := *j
+			v.Code = ""
+			out[i] = &v
+		}
+		return out
 	}
+	copy.Jobs = strip(r.Jobs)
+	copy.ReconciledJobs = strip(r.ReconciledJobs)
 	return &copy
 }

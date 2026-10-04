@@ -41,7 +41,8 @@ Frames can be:
   0,30,60,90    a list
   0-600:30      a range with a step (every 30th frame from 0 to 600)
 Simulations (Forge Dynamics, particles) only advance when frames render in order:
-use a step-1 range such as 0-59:1 to preview them.
+use a step-1 range such as 0-59:1, or cav frames 0-599 --keep-every 10.
+--comp ID|unique-name selects a composition and restores both composition and playhead.
 Each tile is labelled "f<frame> <seconds>s". With --bpm, the label also shows the beat
 number (b1 is the first beat), so you can check that hits land on the beat.
 Frame and sheet commands return operation IDs. After --timeout (default 5m), resume
@@ -66,7 +67,16 @@ The timeout includes metadata, render, mux and validation. Outputs are staged be
 the destination and published without overwriting existing files. Staging is retained
 as recovery evidence. A refused bridge or changed session returns exit 4 with an unknown
 native outcome. operation status shows unvalidated file size/age; neither proves completion.
-ffprobe is required. Raw job wait completes only one job.`
+ffprobe is required. Raw job wait completes only one job.
+--save explicitly saves the current named scene before metadata/render submission.
+--chunk-frames 600 renders PNG sequences and validates each MP4 segment separately.
+It needs ffmpeg and a saved named scene. --max-warmup 10000 bounds replay per chunk:
+every new chunk evaluates from comp start, so simulations can recover correctly.
+Scene input hashes and segment counts/hashes bind recovery. At most 1000 chunks.
+After a native restart, reconcile its old outcome and reopen the same saved scene, then
+use operation resume ID --restart-chunk --acknowledge-unknown-outcome. Completed
+segments are retained; uncertain attempts are preserved before new native submission.
+Ordinary resume never resubmits uncertain work.`
 }
 
 func outDir() string {
@@ -206,6 +216,10 @@ func publishImage(ctx context.Context, src, dst string) error {
 
 func cmdFrame(a *app, args []string) error {
 	fs := flag.NewFlagSet("frame", flag.ContinueOnError)
+	comp := fs.String("comp", "", "composition ID or unique name")
+	chronological := fs.Bool("chronological", false, "render intervening frames from the comp start")
+	keepEvery := fs.Int("keep-every", 1, "retain every Nth requested frame (frames command)")
+	maxEvaluated := fs.Int("max-evaluated", 10000, "maximum chronological evaluations (1..100000)")
 	scale := fs.Int("scale", 50, "render scale in percent")
 	out := fs.String("o", "", "output file (one frame) or folder")
 	timeout := fs.Duration("timeout", 5*time.Minute, "total image operation wait budget")
@@ -213,12 +227,17 @@ func cmdFrame(a *app, args []string) error {
 	if err != nil {
 		return err
 	}
-	if *timeout <= 0 || *scale < 1 || *scale > 100 {
+	a.compSelector = *comp
+	if *timeout <= 0 || *scale < 1 || *scale > 100 || *keepEvery < 1 || *maxEvaluated < 1 || *maxEvaluated > 100000 {
 		return usageErr("invalid timeout or scale (1..100)")
 	}
 	var frames []int
 	if len(pos) > 0 {
-		frames, err = parseFrameListLimit(strings.Join(pos, ","), 120)
+		limit := 120
+		if *chronological {
+			limit = *maxEvaluated
+		}
+		frames, err = parseFrameListLimit(strings.Join(pos, ","), limit)
 		if err != nil {
 			return err
 		}
@@ -241,6 +260,19 @@ func cmdFrame(a *app, args []string) error {
 	}
 	if len(frames) == 0 {
 		frames = []int{st.Frame}
+	}
+	if *chronological {
+		frames = sortedFrames(frames)
+		kept := make([]int, 0)
+		for i, f := range frames {
+			if i%*keepEvery == 0 {
+				kept = append(kept, f)
+			}
+		}
+		frames = kept
+		if len(frames) > 1000 || frames[0] < st.Comp.StartFrame || frames[len(frames)-1] > st.Comp.EndFrame || frames[len(frames)-1]-st.Comp.StartFrame+1 > *maxEvaluated {
+			return usageErr("chronological frames exceed comp range, 1000 retained images or --max-evaluated")
+		}
 	}
 	dir, single := a.op.OutputDir, ""
 	if *out != "" {
@@ -267,7 +299,12 @@ func cmdFrame(a *app, args []string) error {
 	if err = a.checkpoint("rendering-images"); err != nil {
 		return err
 	}
-	paths, err := a.renderFrames(frames, *scale, staging, st)
+	var paths []string
+	if *chronological {
+		paths, err = a.renderChronologicalFrames(frames, *scale, staging, st)
+	} else {
+		paths, err = a.renderFrames(frames, *scale, staging, st)
+	}
 	if err != nil {
 		return err
 	}
@@ -358,6 +395,7 @@ func evenFrames(n, start, end int) []int {
 
 func cmdSheet(a *app, args []string) error {
 	fs := flag.NewFlagSet("sheet", flag.ContinueOnError)
+	comp := fs.String("comp", "", "composition ID or unique name")
 	scale := fs.Int("scale", 25, "render scale in percent")
 	cols := fs.Int("cols", 0, "tiles per row (default: picked from the count)")
 	out := fs.String("o", "", "output PNG (default renders/sheet.png)")
@@ -370,6 +408,7 @@ func cmdSheet(a *app, args []string) error {
 	if err != nil {
 		return err
 	}
+	a.compSelector = *comp
 	if *timeout <= 0 || *scale < 1 || *scale > 100 || *count < 1 || *count > 120 || *cols < 0 || *cols > 120 || *bpm < 0 || math.IsNaN(*bpm) || math.IsInf(*bpm, 0) || math.IsNaN(*offset) || math.IsInf(*offset, 0) {
 		return usageErr("invalid sheet arguments (scale 1..100, count 1..120, cols 0..120, positive timeout)")
 	}
@@ -462,6 +501,9 @@ func cmdSheet(a *app, args []string) error {
 
 func cmdRender(a *app, args []string) error {
 	fs := flag.NewFlagSet("render", flag.ContinueOnError)
+	save := fs.Bool("save", false, "save the current named scene before submission")
+	chunks := fs.Int("chunk-frames", 0, "render validated PNG/MP4 chunks (0 disables; 1..10000)")
+	maxWarmup := fs.Int("max-warmup", 10000, "maximum replay frames per chunk")
 	out := fs.String("o", "", "output MP4 (default renders/<comp>.mp4)")
 	audio := fs.String("audio", "", "audio file to mux in")
 	start := fs.Int("start", -1, "first frame")
@@ -472,7 +514,7 @@ func cmdRender(a *app, args []string) error {
 	if err != nil {
 		return err
 	}
-	if len(pos) > 0 || *timeout <= 0 || *scale < 1 || *scale > 100 {
+	if len(pos) > 0 || *timeout <= 0 || *scale < 1 || *scale > 100 || *chunks < 0 || *chunks > 10000 || *maxWarmup < 0 || *maxWarmup > 100000 {
 		return usageErr("invalid render arguments, timeout or scale (1..100)")
 	}
 	if err := a.beginOperationBudget(*timeout); err != nil {
@@ -501,6 +543,18 @@ func cmdRender(a *app, args []string) error {
 			return fmt.Errorf("audio input changed since the operation started: %s", p)
 		}
 		a.op.Inputs[p] = digest
+	}
+	if *save {
+		if err = a.checkpoint("saving-scene"); err != nil {
+			return err
+		}
+		var saved bool
+		if err = a.jsCall("if(!api.getSceneFilePath())throw new Error('render --save requires a named scene'); return api.saveScene();", *timeout, &saved); err != nil {
+			return err
+		}
+		if !saved {
+			return fmt.Errorf("scene save failed; render not submitted")
+		}
 	}
 	if err = a.checkpoint("waiting-for-metadata"); err != nil {
 		return err
@@ -584,8 +638,16 @@ func cmdRender(a *app, args []string) error {
 		return err
 	}
 	videoPath := filepath.Join(stage, "video.mp4")
-	a.op.Render = &operation.Render{Stage: stage, ExpectedFrames: *end - *start + 1, FPS: st.Comp.FPS}
-	code := fmt.Sprintf(`
+	if a.op.Render == nil {
+		a.op.Render = &operation.Render{Stage: stage, ExpectedFrames: *end - *start + 1, FPS: st.Comp.FPS,
+			ChunkSize: *chunks, ScenePath: st.ScenePath, Comp: st.Comp.ID, Chunks: []operation.Chunk{}}
+	}
+	if *chunks > 0 {
+		if err = a.renderChunks(st, chunkOptions{Start: *start, End: *end, Scale: *scale, MaxWarmup: *maxWarmup}); err != nil {
+			return err
+		}
+	} else {
+		code := fmt.Sprintf(`
 if (api.getActiveComp() !== %s || api.getSceneFilePath() !== %s) throw new Error('active scene/comp changed; restore the operation scene before rendering');
 var rq = api.addRenderQueueItem(api.getActiveComp());
 api.rename(rq, %s);
@@ -594,15 +656,16 @@ api.set(rq, { filePath: %s, fileName: 'video', frameRange: [%d, %d], resolutionS
 var t = Date.now();
 api.render(rq);
 return { ms: Date.now() - t };`, jsString(st.Comp.ID), jsString(st.ScenePath), jsString("cav render "+a.op.ID), jsString(filepath.ToSlash(stage)), *start, *end, *scale)
-	if err = a.checkpoint("rendering"); err != nil {
-		return err
-	}
-	o, err := a.execJS(code, execOpts{timeout: *timeout, source: "cav render", progress: true})
-	if err != nil {
-		return err
-	}
-	if !o.result.OK {
-		return scriptErr(o)
+		if err = a.checkpoint("rendering"); err != nil {
+			return err
+		}
+		o, err := a.execJS(code, execOpts{timeout: *timeout, source: "cav render", progress: true})
+		if err != nil {
+			return err
+		}
+		if !o.result.OK {
+			return scriptErr(o)
+		}
 	}
 	expected := *end - *start + 1
 	finalStage := videoPath
@@ -664,6 +727,11 @@ return { ms: Date.now() - t };`, jsString(st.Comp.ID), jsString(st.ScenePath), j
 	}
 	if got != expected {
 		return fmt.Errorf("video has %d frames; expected %d (staged video retained)", got, expected)
+	}
+	if *chunks > 0 {
+		if err = a.bindSceneInput(st.ScenePath); err != nil {
+			return err
+		}
 	}
 	// Hard-link publication is atomic and never overwrites another command's output.
 	// Staging shares the destination filesystem. Retain the source link as recovery evidence.

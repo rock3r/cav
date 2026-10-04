@@ -49,9 +49,12 @@ cav.attr(labels, { expression: '["2d", "3d", "Cel"][ctx.index % 3]' })
 cav.connect(labels, 'id', sourceText, 'text.string')  // sourceText is inside the Duplicator
 ```
 
-Match the output type to the destination. Launch-video production in 2.8 found that driving
-full `shapeRotation` requires `{x: 0, y: 0, z: angle}`, while colour requires `{r, g, b, a}`;
-scalar rotation and hex colours silently failed. A scalar can instead drive `shapeRotation.z`.
+Match the output type to the destination. The production feedback reported a vector
+rotation requirement. A fresh 2D Duplicator in native 2.8 instead declares `shapeRotation`
+as a scalar: vector output silently failed, while numeric output visibly rotated its copies.
+Use the native destination type instead of assuming all rotations are vectors. Vector
+rotation destinations need `{x, y, z}`. Colours require `{r, g, b, a}`; hex strings fail
+unless converted. `cav.copyDriver` handles these cases and rejects unknown paths.
 Per-copy JavaScript can be expensive: profile the busy section before scaling the copy count.
 
 ## Look At (official docs; orientation observed in 2.8)
@@ -226,7 +229,8 @@ Always switch back with `api.setActiveComp(main)`.
 ## Physics and particles (Pro)
 
 Forge Dynamics (rigid bodies, built on Box2D) and particles work, **but they only simulate when
-frames render in order**. Preview them with a step-1 range: `cav sheet 0-59:1`.
+frames render in order**. Preview them with `cav frames 0-599 --keep-every 10`, or a short step-1 sheet range.
+`frames` evaluates intervening frames from comp start and retains only selected PNGs.
 
 ```js
 var f = cav.create('forgeDynamicsShape', 'physics')
@@ -235,6 +239,8 @@ cav.attr(f, { gravity: { x: 0, y: -60 }, groundBounce: 0.4 })   // default gravi
 
 var ps = cav.create('particleShape', 'sparks'), em = cav.create('particleEmitter', 'emitter')
 cav.connect(em, 'id', ps, 'emitters')
+cav.connect(cav.comp().id, 'time', ps, 'time')
+cav.connect(cav.comp().id, 'time', em, 'time')
 cav.attr(em, { directionType: 1, initialSpeed: 25, emitterRate: 2000, duration: 0.1, size: { x: 20, y: 20 } })
 cav.attr(ps, { shapeStyle: 0, colorMode: 0, particleRadius: 6, particleColor: '#ffd166', lifespan: 2 })
 ```
@@ -259,3 +265,42 @@ References for the added documentation: [JavaScript Layers](https://cavalry.stud
 [Look At](https://cavalry.studio/docs/nodes/behaviours/look-at/),
 [SkSL Filter](https://cavalry.studio/docs/nodes/effects/filters/sksl-filter/) and
 [Group](https://cavalry.studio/docs/nodes/shapes/group/).
+
+
+## Production helpers
+
+```js
+var ref = cav.precomp('section', function () {
+    cav.circle('dot', 20)
+}, {width: 1920, height: 1080})
+cav.sksl(ref, 'uniform shader layer; uniform float amount; half4 main(float2 p) { return layer.eval(p)*amount; }', {
+    inputs: {amount: 0.5}
+})
+cav.axes(title, {wght: 900, ROND: 50})
+cav.driver(title, 'position.x', 'Math.sin(n0*6.283)*40', {start: 0, end: 599})
+cav.copyDriver(dup, 'shapeRotation', 'ctx.index*12')
+cav.copyDriver(source, 'fill', 'ctx.index%2 ? "#ff8000" : "#0080ff"')
+cav.lookAt(dup, target, {attr: 'shapeRotation', offset: 90})
+cav.above(title, ref)
+```
+
+`precomp` restores the original comp/playhead even when the callback fails. Its reference
+can receive a composite filter. `sksl` removes declarations only for the inputs it adds;
+required built-ins such as `shader layer` stay in the code. Scalar inputs are numbers;
+other inputs use `{type: 'double2', value: [1, 2]}` or the native input type.
+
+`axes` reads installed font files. It verifies the native axis order and names against
+OpenType `fvar` and `name` metadata, clamps values with a warning, and rejects unknown
+or ambiguous tags before setting anything. Add custom folders through `CAV_FONT_DIR`.
+Metadata discovery is capped at 10000 entries; incomplete scans provide no axis map.
+
+`driver` supplies n0 with two keys instead of baking an expression every few frames.
+Colour drivers attach to the source shape's `fill` (native `material.materialColor`),
+so Duplicator context reaches each source child. The wrapper checks the actual native destination type. Native 2.8 tests found scalar
+`shapeRotation` in a 2D Duplicator; it also supports vector destinations. Unknown paths fail.
+`copyDriver` evaluates a JavaScript expression in the native per-copy context. It wraps
+scalar rotation as `{x:0,y:0,z:value}` for vector destinations, preserves scalar
+rotation destinations (or extracts z from an object), and wraps hex colours as native RGBA channel objects.
+Use an expression that returns the target attribute's type for other attributes.
+`lookAt` connects the target ID; `offset:90` suits arrows drawn toward +x.
+`above` and `below` make stacking explicit; `order` remains the below alias.

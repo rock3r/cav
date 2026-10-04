@@ -1,75 +1,54 @@
-# Launch-video feedback disposition
+# Launch-video feedback implementation
 
-Feedback came from a 60-second Cavalry 2.8 production scene and validation of PR #1 at
-7232fd4. This document distinguishes shipped behavior, this follow-up, and proposals that
-still need design or reproduction. It does not approve the proposed commands or helpers.
+All eight feedback areas now have an implementation or a verified existing behavior.
+The feedback came from Cavalry 2.8 and PR #1 at 7232fd4. It described observations and
+suggestions; the implementations below retain bounded checks and explicit recovery.
 
-## Already shipped in 1.1.0
+| Feedback | Implemented behavior | Verification |
+| --- | --- | --- |
+| Section hand-off jumps | `seams` compares f-1/f at in/out and opacity keys, reports changed-pixel fractions and boxes, and annotates intended cuts. Finished full-comp videos are supported. | Native and video fixtures both found the sole cut at frame 10 with a full-frame box. The explicit intended cut suppressed its review flag. |
+| Check coverage | Existing recursive pre-comp checks/profile selection remain. Added SkSL, input redeclaration, reference size, dense-key, key-volume and group-filter risks. | Metadata fixtures verify nested paths, bounded queries, omissions and risk attribution. |
+| Scene size/opening | Existing resumable scene open remains. Scene info adds bounded layer/comp node and animated-key counts, count coverage and key-volume warnings. `driver` supplies a two-key clock. | Native scene info and driver creation/rendering passed. The large-scene open-time observation is not treated as causal proof. |
+| Silent helper failures | Added SkSL, pre-comp, font-axis, typed per-copy driver, connected Look At and explicit above/below helpers. Group opacity guidance stays mode-aware. | Native helper smoke tests plus fixtures for declarations, comp restoration on error, axis order/ranges, return types, target connection and frontmost sibling ordering. |
+| Render resilience | `render --save` saves the named scene. `--chunk-frames` validates segments and records hashes/counts. Explicit restart reconciliation retains uncertain attempts and reuses completed segments. | Native three-chunk render with audio passed. A separate 180-frame render timed out after two validated segments; after verifying native completion and restarting the idle bridge, explicit recovery completed six chunks with the first two unchanged. |
+| Simulation preview | `frames --keep-every` evaluates intervening frames chronologically from comp start and retains selected PNGs. | Six moving-particle frames matched consecutive native renders byte for byte. The particle recipe now connects native time inputs explicitly. |
+| Multiple comps | Frame, sheet, frames, check and seams accept an ID or unique comp name and restore comp/playhead in native finally. | Native frame, sheet and quick check passed. Fixtures cover native errors and duplicate names without switching. |
+| Smaller items | Inclusive scene ranges, fps presets and offline installed-bridge warnings. Status adds running-version warnings. Exact-title docs search was already merged. | Native range/fps setup passed. Fixtures verify range validation, installed/running mismatch and no network call from plain version. |
 
-- Scene opening persists native loading and follow-up metadata as a resumable operation,
-  with a total timeout and input hash. Resume does not reopen a still-loading scene.
-- Structural checks inspect referenced pre-comps and preserve comp paths, including
-  JavaScript connected to Duplicator source children. Bounded omissions are explicit.
-- `--profile-frames` reaches selected later sections, with chronological simulation warm-up,
-  a bounded warm-up allowance, coverage and separate warm-up timings/progress.
+## Corrected native observations
 
-These fixes address the feedback's original scene-open, nested-driver and intro-only
-profiling gaps. See [1.1 validation](validation-1.1.md) for the actual test limits.
+Two successive `cav.key` calls on `position.x` preserved all four frames, 0, 10, 20 and 30,
+in Cavalry 2.8. The helper submits keys without disconnecting the input. An automated
+regression verifies both calls. No append/merge option is required for this case.
+Inspect intervening setters and connections before diagnosing an attribute-specific issue.
 
-## This follow-up
+An isolated native 2D Duplicator used scalar `shapeRotation`, despite the earlier report
+that all full rotation required a vector. Forcing a vector left its copies upright. The
+helper follows the native type, handles scalar/vector rotation, and converts source-fill
+colours. A rendered fixture visibly rotated the red/green copies. Unknown paths such as
+`shapeColor` are rejected instead of creating a useless connection.
 
-- Offline docs search prefers the longest complete page title at the query's start,
-  case-insensitively and with normalized whitespace/punctuation. `Look At duplicator` now prioritizes
-  Look At; BM25 still ranks sections within that title. API search is unchanged.
-- `cav guide traps` and `cav guide native` document the production traps: automatic SkSL
-  input uniforms (distinct from required built-ins), per-copy JavaScript output types and
-  context, connected Look At targets, variable-font axis indices and text hand-off seams.
-- Group opacity guidance is mode-aware: official docs distinguish Individual Shapes from
-  Artboard. The reported per-child group filter remains a scoped production observation.
-- Dense-key guidance recommends considering procedural drivers and comparing repeated
-  measurements. The scene-size/open-time observation after a restart is not causal proof.
-- `cav.order(a, b)` already documents that a goes below b; no rename or API break is needed.
+Native testing also established that `getOutFrame` returns the first invisible frame,
+while `setOutFrame` accepts the inclusive last-visible frame. Seam candidates use the
+getter directly. A layer set to out 9 therefore hands off at frame 10, not frame 11.
 
-New production observations are labelled as such, rather than presented as independently
-reproduced native tests. Primary references: [JavaScript Layers](https://cavalry.studio/docs/nodes/general/javascript-layers/),
-[JavaScript Utility](https://cavalry.studio/docs/nodes/utilities/javascript-utility/),
-[Look At](https://cavalry.studio/docs/nodes/behaviours/look-at/),
-[SkSL Filter](https://cavalry.studio/docs/nodes/effects/filters/sksl-filter/) and
-[Group](https://cavalry.studio/docs/nodes/shapes/group/).
+## Practical bounds
 
-## Follow-up candidates, in suggested order
+- Seam differences are review signals. The command does not infer creative intent or
+  map boundaries through reference time remapping. Inspect referenced comps separately.
+- Metadata truncation/failures and omitted boundaries are explicit. Risk warnings do
+  not attribute measured render time to a node.
+- Font axes come from ordered installed OpenType `fvar`/`name` tables. Native names/order
+  must match; unknown/ambiguous metadata fails instead of guessing numeric indices.
+  Discovery has a 10000-entry cap and exposes no maps after an incomplete scan.
+- New chunks replay simulations from comp start, within `--max-warmup`; validated output
+  is reused but simulation evaluation can still be expensive. At most 1000 chunks.
+- Ordinary resume never resubmits uncertain work. Explicit chunk restart requires
+  acknowledged reconciliation, unchanged inputs and a different idle bridge session.
+- Comp switching can mark Cavalry's scene unsaved. Chunk rendering requires an explicit
+  save. The native tests use disposable scenes and restore the owner's saved launch scene.
 
-1. **Seam inspection.** Compare f−1/f at bounded in/out and opacity boundaries, preferably
-   decoded from a completed video for correct simulation state. Report changed pixels and
-   bounding boxes, allow explicit intended-cut annotations, and treat difference as a review
-   signal rather than proof of a bug. Define frame numbering, endpoint handling, candidate
-   limits and artifact validation before adding a command. Never auto-correct scene cuts.
-2. **Additional cheap risk findings.** Consider SkSL, reference complexity and dense keys.
-   Bound metadata queries, distinguish unavailable data from zero, avoid evaluating unsafe
-   dependency graphs, and label these as heuristics rather than measured attribution.
-   Group filter warnings need mode/effect context to avoid flagging legitimate per-child use.
-3. **Chronological sparse previews and comp selection.** Reuse warm-up accounting for a
-   proposed `frames --keep-every` command. Bound evaluated and retained frame counts. A comp
-   selector should resolve a unique ID, guard scene/comp identity, and restore both comp and
-   playhead on success, failure and recovery; duplicate names must not pick silently.
-4. **Chunked rendering.** Define validated segment manifests, scene hashes, frame counts,
-   audio/mux boundaries and final checks. Simulations cannot safely restart at a chunk's
-   first frame without replay from comp start or verified cached state. Never resubmit native
-   work whose outcome is unknown. Preserve partial artifacts after disconnects. A proposed
-   `render --save` must explicitly save the intended scene before submission.
-5. **Helpers and presets.** SkSL, pre-comp, font-axis and driver wrappers need type/attribute
-   discovery and native fixtures. Do not strip all uniform declarations, guess font axes or
-   switch comps without restoring them. Scene range/fps presets can be scoped separately.
-6. **Bridge-version messaging.** Status can report mismatch from its existing bridge probe.
-   Keep `version` offline: its embedded bridge/helper versions are not a running-bridge
-   assertion. Do not add a network dependency to the offline version command.
-
-## Needs a minimal native reproduction
-
-The feedback says a second `cav.key` call deletes earlier keys. Current helper code calls
-`api.keyframe` for each supplied frame and does not disconnect the input; `cav.tween` uses
-that same helper, and chained native tween validation passed for 1.1. This does not rule out
-an attribute-specific native issue. Reproduce two key calls on one fresh attribute, inspect
-keyframe times after each, then separately try setters and `api.disconnectInput` (which
-explicitly deletes keyframes). Record the attribute, Cavalry version and intervening calls
-before introducing merge options or warnings.
+Font metadata references: [OpenType fvar](https://learn.microsoft.com/en-us/typography/opentype/spec/fvar)
+and [OpenType name](https://learn.microsoft.com/en-us/typography/opentype/spec/name).
+Native evidence is retained locally under `validation-1.1/remaining/`. Automated fixtures
+run in CI on Linux and macOS; native Cavalry tests were run on macOS with Cavalry 2.8.
