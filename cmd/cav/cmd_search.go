@@ -166,7 +166,12 @@ func cmdDocs(a *app, args []string) error {
 	}
 	var sd []search.Doc
 	for _, c := range ix.Chunks {
-		sd = append(sd, search.Doc{Name: c.Title + " " + c.Type, Head: c.Heading, Body: c.Text})
+		sd = append(sd, search.Doc{
+			Name:  c.Title + " " + c.Type,
+			Title: c.Title,
+			Head:  c.Heading,
+			Body:  c.Text,
+		})
 	}
 	q := strings.Join(pos, " ")
 	hits := search.New(sd).Search(q, *n)

@@ -288,3 +288,7 @@ For slow later regions, use `cav check --profile-frames 840,1560,1908 --max-warm
 chronological warm-up from the comp start. Warm-up cost is separate from sample timings;
 the extra-frame allowance defaults to 600. Keep default profiling for a small initial
 sample, and use repeated measurements before claiming a performance improvement.
+
+Docs search prefers the longest complete page title at the start of a query. For example,
+`cav docs "Look At duplicator"` prioritizes Look At sections, then ranks sections by their
+relevance to the query. API search keeps its function-name ranking.

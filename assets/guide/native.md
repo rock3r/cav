@@ -1,7 +1,8 @@
 # Native Cavalry features
 
 Use these instead of building many layers by hand: one duplicator with 50 copies is faster to
-script and to render than 50 layers. Every recipe here was built and rendered in Cavalry 2.7.2.
+script and to render than 50 layers. Original recipes were built and rendered in Cavalry
+2.7.2; additions below identify official documentation or launch-video observations in 2.8.
 "Pro" marks layer types that need a Pro licence (`cav.pro(type)` checks); a Starter licence
 cannot save or render them.
 
@@ -34,6 +35,31 @@ var onPath = cav.duplicator('onPath', cav.star('s', 5, 16), { type: 'path', coun
   the group as the source.
 - Per-copy attributes (targets for stagger, oscillator, noise): `shapePosition` (x, y),
   `shapeRotation`, `shapeScale` (x, y), `shapeOpacity`, `shapeTimeOffset`.
+
+## Per-copy JavaScript (official docs; additional 2.8 observations)
+
+JavaScript utilities receive `ctx.index` and `ctx.count` from a Duplicator. The context also
+reaches utilities connected to the source's children: a text or colour utility can produce
+one value per copy. The official JavaScript Utility example connects a string expression to
+`text.string` on the source Text Shape:
+
+```js
+var labels = cav.create('javaScript', 'copyLabels')
+cav.attr(labels, { expression: '["2d", "3d", "Cel"][ctx.index % 3]' })
+cav.connect(labels, 'id', sourceText, 'text.string')  // sourceText is inside the Duplicator
+```
+
+Match the output type to the destination. Launch-video production in 2.8 found that driving
+full `shapeRotation` requires `{x: 0, y: 0, z: angle}`, while colour requires `{r, g, b, a}`;
+scalar rotation and hex colours silently failed. A scalar can instead drive `shapeRotation.z`.
+Per-copy JavaScript can be expensive: profile the busy section before scaling the copy count.
+
+## Look At (official docs; orientation observed in 2.8)
+
+Connect the target Shape's `id` to the Look At node's `target`, then connect Look At's `id`
+to the destination rotation attribute. Assigning a target value does not create the required
+connection. Use Offset to account for the source's orientation: a +x-facing arrow in the
+launch video needed 90 degrees; check the orientation of your own source.
 
 ## Stagger: copies animate one after another
 
@@ -88,6 +114,17 @@ cav.oscillate(bars, 'shapeScale.y', { min: 0.3, max: 1.5, freq: 1, stagger: 1 })
 On a duplicator, the oscillator's `stagger` shifts the phase per copy. 1 gives a smooth wave; the
 raw default of 20 looks like a zig-zag.
 
+## Dense animation curves
+
+Prefer a native oscillator/noise node for procedural motion. For a custom expression, drive
+a JavaScript utility with a keyed input (`array.0`, exposed as `n0`) instead of baking one
+key every few frames. The utility can calculate motion from a two-key clock. Keep deliberate
+holds/easing in that clock and verify the resulting motion, including section boundaries.
+
+One 2.8 launch scene became smaller and opened faster after replacing densely sampled keys
+with drivers, but the before/after observation followed a restart and does not establish the
+cause. Drivers also move work to evaluation time; compare repeated open and render timings.
+
 ## Gradients
 
 ```js
@@ -129,6 +166,24 @@ a pathfinder at travel 100 jumps back to the start.
 | `halftoneFilter` | `size`, `foreColor`, `backColor` | paints a white background by default |
 | `pixelateFilter` | `size` | |
 | `crtScanLines` (Pro) | `linesCount`, `lineOpacity` | |
+
+### SkSL inputs and composite effects
+
+The Inputs UI declares and names custom SkSL uniforms. Refer to those names directly in the
+code; do not declare them again. This differs from built-ins: SkSL Filter requires
+`uniform shader layer;` to sample the Shape with `layer.eval(p)` (official SkSL Filter docs).
+Launch-video production in 2.8 observed silent failure from duplicate input declarations.
+
+A group filter in that scene ran separately on children. For a full composite effect, use a
+pre-comp reference and attach the filter to it; verify overlapping shapes. Group opacity is
+mode-dependent: **Individual Shapes** fades each child; **Artboard** fades the contents as
+one image (official Group docs). Do not infer the filter's behavior from the opacity mode.
+
+## Variable-font axes (observed in 2.8)
+
+Variable-font axes need inspection: the 2.8 scene's `fontAxes.N` indices followed the
+font's `fvar` order. Do not reuse numeric indices across fonts or guess axis tags from a font
+family name. Check the actual font before connecting a driver.
 
 ## Motion blur
 
@@ -197,3 +252,10 @@ Lottie: add a render queue item, `api.setGenerator(item, 'generator', 'renderLot
 `filePath`, `fileName` and `frameRange`, then `api.render(item)`. Always set `filePath`: a new item
 may point at another project's folder. Other generators: `renderPNG`, `renderGIF`, `renderWebM`,
 `renderProRes`, `renderAPNG`, `renderSVG`.
+
+
+References for the added documentation: [JavaScript Layers](https://cavalry.studio/docs/nodes/general/javascript-layers/),
+[JavaScript Utility](https://cavalry.studio/docs/nodes/utilities/javascript-utility/),
+[Look At](https://cavalry.studio/docs/nodes/behaviours/look-at/),
+[SkSL Filter](https://cavalry.studio/docs/nodes/effects/filters/sksl-filter/) and
+[Group](https://cavalry.studio/docs/nodes/shapes/group/).
