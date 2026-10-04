@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.0
 
 - Recover scene opening through native loading and follow-up metadata with a configurable
   total timeout and scene input hash; resume without reopening the scene.
@@ -9,7 +9,8 @@
 - Inspect referenced pre-comps without switching compositions, preserve composition
   paths in performance findings, and report incomplete membership scans explicitly.
 - Select profile frames with bounded chronological simulation warm-up, low-resolution
-  rendering and separate warm-up timings/progress.
+  rendering and separate warm-up timings/progress. Explicitly overwrite Cavalry progress
+  files so live status advances beyond the first checkpoint, and report refused writes.
 
 - Persist render/check/run operations with phase-aware recovery, total wait budgets,
   duplicate prevention, read-only status and explicit unknown-outcome reconciliation.

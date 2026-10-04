@@ -2,7 +2,7 @@
 if(api.getActiveComp()!==sample.comp || api.getSceneFilePath()!==sample.scenePath) throw new Error('profile scene changed');
 var original=api.getFrame(), results=[], skipped=[], failures=[], began=Date.now(), restored=false, phase='sampling';
 var cursor=sample.start, warmup=sample.chronological?{frames:0,planned:sample.warmupCount||0,ms:0,rendered:!!sample.warmupImage}:undefined;
-function publish(){try{api.writeToFile(sample.progress,JSON.stringify({profile:results,warmup:warmup,phase:phase,failures:failures,skipped:skipped,complete:false,restored:restored}));}catch(e){failures.push({inspection:'progress-write',error:String(e)});}}
+function publish(){try{if(api.writeToFile(sample.progress,JSON.stringify({profile:results,warmup:warmup,phase:phase,failures:failures,skipped:skipped,complete:false,restored:restored}),true)===false)throw new Error('progress file write refused');}catch(e){failures.push({inspection:'progress-write',error:String(e)});}}
 function expired(){return Date.now()-began>sample.ms;}
 try {
  sampling: for(var i=0;i<sample.frames.length;i++) {

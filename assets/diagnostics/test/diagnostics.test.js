@@ -118,3 +118,24 @@ test('scene-open guard normalizes Windows separators and rejects another scene',
  assert.equal(execute('C:/scenes/large.cv'),true);
  assert.throws(()=>execute('C:/scenes/other.cv'),/opened scene changed/);
 });
+
+// Cavalry defaults overwriteExisting to false and reports refusal with a boolean.
+test('profile replaces existing progress through warm-up, samples and restoration',()=>{
+ const f=chronologicalAPI(),files=new Map(),writes=[];
+ f.api.writeToFile=(path,content,overwrite)=>{
+  if(files.has(path)&&!overwrite)return false;
+  files.set(path,content);writes.push(JSON.parse(content));return true;
+ };
+ const r=run('profile',f.api,{sample:{...chronoSample,frames:[12,15],warmupCount:14}});
+ const progress=JSON.parse(files.get(chronoSample.progress));
+ assert.equal(r.failures.length,0);assert.ok(writes.length>=4);
+ assert.equal(writes[0].warmup.frames,10);assert.equal(progress.warmup.frames,14);
+ assert.deepEqual(progress.profile.map(p=>p.frame),[12,15]);
+ assert.equal(progress.restored,true);assert.equal(progress.phase,'restoring');
+});
+test('a refused progress write is reported without losing playhead restoration',()=>{
+ const f=chronologicalAPI();f.api.writeToFile=()=>false;
+ const r=run('profile',f.api,{sample:chronoSample});
+ assert.ok(r.failures.some(f=>f.inspection==='progress-write'&&f.error.includes('refused')));
+ assert.equal(r.restored,true);assert.equal(f.current,9);
+});
