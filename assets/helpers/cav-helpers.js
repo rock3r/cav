@@ -1202,7 +1202,7 @@
 		if (!axes)
 			fail('cav.axes: unambiguous fvar metadata unavailable for ' + font.font + '; add the font folder to CAV_FONT_DIR')
 		var children = api.getAttrChildren(layer, 'fontAxes'),
-			mapped = {},
+			mapped = Object.create(null),
 			d = {}
 		if (children.length !== axes.length) fail('cav.axes: native axis count differs from the font metadata')
 		axes.forEach(function (axis, i) {

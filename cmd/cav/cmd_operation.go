@@ -289,8 +289,15 @@ func cmdOperation(a *app, args []string) error {
 		return err
 	}
 	if *restart {
-		if err = restartChunk(r, *acknowledge, *timeout); err != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), *timeout)
+		defer cancel()
+		if err = restartChunk(ctx, r, *acknowledge); err != nil {
 			return err
+		}
+		deadline, _ := ctx.Deadline()
+		*timeout = time.Until(deadline)
+		if *timeout <= 0 {
+			return context.DeadlineExceeded
 		}
 	}
 	a.op = r

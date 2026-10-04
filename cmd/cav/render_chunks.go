@@ -149,17 +149,17 @@ func (a *app) bindSceneInput(path string) error {
 
 // Restart is explicit reconciliation, never a default response to a timeout.
 // It requires a different idle bridge session and retains the uncertain attempt.
-func restartChunk(r *operation.Record, acknowledge bool, timeout time.Duration) error {
+func restartChunk(ctx context.Context, r *operation.Record, acknowledge bool) error {
 	if !acknowledge {
 		return usageErr("--restart-chunk requires --acknowledge-unknown-outcome after reconciling the old native job")
 	}
 	if r.Render == nil || r.Render.ChunkSize == 0 || r.Spool != "" {
 		return usageErr("restart-chunk requires an HTTP chunk render")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), min(timeout, 10*time.Second))
-	defer cancel()
+	probeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	c := bridge.New()
-	payload, err := c.Probe(ctx)
+	payload, err := c.Probe(probeCtx)
+	cancel()
 	if err != nil {
 		return err
 	}

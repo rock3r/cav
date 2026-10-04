@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"image"
 	"image/color"
 	"image/png"
@@ -83,10 +85,10 @@ func TestChunkRestartRequiresReconciliationAndPreservesAttempt(t *testing.T) {
 		t.Fatal(err)
 	}
 	r := &operation.Record{Schema: 1, ID: "restart-fixture", Host: config.Host(), Port: config.Port(), Session: "old", Render: &operation.Render{Stage: stage, ChunkSize: 10}, Jobs: []*operation.Job{{ID: "uncertain", Phase: "chunk-0001-render", Submission: "accepted", State: bridge.StateUnknown}}}
-	if err := restartChunk(r, false, time.Second); err == nil {
+	if err := restartChunk(chunkRestartTestContext(t), r, false); err == nil {
 		t.Fatal("restart accepted without reconciliation")
 	}
-	if err := restartChunk(r, true, time.Second); err != nil {
+	if err := restartChunk(chunkRestartTestContext(t), r, true); err != nil {
 		t.Fatal(err)
 	}
 	if r.Session != "new" || len(r.ReconciledJobs) != 1 || r.Jobs[0].ID == "uncertain" || r.Jobs[0].Submission != "prepared" || posts != 0 {
@@ -96,7 +98,7 @@ func TestChunkRestartRequiresReconciliationAndPreservesAttempt(t *testing.T) {
 	if err != nil || string(b) != "evidence" {
 		t.Fatal("uncertain attempt lost")
 	}
-	if err = restartChunk(r, true, time.Second); err == nil {
+	if err = restartChunk(chunkRestartTestContext(t), r, true); err == nil {
 		t.Fatal("same session accepted for restart")
 	}
 }
@@ -105,7 +107,7 @@ func TestChunkRestartRejectsBusyBridge(t *testing.T) {
 		w.Write([]byte(`{"type":"running","bridgeSession":"new","protocol":1}`))
 	})
 	r := &operation.Record{Session: "old", Render: &operation.Render{ChunkSize: 10}}
-	if err := restartChunk(r, true, time.Second); err == nil {
+	if err := restartChunk(chunkRestartTestContext(t), r, true); err == nil {
 		t.Fatal("busy native job silently retried")
 	}
 }
@@ -224,5 +226,54 @@ func TestBridgeWarningsRemainOffline(t *testing.T) {
 	}
 	if len(bridgeWarnings(map[string]any{"bridgeVersion": bridgeVersionFromJS()})) != 0 {
 		t.Fatal("matching bridge warned")
+	}
+}
+
+func chunkRestartTestContext(t *testing.T) context.Context {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	t.Cleanup(cancel)
+	return ctx
+}
+func TestChunkRestartHashingUsesRequestedBudgetBeyondProbeCap(t *testing.T) {
+	mkfifo, err := exec.LookPath("mkfifo")
+	if err != nil {
+		t.Skip("FIFO fixture requires Unix mkfifo")
+	}
+	fixtureBridgeWithGet(t, func(bridge.Request) { t.Error("unexpected native submission") }, func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte(`{"type":"hello","bridgeSession":"new","protocol":1}`))
+	})
+	fifo := filepath.Join(t.TempDir(), "slow-audio")
+	if b, e := exec.Command(mkfifo, fifo).CombinedOutput(); e != nil {
+		t.Fatalf("mkfifo: %s %v", b, e)
+	}
+	writer, err := os.OpenFile(fifo, os.O_RDWR, 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		defer writer.Close()
+		timer := time.NewTimer(10500 * time.Millisecond)
+		defer timer.Stop()
+		select {
+		case <-timer.C:
+			writer.Write([]byte("audio"))
+		case <-ctx.Done():
+		}
+	}()
+	digest := sha256.Sum256([]byte("audio"))
+	r := &operation.Record{Schema: 1, ID: "slow-input-restart", Session: "old", Render: &operation.Render{ChunkSize: 10}, Inputs: map[string]string{fifo: hex.EncodeToString(digest[:])}}
+	err = restartChunk(ctx, r, true)
+	cancel()
+	<-done
+	if err != nil {
+		t.Fatalf("requested 15s hash budget was capped to probe budget: %v", err)
+	}
+	if r.Session != "new" {
+		t.Fatal("recovery was not rebound after input validation")
 	}
 }

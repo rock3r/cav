@@ -222,6 +222,7 @@ test('axes use real ordered tags, clamp values, and validate before setting', ()
 	assert.ok(calls.some((c) => c[0] === 'warn' && c[1].includes('clamped')))
 	const before = calls.length
 	assert.throws(() => cav.axes(l, { wght: 600, FAKE: 1 }), /unknown axis/)
+	assert.throws(() => cav.axes(l, { constructor: 1 }), /unknown axis/)
 	assert.equal(calls.length, before)
 	api.getAttributeNiceName = () => 'Wrong'
 	assert.throws(() => cav.axes(l, { wght: 600 }), /axis order/)
