@@ -1,7 +1,7 @@
 {
   "name": "cav",
   "interface": {
-    "displayName": "Cavalry"
+    "displayName": "Cav"
   },
   "plugins": [
     {

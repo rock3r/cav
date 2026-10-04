@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 1.1.2
+
+- Display the plugin as Cav in Claude, Codex and marketplace metadata.
+- Include a plugin README covering setup, local execution, downloads, support and license
+  for directory submission.
+
 ## 1.1.1
 
 - Inspect hand-off seams using bounded frame pairs from a full-comp video or native

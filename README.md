@@ -1,4 +1,4 @@
-# cav
+# Cav
 
 Make motion graphics in [Cavalry](https://cavalry.studio), the 2D motion design app, from a
 terminal. You, or a coding agent working for you, write short scripts. `cav` runs them inside

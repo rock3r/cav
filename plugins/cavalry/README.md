@@ -1,4 +1,4 @@
-# Cavalry for coding agents
+# Cav for coding agents
 
 Build and render motion graphics in the Cavalry desktop app using the `cav` command-line tool. The plugin provides a skill that checks your setup, reads the CLI's guides, and drives scenes through the local cav-bridge script. Use it for logo stings, kinetic type, lower thirds, charts, UI walkthroughs, and animation synchronized to music.
 

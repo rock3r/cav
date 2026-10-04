@@ -1,6 +1,6 @@
 {
   "name": "cavalry",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Build professional, beat-synced motion graphics in Cavalry from the shell with the cav CLI.",
   "author": {
     "name": "Sebastiano Poggi"
@@ -17,7 +17,7 @@
   ],
   "skills": "./skills/",
   "interface": {
-    "displayName": "Cavalry",
+    "displayName": "Cav",
     "shortDescription": "Motion graphics in Cavalry",
     "longDescription": "Plan, build and render motion graphics in a running Cavalry app from the shell with the cav CLI: logo stings, kinetic type, lower thirds, charts, UI walkthroughs, transitions and animations synced to music. Needs Cavalry 2.4 or newer on macOS or Windows, the cav CLI, and the cav-bridge script open in Cavalry.",
     "developerName": "Sebastiano Poggi",
