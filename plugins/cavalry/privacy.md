@@ -8,7 +8,9 @@ The plugin helps your coding agent run the `cav` CLI against the Cavalry app on 
 
 ## Third-party services
 
-Your coding agent and its model provider handle prompts, tool results, and files under their own settings and privacy policies. Cavalry also has its own privacy policy. Those services are separate from this plugin.
+Your coding agent and its model provider handle prompts, tool results, and files under their own settings and privacy policies.
+
+Cavalry is a separate application. Its data handling is governed by Cavalry's own settings and privacy policy. This policy covers only the Cav plugin.
 
 Installation and updates download public releases and checksums from GitHub. Setup can download public Cavalry documentation for offline use. The services serving these downloads may process ordinary request information under their own policies.
 
