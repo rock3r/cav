@@ -174,13 +174,15 @@ func TestCodexInterface(t *testing.T) {
 }
 
 // One version covers the release: the plugin manifests, the bridge script and the helper
-// library all carry it. Compatibility between cav and the bridge is the separate protocol.
+// library and CLI development default all carry it. Compatibility between cav and the
+// bridge is the separate protocol.
 func TestOneVersion(t *testing.T) {
 	r := root(t)
 	want, _ := readJSON(t, filepath.Join(r, "plugins", "cavalry", "plugin.json"))["version"].(string)
 	for file, re := range map[string]string{
 		"assets/bridge/cav-bridge.js":   `var BRIDGE_VERSION = '([^']+)'`,
 		"assets/helpers/cav-helpers.js": `cav\.VERSION = '([^']+)'`,
+		"cmd/cav/main.go":               `var version = "([^"]+)-dev"`,
 	} {
 		b, err := os.ReadFile(filepath.Join(r, file))
 		if err != nil {

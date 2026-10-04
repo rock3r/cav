@@ -1,6 +1,6 @@
 {
   "name": "cavalry",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "description": "Build professional, beat-synced motion graphics in Cavalry from the shell with the cav CLI.",
   "author": {
     "name": "Sebastiano Poggi"
