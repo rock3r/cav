@@ -2,6 +2,7 @@ package review
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"image"
@@ -12,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestTimecodeAndFragment(t *testing.T) {
@@ -134,5 +136,31 @@ func TestGuardRefusesCrossSiteRequests(t *testing.T) {
 	h.ServeHTTP(w, req)
 	if w.Code != 415 {
 		t.Fatalf("form post: %d", w.Code)
+	}
+}
+
+func TestWatchReloadsAChangedRender(t *testing.T) {
+	s, _ := newTestServer(t)
+	calls := 0
+	s.Prepare = func(ctx context.Context) (Source, string, error) {
+		calls++
+		return Source{Render: s.Store.Video, SHA256: "ffff00001111222233", FPS: 30, Frames: 240, Width: 64, Height: 36}, s.Store.Video, nil
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { s.Watch(ctx, 20*time.Millisecond); close(done) }()
+	defer func() { cancel(); <-done }()
+	time.Sleep(60 * time.Millisecond)
+	os.WriteFile(s.Store.Video, []byte("a new render, longer than before"), 0o644)
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if d, _ := s.Store.Load(); d.Source.Frames == 240 {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	d, _ := s.Store.Load()
+	if s.version() != "ffff00001111" || calls != 1 || d.Source.Frames != 240 {
+		t.Fatalf("version %s, %d prepares, review file %+v", s.version(), calls, d.Source)
 	}
 }

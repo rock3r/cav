@@ -137,28 +137,33 @@ func reviewServe(a *app, args []string) error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
-	src, err := review.Probe(ctx, video)
+	prepare := func(ctx context.Context) (review.Source, string, error) {
+		src, err := review.Probe(ctx, video)
+		if err != nil {
+			return src, "", err
+		}
+		if src.Frames <= 0 || src.FPS <= 0 {
+			return src, "", fmt.Errorf("%s has no readable frames", video)
+		}
+		if src.SHA256, err = review.Digest(video); err != nil {
+			return src, "", err
+		}
+		src.Render = video
+		fmt.Fprintf(os.Stderr, "preparing %s (%d frames at %g fps)…\n", video, src.Frames, src.FPS)
+		proxy, err := review.Proxy(ctx, video, src.SHA256, filepath.Join(config.CacheDir(), "review"))
+		return src, proxy, err
+	}
+	src, proxy, err := prepare(ctx)
 	if err != nil {
-		return fail(exitError, err.Error(), "install ffmpeg (it brings ffprobe): "+ffmpegFix())
-	}
-	if src.Frames <= 0 || src.FPS <= 0 {
-		return fail(exitError, video+" has no readable frames", "")
-	}
-	if src.SHA256, err = review.Digest(video); err != nil {
-		return err
-	}
-	src.Render = video
-	fmt.Fprintf(os.Stderr, "preparing %s (%d frames at %g fps)…\n", video, src.Frames, src.FPS)
-	proxy, err := review.Proxy(ctx, video, src.SHA256, filepath.Join(config.CacheDir(), "review"))
-	if err != nil {
-		return err
+		return fail(exitError, err.Error(), "check the file plays, and that ffmpeg is installed: "+ffmpegFix())
 	}
 	store := review.Open(video)
 	// Record the render in the review file, so `wait` and `export` know what it was.
 	if _, err := store.Update(func(d *review.Doc) error { d.Source = src; return nil }); err != nil {
 		return err
 	}
-	srv := &review.Server{Store: store, Source: src, Proxy: proxy, Page: assets.ReviewPage, PagePath: os.Getenv("CAV_REVIEW_PAGE"), Author: *author}
+	srv := &review.Server{Store: store, Source: src, Proxy: proxy, Page: assets.ReviewPage, PagePath: os.Getenv("CAV_REVIEW_PAGE"), Author: *author, Prepare: prepare}
+	go srv.Watch(ctx, time.Second)
 	ln, err := listenFrom(*port)
 	if err != nil {
 		return err

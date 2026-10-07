@@ -1,6 +1,7 @@
 package review
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -11,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -24,13 +26,76 @@ type Server struct {
 	PagePath string
 	Author   string
 	Changed  func() // called after every change (for logging); may be nil
+	// Prepare probes a new render and makes its proxy; Watch calls it when the file changes.
+	Prepare func(ctx context.Context) (Source, string, error)
+
+	mu        sync.RWMutex
+	preparing bool
+	lastError string
+}
+
+func (s *Server) current() (Source, string) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.Source, s.Proxy
 }
 
 func (s *Server) version() string {
-	if len(s.Source.SHA256) >= 12 {
-		return s.Source.SHA256[:12]
+	src, _ := s.current()
+	if len(src.SHA256) >= 12 {
+		return src.SHA256[:12]
 	}
-	return s.Source.SHA256
+	return src.SHA256
+}
+
+// Watch reloads the render when its file changes (an agent re-rendered to the same path).
+// It waits until the file has stopped growing before it prepares the new proxy.
+func (s *Server) Watch(ctx context.Context, every time.Duration) {
+	if s.Prepare == nil {
+		return
+	}
+	info, _ := os.Stat(s.Store.Video)
+	var lastMod time.Time
+	var lastSize int64
+	if info != nil {
+		lastMod, lastSize = info.ModTime(), info.Size()
+	}
+	pendingSize := int64(-1)
+	t := time.NewTicker(every)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+		info, err := os.Stat(s.Store.Video)
+		if err != nil || (info.ModTime().Equal(lastMod) && info.Size() == lastSize) {
+			pendingSize = -1
+			continue
+		}
+		if info.Size() != pendingSize {
+			pendingSize = info.Size() // still being written: check again next tick
+			continue
+		}
+		s.mu.Lock()
+		s.preparing = true
+		s.mu.Unlock()
+		src, proxy, err := s.Prepare(ctx)
+		s.mu.Lock()
+		s.preparing = false
+		if err != nil {
+			s.lastError = err.Error()
+		} else {
+			s.Source, s.Proxy, s.lastError = src, proxy, ""
+		}
+		s.mu.Unlock()
+		if err == nil {
+			s.Store.Update(func(d *Doc) error { d.Source = src; return nil })
+			s.changed()
+		}
+		lastMod, lastSize, pendingSize = info.ModTime(), info.Size(), -1
+	}
 }
 
 func (s *Server) Handler() http.Handler {
@@ -48,7 +113,8 @@ func (s *Server) Handler() http.Handler {
 	})
 	mux.HandleFunc("GET /video", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
-		http.ServeFile(w, r, s.Proxy)
+		_, proxy := s.current()
+		http.ServeFile(w, r, proxy)
 	})
 	mux.HandleFunc("GET /api/state", func(w http.ResponseWriter, r *http.Request) {
 		d, err := s.Store.Load()
@@ -56,8 +122,12 @@ func (s *Server) Handler() http.Handler {
 			httpErr(w, 500, err)
 			return
 		}
-		writeJSON(w, map[string]any{"source": s.Source, "version": s.version(), "author": s.Author, "doc": d,
-			"name": filepath.Base(s.Store.Video)})
+		src, _ := s.current()
+		s.mu.RLock()
+		preparing, lastErr := s.preparing, s.lastError
+		s.mu.RUnlock()
+		writeJSON(w, map[string]any{"source": src, "version": s.version(), "author": s.Author, "doc": d,
+			"name": filepath.Base(s.Store.Video), "preparing": preparing, "renderError": lastErr})
 	})
 	mux.HandleFunc("GET /api/snapshot/{id}", func(w http.ResponseWriter, r *http.Request) {
 		d, err := s.Store.Load()
@@ -167,8 +237,8 @@ func (s *Server) addComment(w http.ResponseWriter, r *http.Request) {
 		httpErr(w, 400, errors.New("write a note or draw something"))
 		return
 	}
-	if in.Frame < 0 || (s.Source.Frames > 0 && in.Frame >= s.Source.Frames) {
-		httpErr(w, 400, fmt.Errorf("frame %d is outside the video (0-%d)", in.Frame, s.Source.Frames-1))
+	if cur, _ := s.current(); in.Frame < 0 || (cur.Frames > 0 && in.Frame >= cur.Frames) {
+		httpErr(w, 400, fmt.Errorf("frame %d is outside the video (0-%d)", in.Frame, cur.Frames-1))
 		return
 	}
 	if in.FrameEnd != nil && *in.FrameEnd <= in.Frame {
@@ -180,11 +250,12 @@ func (s *Server) addComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var made Comment
+	src, _ := s.current()
 	_, err = s.Store.Update(func(d *Doc) error {
-		d.Source = s.Source
+		d.Source = src
 		c := Comment{
 			ID: NextID(d), Version: s.version(), Frame: in.Frame, FrameEnd: in.FrameEnd,
-			Timecode: Timecode(in.Frame, s.Source.FPS), Fragment: Fragment(in.Frame, in.FrameEnd, s.Source.FPS, in.Shapes),
+			Timecode: Timecode(in.Frame, src.FPS), Fragment: Fragment(in.Frame, in.FrameEnd, src.FPS, in.Shapes),
 			Author: s.Author, CreatedAt: time.Now().UTC(), Status: "open", Text: in.Text, Shapes: in.Shapes,
 		}
 		if png != nil {

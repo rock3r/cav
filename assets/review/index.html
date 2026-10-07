@@ -232,8 +232,10 @@
     onFrame(f, hasRVFC);
   };
   if (hasRVFC) {
-    const cb = (now, md) => { video.requestVideoFrameCallback(cb); shown(Math.round(md.mediaTime * meta.fps)); };
-    video.addEventListener('loadedmetadata', () => video.requestVideoFrameCallback(cb), { once: true });
+    // One callback chain per loaded video; a new render cancels the old chain.
+    let rvfc = 0;
+    const cb = (now, md) => { rvfc = video.requestVideoFrameCallback(cb); shown(Math.round(md.mediaTime * meta.fps)); };
+    video.addEventListener('loadedmetadata', () => { if (rvfc) video.cancelVideoFrameCallback(rvfc); rvfc = video.requestVideoFrameCallback(cb); });
   } else {
     video.addEventListener('timeupdate', () => { if (!video.paused) shown(Math.floor(video.currentTime * meta.fps + 1e-3)); });
     video.addEventListener('seeked', () => { if (!video.seeking) shown(Math.floor(video.currentTime * meta.fps + 1e-3)); });
@@ -526,6 +528,16 @@
   async function refresh() {
     const s = await api('GET', '/api/state');
     const first = !meta;
+    if (s.preparing && !refresh.told) { toast('A new render is being prepared…'); refresh.told = true; }
+    if (s.renderError && refresh.lastErr !== s.renderError) { toast('The new render could not be loaded: ' + s.renderError); refresh.lastErr = s.renderError; }
+    if (!first && s.version !== version) {
+      // The agent re-rendered to the same file: load it, stay on the same frame.
+      const keep = frame;
+      video.src = '/video?v=' + s.version;
+      video.addEventListener('loadedmetadata', () => seek(Math.min(keep, s.source.frames - 1)), { once: true });
+      refresh.told = false;
+      toast('New render loaded; notes on the old one are marked');
+    }
     meta = s.source; doc = s.doc; version = s.version; author = s.author;
     if (first) {
       $('name').textContent = s.name;
@@ -537,7 +549,10 @@
   }
   setTool('arrow'); setColor('#ffd23f');
   refresh().then(() => { renderWhere(); seek(0); }).catch(e => toast('Could not load: ' + e.message));
-  setInterval(() => { if (!document.hidden && !drawing) refresh().catch(() => {}); }, 3000);
+  // Poll the local server, also while the tab is hidden, so a re-render or a note the agent
+  // resolved shows up at once; and refresh as soon as the tab comes back.
+  setInterval(() => { if (!drawing) refresh().catch(() => {}); }, 3000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh().catch(() => {}); });
 })();
 </script>
 </body>
