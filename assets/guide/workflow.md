@@ -23,7 +23,9 @@ If it reports `blocked: a sandbox`, your sandbox stops `cav`: show the user the 
    file, and run them with `cav run build/01_title.js`. Files can be fixed and run again.
 4. **Review after every file**: `cav sheet` renders 12 frames into `renders/sheet.png`. Open
    the image and look at it. `cav sheet 0-240:20` for a range, `cav sheet 30,60,90` for a
-   list, `--bpm 120` to see beat numbers.
+   list, `--bpm 120` to see beat numbers. For one move (an entrance, a transition, a
+   stagger), `cav onion 0-60` draws 8 frames on top of each other: the ghosts show the
+   path, the spacing of the ease and any overshoot, and it reports holds and jumps.
 5. **Fix numbers, not guesses**: `cav tree` (ids and structure), `cav layer <id>` (position,
    bounding box, keys).
 6. **Check**: start with `cav check --quick --json` for structural performance warnings.

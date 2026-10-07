@@ -136,8 +136,10 @@ not resume a render. Keep the original scene and inputs unchanged during recover
 | Change the comp size, length or background | `cav scene comp --seconds 8 --bg '#101014'` |
 | Render one frame | `cav frame 90 -o renders/f90.png` |
 | Review chosen frames | `cav sheet 0,30,60,90`, or every 30th frame: `cav sheet 0-600:30` |
+| See how one move travels (path, easing, overshoot) | `cav onion 0-60` writes `renders/onion.png` |
 | Find problems before rendering | `cav check` |
 | Render with music | `cav render -o out/final.mp4 --audio music.wav` |
+| Look at a track, or check a render against it | `cav spectrogram music.wav`, `cav sync out/final.mp4` |
 | Find a layer type id | `cav types gradient` |
 | Search the docs | `cav docs stagger` |
 | Read how to work, or motion recipes | `cav guide`, `cav guide design` |
@@ -165,6 +167,26 @@ With `--bpm`, each tile shows its beat number.
 Detection sometimes picks half or double the real tempo. If the BPM looks wrong, run it
 again with `--bpm <what you expect>`. For a track without a file, `cav beats --bpm 120
 --seconds 16` makes an exact grid.
+
+With a file, `cav beats` also lists the sections of the track (where the music changes), sudden
+rises and falls in loudness, silences, and the strongest accents with their frequency band.
+
+Two more commands help an agent that cannot hear the music:
+
+```bash
+cav spectrogram music.wav --fps 60            # renders/spectrogram.png
+cav sync renders/final.mp4                    # renders/sync.png and a report
+```
+
+`cav spectrogram` draws the track as one image: a spectrogram with bar lines and section
+lines, a loudness curve, and the onsets of the low, mid and high bands. `cav sync` reads a
+rendered video, finds its cuts and visual hits, and measures each one against the beats in
+frames. It also lists the strong musical moments that no visual hit answers. Its picture
+adds the visual change per frame under the spectrogram view.
+
+For movement that follows the music all the time, the `cav.sound` helper connects Cavalry's
+own Sound behaviour to an attribute: `cav.sound('/abs/music.wav', layer, 'scale.y', {min: 1,
+max: 1.4, low: 20, high: 150})`.
 
 ## Using cav with a coding agent
 

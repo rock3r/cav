@@ -920,6 +920,10 @@
 	//@ cav.wiggle(layer, attr, {min, max, freq=1, seed})  smooth noise on an attribute
 	//@     attr can be one channel ('position.y', 'rotation.z', 'scale.x'), or a duplicator's
 	//@     'shapePosition.y', 'shapeScale.y', 'shapeRotation', 'shapeOpacity'.
+	//@ cav.sound(path, layer, attr, {min=0, max=1, low, high, smooth=1})   drive an attribute live
+	//@     from the music's level (Cavalry's Sound behaviour): min when quiet, max at the
+	//@     loudest. low/high limit it to a frequency range in Hz (20-150 = kick and bass).
+	//@     Returns the Sound layer. Use it for continuous pulsing; key the big hits to the grid.
 	//@ cav.gradient(layer, ['#hex', '#hex', ...], {type='linear'|'radial', rotation=0})  gradient fill
 	//@     On text it spans the whole word. Animate its 'generator.offset.x' for a shimmer.
 	//@ cav.motionBlur(samples=16)   turns on comp motion blur AND per-layer blur on every layer
@@ -1041,6 +1045,22 @@
 		api.set(nz, d)
 		cav.connect(nz, 'id', layer, ALIAS[attr] || attr)
 		return nz
+	}
+
+	cav.sound = function (path, layer, attr, o) {
+		o = o || {}
+		layer = checkLayer(layer, 'cav.sound')
+		if (!api.filePathExists(path)) fail('cav.sound: file not found: ' + path + ' (use an absolute path)')
+		var min = o.min === undefined ? 0 : o.min, max = o.max === undefined ? 1 : o.max
+		var snd = cav.create('sound', o.name || api.getNiceName(layer) + ' sound')
+		// The file is a connection from the audio asset, not a value.
+		cav.connect(api.loadAsset(path, false), 'id', snd, 'file')
+		// With autoNormalise the level runs 0..1 and the output is offset + strength/100 * level.
+		var d = { autoNormalise: true, offset: min, strength: (max - min) * 100, smoothingFrames: o.smooth || 1 }
+		if (o.low !== undefined || o.high !== undefined) d.frequencyRange = { x: o.low || 20, y: o.high || 20000 }
+		api.set(snd, d)
+		cav.connect(snd, 'id', layer, ALIAS[attr] || attr)
+		return snd
 	}
 
 	cav.gradient = function (layer, colors, o) {

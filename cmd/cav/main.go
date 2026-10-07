@@ -263,7 +263,7 @@ Commands:
 	cs := append([]command(nil), commands...)
 	sort.SliceStable(cs, func(i, j int) bool { return order(cs[i].name) < order(cs[j].name) })
 	for _, c := range cs {
-		fmt.Printf("  %-8s %s\n", c.name, firstLine(c.summary))
+		fmt.Printf("  %-11s %s\n", c.name, firstLine(c.summary))
 	}
 	fmt.Print(`
 Every command accepts --json (machine-readable output on stdout).
@@ -273,7 +273,7 @@ New to cav? Run "cav guide" first: it explains the workflow from plan to render.
 `)
 }
 
-var helpOrder = []string{"setup", "doctor", "status", "run", "job", "operation", "scene", "tree", "layer", "frame", "sheet", "check", "render", "beats", "api", "docs", "helpers", "guide", "relay", "version", "update"}
+var helpOrder = []string{"setup", "doctor", "status", "run", "job", "operation", "scene", "tree", "layer", "frame", "sheet", "onion", "check", "render", "beats", "spectrogram", "sync", "api", "docs", "helpers", "guide", "relay", "version", "update"}
 
 func order(name string) int {
 	for i, n := range helpOrder {

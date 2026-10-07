@@ -335,3 +335,24 @@ test('precomp restores comp/playhead when new-comp setup itself fails', () => {
 	assert.equal(comp, 'root')
 	assert.equal(frame, 17)
 })
+
+test('sound connects the audio asset and maps the level to min..max', () => {
+	const { cav, calls, api } = mockEnv()
+	api.filePathExists = () => true
+	api.loadAsset = () => 'asset#9'
+	// In Cavalry an asset id passes layerExists (checked live in Cavalry 2.8).
+	const exists = api.layerExists
+	api.layerExists = (id) => id === 'asset#9' || exists(id)
+	const r = cav.rect('r', 10, 10)
+	const snd = cav.sound('/music.wav', r, 'scale.y', { min: 1, max: 1.4, low: 20, high: 150, smooth: 2 })
+	const connects = calls.filter((c) => c[0] === 'connect').map((c) => c.slice(1))
+	assert.deepEqual(connects, [['asset#9', 'id', snd, 'file'], [snd, 'id', r, 'scale.y']])
+	const set = calls.find((c) => c[0] === 'set' && c[1] === snd)[2]
+	assert.equal(set.autoNormalise, true)
+	assert.equal(set.offset, 1)
+	assert.ok(Math.abs(set.strength - 40) < 1e-9)
+	assert.equal(set.smoothingFrames, 2)
+	assert.deepEqual(set.frequencyRange, { x: 20, y: 150 })
+	api.filePathExists = () => false
+	assert.throws(() => cav.sound('/missing.wav', r, 'scale.y'), /file not found/)
+})

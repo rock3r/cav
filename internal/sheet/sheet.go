@@ -115,3 +115,8 @@ func drawLabel(dst *image.RGBA, x, y int, text string, s int, bg color.Color) {
 		cx += (glyphW + 1) * s
 	}
 }
+
+// Label draws text in the built-in bitmap font at pixel size s, on a box of colour bg.
+func Label(dst *image.RGBA, x, y int, text string, s int, bg color.Color) {
+	drawLabel(dst, x, y, text, s, bg)
+}

@@ -53,6 +53,27 @@ Images replace existing outputs; sheets retain the staged sheet, and --keep reta
 Look at the sheet image after every build step: it is the fastest way to catch
 layers that are missing, off-screen, the wrong size or the wrong colour.`
 	register(command{
+		name:    "onion",
+		args:    "[start-end | frames] [--count 8] [--scale 50] [--comp C] [-o onion.png]",
+		summary: "Blend frames into one image that shows how things move (onion skin).",
+		run:     cmdOnion,
+	})
+	longHelp["onion"] = `
+Renders a few frames and draws them on top of each other. What stays still is drawn once
+and dimmed. What moves is drawn once per frame: older frames are fainter and tinted from
+blue towards orange, and the last frame is solid in its own colours with a white
+outline. A legend under the image names each frame in its tint. Use it to see a motion
+path, the spacing of an ease (close ghosts = slow, far apart = fast), overshoot, and the
+order of a stagger.
+Frames can be:
+  (nothing)     8 frames spread evenly over the whole comp; --count N for another number
+  0-60          8 frames spread evenly from 0 to 60 (best: one move at a time)
+  0,10,20,40    a list; 0-60:5 a range with a step
+The output also reports, for each pair of neighbouring frames, the share of pixels that
+changed and the area where they changed (JSON with --json). A step with 0 % change is a
+hold; one step far larger than its neighbours is a jump or pop.
+Simulations only advance when frames render in order: give a step-1 range for them.`
+	register(command{
 		name:    "render",
 		args:    "[-o out.mp4] [--audio track.wav] [--start F --end F] [--scale 100]",
 		summary: "Render the active comp to MP4, optionally with audio muxed in by ffmpeg.",
@@ -499,6 +520,120 @@ func cmdSheet(a *app, args []string) error {
 	return nil
 }
 
+func cmdOnion(a *app, args []string) error {
+	fs := flag.NewFlagSet("onion", flag.ContinueOnError)
+	comp := fs.String("comp", "", "composition ID or unique name")
+	scale := fs.Int("scale", 50, "render scale in percent")
+	out := fs.String("o", "", "output PNG (default renders/onion.png)")
+	count := fs.Int("count", 8, "frames spread over the comp or over a start-end range")
+	keep := fs.Bool("keep", false, "keep the single frame PNGs")
+	timeout := fs.Duration("timeout", 5*time.Minute, "total image operation wait budget")
+	pos, err := parseFlags(fs, args)
+	if err != nil {
+		return err
+	}
+	a.compSelector = *comp
+	if *count < 2 || *count > 24 || *scale < 1 || *scale > 100 || *timeout <= 0 {
+		return usageErr("invalid onion arguments (count 2..24, scale 1..100, positive timeout)")
+	}
+	// "start-end" alone spreads --count frames over the range; anything else is a frame list.
+	spec := strings.Join(pos, ",")
+	spread := spec == "" || (strings.Count(spec, "-") == 1 && !strings.ContainsAny(spec, ",:") && !strings.HasPrefix(spec, "-"))
+	var frames []int
+	if spec != "" {
+		if frames, err = parseFrameListLimit(spec, 100000); err != nil {
+			return err
+		}
+		if len(frames) == 0 {
+			return usageErr("no frames specified")
+		}
+	}
+	if err = a.beginOperationBudget(*timeout); err != nil {
+		return err
+	}
+	if done, e := a.publishedImages(); done || e != nil {
+		return e
+	}
+	if err = a.checkpoint("waiting-for-metadata"); err != nil {
+		return err
+	}
+	st, err := getScene(a)
+	if err != nil {
+		return err
+	}
+	if st.Comp.EndFrame < st.Comp.StartFrame || st.Comp.FPS <= 0 {
+		return fmt.Errorf("invalid comp frame range or FPS")
+	}
+	switch {
+	case spec == "":
+		frames = evenFrames(*count, st.Comp.StartFrame, st.Comp.EndFrame)
+	case spread:
+		frames = evenFrames(*count, frames[0], frames[len(frames)-1])
+	}
+	if len(frames) < 2 || len(frames) > 24 {
+		return usageErr("an onion needs 2 to 24 frames; got %d", len(frames))
+	}
+	if *out == "" {
+		*out = filepath.Join(a.op.OutputDir, "onion.png")
+	}
+	abs, err := filepath.Abs(*out)
+	if err != nil {
+		return err
+	}
+	staging := filepath.Join(filepath.Dir(abs), ".cav-onion-"+a.op.ID)
+	tmp := filepath.Join(staging, "frames")
+	a.op.IntendedOutputs = []string{abs}
+	if err = a.checkpoint("rendering-images"); err != nil {
+		return err
+	}
+	paths, err := a.renderFrames(frames, *scale, tmp, st)
+	if err != nil {
+		return err
+	}
+	if err = a.checkpoint("building-sheet"); err != nil {
+		return err
+	}
+	built := filepath.Join(staging, "onion.png")
+	w, h, steps, err := sheet.Onion(paths, frames, built)
+	if err != nil {
+		return err
+	}
+	if err = a.checkpoint("publishing-images"); err != nil {
+		return err
+	}
+	if err = publishImage(a.ctx, built, abs); err != nil {
+		return err
+	}
+	a.op.Outputs = []string{abs}
+	type step struct {
+		From    int     `json:"from"`
+		To      int     `json:"to"`
+		Changed float64 `json:"changedPercent"`
+		Box     []int   `json:"box,omitempty"`
+	}
+	js := make([]step, len(steps))
+	for i, s := range steps {
+		js[i] = step{From: s.From, To: s.To, Changed: math.Round(s.Changed*1000) / 10}
+		if s.Changed > 0 {
+			js[i].Box = s.Box[:]
+		}
+	}
+	a.emit(map[string]any{"onion": abs, "frames": frames, "width": w, "height": h, "steps": js, "staging": staging}, func() {
+		fmt.Printf("%s  (%d frames, %dx%d)\nchange between frames:", abs, len(frames), w, h)
+		for _, s := range js {
+			fmt.Printf("  %d>%d %.1f%%", s.From, s.To, s.Changed)
+		}
+		fmt.Println("\nopen or view this image: faint blue = early, solid with a white outline = last frame")
+	})
+	a.op.Completed["images-published"] = true
+	if err = a.checkpoint("publication-complete"); err != nil {
+		return err
+	}
+	if !*keep {
+		return os.RemoveAll(tmp)
+	}
+	return nil
+}
 func cmdRender(a *app, args []string) error {
 	fs := flag.NewFlagSet("render", flag.ContinueOnError)
 	save := fs.Bool("save", false, "save the current named scene before submission")

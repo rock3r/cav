@@ -46,7 +46,7 @@ these observations have not all been independently reproduced.
 | Comp `motionBlur` alone. | The render is sharp. | Also set each layer's `motionBlur` to 1. | `cav.motionBlur()` |
 | A new render queue item. | Its `filePath` can point at another project's folder. | Always set `filePath` and `fileName`. | `cav render` |
 | Pre-comp background. | The pre-comp draws an opaque box. | Give the sub-comp a background with alpha 0. | |
-| Missing font. | Another font is used without an error. | Check `cavalry.fontExists(family, style)`. | `cav.text` warns |
+| Missing font. | Another font is used without an error. | Check `cavalry.fontExists(family, style)`. | `cav.text` warns; `cav check` reports it |
 | Filters and masks are connections, not attributes. | | `api.connect(filter,'id',shape,'filters')`, `api.connect(mask,'id',target,'masks')`. | `cav.filter`, `cav.mask` |
 | Render queue range | Off-by-one frame counts were seen in one session. | `cav render` checks the count with ffprobe and prints it. | `cav render` |
 | `api.renderPNGFrame(path, scale)` appends `.png` and renders the frame set with `api.setFrame`. | | | `cav frame`, `cav sheet` |

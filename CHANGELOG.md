@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- `cav beats` with an audio file also reports sections, rises, falls, silences, the strongest
+  accents with their frequency band, and the energy of each bar.
+- Add `cav spectrogram`: draw a track as one labelled image (spectrogram, loudness, bars,
+  sections and per-band onsets), so an agent can look at music it cannot hear.
+- Add `cav sync`: find the cuts and visual hits in a rendered video, measure them against the
+  beat grid, and list strong musical moments that no visual hit answers.
+- Add the `cav.sound` helper: drive an attribute from Cavalry's Sound behaviour.
+- `cav check` reports text layers whose font is not installed.
+- Add `cav onion`: blend a few frames into one image that shows a motion path, the spacing
+  of its easing and any overshoot, and report holds and jumps between neighbouring frames.
+
 ## 1.1.2
 
 - Display the plugin as Cav in Claude, Codex and marketplace metadata. State that it is

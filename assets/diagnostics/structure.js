@@ -84,6 +84,11 @@ while (queue.length) {
     coverageComplete=false;skipped.push({inspection:'precomp-coverage',layer:id,reason:'cyclic reference',comp:referenced});
    } else if(!visited[referenced]) queue.push({id:referenced,path:current.path.concat([referenced])});
   }
+  // A missing font is replaced by another one without an error, so the text looks wrong.
+  if(type==='textShape') {
+   var font=read(id,'font',function(){return api.get(id,'font');},null);
+   if(font&&font.font&&!read(id,'font',function(){return cavalry.fontExists(font.font,font.style||'Regular');},true))node.missingFont={family:font.font,style:font.style||''};
+  }
   if(type==='duplicator') {
    // Never evaluate connected, animated, expression-driven or unsupported copy counts.
    var gen=read(id,'distribution',function(){return api.getCurrentGeneratorType(id,'generator');},null);node.distribution=gen;

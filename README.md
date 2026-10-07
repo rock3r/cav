@@ -7,7 +7,7 @@ for common mistakes, and renders the video, with music if you want.
 
 | Part | What it is |
 |---|---|
-| `cav` | A command-line tool for macOS and Windows. It runs JavaScript in Cavalry, renders frames, contact sheets and MP4 videos, inspects scenes, finds the beats in a music track, and searches the Cavalry API and docs offline. `cav guide` explains the workflow and has motion design recipes. |
+| `cav` | A command-line tool for macOS and Windows. It runs JavaScript in Cavalry, renders frames, contact sheets and MP4 videos, inspects scenes, finds the beats and the structure of a music track, draws it as a picture, checks a render against it, and searches the Cavalry API and docs offline. `cav guide` explains the workflow and has motion design recipes. |
 | cav-bridge | A small Cavalry script that `cav` talks to. `cav setup` installs it. |
 | `cavalry` skill | A short entry point for coding agents. It checks the setup and sends the agent to `cav guide`. Packaged as a Claude Code plugin and a Codex plugin. |
 
@@ -95,9 +95,12 @@ troubleshooting.
 | `cav operation status/resume <id>` | Inspect or continue a complete scene open, frame, sheet, render, check or run after a timeout |
 | `cav tree` / `cav layer <id>` | The layer tree; one layer's position, bounding box and keys |
 | `cav frame [n...]` / `cav sheet [frames]` | Render frames to PNG, or a labelled contact sheet |
+| `cav onion [start-end]` | Draw several frames on top of each other to show a motion path and its easing |
 | `cav check [--quick] [--profile]` | Structural performance warnings and bounded visual/measured checks |
 | `cav render [-o out.mp4] [--audio track]` | Render to MP4, check the frame count, add the music |
-| `cav beats <audio>` | Tempo, beats and downbeats as frame numbers |
+| `cav beats <audio>` | Tempo, beats and downbeats as frame numbers, plus sections, rises, silences and accents |
+| `cav spectrogram <audio>` | Draw the track: spectrogram, loudness, beats, sections and accents on one time axis |
+| `cav sync <video.mp4>` | Measure the cuts and hits of a render against the beats |
 | `cav api` / `cav docs` / `cav types` / `cav helpers` | Offline search: API, Cavalry docs, layer types, the helper library |
 | `cav relay --spool <dir>` | Forward commands for agents whose sandbox blocks `cav` |
 | `cav version [--check]` / `cav update` | Versions, and updates that ask before they install |

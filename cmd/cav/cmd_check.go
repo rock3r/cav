@@ -416,7 +416,7 @@ func cmdSceneCheck(a *app, args []string) error {
 			return err
 		}
 	}
-	perf := performanceFindings(metadata)
+	perf := append(performanceFindings(metadata), fontFindings(metadata)...)
 	failures := metadata.Failures
 	skipped := metadata.Skipped
 	var measured []profileResult
@@ -614,6 +614,10 @@ type structureLayer struct {
 	Copies        *float64 `json:"copies"`
 	Comp          string   `json:"comp,omitempty"`
 	CompPath      []string `json:"compPath,omitempty"`
+	MissingFont   *struct {
+		Family string `json:"family"`
+		Style  string `json:"style"`
+	} `json:"missingFont,omitempty"`
 }
 type structureEdge struct {
 	From     string `json:"from"`
@@ -660,6 +664,21 @@ func needsChronological(d structureData) bool {
 func isSimulation(t string) bool {
 	return t == "particleShape" || t == "forgeDynamicsShape" || t == "javaScriptEmitter" || t == "spring"
 }
+
+// fontFindings reports text layers whose font is not installed. Cavalry draws them in another
+// font without an error.
+func fontFindings(d structureData) []finding {
+	var out []finding
+	for _, l := range d.Layers {
+		if f := l.MissingFont; f != nil {
+			out = append(out, finding{Kind: "font", Layer: l.ID, Name: l.Name,
+				Detail: fmt.Sprintf("font %q style %q is not installed, so Cavalry draws this text in another font", f.Family, f.Style),
+				Fix:    "install the font, or pick an installed one (cav.font(family, style) falls back and warns)"})
+		}
+	}
+	return out
+}
+
 func performanceFindings(d structureData) []finding {
 	out := []finding{}
 	nodes := map[string]structureLayer{}

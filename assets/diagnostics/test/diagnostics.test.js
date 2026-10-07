@@ -177,3 +177,13 @@ test('out boundaries use native exclusive getters and truncation stays explicit'
  assert.ok(r.layers.every(l=>l.boundaries.includes(10)));
  assert.ok(r.skipped.some(s=>s.inspection==='opacity-boundaries'&&s.count===10));
 });
+test('quick metadata reports text layers whose font is not installed',()=>{
+  const f=metadata(),get=f.api.get,type=f.api.getLayerType;
+  f.api.getCompLayers=()=>['ok','gone'];
+  f.api.getLayerType=id=>['ok','gone'].includes(id)?'textShape':type(id);
+  f.api.get=(id,a)=>a==='font'?{font:id==='ok'?'Inter':'Nope Sans',style:'Bold'}:get(id,a);
+  const r=run('structure',f.api,{limits:{layers:10,edges:100,ms:1000},cavalry:{fontExists:(fam)=>fam==='Inter'}});
+  assert.equal(r.layers[0].missingFont,undefined);
+  assert.deepEqual({...r.layers[1].missingFont},{family:'Nope Sans',style:'Bold'});
+  assert.equal(f.changed,0);
+});

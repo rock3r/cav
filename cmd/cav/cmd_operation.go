@@ -16,7 +16,7 @@ import (
 	"github.com/rock3r/cav/internal/operation"
 )
 
-var trackedCommands = map[string]bool{"render": true, "check": true, "run": true, "frame": true, "sheet": true, "frames": true, "seams": true}
+var trackedCommands = map[string]bool{"render": true, "check": true, "run": true, "frame": true, "sheet": true, "onion": true, "frames": true, "seams": true}
 
 func trackedCommand(args []string) bool {
 	return len(args) > 0 && (trackedCommands[args[0]] || (args[0] == "scene" && len(args) > 1 && args[1] == "open"))

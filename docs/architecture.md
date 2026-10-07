@@ -239,6 +239,15 @@ at a reduced scale and tiles them into one PNG (`internal/sheet`). Each tile is 
 below the picture, never on it, with the frame number, the time and, with `--bpm`, the beat
 number. The labels use a small built-in bitmap font, so no font files are needed.
 
+`cav onion` renders 2 to 24 frames and blends them into one image (`internal/sheet/onion.go`).
+The "still" picture under the ghosts is, per pixel, the first frame's colour when the first
+and last frames agree there; otherwise the flat background colour if any frame shows it
+there; otherwise the median frame. This keeps an object that eases in and then holds
+for most frames counted as moving. Pixels that differ from the still picture are drawn per
+frame, oldest first, fainter and tinted blue to orange; the last frame is drawn solid,
+untinted and outlined in white. It also reports, for each pair of neighbouring frames, the
+share of pixels that changed by more than 24 of 255 in any channel, and the box around them.
+
 Forge Dynamics and particles simulate only when frames render in order, so a step-1 range
 (`0-59:1`) is the only correct way to preview them.
 
@@ -271,6 +280,36 @@ low-band energy. The output lists each beat as a time and as a frame at `--fps`.
 
 Tempo detection can land on half or double the real tempo. `--bpm` limits the search to ±8 %
 of a known value.
+
+With an audio file, `cav beats` also describes the track (`internal/beats/profile.go`). A
+second short-time Fourier transform (2048-sample window, 256-sample hop at 22 050 Hz) gives
+96 log-spaced bands from 40 Hz to 11 kHz, RMS loudness, three coarse bands (below 150 Hz,
+150 Hz to 2 kHz, above 2 kHz) and an onset curve per coarse band, each scaled on its own
+so that hi-hats do not outrank kicks and stabs.
+
+- Sections: one feature vector per beat (loudness, the three bands and 8 spectral bands,
+  each scaled to unit spread). Novelty after Foote (2000) compares the 8 beats before each
+  beat with the 8 after. Peaks above the mean plus 0.75 standard deviations become
+  boundaries, moved onto a downbeat within one beat, at least 8 beats apart.
+- Events: a silence is 0.15 s or more at 35 dB below the loud parts of the track. A rise or
+  fall is a beat at least 6 dB louder or quieter than the two beats before it; runs within
+  2.5 beats are merged. Loudness over a stretch is averaged as power, and only analysis
+  windows that lie wholly inside the stretch count, so a hit does not leak into the beat
+  before it.
+- Accents: the strongest onset peaks, at least 100 ms apart, at most 1.5 per second.
+
+Checked on the launch video's track, whose layout is written down in `launch-video/plan.md`:
+the drop at 4 s, the stabs at 46 s, the one-beat pause at 51.5 s, the hit at 52 s and the
+final chord at 56 s all appear as events. The section boundaries are less exact: the hit at
+52 s is not a boundary.
+
+`cav spectrogram` draws the profile (`internal/beats/picture.go`). `cav sync` decodes a
+rendered video at 160x90 in grey and measures the mean change between neighbouring frames
+(`internal/beats/video.go`). A cut is one frame that changes 4 times more than its
+neighbours. A peak is the top of a bump that rises clearly above the valleys around it and
+above the 3 frames before it: the fastest frame of a move. A stop is a fall to near rest
+straight from full speed. Each hit is measured against the nearest beat or half beat; within
+about 35 ms counts as on the grid.
 
 ### Offline search
 

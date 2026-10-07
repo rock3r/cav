@@ -19,11 +19,12 @@ The `cav` CLI does the work and carries its own guides. This skill only gets you
    - `blocked: a sandbox`: your sandbox stops `cav`. Show the user the fix that `cav doctor`
      prints (allow `cav` to reach 127.0.0.1:8723, or run `cav relay` outside the sandbox).
 2. Run `cav guide` and follow it. It covers the workflow, script rules and a done checklist.
-   Read `cav guide design` before a creative task and `cav guide music` when there is music.
+   Read `cav guide design` before a creative task and `cav guide music` when there is music
+   (it covers `cav spectrogram` and `cav sync`, which let you look at music you cannot hear).
    `cav helpers` lists the script library; `cav help <command>` explains each command.
 3. Work only in new scenes (`cav scene new`). Never use `--force` on the user's own work.
-4. You cannot see Cavalry: look at `cav sheet` images after every change, and run
-   `cav check` before you render.
+4. You cannot see Cavalry: look at `cav sheet` images after every change, use
+   `cav onion <start-end>` to see how one move travels, and run `cav check` before you render.
 
 5. Start diagnostics with `cav check --quick --json`. Treat performance findings as
    structural risks; add `--profile` for small measured samples. Inspect failed/skipped

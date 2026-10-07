@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"github.com/rock3r/cav/internal/bridge"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -243,5 +244,17 @@ func TestProfileCoverageAndFailuresRemainSeparate(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestFontFindingsNameTheMissingFont(t *testing.T) {
+	d := structureData{Layers: []structureLayer{{ID: "textShape#1", Name: "title", Type: "textShape"}, {ID: "textShape#2", Name: "sub", Type: "textShape"}}}
+	d.Layers[1].MissingFont = &struct {
+		Family string `json:"family"`
+		Style  string `json:"style"`
+	}{"Nope Sans", "Bold"}
+	got := fontFindings(d)
+	if len(got) != 1 || got[0].Kind != "font" || got[0].Layer != "textShape#2" || !strings.Contains(got[0].Detail, `"Nope Sans"`) {
+		t.Fatalf("got %+v", got)
 	}
 }
