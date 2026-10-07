@@ -18,6 +18,7 @@ import (
 	"github.com/rock3r/cav/assets"
 	"github.com/rock3r/cav/internal/bridge"
 	"github.com/rock3r/cav/internal/config"
+	"github.com/rock3r/cav/internal/services"
 )
 
 func init() {
@@ -37,13 +38,15 @@ Setup is idempotent. It:
 After setup, start the bridge once per Cavalry session: Scripts menu > cav-bridge.`
 	register(command{
 		name:    "doctor",
-		args:    "",
+		args:    "[--services]",
 		summary: "Check every prerequisite without changing anything.",
 		run:     func(a *app, args []string) error { return cmdCheck(a, args, false) },
 	})
 	longHelp["doctor"] = `
 Exit code 0 when cav is ready, 2 when only the bridge is not running, 1 for any other
-problem. Each FAIL line is followed by the fix.`
+problem. Each FAIL line is followed by the fix.
+--services also checks the image, music and sound services (see cav config): one free
+call each. A service without a key is skipped, not failed; a key that is refused fails.`
 }
 
 type check struct {
@@ -58,6 +61,7 @@ type check struct {
 func cmdCheck(a *app, args []string, fix bool) error {
 	fs := flag.NewFlagSet("setup", flag.ContinueOnError)
 	noDocs := fs.Bool("no-docs", false, "do not build the docs index")
+	withServices := fs.Bool("services", false, "also check the image, music and sound services")
 	if _, err := parseFlags(fs, args); err != nil {
 		return err
 	}
@@ -129,15 +133,35 @@ func cmdCheck(a *app, args []string, fix bool) error {
 	// 6. Running bridge.
 	checks = append(checks, bridgeCheck(a))
 
+	var svc []services.Status
+	if *withServices {
+		sc, err := services.Load()
+		if err != nil {
+			checks = append(checks, check{Name: "services", Detail: err.Error(), Fix: "fix or delete " + services.Path()})
+		} else {
+			svc = checkServices(sc, nil)
+		}
+	}
+
 	allOK := true
 	for _, c := range checks {
 		if !c.OK && !c.Optional {
 			allOK = false
 		}
 	}
+	svcFailed := false
+	for _, s := range svc {
+		if s.State == "fail" {
+			svcFailed = true
+		}
+	}
 	// With --json a failing check prints one error object (below), not a report and then an error.
 	if allOK || !a.json || fix {
-		a.emit(map[string]any{"ready": allOK, "checks": checks, "version": version}, func() {
+		data := map[string]any{"ready": allOK, "checks": checks, "version": version}
+		if *withServices {
+			data["services"] = svc
+		}
+		a.emit(data, func() {
 			for _, c := range checks {
 				mark := "ok  "
 				if !c.OK {
@@ -150,6 +174,10 @@ func cmdCheck(a *app, args []string, fix bool) error {
 				if !c.OK && c.Fix != "" {
 					fmt.Printf("     %-14s fix: %s\n", "", c.Fix)
 				}
+			}
+			if *withServices {
+				fmt.Println("\nservices:")
+				printServiceStatus(svc)
 			}
 			if allOK {
 				fmt.Println("\nready: cav can drive Cavalry.")
@@ -173,6 +201,9 @@ func cmdCheck(a *app, args []string, fix bool) error {
 			msg = "" // the report above already says so
 		}
 		return &cliError{code: code, msg: msg, data: map[string]any{"ready": false, "checks": checks, "version": version}}
+	}
+	if svcFailed && !fix {
+		return &cliError{code: exitError, msg: "", data: map[string]any{"ready": allOK, "checks": checks, "services": svc, "version": version}}
 	}
 	return nil
 }
