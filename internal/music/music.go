@@ -147,3 +147,21 @@ func clip(s string, n int) string {
 	}
 	return s
 }
+
+// SoundEffect generates a sound effect with ElevenLabs (0.5-30 s; loop needs the v2 model,
+// which is the default). API reference read on 2026-10-08.
+func SoundEffect(ctx context.Context, key, text string, seconds float64, loop bool) (*Track, error) {
+	body := map[string]any{"text": text, "loop": loop, "prompt_influence": 0.5}
+	if seconds > 0 {
+		body["duration_seconds"] = math.Max(0.5, math.Min(30, seconds))
+	}
+	data, ctype, err := services.DoRaw(ctx, "POST", "https://api.elevenlabs.io/v1/sound-generation?output_format=mp3_44100_128",
+		map[string]string{"xi-api-key": key}, body)
+	if err != nil {
+		return nil, fmt.Errorf("elevenlabs sound effects: %w", err)
+	}
+	if strings.Contains(ctype, "json") {
+		return nil, fmt.Errorf("elevenlabs answered with JSON, not audio: %s", clip(string(data), 300))
+	}
+	return &Track{Data: data, Ext: ".mp3", Provider: "elevenlabs", Model: "eleven_text_to_sound_v2"}, nil
+}

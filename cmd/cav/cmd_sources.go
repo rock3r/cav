@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/rock3r/cav/internal/library"
+	"github.com/rock3r/cav/internal/music"
 	"github.com/rock3r/cav/internal/services"
 	"github.com/rock3r/cav/internal/sources"
 )
@@ -18,7 +19,7 @@ import (
 func init() {
 	register(command{
 		name:    "sfx",
-		args:    "search <words> [--service S] [--licence any|commercial|nc-ok] [--max-seconds N] [--limit N] | get <service:id> [-o sfx/] [--original] | add <file> --licence ID [--author A] [--source S] [--url U] | index <folder> [--licence ID] | libraries",
+		args:    "search <words> [--service S] [--licence any|commercial|nc-ok] [--max-seconds N] [--limit N] | get <service:id> [-o sfx/] [--original] | gen \"<prompt>\" [--seconds 2] [--loop] | add <file> --licence ID [--author A] [--source S] [--url U] | index <folder> [--licence ID] | libraries",
 		summary: "Find sound effects and music under free licences, download them, and record their credits.",
 		run:     func(a *app, args []string) error { return cmdSources(a, "sfx", "audio", "sfx", args) },
 	})
@@ -34,6 +35,8 @@ cav sfx get <ref> [-o sfx/] [--original]
 cav sfx index ~/Sounds/Sonniss-GDC-2026 [--licence Sonniss-GDC]
     adds a folder you downloaded (for example a Sonniss GDC bundle: royalty-free, no credit
     needed) to the local search. Files stay where they are until you get one.
+cav sfx gen "deep whoosh into a soft impact" --seconds 1.5 [--loop]
+    generates a sound with ElevenLabs (needs its key), into sfx/, recorded as generated.
 cav sfx add <file> --licence CC-BY-4.0 --author "..." [--source ...] [--url ...]
     records a file you found by hand.
 The licence filter defaults to the project setting (cav credits licence nc-ok|commercial):
@@ -97,6 +100,11 @@ func cmdSources(a *app, cmd, kind, defaultDir string, args []string) error {
 			break
 		}
 		return sfxIndex(a, args)
+	case "gen":
+		if kind != "audio" {
+			break
+		}
+		return sfxGen(a, root, defaultDir, args)
 	case "libraries":
 		if kind != "audio" {
 			break
@@ -315,6 +323,45 @@ func sourcesAdd(a *app, kind, root string, args []string) error {
 		e.Attribution = library.DefaultAttribution(e)
 	}
 	return recordAndReport(a, root, e)
+}
+
+func sfxGen(a *app, root, dir string, args []string) error {
+	fs := flag.NewFlagSet("sfx gen", flag.ContinueOnError)
+	seconds := fs.Float64("seconds", 0, "length, 0.5-30 (default: the model decides)")
+	loop := fs.Bool("loop", false, "make it loop smoothly")
+	out := fs.String("o", dir, "folder")
+	pos, err := parseFlags(fs, args)
+	if err != nil {
+		return err
+	}
+	if len(pos) == 0 {
+		return usageErr("describe the sound: cav sfx gen \"glassy riser into a hit\"")
+	}
+	prompt := strings.Join(pos, " ")
+	c, err := services.Load()
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	ch, err := services.Pick(ctx, c, "sfx", "elevenlabs")
+	if err != nil {
+		return fail(exitError, err.Error(), "sound generation needs an ElevenLabs key (cav config); cav sfx search finds free sounds")
+	}
+	tr, err := music.SoundEffect(ctx, ch.Key, prompt, *seconds, *loop)
+	if err != nil {
+		return fail(exitError, err.Error(), "")
+	}
+	if err := os.MkdirAll(*out, 0o755); err != nil {
+		return err
+	}
+	path := filepath.Join(*out, safeSlug(prompt)+tr.Ext)
+	if err := os.WriteFile(path, tr.Data, 0o644); err != nil {
+		return err
+	}
+	sum, _ := fileSHA(path)
+	return recordAndReport(a, root, library.Entry{Path: path, Kind: "audio", Title: prompt, Source: tr.Provider, Licence: "generated",
+		CommercialOK: true, RetrievedAt: time.Now().UTC(), SHA256: sum, Generated: &library.Generated{Provider: tr.Provider, Model: tr.Model, Prompt: prompt}})
 }
 
 // termsFor reads a licence given on the command line.

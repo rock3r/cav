@@ -64,3 +64,23 @@ func TestElevenLabsPlanAndStableAudio(t *testing.T) {
 		t.Fatalf("stability: %v", err)
 	}
 }
+
+func TestSoundEffectRequest(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		json.NewDecoder(r.Body).Decode(&body)
+		if r.URL.Path != "/v1/sound-generation" || body["text"] != "whoosh" || body["duration_seconds"].(float64) != 30 || body["loop"] != true {
+			t.Errorf("request %s %v", r.URL.Path, body)
+		}
+		w.Header().Set("Content-Type", "audio/mpeg")
+		w.Write([]byte("ID3"))
+	}))
+	defer srv.Close()
+	u, _ := url.Parse(srv.URL)
+	old := services.HTTPClient
+	services.HTTPClient = &http.Client{Transport: redirect{u}}
+	defer func() { services.HTTPClient = old }()
+	if _, err := SoundEffect(context.Background(), "k", "whoosh", 45, true); err != nil {
+		t.Fatal(err)
+	}
+}
