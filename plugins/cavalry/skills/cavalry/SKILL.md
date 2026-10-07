@@ -25,6 +25,8 @@ The `cav` CLI does the work and carries its own guides. This skill only gets you
 3. Work only in new scenes (`cav scene new`). Never use `--force` on the user's own work.
 4. You cannot see Cavalry: look at `cav sheet` images after every change, use
    `cav onion <start-end>` to see how one move travels, and run `cav check` before you render.
+   For storyboards, generated assets, music, sound effects, licences and a review page where
+   the user leaves notes for you, read `cav guide production`.
 
 5. Start diagnostics with `cav check --quick --json`. Treat performance findings as
    structural risks; add `--profile` for small measured samples. Inspect failed/skipped

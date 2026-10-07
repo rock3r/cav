@@ -4,7 +4,8 @@ You drive a running Cavalry app with `cav`. Your JavaScript runs inside Cavalry.
 see the viewport: render frames and look at them to know what you made.
 
 Other guides: `cav guide design` (motion recipes), `cav guide music` (beat sync),
-`cav guide traps` (silent failures), `cav guide native` (duplicators, filters, 3D, particles).
+`cav guide traps` (silent failures), `cav guide native` (duplicators, filters, 3D, particles),
+`cav guide production` (storyboards, assets, music, licences, and review with the user).
 
 ## 1. Check the setup
 
@@ -15,7 +16,8 @@ If it reports `blocked: a sandbox`, your sandbox stops `cav`: show the user the 
 ## 2. The workflow (follow it in order)
 
 1. **Plan first.** Write the timeline as a table: time (s), frame, what happens. With music,
-   plan in beats. Pick 2-4 colours and 1-2 fonts.
+   plan in beats. Pick 2-4 colours and 1-2 fonts. For a longer piece, make it a storyboard
+   and an animatic first and let the user review it (`cav guide production`).
 2. **Start a new scene**: `cav scene new --width 1920 --height 1080 --fps 60 --seconds 8 --bg '#0b0d12'`.
    It refuses when the open scene has unsaved changes. Never use `--force` on the user's own
    work: ask first.
@@ -128,7 +130,9 @@ Details: `cav guide music`.
 - Scene saved with `cav scene save`; final MP4 rendered with `cav render`, and the frame
   count matches.
 - Tell the user the file paths, and what you could not check (for example, you cannot hear
-  the music).
+  the music; `cav listen` measures what it can).
+- Offer a review: `cav review renders/final.mp4` in the background, then
+  `cav review wait` for the user's notes.
 
 ## Operation recovery
 

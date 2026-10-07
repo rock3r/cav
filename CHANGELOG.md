@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- Add `cav review`: a local review page for a render. It steps exact frames, shuttles with
+  J/K/L, sets ranges, and draws arrows, boxes, ellipses and freehand. Notes go to
+  `<video>.review.json` with a snapshot of the frame and drawing. "Send to agent" releases a
+  waiting `cav review wait`; `export`, `resolve` and `reopen` close the loop.
+- Add `cav config` and `cav doctor --services`: one service per production job, in an order
+  you choose, with keys read from environment variables, the macOS keychain, 1Password
+  (`op://`) or an OAuth login. Keys are never printed or stored.
+- Add `cav sfx` and `cav ref`: search Freesound, Openverse, Pexels, Unsplash, Wikimedia
+  Commons and folders you index, download with the licence and credit recorded, and
+  generate sound effects (`cav sfx gen`, ElevenLabs).
+- Add `cav credits`: a per-project licence setting (`nc-ok` or `commercial`), credit lines,
+  and licence checks, which `cav check` also reports.
+- Add `cav board`: storyboards timed in beats, frames per shot (greybox cards, or Gemini,
+  OpenAI, OpenRouter, Recraft), a board sheet, an animatic cut on the beat, and mood boards.
+- Add `cav gen`: generated stills, transparent PNGs and SVG, and PNG-to-SVG tracing.
+- Add `cav listen`: loudness, structure, storyboard cuts against downbeats, a picture, and an
+  audio model's critique of a track. Add `cav music gen` (ElevenLabs Music, Stable Audio).
+- Add `cav guide production`.
+
 - `cav beats` with an audio file also reports sections, rises, falls, silences, the strongest
   accents with their frequency band, and the energy of each bar.
 - Add `cav spectrogram`: draw a track as one labelled image (spectrogram, loudness, bars,

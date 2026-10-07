@@ -101,9 +101,20 @@ troubleshooting.
 | `cav beats <audio>` | Tempo, beats and downbeats as frame numbers, plus sections, rises, silences and accents |
 | `cav spectrogram <audio>` | Draw the track: spectrogram, loudness, beats, sections and accents on one time axis |
 | `cav sync <video.mp4>` | Measure the cuts and hits of a render against the beats |
+| `cav review [video.mp4]` | A review page: step frames, draw, comment, then send the notes to the agent (`wait`, `export`, `resolve`) |
+| `cav board init\|frames\|sheet\|animatic\|mood` | Storyboard timed in beats, frames per shot, a board image, an animatic on the music, mood boards |
+| `cav gen image\|vector` | Generate stills, transparent PNGs and SVG; trace a PNG to SVG |
+| `cav ref` / `cav sfx search\|get\|gen\|index` | Find reference images, sounds and music under free licences; generate sound effects |
+| `cav music gen` / `cav listen <track>` | Generate music planned on the storyboard; judge a track: loudness, cuts, picture, critique |
+| `cav credits [check\|licence]` | Credit lines and licence checks for every asset the project uses |
+| `cav config [check\|set-key\|order\|model]` | Which service does each job, where its key lives; `cav doctor --services` tests them |
 | `cav api` / `cav docs` / `cav types` / `cav helpers` | Offline search: API, Cavalry docs, layer types, the helper library |
 | `cav relay --spool <dir>` | Forward commands for agents whose sandbox blocks `cav` |
 | `cav version [--check]` / `cav update` | Versions, and updates that ask before they install |
+
+The production commands work without API keys (greybox frames, Openverse, Wikimedia,
+local tools) and use better services when you add keys. `cav guide production` explains
+them.
 
 Every command accepts `--json`. Exit codes: 0 ok, 1 error, 2 bridge not reachable, 3 job still
 running, 4 bridge lost.
