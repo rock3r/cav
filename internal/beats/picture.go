@@ -23,6 +23,9 @@ type View struct {
 	Visual []float64
 	// Hits are the moments where the picture changes most.
 	Hits []Mark
+	// Cuts are planned shot changes (from a storyboard), drawn across every lane: green
+	// on a downbeat, red off it.
+	Cuts []Mark
 }
 
 // Mark is a moment on the time axis; OK marks are drawn green, the others red.
@@ -293,6 +296,27 @@ func Picture(p *Profile, v View, out string) (int, int, error) {
 			}
 		}
 		label(2, visY, "pic", pText)
+	}
+
+	for _, m := range v.Cuts {
+		if m.Time < v.Start || m.Time > v.End {
+			continue
+		}
+		c := pFall
+		if m.OK {
+			c = pRise
+		}
+		x := xOf(m.Time)
+		for _, dx := range []int{0, 1} {
+			for y := specY; y < accY+accH; y++ {
+				blend(dst, x+dx, y, color.RGBA{c.R, c.G, c.B, 200})
+			}
+		}
+		for k := -4; k <= 4; k++ {
+			for d := 0; d < 9-2*abs(k); d++ {
+				blend(dst, x+k, specY+d, c)
+			}
+		}
 	}
 
 	// Time axis: a tick and a label every 1, 2, 5, 10, 15 or 30 seconds, whichever fits.

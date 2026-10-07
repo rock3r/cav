@@ -116,8 +116,8 @@ func cmdConfig(a *app, args []string) error {
 		if len(args) < 1 || len(args) > 2 {
 			return usageErr("usage: cav config model <service> [model-id]   (no id: back to the default)")
 		}
-		if _, ok := services.Catalog[args[0]]; !ok {
-			return usageErr("unknown service %q", args[0])
+		if _, ok := services.Catalog[strings.TrimSuffix(args[0], "-ears")]; !ok {
+			return usageErr("unknown service %q (gemini-ears sets the model gemini listens with)", args[0])
 		}
 		if c.Models == nil {
 			c.Models = map[string]string{}
