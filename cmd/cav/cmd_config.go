@@ -17,7 +17,7 @@ import (
 func init() {
 	register(command{
 		name:    "config",
-		args:    "[show | check [service...] | set-key <service> <source> | unset-key <service> | order <job> <s1,s2,...> | endpoint <service> <base-url> [model] | login <service>]",
+		args:    "[show | check [service...] | set-key <service> <source> | unset-key <service> | order <job> <s1,s2,...> | model <service> [id] | endpoint <service> <base-url> [model] | login <service>]",
 		summary: "Choose the services that make images, music and sound, and where their keys live.",
 		run:     cmdConfig,
 	})
@@ -37,6 +37,8 @@ no keys (greybox frames, Openverse, Wikimedia) and gets better as you add keys.
           oauth                     a login made with "cav config login <service>"
   cav config unset-key <service>    go back to the default variable
   cav config order <job> a,b,c      try a, then b, then c for that job
+  cav config model gemini gemini-3-pro-image
+                                    the model a service uses (no id: cav's default)
   cav config endpoint qwen-omni <base-url> [model]
                                     an OpenAI-compatible server you run or rent
   cav config login freesound --client-id ID [--secret SOURCE]
@@ -110,8 +112,24 @@ func cmdConfig(a *app, args []string) error {
 		return saveAndReport(a, c, args[0]+" server: "+args[1])
 	case "login":
 		return configLogin(a, c, args)
+	case "model":
+		if len(args) < 1 || len(args) > 2 {
+			return usageErr("usage: cav config model <service> [model-id]   (no id: back to the default)")
+		}
+		if _, ok := services.Catalog[args[0]]; !ok {
+			return usageErr("unknown service %q", args[0])
+		}
+		if c.Models == nil {
+			c.Models = map[string]string{}
+		}
+		if len(args) == 1 {
+			delete(c.Models, args[0])
+			return saveAndReport(a, c, args[0]+" model: default")
+		}
+		c.Models[args[0]] = args[1]
+		return saveAndReport(a, c, args[0]+" model: "+args[1])
 	}
-	return usageErr("unknown config command %q (show, check, set-key, unset-key, order, endpoint, login)", sub)
+	return usageErr("unknown config command %q (show, check, set-key, unset-key, order, model, endpoint, login)", sub)
 }
 
 func splitList(s string) []string {

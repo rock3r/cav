@@ -30,6 +30,9 @@ type Config struct {
 	// Endpoints holds settings for services that run on a server you choose, such as an
 	// OpenAI-compatible server hosting Qwen3-Omni.
 	Endpoints map[string]Endpoint `json:"endpoints,omitempty"`
+	// Models picks the model a service uses (for example gemini: gemini-3-pro-image).
+	// A service missing here uses cav's default for it.
+	Models map[string]string `json:"models,omitempty"`
 }
 
 type Endpoint struct {
