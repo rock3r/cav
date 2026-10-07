@@ -350,7 +350,6 @@ func cmdSync(a *app, args []string) error {
 	}
 	prof := beats.NewProfile(samples)
 	st := prof.Describe(r)
-	period := 60 / r.BPM
 	tol := max(1, int(math.Round(0.035*fps)))
 
 	var hits []syncHit
@@ -358,9 +357,10 @@ func cmdSync(a *app, args []string) error {
 	onGrid := 0
 	for _, h := range beats.FindHits(change) {
 		t := float64(h.Frame) / fps
-		beat := (t - r.Beats[0]) / period
-		half := math.Round(beat*2) / 2
-		off := h.Frame - int(math.Round((r.Beats[0]+half*period)*fps))
+		// Measured against the detected beats, so a track that drifts in tempo is judged
+		// against its real beats, not a constant-tempo projection.
+		beat, nearest := beats.Place(r.Beats, t)
+		off := h.Frame - int(math.Round(nearest*fps))
 		sh := syncHit{VisualHit: h, Time: math.Round(t*1000) / 1000, Beat: math.Round(beat*100) / 100, Offset: off, OnGrid: abs(off) <= tol}
 		if sh.OnGrid {
 			onGrid++

@@ -308,8 +308,9 @@ rendered video at 160x90 in grey and measures the mean change between neighbouri
 (`internal/beats/video.go`). A cut is one frame that changes 4 times more than its
 neighbours. A peak is the top of a bump that rises clearly above the valleys around it and
 above the 3 frames before it: the fastest frame of a move. A stop is a fall to near rest
-straight from full speed. Each hit is measured against the nearest beat or half beat; within
-about 35 ms counts as on the grid.
+straight from full speed. Each hit is measured against the nearest detected beat or half way
+between two detected beats, so a track that drifts in tempo is judged against its real beats;
+within about 35 ms counts as on the grid.
 
 ### Offline search
 

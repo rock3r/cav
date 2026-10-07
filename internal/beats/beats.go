@@ -16,6 +16,7 @@ import (
 	"math/cmplx"
 	"os"
 	"os/exec"
+	"sort"
 )
 
 const (
@@ -384,4 +385,20 @@ func Grid(bpm, offset, duration float64) Result {
 		}
 	}
 	return r
+}
+
+// Place finds where time t falls on the detected beats, which need not be evenly spaced
+// (a track without a steady tempo keeps its detected beat times). beat is the position
+// in beats, 0 = the first beat, interpolated between neighbouring beats; outside the
+// beats it continues at the nearest beat interval. nearest is the time of the closest beat
+// or half beat. It needs at least two beats.
+func Place(beats []float64, t float64) (beat, nearest float64) {
+	n := len(beats)
+	i := sort.SearchFloat64s(beats, t) - 1 // beats[i] <= t < beats[i+1]
+	i = max(0, min(n-2, i))
+	a, b := beats[i], beats[i+1]
+	beat = float64(i) + (t-a)/(b-a)
+	half := math.Round((beat-float64(i))*2) / 2
+	nearest = a + half*(b-a)
+	return beat, nearest
 }

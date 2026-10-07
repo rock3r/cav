@@ -435,10 +435,9 @@ func (p *Profile) Describe(r Result) Structure {
 	names := [3]string{"low", "mid", "high"}
 	for _, pk := range kept {
 		t := p.Time(pk.i)
-		beat := (t - beats[0]) / period
-		half := math.Round(beat*2) / 2
+		beat, nearest := Place(beats, t)
 		st.Accents = append(st.Accents, Accent{Time: round3(t), Strength: round2(pk.v), Band: names[p.FluxBand[pk.i]],
-			Beat: round2(beat), OnGrid: math.Abs(beat-half)*period <= 0.04})
+			Beat: round2(beat), OnGrid: math.Abs(t-nearest) <= 0.04})
 	}
 
 	// Energy per bar, scaled so the quietest bar is 0 and the loudest 1.

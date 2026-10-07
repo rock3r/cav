@@ -123,3 +123,21 @@ func TestFindHits(t *testing.T) {
 		}
 	}
 }
+
+func TestPlaceFollowsDetectedBeatsThatDrift(t *testing.T) {
+	// The tempo slows down: a constant-tempo projection from the average interval
+	// (about 0.567 s) would put beat 3 at 1.7 s, 0.1 s before the real one.
+	beats := []float64{0, 0.5, 1.1, 1.8}
+	for _, c := range []struct{ t, beat, nearest float64 }{
+		{1.8, 3, 1.8},       // exactly on a drifted beat
+		{0.8, 1.5, 0.8},     // half way between beats 1 and 2
+		{1.2, 2.14, 1.1},    // just after beat 2
+		{2.1, 3.43, 2.15},   // past the last beat: continues at the last interval
+		{-0.2, -0.4, -0.25}, // before the first beat
+	} {
+		beat, nearest := Place(beats, c.t)
+		if math.Abs(beat-c.beat) > 0.01 || math.Abs(nearest-c.nearest) > 1e-9 {
+			t.Fatalf("Place(%g) = %.3f, %.3f; want %.2f, %.2f", c.t, beat, nearest, c.beat, c.nearest)
+		}
+	}
+}
