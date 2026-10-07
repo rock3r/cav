@@ -553,6 +553,7 @@ func cmdSceneCheck(a *app, args []string) error {
 }
 
 func (a *app) partialCheck(out []finding, failures, skipped []map[string]any, measured []profileResult, cause error, warmups ...*profileWarmup) error {
+	out = append(out, licenceFindings()...)
 	if cause != nil {
 		failures = append(failures, map[string]any{"inspection": "interrupted", "error": cause.Error()})
 	}
