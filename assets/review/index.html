@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cav review</title>
+<style>
+  :root {
+    --bg: #111317; --panel: #191c22; --panel-2: #20242b; --line: #2e333c;
+    --ink: #e4e7ec; --ink-soft: #9aa2b1; --accent: #8fa4ff; --accent-ink: #0d1020;
+    --ok: #6fcf97; --warn: #f2c94c; --bad: #ff6b6b;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: 14px/1.45 var(--sans); }
+  button, select, textarea, input { font: inherit; color: inherit; }
+  button { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; cursor: pointer; min-height: 30px; }
+  button:hover { border-color: var(--accent); }
+  button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  button:disabled { opacity: 0.45; cursor: default; }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  .app { display: grid; grid-template-columns: minmax(0, 1fr) 360px; height: 100vh; }
+  @media (max-width: 900px) { .app { grid-template-columns: 1fr; height: auto; } }
+  .main { display: flex; flex-direction: column; min-width: 0; min-height: 0; padding: 12px 14px; gap: 10px; }
+  .side { border-left: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column; min-height: 0; }
+  @media (max-width: 900px) { .side { border-left: 0; border-top: 1px solid var(--line); } }
+
+  header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  header h1 { font-size: 15px; margin: 0; font-weight: 600; }
+  header .meta { color: var(--ink-soft); font: 12px var(--mono); }
+
+  .stage-wrap { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; background: #000; border-radius: 6px; overflow: hidden; }
+  .stage { position: relative; max-width: 100%; max-height: 100%; }
+  .stage video { display: block; width: 100%; height: 100%; }
+  .stage svg { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
+  .stage.drawing svg { cursor: crosshair; }
+
+  .transport { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .readout { font: 13px var(--mono); padding: 0 8px; min-width: 15ch; }
+  .readout b { font-size: 16px; }
+  .readout .exact { color: var(--ok); font-size: 11px; }
+  .readout .approx { color: var(--warn); font-size: 11px; }
+  .spacer { flex: 1; }
+  .tools { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  .swatch { width: 22px; height: 22px; min-height: 22px; padding: 0; border-radius: 50%; }
+  .swatch[aria-pressed="true"] { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+  .timeline { position: relative; height: 44px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; cursor: pointer; user-select: none; touch-action: none; }
+  .timeline .ticks { position: absolute; inset: 0; }
+  .timeline .range { position: absolute; top: 0; bottom: 0; background: rgba(143, 164, 255, 0.18); border-left: 2px solid var(--accent); border-right: 2px solid var(--accent); pointer-events: none; }
+  .timeline .head { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--accent); pointer-events: none; }
+  .timeline .mark { position: absolute; top: 4px; height: 10px; min-width: 6px; border-radius: 5px; background: var(--warn); transform: translateX(-3px); pointer-events: none; }
+  .timeline .mark.resolved { background: var(--ok); opacity: 0.6; }
+  .timeline .mark.stale { background: var(--ink-soft); }
+
+  .composer { padding: 12px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+  .composer textarea { width: 100%; min-height: 64px; resize: vertical; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px; }
+  .composer .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .composer .where { font: 12px var(--mono); color: var(--ink-soft); flex: 1; }
+  .list-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  .list-head .count { color: var(--ink-soft); font-size: 12px; flex: 1; }
+  .list { flex: 1; overflow: auto; min-height: 200px; }
+  .item { padding: 10px 12px; border-bottom: 1px solid var(--line); cursor: pointer; display: grid; grid-template-columns: 84px 1fr; gap: 10px; }
+  .item:hover { background: var(--panel-2); }
+  .item.sel { background: #262b36; }
+  .item img { width: 84px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 4px; background: #000; }
+  .item .noimg { width: 84px; aspect-ratio: 16 / 9; border-radius: 4px; background: var(--bg); }
+  .item .top { font: 12px var(--mono); color: var(--ink-soft); display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .item .txt { margin-top: 3px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .item .acts { margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .item .acts button { min-height: 24px; padding: 1px 8px; font-size: 12px; }
+  .item .reply { font-size: 12px; color: var(--ink-soft); margin-top: 4px; border-left: 2px solid var(--line); padding-left: 6px; white-space: pre-wrap; }
+  .pill { font: 600 10px var(--sans); text-transform: uppercase; letter-spacing: 0.06em; padding: 1px 6px; border-radius: 999px; }
+  .pill.open { background: rgba(242, 201, 76, 0.18); color: var(--warn); }
+  .pill.resolved { background: rgba(111, 207, 151, 0.16); color: var(--ok); }
+  .pill.sent { background: rgba(143, 164, 255, 0.18); color: var(--accent); }
+  .pill.stale { background: var(--panel-2); color: var(--ink-soft); }
+  .sendbar { padding: 12px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
+  .sendbar .note { font-size: 12px; color: var(--ink-soft); }
+  .toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); background: var(--panel-2); border: 1px solid var(--line); padding: 8px 14px; border-radius: 6px; opacity: 0; transition: opacity 160ms; pointer-events: none; }
+  .toast.on { opacity: 1; }
+  dialog { background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; max-width: 520px; }
+  dialog table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  dialog td { padding: 3px 8px; border-bottom: 1px solid var(--line); }
+  kbd { font: 12px var(--mono); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; background: var(--panel-2); }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="main">
+    <header>
+      <h1 id="name">cav review</h1>
+      <span class="meta" id="meta"></span>
+      <span class="spacer"></span>
+      <button id="help" title="Keyboard shortcuts (?)">Keys</button>
+    </header>
+
+    <div class="stage-wrap" id="stageWrap">
+      <div class="stage" id="stage">
+        <video id="video" src="/video" preload="auto" playsinline></video>
+        <svg id="overlay" aria-label="Drawing layer"></svg>
+      </div>
+    </div>
+
+    <div class="transport">
+      <button id="bStart" title="First frame (Home)">⏮</button>
+      <button id="bBack" title="One frame back (←)">◀︎ 1</button>
+      <button id="bPlay" title="Play or pause (Space or K)">Play</button>
+      <button id="bFwd" title="One frame forward (→)">1 ▶︎</button>
+      <button id="bEnd" title="Last frame (End)">⏭</button>
+      <span class="readout" id="readout"><b>f 0</b></span>
+      <button id="bIn" title="Range start (I)">In</button>
+      <button id="bOut" title="Range end (O)">Out</button>
+      <button id="bClearRange" title="Clear range (X)">Clear range</button>
+      <span class="spacer"></span>
+      <div class="tools" role="group" aria-label="Drawing tools">
+        <button data-tool="none" title="No drawing (V)">View</button>
+        <button data-tool="pen" title="Pen (P)">Pen</button>
+        <button data-tool="arrow" title="Arrow (A)">Arrow</button>
+        <button data-tool="rect" title="Box (B)">Box</button>
+        <button data-tool="ellipse" title="Ellipse (E)">Ellipse</button>
+        <button class="swatch" data-color="#ffd23f" style="background:#ffd23f" aria-label="Yellow"></button>
+        <button class="swatch" data-color="#ff4d4d" style="background:#ff4d4d" aria-label="Red"></button>
+        <button class="swatch" data-color="#4dd4ff" style="background:#4dd4ff" aria-label="Cyan"></button>
+        <button class="swatch" data-color="#ffffff" style="background:#ffffff" aria-label="White"></button>
+        <button id="bUndo" title="Undo the last stroke (Ctrl/Cmd+Z)">Undo</button>
+      </div>
+    </div>
+
+    <div class="timeline" id="timeline" aria-label="Timeline: click or drag to seek">
+      <svg class="ticks" id="ticks" preserveAspectRatio="none"></svg>
+      <div class="range" id="range" hidden></div>
+      <div id="marks"></div>
+      <div class="head" id="head"></div>
+    </div>
+  </div>
+
+  <aside class="side">
+    <div class="composer">
+      <textarea id="text" placeholder="Note for this frame (C to focus, Cmd/Ctrl+Enter to add)"></textarea>
+      <div class="row">
+        <span class="where" id="where">frame 0</span>
+        <button class="primary" id="bAdd">Add note</button>
+      </div>
+    </div>
+    <div class="list-head">
+      <span class="count" id="count">No notes yet</span>
+      <button id="bFilter" aria-pressed="false" title="Show resolved notes too">Show resolved</button>
+    </div>
+    <div class="list" id="list"></div>
+    <div class="sendbar">
+      <button class="primary" id="bSend">Send to agent</button>
+      <span class="note" id="sendNote">The agent receives new open notes through <code>cav review wait</code>.</span>
+    </div>
+  </aside>
+</div>
+
+<dialog id="keys">
+  <table>
+    <tr><td><kbd>Space</kbd> <kbd>K</kbd></td><td>play / pause</td></tr>
+    <tr><td><kbd>L</kbd></td><td>play forward; press again for 2×, 4×, 8×</td></tr>
+    <tr><td><kbd>J</kbd></td><td>play backward; press again for 2×, 4×, 8×</td></tr>
+    <tr><td><kbd>←</kbd> <kbd>→</kbd></td><td>one frame (Shift: 10 frames)</td></tr>
+    <tr><td><kbd>Home</kbd> <kbd>End</kbd></td><td>first / last frame</td></tr>
+    <tr><td><kbd>I</kbd> <kbd>O</kbd> <kbd>X</kbd></td><td>range start / end / clear</td></tr>
+    <tr><td><kbd>V</kbd> <kbd>P</kbd> <kbd>A</kbd> <kbd>B</kbd> <kbd>E</kbd></td><td>view, pen, arrow, box, ellipse</td></tr>
+    <tr><td><kbd>Ctrl/Cmd+Z</kbd></td><td>undo the last stroke</td></tr>
+    <tr><td><kbd>C</kbd></td><td>write a note; <kbd>Cmd/Ctrl+Enter</kbd> adds it</td></tr>
+    <tr><td><kbd>N</kbd> <kbd>Shift+N</kbd></td><td>next / previous note</td></tr>
+    <tr><td><kbd>Esc</kbd></td><td>leave the note field, drop the drawing</td></tr>
+  </table>
+  <form method="dialog" style="margin-top:12px;text-align:right"><button>Close</button></form>
+</dialog>
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const video = $('video'), overlay = $('overlay'), stage = $('stage'), wrap = $('stageWrap');
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  let meta = null, doc = { comments: [], sends: [] }, version = '', author = '';
+  let frame = 0, exact = false, inF = null, outF = null;
+  let tool = 'arrow', color = '#ffd23f', draft = [], drawing = null;
+  let selected = null, showResolved = false, shuttle = 0, shuttleTimer = null;
+  const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
+
+  const toast = msg => { const t = $('toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('on'), 2200); };
+  const api = async (method, url, body) => {
+    // Every write sends JSON: the server refuses other content types, so another site
+    // cannot post here with a plain form.
+    if (method !== 'GET' && body === undefined) body = {};
+    const r = await fetch(url, { method, headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    return j;
+  };
+  const tc = f => { const fps = Math.round(meta.fps), s = Math.floor(f / fps); const p = n => String(n).padStart(2, '0'); return `${p(Math.floor(s / 3600))}:${p(Math.floor(s / 60) % 60)}:${p(s % 60)}:${p(f % fps)}`; };
+  const last = () => Math.max(0, meta.frames - 1);
+
+  // ---------- layout: keep the stage at the video's aspect ratio inside the free area ----------
+  const narrow = matchMedia('(max-width: 900px)');
+  narrow.addEventListener('change', () => { wrap.style.height = ''; fit(); });
+  function fit() {
+    if (!meta) return;
+    const ar = meta.width / meta.height;
+    // Stacked layout: the page scrolls, so the stage takes the full width.
+    if (narrow.matches) wrap.style.height = Math.round(wrap.clientWidth / ar) + 'px';
+    const W = wrap.clientWidth, H = wrap.clientHeight || W / ar;
+    let w = W, h = W / ar;
+    if (h > H && H > 0) { h = H; w = H * ar; }
+    stage.style.width = w + 'px'; stage.style.height = h + 'px';
+  }
+  new ResizeObserver(fit).observe(wrap);
+
+  // ---------- frames ----------
+  function onFrame(f, isExact) {
+    frame = Math.max(0, Math.min(last(), f)); exact = isExact;
+    renderReadout(); renderHead(); renderOverlay(); renderWhere();
+  }
+  // While a seek is in flight, `pending` is the frame asked for. A frame callback from an
+  // earlier seek must not move the playhead back, or quick key presses lose steps.
+  let pending = null;
+  const shown = f => {
+    if (pending != null) {
+      if (f !== pending) return;
+      pending = null;
+    }
+    onFrame(f, hasRVFC);
+  };
+  if (hasRVFC) {
+    const cb = (now, md) => { video.requestVideoFrameCallback(cb); shown(Math.round(md.mediaTime * meta.fps)); };
+    video.addEventListener('loadedmetadata', () => video.requestVideoFrameCallback(cb), { once: true });
+  } else {
+    video.addEventListener('timeupdate', () => { if (!video.paused) shown(Math.floor(video.currentTime * meta.fps + 1e-3)); });
+    video.addEventListener('seeked', () => { if (!video.seeking) shown(Math.floor(video.currentTime * meta.fps + 1e-3)); });
+  }
+  // If the browser shows another frame than the one asked for, stop waiting after a moment
+  // and report what is on screen (marked as not exact).
+  video.addEventListener('seeked', () => setTimeout(() => {
+    if (pending != null && !video.seeking) { pending = null; onFrame(Math.floor(video.currentTime * meta.fps + 1e-3), false); }
+  }, 300));
+  function seek(f) {
+    stopShuttle(); video.pause();
+    f = Math.max(0, Math.min(last(), f));
+    // Aim for the middle of the frame so rounding never lands on its neighbour.
+    pending = f;
+    video.currentTime = (f + 0.5) / meta.fps;
+    frame = f; exact = false; renderReadout(); renderHead(); renderOverlay(); renderWhere();
+  }
+  const seekDone = () => new Promise(res => { if (!video.seeking) return res(); video.addEventListener('seeked', () => res(), { once: true }); });
+
+  function playPause() {
+    if (shuttle || shuttleTimer) { stopShuttle(); video.pause(); seek(frame); return; }
+    if (video.paused) { if (frame >= last()) seek(0); pending = null; video.playbackRate = 1; video.play(); } else { video.pause(); seek(frame); }
+    renderPlay();
+  }
+  function stopShuttle() { if (shuttleTimer) clearInterval(shuttleTimer); shuttleTimer = null; shuttle = 0; video.playbackRate = 1; renderPlay(); }
+  function forward() {
+    if (shuttle < 0) stopShuttle();
+    if (video.paused) { pending = null; video.playbackRate = 1; video.play(); shuttle = 1; }
+    else { shuttle = Math.min(8, Math.max(1, shuttle) * 2); video.playbackRate = shuttle; }
+    renderPlay();
+  }
+  function backward() {
+    // Browsers do not play video backwards; step frames on a timer instead.
+    video.pause();
+    shuttle = shuttle < 0 ? Math.max(-8, shuttle * 2) : -1;
+    if (shuttleTimer) clearInterval(shuttleTimer);
+    const speed = -shuttle;
+    shuttleTimer = setInterval(() => {
+      if (frame <= 0) { stopShuttle(); return; }
+      const f = Math.max(0, frame - speed);
+      pending = f; video.currentTime = (f + 0.5) / meta.fps; frame = f; exact = false; renderReadout(); renderHead();
+    }, 1000 / Math.min(meta.fps, 30));
+    renderPlay();
+  }
+  video.addEventListener('pause', renderPlay);
+  video.addEventListener('play', renderPlay);
+  video.addEventListener('ended', () => { shuttle = 0; renderPlay(); });
+  function renderPlay() {
+    const playing = !video.paused || shuttleTimer;
+    $('bPlay').textContent = playing ? (shuttle && shuttle !== 1 ? `Pause (${shuttle > 0 ? '' : '−'}${Math.abs(shuttle)}×)` : 'Pause') : 'Play';
+  }
+
+  // ---------- readout, head, range, marks ----------
+  function renderReadout() {
+    $('readout').innerHTML = `<b>f ${frame}</b> / ${last()} · ${tc(frame)} <span class="${exact ? 'exact' : 'approx'}">${exact ? 'exact' : 'seeking'}</span>`;
+  }
+  const pct = f => (meta.frames > 1 ? f / (meta.frames - 1) : 0) * 100;
+  function renderHead() { $('head').style.left = pct(frame) + '%'; }
+  function renderRange() {
+    const r = $('range');
+    if (inF == null) { r.hidden = true; return; }
+    const a = inF, b = outF == null ? inF : outF;
+    r.hidden = false; r.style.left = pct(Math.min(a, b)) + '%'; r.style.width = Math.max(0.3, pct(Math.abs(b - a))) + '%';
+  }
+  function renderTicks() {
+    const t = $('ticks'), secs = meta.frames / meta.fps, w = 1000;
+    t.setAttribute('viewBox', `0 0 ${w} 44`);
+    let s = '';
+    for (let i = 0; i <= secs; i++) {
+      const x = (i * meta.fps) / Math.max(1, meta.frames - 1) * w;
+      s += `<line x1="${x}" x2="${x}" y1="${i % 5 === 0 ? 22 : 30}" y2="44" stroke="#3a404b" stroke-width="1"/>`;
+      if (i % 5 === 0) s += `<text x="${x + 3}" y="40" fill="#7d8594" font-size="10" font-family="monospace">${i}s</text>`;
+    }
+    t.innerHTML = s;
+  }
+  function renderMarks() {
+    $('marks').innerHTML = doc.comments.filter(c => showResolved || c.status === 'open').map(c => {
+      const end = c.frameEnd ?? c.frame, cls = c.status === 'resolved' ? 'resolved' : (c.version !== version ? 'stale' : '');
+      return `<div class="mark ${cls}" style="left:${pct(c.frame)}%;width:calc(${pct(end) - pct(c.frame)}% + 6px)"></div>`;
+    }).join('');
+  }
+
+  // ---------- timeline scrubbing ----------
+  const tl = $('timeline');
+  const tlFrame = e => { const r = tl.getBoundingClientRect(); return Math.round((e.clientX - r.left) / r.width * last()); };
+  tl.addEventListener('pointerdown', e => { tl.setPointerCapture(e.pointerId); seek(tlFrame(e)); });
+  tl.addEventListener('pointermove', e => { if (e.buttons) seek(tlFrame(e)); });
+
+  // ---------- drawing ----------
+  const W = () => meta.width, H = () => meta.height;
+  function shapeEl(s, opacity) {
+    const g = document.createElementNS(SVGNS, 'g');
+    const sw = Math.max(2, W() * 0.004);
+    const P = p => [p[0] * W(), p[1] * H()];
+    const stroke = el => { el.setAttribute('stroke', s.color || '#ffd23f'); el.setAttribute('stroke-width', sw); el.setAttribute('fill', 'none'); el.setAttribute('stroke-linecap', 'round'); el.setAttribute('stroke-linejoin', 'round'); return el; };
+    if (s.type === 'pen') {
+      const el = stroke(document.createElementNS(SVGNS, 'polyline'));
+      el.setAttribute('points', s.pts.map(p => P(p).join(',')).join(' ')); g.appendChild(el);
+    } else if (s.type === 'arrow' && s.pts.length === 2) {
+      const [a, b] = s.pts.map(P), ang = Math.atan2(b[1] - a[1], b[0] - a[0]), L = sw * 5;
+      const ln = stroke(document.createElementNS(SVGNS, 'line'));
+      ln.setAttribute('x1', a[0]); ln.setAttribute('y1', a[1]); ln.setAttribute('x2', b[0]); ln.setAttribute('y2', b[1]); g.appendChild(ln);
+      const hd = stroke(document.createElementNS(SVGNS, 'polyline'));
+      hd.setAttribute('points', [[b[0] - L * Math.cos(ang - 0.45), b[1] - L * Math.sin(ang - 0.45)], b, [b[0] - L * Math.cos(ang + 0.45), b[1] - L * Math.sin(ang + 0.45)]].map(p => p.join(',')).join(' '));
+      g.appendChild(hd);
+    } else if ((s.type === 'rect' || s.type === 'ellipse') && s.pts.length === 2) {
+      const [a, b] = s.pts.map(P), x = Math.min(a[0], b[0]), y = Math.min(a[1], b[1]), w = Math.abs(b[0] - a[0]), h = Math.abs(b[1] - a[1]);
+      let el;
+      if (s.type === 'rect') { el = stroke(document.createElementNS(SVGNS, 'rect')); el.setAttribute('x', x); el.setAttribute('y', y); el.setAttribute('width', w); el.setAttribute('height', h); }
+      else { el = stroke(document.createElementNS(SVGNS, 'ellipse')); el.setAttribute('cx', x + w / 2); el.setAttribute('cy', y + h / 2); el.setAttribute('rx', w / 2); el.setAttribute('ry', h / 2); }
+      g.appendChild(el);
+    }
+    g.setAttribute('opacity', opacity);
+    return g;
+  }
+  function onScreen(c) { const end = c.frameEnd ?? c.frame; return frame >= c.frame && frame <= end; }
+  function renderOverlay() {
+    if (!meta) return;
+    overlay.setAttribute('viewBox', `0 0 ${W()} ${H()}`);
+    overlay.innerHTML = '';
+    for (const c of doc.comments) {
+      if (!c.shapes || !onScreen(c)) continue;
+      if (c.status !== 'open' && c.id !== selected) continue;
+      for (const s of c.shapes) overlay.appendChild(shapeEl(s, c.id === selected ? 1 : 0.45));
+    }
+    for (const s of draft) overlay.appendChild(shapeEl(s, 1));
+    if (drawing) overlay.appendChild(shapeEl(drawing, 1));
+  }
+  const norm = e => { const r = overlay.getBoundingClientRect(); return [Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), Math.min(1, Math.max(0, (e.clientY - r.top) / r.height))]; };
+  overlay.addEventListener('pointerdown', e => {
+    if (tool === 'none' || !meta) return;
+    if (!video.paused || shuttleTimer) { video.pause(); stopShuttle(); seek(frame); }
+    overlay.setPointerCapture(e.pointerId);
+    const p = norm(e);
+    drawing = { type: tool, color, pts: tool === 'pen' ? [p] : [p, p] };
+    renderOverlay();
+  });
+  overlay.addEventListener('pointermove', e => {
+    if (!drawing) return;
+    const p = norm(e);
+    if (drawing.type === 'pen') drawing.pts.push(p); else drawing.pts[1] = p;
+    renderOverlay();
+  });
+  overlay.addEventListener('pointerup', () => {
+    if (!drawing) return;
+    const [a, b] = [drawing.pts[0], drawing.pts[drawing.pts.length - 1]];
+    const big = drawing.type === 'pen' ? drawing.pts.length > 2 : Math.hypot(b[0] - a[0], b[1] - a[1]) > 0.01;
+    if (big) {
+      if (drawing.type === 'pen') drawing.pts = drawing.pts.map(p => [+p[0].toFixed(4), +p[1].toFixed(4)]);
+      else drawing.pts = drawing.pts.map(p => [+p[0].toFixed(4), +p[1].toFixed(4)]);
+      draft.push(drawing);
+    }
+    drawing = null; renderOverlay(); renderWhere();
+  });
+  function setTool(t) { tool = t; document.querySelectorAll('[data-tool]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tool === t))); stage.classList.toggle('drawing', t !== 'none'); }
+  function setColor(c) { color = c; document.querySelectorAll('[data-color]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.color === c))); }
+  document.querySelectorAll('[data-tool]').forEach(b => b.addEventListener('click', () => setTool(b.dataset.tool)));
+  document.querySelectorAll('[data-color]').forEach(b => b.addEventListener('click', () => setColor(b.dataset.color)));
+  $('bUndo').addEventListener('click', () => { draft.pop(); renderOverlay(); renderWhere(); });
+
+  // ---------- composer ----------
+  function rangeNow() {
+    if (inF == null) return [frame, null];
+    const a = inF, b = outF == null ? frame : outF;
+    return [Math.min(a, b), Math.max(a, b) === Math.min(a, b) ? null : Math.max(a, b)];
+  }
+  function renderWhere() {
+    const [a, b] = rangeNow();
+    $('where').textContent = (b == null ? `frame ${a}` : `frames ${a}–${b}`) + (draft.length ? ` · ${draft.length} drawing${draft.length > 1 ? 's' : ''}` : '');
+  }
+  async function snapshot(f) {
+    // Burn the drawing into the exact frame the note is about.
+    if (frame !== f || video.seeking) { video.currentTime = (f + 0.5) / meta.fps; await seekDone(); }
+    const cv = document.createElement('canvas'); cv.width = W(); cv.height = H();
+    const ctx = cv.getContext('2d');
+    ctx.drawImage(video, 0, 0, W(), H());
+    const tmp = document.createElementNS(SVGNS, 'svg');
+    tmp.setAttribute('xmlns', SVGNS); tmp.setAttribute('width', W()); tmp.setAttribute('height', H()); tmp.setAttribute('viewBox', `0 0 ${W()} ${H()}`);
+    for (const s of draft) tmp.appendChild(shapeEl(s, 1));
+    if (draft.length) {
+      const img = new Image();
+      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(new XMLSerializer().serializeToString(tmp));
+      await img.decode();
+      ctx.drawImage(img, 0, 0);
+    }
+    return cv.toDataURL('image/png');
+  }
+  async function addNote() {
+    const text = $('text').value.trim();
+    if (!text && !draft.length) { toast('Write a note or draw something first'); return; }
+    video.pause(); stopShuttle();
+    const [a, b] = rangeNow();
+    $('bAdd').disabled = true;
+    try {
+      const snap = await snapshot(a);
+      const c = await api('POST', '/api/comments', { frame: a, frameEnd: b, text, shapes: draft, snapshot: snap });
+      draft = []; $('text').value = ''; inF = outF = null; renderRange(); renderWhere();
+      selected = c.id; await refresh(); toast(`Added ${c.id} at frame ${c.frame}`);
+    } catch (e) { toast('Could not add the note: ' + e.message); }
+    finally { $('bAdd').disabled = false; }
+  }
+  $('bAdd').addEventListener('click', addNote);
+
+  // ---------- list ----------
+  function renderList() {
+    const items = doc.comments.filter(c => showResolved || c.status === 'open');
+    const open = doc.comments.filter(c => c.status === 'open').length;
+    $('count').textContent = doc.comments.length ? `${open} open · ${doc.comments.length - open} resolved` : 'No notes yet';
+    $('list').innerHTML = items.map(c => {
+      const range = c.frameEnd != null ? `f ${c.frame}–${c.frameEnd}` : `f ${c.frame}`;
+      const pills = [`<span class="pill ${c.status}">${c.status}</span>`];
+      if (c.sent) pills.push(`<span class="pill sent">sent #${c.sent}</span>`);
+      if (c.version !== version) pills.push('<span class="pill stale">older render</span>');
+      const replies = (c.replies || []).map(r => `<div class="reply"><b>${esc(r.author)}</b>: ${esc(r.text)}</div>`).join('');
+      const note = c.resolvedNote ? `<div class="reply"><b>resolved</b>: ${esc(c.resolvedNote)}</div>` : '';
+      return `<div class="item ${c.id === selected ? 'sel' : ''}" data-id="${c.id}">
+        ${c.snapshot ? `<img loading="lazy" src="/api/snapshot/${c.id}?v=${c.createdAt}" alt="">` : '<div class="noimg"></div>'}
+        <div><div class="top"><b>${c.id}</b> ${range} · ${esc(c.author || '')} ${pills.join(' ')}</div>
+        <div class="txt">${esc(c.text || '(drawing only)')}</div>${replies}${note}
+        <div class="acts">${c.status === 'open' ? `<button data-act="resolve">Resolve</button>` : `<button data-act="open">Reopen</button>`}
+          <button data-act="reply">Reply</button><button data-act="delete">Delete</button></div></div></div>`;
+    }).join('');
+    const unsent = doc.comments.filter(c => c.status === 'open' && !c.sent).length;
+    $('bSend').disabled = !unsent;
+    $('bSend').textContent = unsent ? `Send ${unsent} new note${unsent > 1 ? 's' : ''} to agent` : 'Send to agent';
+    const lastSend = doc.sends && doc.sends[doc.sends.length - 1];
+    if (lastSend) $('sendNote').innerHTML = `Send #${lastSend.n}: ${lastSend.comments.length} note${lastSend.comments.length > 1 ? 's' : ''}, ` + (lastSend.deliveredAt ? 'received by the agent.' : 'waiting for <code>cav review wait</code>.');
+    renderMarks(); renderOverlay();
+  }
+  const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+  $('list').addEventListener('click', async e => {
+    const item = e.target.closest('.item'); if (!item) return;
+    const id = item.dataset.id, c = doc.comments.find(x => x.id === id), act = e.target.dataset.act;
+    try {
+      if (act === 'resolve' || act === 'open') { await api('POST', `/api/comments/${id}`, { status: act === 'resolve' ? 'resolved' : 'open' }); await refresh(); return; }
+      if (act === 'delete') { if (confirm(`Delete ${id}?`)) { await api('DELETE', `/api/comments/${id}`); await refresh(); } return; }
+      if (act === 'reply') { const t = prompt(`Reply to ${id}`); if (t) { await api('POST', `/api/comments/${id}`, { reply: t }); await refresh(); } return; }
+    } catch (err) { toast(err.message); return; }
+    selected = id; draft = []; seek(c.frame); renderList();
+  });
+  $('bFilter').addEventListener('click', () => { showResolved = !showResolved; $('bFilter').setAttribute('aria-pressed', String(showResolved)); renderList(); });
+  $('bSend').addEventListener('click', async () => {
+    try { const s = await api('POST', '/api/send'); toast(`Sent ${s.comments.length} note${s.comments.length > 1 ? 's' : ''} to the agent`); await refresh(); }
+    catch (e) { toast(e.message); }
+  });
+  function stepNote(dir) {
+    const open = doc.comments.filter(c => showResolved || c.status === 'open');
+    if (!open.length) return;
+    const next = dir > 0 ? open.find(c => c.frame > frame) || open[0] : [...open].reverse().find(c => c.frame < frame) || open[open.length - 1];
+    selected = next.id; seek(next.frame); renderList();
+  }
+
+  // ---------- keys ----------
+  document.addEventListener('keydown', e => {
+    const typing = e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT';
+    if (typing) {
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); addNote(); }
+      if (e.key === 'Escape') e.target.blur();
+      return;
+    }
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); draft.pop(); renderOverlay(); renderWhere(); return; }
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const k = e.key;
+    const map = {
+      ' ': playPause, k: playPause, K: playPause, l: forward, L: forward, j: backward, J: backward,
+      ArrowLeft: () => seek(frame - (e.shiftKey ? 10 : 1)), ArrowRight: () => seek(frame + (e.shiftKey ? 10 : 1)),
+      Home: () => seek(0), End: () => seek(last()),
+      i: () => { inF = frame; if (outF != null && outF < inF) outF = null; renderRange(); renderWhere(); },
+      o: () => { if (inF == null) inF = 0; outF = frame; renderRange(); renderWhere(); },
+      x: () => { inF = outF = null; renderRange(); renderWhere(); },
+      v: () => setTool('none'), p: () => setTool('pen'), a: () => setTool('arrow'), b: () => setTool('rect'), e: () => setTool('ellipse'),
+      c: () => $('text').focus(), n: () => stepNote(1), N: () => stepNote(-1),
+      '?': () => $('keys').showModal(),
+      Escape: () => { draft = []; drawing = null; renderOverlay(); renderWhere(); },
+    };
+    const fn = map[k] || map[k.toLowerCase && k.length === 1 ? k.toLowerCase() : k];
+    if (fn) { e.preventDefault(); fn(); }
+  });
+  $('bPlay').addEventListener('click', playPause);
+  $('bBack').addEventListener('click', () => seek(frame - 1));
+  $('bFwd').addEventListener('click', () => seek(frame + 1));
+  $('bStart').addEventListener('click', () => seek(0));
+  $('bEnd').addEventListener('click', () => seek(last()));
+  $('bIn').addEventListener('click', () => { inF = frame; renderRange(); renderWhere(); });
+  $('bOut').addEventListener('click', () => { if (inF == null) inF = 0; outF = frame; renderRange(); renderWhere(); });
+  $('bClearRange').addEventListener('click', () => { inF = outF = null; renderRange(); renderWhere(); });
+  $('help').addEventListener('click', () => $('keys').showModal());
+
+  // ---------- state ----------
+  async function refresh() {
+    const s = await api('GET', '/api/state');
+    const first = !meta;
+    meta = s.source; doc = s.doc; version = s.version; author = s.author;
+    if (first) {
+      $('name').textContent = s.name;
+      document.title = s.name + ' · cav review';
+      $('meta').textContent = `${meta.width}×${meta.height} · ${+meta.fps.toFixed(3)} fps · ${meta.frames} frames · ${author}`;
+      renderTicks(); fit(); renderReadout();
+    }
+    renderList();
+  }
+  setTool('arrow'); setColor('#ffd23f');
+  refresh().then(() => { renderWhere(); seek(0); }).catch(e => toast('Could not load: ' + e.message));
+  setInterval(() => { if (!document.hidden && !drawing) refresh().catch(() => {}); }, 3000);
+})();
+</script>
+</body>
+</html>

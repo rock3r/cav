@@ -21,6 +21,11 @@ var LayerTypes []byte
 //go:embed guide/*.md
 var Guide embed.FS
 
+// ReviewPage is the single-page review tool that `cav review` serves.
+//
+//go:embed review/index.html
+var ReviewPage []byte
+
 // Diagnostics holds metadata and measured sampling scripts.
 //
 //go:embed diagnostics/*.js

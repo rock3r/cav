@@ -1,0 +1,138 @@
+package review
+
+import (
+	"bytes"
+	"encoding/base64"
+	"encoding/json"
+	"image"
+	"image/png"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func TestTimecodeAndFragment(t *testing.T) {
+	if got := Timecode(112, 60); got != "00:00:01:52" {
+		t.Fatalf("timecode %s", got)
+	}
+	if got := Timecode(3600*30+5, 29.97); got != "01:00:00:05" {
+		t.Fatalf("29.97 timecode %s", got)
+	}
+	end := 130
+	got := Fragment(112, &end, 60, []Shape{{Type: "rect", Pts: [][2]float64{{0.4, 0.2}, {0.65, 0.35}}}})
+	if got != "#t=1.8667,2.1833&xywh=percent:40,20,25,15" {
+		t.Fatalf("fragment %s", got)
+	}
+}
+
+func pngDataURL(t *testing.T) string {
+	var b bytes.Buffer
+	if err := png.Encode(&b, image.NewRGBA(image.Rect(0, 0, 4, 4))); err != nil {
+		t.Fatal(err)
+	}
+	return "data:image/png;base64," + base64.StdEncoding.EncodeToString(b.Bytes())
+}
+
+func newTestServer(t *testing.T) (*Server, http.Handler) {
+	dir := t.TempDir()
+	video := filepath.Join(dir, "v3.mp4")
+	os.WriteFile(video, []byte("not really a video"), 0o644)
+	s := &Server{Store: Open(video), Source: Source{Render: video, SHA256: "abcdef0123456789", FPS: 30, Frames: 120, Width: 64, Height: 36},
+		Proxy: video, Page: []byte("<html>"), Author: "seb"}
+	return s, s.Handler()
+}
+
+func do(t *testing.T, h http.Handler, method, path string, body any, hdr map[string]string) *httptest.ResponseRecorder {
+	var r *bytes.Reader
+	if body != nil {
+		j, _ := json.Marshal(body)
+		r = bytes.NewReader(j)
+	} else {
+		r = bytes.NewReader(nil)
+	}
+	req := httptest.NewRequest(method, "http://127.0.0.1:8790"+path, r)
+	req.Host = "127.0.0.1:8790"
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	for k, v := range hdr {
+		req.Header.Set(k, v)
+	}
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	return w
+}
+
+func TestCommentSendDeliverLoop(t *testing.T) {
+	s, h := newTestServer(t)
+	w := do(t, h, "POST", "/api/comments", map[string]any{"frame": 57, "frameEnd": 70, "text": "fade too slow", "snapshot": pngDataURL(t),
+		"shapes": []Shape{{Type: "arrow", Pts: [][2]float64{{0.1, 0.1}, {0.2, 0.3}}}}}, nil)
+	if w.Code != 200 {
+		t.Fatalf("add: %d %s", w.Code, w.Body)
+	}
+	var c Comment
+	json.Unmarshal(w.Body.Bytes(), &c)
+	if c.ID != "c_01" || c.Timecode != "00:00:01:27" || c.Version != "abcdef012345" || c.Snapshot == "" {
+		t.Fatalf("comment %+v", c)
+	}
+	if _, err := os.Stat(c.Snapshot); err != nil {
+		t.Fatalf("snapshot not written: %v", err)
+	}
+	if w := do(t, h, "POST", "/api/comments", map[string]any{"frame": 500, "text": "x"}, nil); w.Code != 400 {
+		t.Fatalf("frame outside the video accepted: %d", w.Code)
+	}
+
+	if w := do(t, h, "POST", "/api/send", map[string]any{}, nil); w.Code != 200 {
+		t.Fatalf("send: %d %s", w.Code, w.Body)
+	}
+	if w := do(t, h, "POST", "/api/send", map[string]any{}, nil); w.Code != 409 {
+		t.Fatalf("second send with nothing new: %d", w.Code)
+	}
+	d, _ := s.Store.Load()
+	p := Pending(d)
+	if p == nil || p.N != 1 || len(p.Comments) != 1 || d.Comments[0].Sent != 1 {
+		t.Fatalf("pending send %+v / %+v", p, d.Comments)
+	}
+	// Reopening clears the send, so the next send hands it over again.
+	if w := do(t, h, "POST", "/api/comments/c_01", map[string]any{"status": "resolved"}, nil); w.Code != 200 {
+		t.Fatalf("resolve: %d", w.Code)
+	}
+	if w := do(t, h, "POST", "/api/comments/c_01", map[string]any{"status": "open"}, nil); w.Code != 200 {
+		t.Fatalf("reopen: %d", w.Code)
+	}
+	d, _ = s.Store.Load()
+	if d.Comments[0].Sent != 0 || d.Comments[0].Status != "open" {
+		t.Fatalf("reopen did not clear the send: %+v", d.Comments[0])
+	}
+	if w := do(t, h, "DELETE", "/api/comments/c_01", nil, nil); w.Code != 200 {
+		t.Fatalf("delete: %d", w.Code)
+	}
+	if _, err := os.Stat(c.Snapshot); !os.IsNotExist(err) {
+		t.Fatal("snapshot left behind after delete")
+	}
+}
+
+func TestGuardRefusesCrossSiteRequests(t *testing.T) {
+	_, h := newTestServer(t)
+	if w := do(t, h, "POST", "/api/send", map[string]any{}, map[string]string{"Origin": "https://evil.example"}); w.Code != 403 {
+		t.Fatalf("foreign origin: %d", w.Code)
+	}
+	req := httptest.NewRequest("GET", "/api/state", nil)
+	req.Host = "evil.example"
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != 403 {
+		t.Fatalf("foreign host: %d", w.Code)
+	}
+	req = httptest.NewRequest("POST", "/api/send", strings.NewReader("a=b"))
+	req.Host = "127.0.0.1:8790"
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != 415 {
+		t.Fatalf("form post: %d", w.Code)
+	}
+}
