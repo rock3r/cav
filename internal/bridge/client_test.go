@@ -4,9 +4,44 @@ import (
 	"errors"
 	"net"
 	"os"
+	"strings"
 	"syscall"
 	"testing"
+
+	"github.com/rock3r/cav/internal/cavapp"
 )
+
+// fakeCavalry makes the Cavalry process check report s, with no crash reports.
+func fakeCavalry(t *testing.T, s cavapp.Status) {
+	t.Helper()
+	oldProbe, oldDir := cavapp.Probe, cavapp.CrashDir
+	t.Cleanup(func() { cavapp.Probe, cavapp.CrashDir = oldProbe, oldDir })
+	cavapp.Probe = func() cavapp.Status { return s }
+	cavapp.CrashDir = t.TempDir()
+}
+
+// A refused connection says whether Cavalry itself runs, so nobody restarts only the
+// bridge after Cavalry crashed.
+func TestUnreachableSaysWhetherCavalryRuns(t *testing.T) {
+	refusedErr := &net.OpError{Op: "dial", Err: os.NewSyscallError("connect", syscall.ECONNREFUSED)}
+	for _, tc := range []struct {
+		host string
+		s    cavapp.Status
+		want string
+	}{
+		{"127.0.0.1", cavapp.NotRunning, "Cavalry is not running (it may have crashed). Start Cavalry, then Scripts menu > cav-bridge"},
+		{"localhost", cavapp.Running, "Cavalry is running but cav-bridge is not. In Cavalry, open Scripts menu > cav-bridge"},
+		{"127.0.0.1", cavapp.Unknown, "Open Cavalry, then Scripts menu > cav-bridge"},
+		// cav cannot see the processes of another machine.
+		{"192.168.1.20", cavapp.NotRunning, "Open Cavalry, then Scripts menu > cav-bridge"},
+	} {
+		fakeCavalry(t, tc.s)
+		err := unreachable(tc.host, "http://"+tc.host+":8723", refusedErr)
+		if !errors.Is(err, ErrUnavailable) || !strings.Contains(err.Error(), tc.want) {
+			t.Errorf("%s, %v: %v", tc.host, tc.s, err)
+		}
+	}
+}
 
 func TestProtocolError(t *testing.T) {
 	for _, tc := range []struct {
@@ -29,11 +64,12 @@ func TestProtocolError(t *testing.T) {
 
 // A sandbox refuses the connection with EPERM; that is not a stopped bridge.
 func TestUnreachableSandbox(t *testing.T) {
-	blocked := unreachable("http://127.0.0.1:8723", &net.OpError{Op: "dial", Err: os.NewSyscallError("connect", syscall.EPERM)})
+	fakeCavalry(t, cavapp.Running)
+	blocked := unreachable("127.0.0.1", "http://127.0.0.1:8723", &net.OpError{Op: "dial", Err: os.NewSyscallError("connect", syscall.EPERM)})
 	if !errors.Is(blocked, ErrBlocked) || !errors.Is(blocked, ErrUnavailable) {
 		t.Errorf("EPERM: %v", blocked)
 	}
-	refused := unreachable("http://127.0.0.1:8723", &net.OpError{Op: "dial", Err: os.NewSyscallError("connect", syscall.ECONNREFUSED)})
+	refused := unreachable("127.0.0.1", "http://127.0.0.1:8723", &net.OpError{Op: "dial", Err: os.NewSyscallError("connect", syscall.ECONNREFUSED)})
 	if errors.Is(refused, ErrBlocked) || !errors.Is(refused, ErrUnavailable) {
 		t.Errorf("ECONNREFUSED: %v", refused)
 	}

@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"github.com/rock3r/cav/internal/bridge"
+	"github.com/rock3r/cav/internal/cavapp"
 	"reflect"
 	"strings"
 	"testing"
@@ -256,5 +257,23 @@ func TestFontFindingsNameTheMissingFont(t *testing.T) {
 	got := fontFindings(d)
 	if len(got) != 1 || got[0].Kind != "font" || got[0].Layer != "textShape#2" || !strings.Contains(got[0].Detail, `"Nope Sans"`) {
 		t.Fatalf("got %+v", got)
+	}
+}
+
+func TestBridgeDownCheck(t *testing.T) {
+	notRunning := bridgeDownCheck("127.0.0.1", 8723, cavapp.Explain(cavapp.NotRunning, &cavapp.CrashReport{Path: "/logs/Cavalry-1.ips"}))
+	if notRunning.OK || notRunning.Detail != "not running on 127.0.0.1:8723. Cavalry is not running (it may have crashed)" ||
+		!strings.HasPrefix(notRunning.Fix, "start Cavalry, then Scripts menu > cav-bridge") || !strings.Contains(notRunning.Fix, "/logs/Cavalry-1.ips") {
+		t.Errorf("not running: %+v", notRunning)
+	}
+	running := bridgeDownCheck("127.0.0.1", 8723, cavapp.Explain(cavapp.Running, nil))
+	if running.Detail != "not running on 127.0.0.1:8723. Cavalry is running but cav-bridge is not" ||
+		running.Fix != "in Cavalry, open Scripts menu > cav-bridge, and keep its window open" {
+		t.Errorf("running: %+v", running)
+	}
+	unknown := bridgeDownCheck("127.0.0.1", 8723, cavapp.Explain(cavapp.Unknown, nil))
+	if unknown.Detail != "not running on 127.0.0.1:8723" ||
+		unknown.Fix != "open Cavalry, then Scripts menu > cav-bridge, and keep its window open" {
+		t.Errorf("unknown: %+v", unknown)
 	}
 }
