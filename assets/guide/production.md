@@ -150,7 +150,9 @@ choose. Then sync with `cav beats` and `cav guide music`, and render with
 `cav score storyboard.json --video renders/final.mp4 --audio music/take1.mp3` writes
 `score/project.rpp`: the tempo, a marker per shot, the render on a video track and each take
 on its own track. The user opens it in REAPER to pick a take, trim, fade and fix the sync by
-ear. `cav score render score/project.rpp` renders it to a WAV for `cav render --audio`.
+ear. The video track is silent, so only the takes are heard. `cav score render
+score/project.rpp` renders it to a WAV for `cav render --audio`. REAPER opens a window while
+it renders, so the render needs a logged-in desktop session.
 
 ## 6. Review
 

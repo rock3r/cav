@@ -31,6 +31,8 @@ cav score storyboard.json --video renders/final.mp4 --audio music/take1.mp3 --au
 cav score render score/project.rpp
     renders it from the command line (reaper -renderproject) to score/<name>-music.wav,
     then: cav render --audio score/<name>-music.wav. The REAPER window opens while it runs.
+    On macOS, when REAPER has no audio device yet, it sets the system default first so
+    REAPER does not stop to ask.
 Needs REAPER (https://www.reaper.fm). The project layout follows REAPER 7.`
 }
 
@@ -134,6 +136,33 @@ func reaperBinary() string {
 	return ""
 }
 
+// pickReaperAudioDevice selects the default audio device in REAPER's settings on macOS
+// when none is set yet, as answering REAPER's first-run question would. Without it,
+// -renderproject stops on that question and waits for a click. It returns the file it
+// changed, or "" when it changed nothing.
+func pickReaperAudioDevice() (string, error) {
+	if runtime.GOOS != "darwin" {
+		return "", nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	ini := filepath.Join(home, "Library", "Application Support", "REAPER", "reaper.ini")
+	b, err := os.ReadFile(ini)
+	if err != nil && !os.IsNotExist(err) {
+		return "", err
+	}
+	text, changed := score.WithAudioDevice(string(b))
+	if !changed {
+		return "", nil
+	}
+	if err := os.MkdirAll(filepath.Dir(ini), 0o755); err != nil {
+		return "", err
+	}
+	return ini, os.WriteFile(ini, []byte(text), 0o644)
+}
+
 func scoreRender(a *app, args []string) error {
 	pos, err := parseFlags(flag.NewFlagSet("score render", flag.ContinueOnError), args)
 	if err != nil {
@@ -147,6 +176,13 @@ func scoreRender(a *app, args []string) error {
 		return fail(exitError, "REAPER is not installed", "install it from https://www.reaper.fm, or render from REAPER's File > Render")
 	}
 	rpp, _ := filepath.Abs(pos[0])
+	picked, err := pickReaperAudioDevice()
+	if err != nil {
+		return fail(exitError, "cannot set REAPER's audio device: "+err.Error(), "open REAPER once and pick a device in Preferences > Audio > Device")
+	}
+	if picked != "" && !a.json {
+		fmt.Fprintf(os.Stderr, "REAPER had no audio device yet; set the system default in %s so the render does not stop to ask\n", picked)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 	start := time.Now()

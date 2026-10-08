@@ -16,13 +16,42 @@ func TestRPPStructure(t *testing.T) {
 		`MARKER 1 0.000000 "s1: lines draw in" 0 0 1`, `MARKER 2 2.000000 "s2: logo 'pops'" 0 0 1`,
 		"<SOURCE VIDEO", `FILE "/p/renders/final.mp4"`, "<SOURCE MP3", "<SOURCE WAVE", "LENGTH 17.500000",
 		`NAME "Bed 2: take2.wav"` + "\n    MUTESOLO 1 0 0", `NAME "SFX"`,
+		// The video's own soundtrack stays silent, and the render has no tail.
+		`NAME "Video"` + "\n    VOLPAN 0 0 -1 -1 1", "RENDER_RANGE 1 0 0 0 1000",
 	} {
 		if !strings.Contains(rpp, want) {
 			t.Errorf("missing %q in:\n%s", want, rpp)
 		}
 	}
+	// REAPER 7 shows a "Project Load Warning" for tokens it does not know.
+	for _, unknown := range []string{"RENDER_SRATE"} {
+		if strings.Contains(rpp, unknown) {
+			t.Errorf("REAPER does not know %s:\n%s", unknown, rpp)
+		}
+	}
 	// Every block that opens closes.
 	if strings.Count(rpp, "<") != strings.Count(rpp, "\n  >")+strings.Count(rpp, "\n    >")+strings.Count(rpp, "\n      >")+1 {
 		t.Errorf("unbalanced blocks:\n%s", rpp)
+	}
+}
+
+func TestWithAudioDevice(t *testing.T) {
+	for _, c := range []struct{ name, in, want string }{
+		{"no file", "", "[reaper]\ncoreaudioindevnew=<default>\ncoreaudiooutdevnew=<default>\ncoreaudiobs=512\ncoreaudiosrate=48000\n"},
+		{"fresh install",
+			"[nag]\nnag=x\n\n[reaper]\nwnd_w=1024\n\n[Recent]\nrecent01=a.rpp\n",
+			"[nag]\nnag=x\n\n[reaper]\nwnd_w=1024\ncoreaudioindevnew=<default>\ncoreaudiooutdevnew=<default>\ncoreaudiobs=512\ncoreaudiosrate=48000\n\n[Recent]\nrecent01=a.rpp\n"},
+		{"keeps the user's buffer size",
+			"[reaper]\ncoreaudiobs=256\n",
+			"[reaper]\ncoreaudiobs=256\ncoreaudioindevnew=<default>\ncoreaudiooutdevnew=<default>\ncoreaudiosrate=48000\n"},
+	} {
+		got, changed := WithAudioDevice(c.in)
+		if !changed || got != c.want {
+			t.Errorf("%s: changed=%v\n got: %q\nwant: %q", c.name, changed, got, c.want)
+		}
+	}
+	picked := "[reaper]\ncoreaudiooutdevnew=MOTU\n"
+	if got, changed := WithAudioDevice(picked); changed || got != picked {
+		t.Errorf("changed a device the user picked: %q", got)
 	}
 }
