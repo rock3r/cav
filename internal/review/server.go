@@ -39,6 +39,14 @@ type Server struct {
 	lastError string
 }
 
+// SetRenderError reports that a new render could not be prepared; the page shows it while it
+// keeps playing the current one. An empty message clears it.
+func (s *Server) SetRenderError(msg string) {
+	s.mu.Lock()
+	s.lastError = msg
+	s.mu.Unlock()
+}
+
 func (s *Server) current() (Source, string) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

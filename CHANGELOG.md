@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Add `cav mcp`: a small MCP server (stdio) that shows the `cav review` page inside the
+  chat as an MCP App, in Claude Code, Codex and other hosts that draw MCP Apps. The page
+  plays a 640-pixel preview sent inline, and its notes go to the same review file. The
+  cavalry plugin starts it in Claude Code and Codex; without the plugin, register it with
+  `claude mcp add cav -- cav mcp` or `codex mcp add cav -- cav mcp`.
+- When cav cannot reach cav-bridge, `cav doctor` and the errors of every other command
+  now say whether Cavalry itself is running. "Cavalry is not running (it may have
+  crashed)" names the newest Cavalry crash report on macOS, if there is one. "Cavalry is
+  running but cav-bridge is not" asks you to start only the bridge.
 - Read `keychain:service/account` keys from Windows Credential Manager on Windows. The
   target name is the service and the user name is the account. A missing entry and a
   refused read are reported the same way as on macOS, where a refused read is now told
@@ -25,6 +34,10 @@
   audio model's critique of a track. Add `cav music gen` (ElevenLabs Music, Stable Audio).
 - Add `cav music render`: play a written score (notes and hits on a beat grid) with
   built-in synths and drums, samples, or VST3/AU instruments, mixed and mastered locally.
+  Plugin tracks take a `preset` and `params`. The limiter measures true (inter-sample)
+  peaks and limits a hit at 0 s. `master.reference` (Matchering) now keeps the loudness
+  target, the true peak and 48 kHz. The command names missing score files up front, and
+  warns when a mix is too sparse to reach its loudness target.
 - Add local services: mflux (open image models on Apple silicon), ComfyUI (a workflow you
   choose), and ACE-Step 1.5 (an open music model on a server you run).
 - `cav listen --score` rates takes with local models (Audiobox Aesthetics, CLAP), and several
@@ -34,6 +47,8 @@
   and Windows. The video track is silent, so the render's own soundtrack stays out of the
   music WAV. When REAPER has no audio device yet, `cav score render` selects REAPER's
   default first, so REAPER does not stop to ask.
+- Add `cav board place`: each shot's frame becomes an image layer named by its shot id in the
+  open composition, shown for its beats, so the build starts from the storyboard.
 - Add `cav ref arena`: copy an Are.na channel into the mood board as reference-only assets.
 - `cav config check --live` (and `cav doctor --services --live`) makes one small paid call
   per keyed service, after asking.
@@ -57,6 +72,12 @@
   beat grid, and list strong musical moments that no visual hit answers.
 - Add the `cav.sound` helper: drive an attribute from Cavalry's Sound behaviour.
 - `cav check` reports text layers whose font is not installed.
+- Add fal.ai as an image service: one key (`FAL_KEY`) for FLUX.2, Seedream, Ideogram, Grok
+  Imagine and any other fal model id you set with `cav config model fal`.
+- Add a `video` job and `cav board motion`: Veo 3.1 (Lite by default) turns chosen shots'
+  frames into moving clips, and `cav board animatic` plays them, cut to each shot.
+- Add Lyria (`lyria-3.5`) as a music service. Veo and Lyria use the Gemini key unless they
+  have their own.
 - Add `cav onion`: blend a few frames into one image that shows a motion path, the spacing
   of its easing and any overshoot, and report holds and jumps between neighbouring frames.
 

@@ -63,7 +63,15 @@ jobs:
           go test -race ./...
           go vet ./...
       - name: Native JavaScript fixtures
-        run: node --test assets/helpers/test/*.test.js assets/diagnostics/test/*.test.js assets/bridge/test/*.test.js
+        run: node --test assets/helpers/test/*.test.js assets/diagnostics/test/*.test.js assets/bridge/test/*.test.js assets/board/test/*.test.js
+      - uses: astral-sh/setup-uv@v6
+        if: matrix.os == 'ubuntu-latest'
+      - name: Music renderer (Python)
+        # The plugin tests need a VST3 instrument (CAV_TEST_VST3), so they skip here.
+        if: matrix.os == 'ubuntu-latest'
+        run: >-
+          uv run --no-project --python 3.12 --with numpy --with pedalboard --with pyloudnorm
+          --with mido --with matchering python -m unittest discover -s assets/python/test
       - name: Development archives for all five targets
         # No Apple credentials, live bridge access, release tags or publication.
         run: |

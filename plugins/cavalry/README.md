@@ -14,6 +14,8 @@ The plugin does not bundle Cavalry, the CLI executable, or ffmpeg. The included 
 
 The agent runs `cav` shell commands. Scene inspection, JavaScript execution, and rendering use the bridge in your local Cavalry app, by default on `127.0.0.1:8723`. The CLI keeps bridge authentication and operation records under your local `~/.cav` directory. Rendered images and videos are written to your filesystem.
 
+The plugin also starts a local MCP server, `cav mcp`, over stdin and stdout. Its `show_review` tool shows the `cav review` page for a render inside the chat, where you can play it and leave notes for the agent. It reads only the videos the agent asks it to show, and writes the notes next to the video. It needs cav 1.2 or newer; with an older CLI the server does not start, and everything else works.
+
 Installation and updates fetch public CLI releases and checksums from GitHub. Setup can download public Cavalry documentation for offline search. This plugin includes no hosted MCP server or remote account integration. Your coding agent's normal model-provider and tool permissions still apply.
 
 ## Using the skill

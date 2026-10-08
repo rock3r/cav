@@ -45,6 +45,21 @@ func Probe(ctx context.Context, path string) (Source, error) {
 // Proxy makes (once per render content) an all-intra copy of the video, so a browser can
 // seek to any frame by decoding only that frame. It lives in cacheDir/<sha256>.mp4.
 func Proxy(ctx context.Context, video, sha, cacheDir string) (string, error) {
+	return encodeProxy(ctx, video, sha, cacheDir, []string{"-crf", "18"}, "192k")
+}
+
+// PreviewWidth is the widest frame of a preview proxy.
+const PreviewWidth = 640
+
+// PreviewProxy makes a small all-intra copy for the chat view, which receives the whole
+// file inline: at most PreviewWidth wide, at a lower quality. Keep it in its own cacheDir,
+// because it has the same <sha256>.mp4 name as the full proxy.
+func PreviewProxy(ctx context.Context, video, sha, cacheDir string) (string, error) {
+	scale := fmt.Sprintf("scale='min(%d,iw)':-2", PreviewWidth)
+	return encodeProxy(ctx, video, sha, cacheDir, []string{"-vf", scale, "-crf", "30"}, "96k")
+}
+
+func encodeProxy(ctx context.Context, video, sha, cacheDir string, vargs []string, audioRate string) (string, error) {
 	out := filepath.Join(cacheDir, sha+".mp4")
 	if info, err := os.Stat(out); err == nil && info.Size() > 0 {
 		return out, nil
@@ -53,10 +68,11 @@ func Proxy(ctx context.Context, video, sha, cacheDir string) (string, error) {
 		return "", err
 	}
 	tmp := filepath.Join(cacheDir, sha+".tmp.mp4")
-	cmd := exec.CommandContext(ctx, "ffmpeg", "-v", "error", "-y", "-i", video,
-		"-map", "0:v:0", "-map", "0:a:0?",
-		"-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-g", "1", "-bf", "0", "-pix_fmt", "yuv420p",
-		"-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", tmp)
+	args := []string{"-v", "error", "-y", "-i", video, "-map", "0:v:0", "-map", "0:a:0?"}
+	args = append(args, vargs...)
+	args = append(args, "-c:v", "libx264", "-preset", "veryfast", "-g", "1", "-bf", "0", "-pix_fmt", "yuv420p",
+		"-c:a", "aac", "-b:a", audioRate, "-movflags", "+faststart", tmp)
+	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
 	if b, err := cmd.CombinedOutput(); err != nil {
 		os.Remove(tmp)
 		return "", fmt.Errorf("making the review proxy: %v: %s", err, strings.TrimSpace(string(b)))

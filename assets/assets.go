@@ -31,7 +31,18 @@ var Python embed.FS
 //go:embed review/index.html
 var ReviewPage []byte
 
+// ReviewAppShim is the script `cav mcp` adds to the review page so that it runs as an MCP
+// App: it answers the page's requests through the chat host instead of the network.
+//
+//go:embed review/mcp-app.js
+var ReviewAppShim []byte
+
 // Diagnostics holds metadata and measured sampling scripts.
 //
 //go:embed diagnostics/*.js
 var Diagnostics embed.FS
+
+// BoardPlace is the native job of cav board place.
+//
+//go:embed board/place.js
+var BoardPlace string

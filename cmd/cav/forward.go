@@ -14,10 +14,10 @@ import (
 
 // Commands that never need Cavalry or files outside the working directory run locally,
 // even in spool mode. Everything else is forwarded to `cav relay`.
-var localCommands = map[string]bool{"help": true, "-h": true, "--help": true, "version": true, "-v": true, "--version": true, "helpers": true, "guide": true, "api": true, "types": true, "relay": true}
+var localCommands = map[string]bool{"help": true, "-h": true, "--help": true, "version": true, "-v": true, "--version": true, "helpers": true, "guide": true, "api": true, "types": true, "relay": true, "mcp": true}
 
 // Commands the relay refuses to run for a spool client.
-var relayDenied = map[string]bool{"setup": true, "update": true, "relay": true}
+var relayDenied = map[string]bool{"setup": true, "update": true, "relay": true, "mcp": true}
 
 type forwardReq struct {
 	ID    string   `json:"id"`

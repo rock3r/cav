@@ -17,6 +17,7 @@ import (
 
 	"github.com/rock3r/cav/assets"
 	"github.com/rock3r/cav/internal/bridge"
+	"github.com/rock3r/cav/internal/cavapp"
 	"github.com/rock3r/cav/internal/config"
 	"github.com/rock3r/cav/internal/services"
 )
@@ -312,8 +313,7 @@ func bridgeCheck(a *app) check {
 			Fix: bridge.SandboxHint}
 	}
 	if err != nil {
-		return check{Name: "bridge", Detail: fmt.Sprintf("not running on %s:%d", c.Host, c.Port),
-			Fix: "open Cavalry, then Scripts menu > cav-bridge, and keep its window open"}
+		return bridgeDownCheck(c.Host, c.Port, bridge.Diagnose(c.Host, errors.Is(err, bridge.ErrRefused)))
 	}
 	want := bridgeVersionFromJS()
 	got, _ := payload["bridgeVersion"].(string)
@@ -335,6 +335,19 @@ func bridgeCheck(a *app) check {
 			Fix: "close the cav-bridge window in Cavalry and start it again from the Scripts menu"}
 	}
 	return check{Name: "bridge", OK: true, Detail: fmt.Sprintf("running v%s on %s:%d", got, c.Host, c.Port)}
+}
+
+// bridgeDownCheck reports a bridge that does not answer, and says whether Cavalry itself runs.
+func bridgeDownCheck(host string, port int, d cavapp.Diagnosis) check {
+	detail := fmt.Sprintf("not running on %s:%d", host, port)
+	if d.What != "" {
+		detail += ". " + d.What
+	}
+	fix := d.Fix
+	if note := d.CrashNote(); note != "" {
+		fix += ". " + note
+	}
+	return check{Name: "bridge", Detail: detail, Fix: fix}
 }
 
 // writable creates dir if needed and checks that cav can write a file in it.

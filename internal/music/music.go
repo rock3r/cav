@@ -1,8 +1,9 @@
 // Package music generates instrumental tracks with an API: ElevenLabs Music (with a
-// composition plan whose sections follow the storyboard's shots), Stable Audio, or an
-// ACE-Step 1.5 server the user runs.
+// composition plan whose sections follow the storyboard's shots), Stable Audio, Lyria
+// through the Gemini API, or an ACE-Step 1.5 server the user runs.
 //
-// Request shapes: ElevenLabs from its API reference read on 2026-10-08. The Stable Audio
+// Request shapes: ElevenLabs from its API reference read on 2026-10-08; Lyria from the Gemini
+// API music generation guide read on 2026-10-08. The Stable Audio
 // endpoint (v2beta text-to-audio) could not be confirmed against the current reference on
 // that date and may need updating. Neither was run against the live service.
 package music
@@ -10,6 +11,7 @@ package music
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -53,6 +55,8 @@ func Generate(ctx context.Context, c *services.Config, ch *services.Choice, r Re
 		return stability(ctx, c, ch.Key, r)
 	case "acestep":
 		return acestep(ctx, c, ch.Key, r)
+	case "lyria":
+		return lyria(ctx, c, ch.Key, r)
 	}
 	return nil, fmt.Errorf("%s does not make music", ch.Service)
 }
@@ -144,6 +148,106 @@ func stability(ctx context.Context, c *services.Config, key string, r Request) (
 		return nil, fmt.Errorf("stability answered with JSON, not audio: %s", clip(string(data), 300))
 	}
 	return &Track{Data: data, Ext: ".mp3", Provider: "stability", Model: model}, nil
+}
+
+// lyria makes a track with the Interactions API. Lyria has no length or section fields: the
+// guide says to ask for the length in the prompt and to time sections with "[m:ss - m:ss]"
+// lines, so a storyboard plan becomes one such line per shot. lyria-3.5 answers with MP3 by
+// default and WAV when response_format is audio; cav asks for WAV, for editing. The clip
+// model (lyria-3-clip-preview) always makes 30 seconds.
+func lyria(ctx context.Context, c *services.Config, key string, r Request) (*Track, error) {
+	model := r.Model
+	if model == "" {
+		model = c.Models["lyria"]
+	}
+	if model == "" {
+		model = "lyria-3.5"
+	}
+	body := map[string]any{"model": model, "input": LyriaPrompt(r)}
+	if model != "lyria-3-clip-preview" {
+		body["response_format"] = map[string]any{"type": "audio"}
+	}
+	var out struct {
+		Steps []struct {
+			Type    string `json:"type"`
+			Content []struct {
+				Type     string `json:"type"`
+				Data     string `json:"data"`
+				MimeType string `json:"mime_type"`
+				Text     string `json:"text"`
+			} `json:"content"`
+		} `json:"steps"`
+	}
+	if err := services.Do(ctx, "POST", "https://generativelanguage.googleapis.com/v1beta/interactions", map[string]string{"x-goog-api-key": key}, body, &out); err != nil {
+		return nil, fmt.Errorf("lyria (%s): %w", model, err)
+	}
+	// The guide says to take the last audio block of the model_output steps.
+	var b64, text string
+	for _, st := range out.Steps {
+		if st.Type != "model_output" {
+			continue
+		}
+		for _, ct := range st.Content {
+			switch ct.Type {
+			case "audio":
+				b64 = ct.Data
+			case "text":
+				if text == "" {
+					text = ct.Text
+				}
+			}
+		}
+	}
+	if b64 == "" {
+		if text != "" {
+			return nil, fmt.Errorf("lyria (%s): no audio in the answer; the model said: %s", model, clip(text, 300))
+		}
+		return nil, fmt.Errorf("lyria (%s): no audio in the answer", model)
+	}
+	data, err := base64.StdEncoding.DecodeString(b64)
+	if err != nil {
+		return nil, fmt.Errorf("lyria (%s): audio data: %w", model, err)
+	}
+	ext := ".mp3"
+	if bytes.HasPrefix(data, []byte("RIFF")) {
+		ext = ".wav"
+	}
+	return &Track{Data: data, Ext: ext, Provider: "lyria", Model: model}, nil
+}
+
+// LyriaPrompt writes the request as one prompt: the brief, the length, "instrumental only",
+// and one timed line per section.
+func LyriaPrompt(r Request) string {
+	var b strings.Builder
+	b.WriteString(strings.TrimSpace(r.Prompt))
+	secs := r.Seconds
+	if len(r.Sections) > 0 {
+		secs = 0
+		for _, s := range r.Sections {
+			secs += s.Seconds
+		}
+	}
+	if secs > 0 {
+		fmt.Fprintf(&b, ". Exactly %s long", mmss(secs))
+	}
+	b.WriteString(". Instrumental only, no vocals.")
+	at := 0.0
+	for _, s := range r.Sections {
+		fmt.Fprintf(&b, "\n[%s - %s] %s", mmss(at), mmss(at+s.Seconds), s.Name)
+		if len(s.Styles) > 0 {
+			b.WriteString(": " + strings.Join(s.Styles, ", "))
+		}
+		if len(s.Negative) > 0 {
+			b.WriteString(" (avoid " + strings.Join(s.Negative, ", ") + ")")
+		}
+		at += s.Seconds
+	}
+	return b.String()
+}
+
+func mmss(sec float64) string {
+	n := int(math.Round(sec))
+	return fmt.Sprintf("%d:%02d", n/60, n%60)
 }
 
 // acestep runs text2music on an ACE-Step 1.5 API server: submit the task, ask for its
