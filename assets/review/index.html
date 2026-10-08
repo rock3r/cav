@@ -898,8 +898,14 @@
   // The playhead row sits among the notes by frame, and the sheet keeps it at the reading
   // line as the frames step. Once the person scrolls the sheet themselves (wheel, touch,
   // scrollbar or keys), it stays where they put it until the frame changes.
-  let browsing = false, ownScroll = 0, followed = -1;
-  sheet.addEventListener('scroll', () => { if (Date.now() - ownScroll > 700) browsing = true; }, { passive: true });
+  // Wheel, touch, a press on the scrollbar or a scroll key mark the person's intent; a scroll
+  // the page did not start counts too. While the video plays the frame changes all the time,
+  // so the sheet waits 4 seconds after the last such intent before following again.
+  let browsing = false, browsedAt = 0, ownScroll = 0, followed = -1;
+  const browse = () => { browsing = true; browsedAt = Date.now(); };
+  for (const ev of ['wheel', 'touchstart', 'pointerdown']) sheet.addEventListener(ev, browse, { passive: true });
+  sheet.addEventListener('keydown', e => { if (['PageUp', 'PageDown', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key) && e.target === sheet) browse(); });
+  sheet.addEventListener('scroll', () => { if (Date.now() - ownScroll > 700) browse(); }, { passive: true });
   function layoutSheet(rebuilt) {
     if (!meta) return;
     // The playhead row goes before the first note that starts after this frame.
@@ -920,11 +926,11 @@
       at = Math.max(at, b + 1); lastEl = el;
     }
     if (lastEl && at <= last()) lastEl.after(gapEl(at, last()));
-    if (frame !== followed) { followed = frame; browsing = false; }
+    const playing = !video.paused || shuttleTimer;
+    if (frame !== followed) { followed = frame; if (!playing || Date.now() - browsedAt > 4000) browsing = false; }
     if (!browsing) {
       const top = Math.max(0, here.offsetTop - sheet.clientHeight * 0.38);
       if (Math.abs(sheet.scrollTop - top) > 1) {
-        const playing = !video.paused || shuttleTimer;
         ownScroll = Date.now();
         sheet.scrollTo({ top, behavior: playing || reduced.matches || rebuilt ? 'auto' : 'smooth' });
       }
@@ -959,7 +965,12 @@
         if (armed !== id) {
           sheet.querySelector('.btn.armed')?.classList.remove('armed');
           armed = id; label(true); clearTimeout(sheet.armT);
-          sheet.armT = setTimeout(() => { armed = null; if (btn.isConnected) label(false); }, 3000);
+          // A refresh may have rebuilt the row meanwhile: disarm whichever button is there now.
+          sheet.armT = setTimeout(() => {
+            armed = null;
+            const now = sheet.querySelector(`.note[data-id="${id}"] [data-act="delete"]`);
+            if (now) { now.classList.remove('armed'); now.ariaLabel = now.dataset.tip = 'Delete'; }
+          }, 3000);
           return;
         }
         clearTimeout(sheet.armT);
