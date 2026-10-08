@@ -55,8 +55,8 @@ Use it to compare takes from cav music gen and to check a track before cav rende
 The numbers and the picture are measurements; the critique is a model's opinion.`
 	register(command{
 		name:    "music",
-		args:    "gen \"<prompt>\" [--seconds 30 | --board storyboard.json] [--takes 2] [--service S] [--model M] [-o music/]",
-		summary: "Generate instrumental music with an API (ElevenLabs Music, Stable Audio), planned on the storyboard.",
+		args:    "gen \"<prompt>\" [--seconds 30 | --board storyboard.json] [--takes 2] [--service S] [--model M] [-o music/] | render score.json [-o out.wav] [--stems]",
+		summary: "Generate instrumental music with an API, or render a written score locally.",
 		run:     cmdMusic,
 	})
 	longHelp["music"] = `
@@ -67,7 +67,14 @@ cav music gen "warm synthwave, confident, builds to a drop" --board storyboard.j
     --board, --seconds sets the length.
 Then compare the takes: cav listen music/<take>.mp3 --board storyboard.json --brief "...".
 Needs a key for the "music" job (cav config). Check the service's terms for your use:
-ElevenLabs self-serve plans, for example, exclude film, TV and games.`
+ElevenLabs self-serve plans, for example, exclude film, TV and games.
+
+cav music render score.json [-o music/score.wav] [--stems]
+    renders a written score locally, with no key: notes and hits on a beat grid, played
+    by built-in synths and drums, your samples, or VST3/AU instruments, then mixed
+    (ducking under the kick, reverb, delay, pan) and mastered to a loudness target.
+    Needs uv; the first run fetches the Python packages. See cav guide production for
+    the score format.`
 }
 
 type cutCheck struct {
@@ -294,12 +301,15 @@ func askEars(ctx context.Context, track, only, prompt string) (string, string, s
 }
 
 func cmdMusic(a *app, args []string) error {
+	if len(args) > 0 && args[0] == "render" {
+		return cmdMusicRender(a, args[1:])
+	}
 	if len(args) == 0 || args[0] != "gen" {
 		printHelp("music")
 		if len(args) == 0 {
 			return nil
 		}
-		return usageErr("unknown music command %q (gen)", args[0])
+		return usageErr("unknown music command %q (gen, render)", args[0])
 	}
 	fs := flag.NewFlagSet("music gen", flag.ContinueOnError)
 	seconds := fs.Float64("seconds", 30, "length when there is no storyboard")

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -27,6 +28,7 @@ type Def struct {
 	Jobs    []string
 	EnvVars []string // default key variables, first match wins
 	Binary  string   // for KindLocal
+	OnlyOn  string   // "darwin/arm64": the only platform it runs on
 	Signup  string   // where to get a key
 	// Check makes one free call that proves the key works. key is "" for free services.
 	Check func(ctx context.Context, c *Config, key string) (string, error)
@@ -234,6 +236,35 @@ var Catalog = map[string]*Def{
 			}
 			return fmt.Sprintf("%d models at %s", len(r.Data), hostOf(ep.BaseURL)), nil
 		}},
+	"mflux": {Title: "mflux: FLUX.2 klein and other open models on Apple silicon, through uv (first run downloads the model)", Kind: KindLocal,
+		Jobs: []string{"image"}, Binary: "uv", OnlyOn: "darwin/arm64", Signup: "Apple silicon Mac and uv: https://docs.astral.sh/uv/"},
+	"comfyui": {Title: "ComfyUI server you run, with an API-format workflow you choose", Kind: KindEndpoint,
+		Jobs: []string{"image"},
+		Check: func(ctx context.Context, c *Config, _ string) (string, error) {
+			ep, ok := c.Endpoints["comfyui"]
+			if !ok || ep.BaseURL == "" {
+				return "", &KeyError{Msg: "no server set", Missing: true, Fix: "cav config endpoint comfyui http://127.0.0.1:8188 <workflow-api.json>"}
+			}
+			var r map[string]any
+			if err := Do(ctx, "GET", strings.TrimRight(ep.BaseURL, "/")+"/system_stats", nil, nil, &r); err != nil {
+				return "", err
+			}
+			return "reachable at " + hostOf(ep.BaseURL), nil
+		}},
+	"acestep": {Title: "ACE-Step 1.5 API server you run (open music model, MIT licence, runs on a Mac)", Kind: KindEndpoint,
+		Jobs: []string{"music"}, EnvVars: []string{"ACESTEP_API_KEY"},
+		Signup: "git clone https://github.com/ace-step/ACE-Step-1.5 && cd ACE-Step-1.5 && uv sync && uv run acestep-api",
+		Check: func(ctx context.Context, c *Config, _ string) (string, error) {
+			ep, ok := c.Endpoints["acestep"]
+			if !ok || ep.BaseURL == "" {
+				return "", &KeyError{Msg: "no server set", Missing: true, Fix: "cav config endpoint acestep http://127.0.0.1:8001"}
+			}
+			var r map[string]any
+			if err := Do(ctx, "GET", strings.TrimRight(ep.BaseURL, "/")+"/health", nil, nil, &r); err != nil {
+				return "", err
+			}
+			return "reachable at " + hostOf(ep.BaseURL), nil
+		}},
 	"vtracer": {Title: "vtracer (trace PNG to SVG, local)", Kind: KindLocal, Jobs: []string{"image.vector"}, Binary: "vtracer",
 		Signup: "cargo install vtracer, or https://github.com/visioncortex/vtracer/releases"},
 	"potrace": {Title: "potrace (trace PNG to SVG in one colour, local)", Kind: KindLocal, Jobs: []string{"image.vector"}, Binary: "potrace",
@@ -276,6 +307,10 @@ func Probe(ctx context.Context, c *Config, name string) Status {
 		st.State, st.Detail = "ok", "built in"
 		return st
 	case KindLocal:
+		if d.OnlyOn != "" && d.OnlyOn != runtime.GOOS+"/"+runtime.GOARCH {
+			st.State, st.Detail = "skip", "runs only on "+d.OnlyOn
+			return st
+		}
 		p, err := lookPath(d.Binary)
 		if err != nil {
 			st.State, st.Detail, st.Fix = "skip", d.Binary+" not installed", d.Signup
@@ -387,6 +422,10 @@ func Pick(ctx context.Context, c *Config, job string, only string) (*Choice, err
 			ch.Service = name
 			return ch, nil
 		case KindLocal:
+			if d.OnlyOn != "" && d.OnlyOn != runtime.GOOS+"/"+runtime.GOARCH {
+				ch.Skipped = append(ch.Skipped, name+": runs only on "+d.OnlyOn)
+				continue
+			}
 			if _, err := lookPath(d.Binary); err != nil {
 				ch.Skipped = append(ch.Skipped, name+": "+d.Binary+" not installed")
 				continue

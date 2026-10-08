@@ -68,7 +68,7 @@ func TestPickSkipsUnusableServices(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ch.Service != "greybox" || len(ch.Skipped) != 3 {
+	if ch.Service != "greybox" || len(ch.Skipped) != 4 {
 		t.Fatalf("no keys: got %s, skipped %v", ch.Service, ch.Skipped)
 	}
 	t.Setenv("OPENAI_API_KEY", "sk-test")

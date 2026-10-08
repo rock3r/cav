@@ -82,7 +82,9 @@ func genImage(a *app, args []string) error {
 	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	// Local models download several GB on their first run, so the bound is generous;
+	// each API call has its own shorter timeout.
+	ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
 	defer cancel()
 	ch, err := services.Pick(ctx, c, job, *service)
 	if err != nil {

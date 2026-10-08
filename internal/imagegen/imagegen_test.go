@@ -177,3 +177,56 @@ func TestGreyboxCard(t *testing.T) {
 		t.Fatalf("background is not the palette's first colour")
 	}
 }
+
+func TestComfyUIQueuesFillsAndFetches(t *testing.T) {
+	png := tinyPNG()
+	var queued map[string]any
+	polls := 0
+	serve(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == "POST" && r.URL.Path == "/prompt":
+			json.NewDecoder(r.Body).Decode(&queued)
+			w.Write([]byte(`{"prompt_id":"p1"}`))
+		case r.URL.Path == "/history/p1":
+			polls++
+			if polls < 2 {
+				w.Write([]byte(`{}`)) // still running
+				return
+			}
+			w.Write([]byte(`{"p1":{"outputs":{"9":{"images":[{"filename":"cav_0001.png","subfolder":"","type":"output"}]}}}}`))
+		case r.URL.Path == "/view" && r.URL.Query().Get("filename") == "cav_0001.png":
+			w.Header().Set("Content-Type", "image/png")
+			w.Write(png)
+		default:
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+		}
+	})
+	wf := filepath.Join(t.TempDir(), "wf.json")
+	os.WriteFile(wf, []byte(`{"3":{"class_type":"KSampler","inputs":{"seed":"{{seed}}"}},"6":{"class_type":"CLIPTextEncode","inputs":{"text":"{{prompt}}"}},"5":{"class_type":"EmptyLatentImage","inputs":{"width":"{{width}}","height":"{{height}}"}}}`), 0o644)
+	c := &services.Config{Endpoints: map[string]services.Endpoint{"comfyui": {BaseURL: "http://127.0.0.1:8188", Model: wf}}}
+	im, err := Generate(context.Background(), c, &services.Choice{Service: "comfyui"}, Request{Prompt: `a "quoted" fox`, Aspect: "1:1"})
+	if err != nil || !bytes.Equal(im.Data, png) || im.Model != "wf.json" {
+		t.Fatalf("got %+v, %v", im, err)
+	}
+	nodes := queued["prompt"].(map[string]any)
+	if nodes["6"].(map[string]any)["inputs"].(map[string]any)["text"] != `a "quoted" fox` {
+		t.Fatalf("prompt not filled: %v", nodes["6"])
+	}
+	if nodes["5"].(map[string]any)["inputs"].(map[string]any)["width"].(float64) != 1024 {
+		t.Fatalf("width not filled as a number: %v", nodes["5"])
+	}
+}
+
+func TestMfluxCommandPerModel(t *testing.T) {
+	for model, want := range map[string]string{
+		"flux2-klein-4b": "mflux-generate-flux2",
+		"z-image-turbo":  "mflux-generate-z-image-turbo",
+		"qwen-image":     "mflux-generate-qwen",
+		"dev":            "mflux-generate",
+		"schnell":        "mflux-generate",
+	} {
+		if got := mfluxCommand(model); got != want {
+			t.Errorf("%s: got %s, want %s", model, got, want)
+		}
+	}
+}

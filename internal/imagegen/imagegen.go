@@ -57,6 +57,7 @@ var DefaultModels = map[string]string{
 	"openai":     "gpt-image-2.5-flare",
 	"openrouter": "google/gemini-2.5-flash-image",
 	"recraft":    "recraftv4_1",
+	"mflux":      "flux2-klein-4b",
 }
 
 func model(c *services.Config, service string, r Request) string {
@@ -89,6 +90,11 @@ func Generate(ctx context.Context, c *services.Config, ch *services.Choice, r Re
 			m = "recraftv3_vector"
 		}
 		im, err = recraft(ctx, ch.Key, m, r)
+	case "mflux":
+		im, err = mflux(ctx, m, r)
+	case "comfyui":
+		m = filepath.Base(c.Endpoints["comfyui"].Model)
+		im, err = comfyui(ctx, c.Endpoints["comfyui"], r)
 	default:
 		return nil, fmt.Errorf("%s does not generate images", ch.Service)
 	}

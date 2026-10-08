@@ -181,7 +181,7 @@ func boardFrames(a *app, args []string) error {
 	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Hour) // a whole board; local models also download on their first run
 	defer cancel()
 	ch, err := services.Pick(ctx, c, "image", *service)
 	if err != nil {

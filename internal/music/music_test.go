@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/rock3r/cav/internal/services"
@@ -82,5 +83,42 @@ func TestSoundEffectRequest(t *testing.T) {
 	defer func() { services.HTTPClient = old }()
 	if _, err := SoundEffect(context.Background(), "k", "whoosh", 45, true); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestACEStepSubmitsQueriesAndDownloads(t *testing.T) {
+	queries := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/release_task":
+			var body map[string]any
+			json.NewDecoder(r.Body).Decode(&body)
+			if body["bpm"] != float64(112) || body["audio_duration"] != float64(24) || body["thinking"] != true || !strings.Contains(body["prompt"].(string), "s1: open at 0s") {
+				t.Errorf("release_task body: %v", body)
+			}
+			w.Write([]byte(`{"data":{"task_id":"t1","status":"queued"},"code":200,"error":null}`))
+		case "/query_result":
+			queries++
+			status, result := 0, ""
+			if queries > 1 {
+				status, result = 1, `[{"file":"/v1/audio?path=%2Ftmp%2Fa.wav","status":1,"dit_model":"acestep-v15-turbo"}]`
+			}
+			b, _ := json.Marshal(map[string]any{"data": []any{map[string]any{"task_id": "t1", "status": status, "result": result}}, "code": 200})
+			w.Write(b)
+		case "/v1/audio":
+			if r.URL.Query().Get("path") != "/tmp/a.wav" {
+				t.Errorf("audio path %q", r.URL.Query().Get("path"))
+			}
+			w.Write([]byte("RIFFwav"))
+		default:
+			t.Errorf("unexpected %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+	c := &services.Config{Endpoints: map[string]services.Endpoint{"acestep": {BaseURL: srv.URL}}}
+	tr, err := Generate(context.Background(), c, &services.Choice{Service: "acestep"}, Request{Prompt: "warm synthwave, 112 BPM", Seconds: 24,
+		Sections: []Section{{Name: "s1: open", Seconds: 12}, {Name: "s2: drop", Seconds: 12}}})
+	if err != nil || string(tr.Data) != "RIFFwav" || tr.Model != "acestep-v15-turbo" || tr.Ext != ".wav" {
+		t.Fatalf("got %+v, %v", tr, err)
 	}
 }

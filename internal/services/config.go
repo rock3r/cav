@@ -58,10 +58,10 @@ var JobHelp = map[string]string{
 // key first, then free and local ones. A service without a key is skipped, so with no keys
 // at all the free entries win.
 var DefaultOrder = map[string][]string{
-	"image":        {"gemini", "openai", "openrouter", "greybox"},
+	"image":        {"gemini", "openai", "openrouter", "comfyui", "greybox"},
 	"image.alpha":  {"openai", "recraft"},
 	"image.vector": {"recraft", "vtracer", "potrace"},
-	"music":        {"elevenlabs", "stability"},
+	"music":        {"elevenlabs", "stability", "acestep"},
 	"sfx":          {"freesound", "openverse"},
 	"ref":          {"pexels", "unsplash", "openverse", "wikimedia"},
 	"ears":         {"gemini", "qwen-omni"},

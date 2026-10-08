@@ -1,5 +1,6 @@
 // Package music generates instrumental tracks with an API: ElevenLabs Music (with a
-// composition plan whose sections follow the storyboard's shots) or Stable Audio.
+// composition plan whose sections follow the storyboard's shots), Stable Audio, or an
+// ACE-Step 1.5 server the user runs.
 //
 // Request shapes: ElevenLabs from its API reference read on 2026-10-08. The Stable Audio
 // endpoint (v2beta text-to-audio) could not be confirmed against the current reference on
@@ -9,11 +10,13 @@ package music
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"math"
 	"mime/multipart"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/rock3r/cav/internal/services"
 )
@@ -48,6 +51,8 @@ func Generate(ctx context.Context, c *services.Config, ch *services.Choice, r Re
 		return elevenlabs(ctx, c, ch.Key, r)
 	case "stability":
 		return stability(ctx, c, ch.Key, r)
+	case "acestep":
+		return acestep(ctx, c, ch.Key, r)
 	}
 	return nil, fmt.Errorf("%s does not make music", ch.Service)
 }
@@ -139,6 +144,118 @@ func stability(ctx context.Context, c *services.Config, key string, r Request) (
 		return nil, fmt.Errorf("stability answered with JSON, not audio: %s", clip(string(data), 300))
 	}
 	return &Track{Data: data, Ext: ".mp3", Provider: "stability", Model: model}, nil
+}
+
+// acestep runs text2music on an ACE-Step 1.5 API server: submit the task, ask for its
+// result until it is done, then download the audio. API docs (docs/en/API.md) read on
+// 2026-10-08.
+func acestep(ctx context.Context, c *services.Config, key string, r Request) (*Track, error) {
+	ep := c.Endpoints["acestep"]
+	base := strings.TrimRight(ep.BaseURL, "/")
+	h := map[string]string{}
+	if key != "" {
+		h["Authorization"] = "Bearer " + key
+	}
+	model := r.Model
+	if model == "" {
+		model = ep.Model
+	}
+	prompt := r.Prompt
+	if len(r.Sections) > 0 {
+		var parts []string
+		at := 0.0
+		for _, s := range r.Sections {
+			parts = append(parts, fmt.Sprintf("%s at %.0fs", s.Name, at))
+			at += s.Seconds
+		}
+		prompt += ". Structure: " + strings.Join(parts, "; ")
+	}
+	body := map[string]any{"prompt": prompt + ", instrumental", "lyrics": "[Instrumental]", "audio_format": "wav",
+		"audio_duration": math.Max(10, math.Min(600, r.Seconds)), "batch_size": 1, "thinking": true}
+	if bpm := bpmIn(r.Prompt); bpm > 0 {
+		body["bpm"] = bpm
+	}
+	if model != "" {
+		body["model"] = model
+	}
+	type envelope struct {
+		Data  json.RawMessage `json:"data"`
+		Code  int             `json:"code"`
+		Error *string         `json:"error"`
+	}
+	call := func(method, path string, in any) (json.RawMessage, error) {
+		var e envelope
+		if err := services.Do(ctx, method, base+path, h, in, &e); err != nil {
+			return nil, fmt.Errorf("acestep: %w", err)
+		}
+		if e.Error != nil && *e.Error != "" {
+			return nil, fmt.Errorf("acestep: %s", *e.Error)
+		}
+		return e.Data, nil
+	}
+	raw, err := call("POST", "/release_task", body)
+	if err != nil {
+		return nil, err
+	}
+	var task struct {
+		ID string `json:"task_id"`
+	}
+	if err := json.Unmarshal(raw, &task); err != nil || task.ID == "" {
+		return nil, fmt.Errorf("acestep: no task id in %s", clip(string(raw), 200))
+	}
+	// The server runs tasks on its own queue and has no push channel: ask until it is done.
+	for {
+		raw, err := call("POST", "/query_result", map[string]any{"task_id_list": []string{task.ID}})
+		if err != nil {
+			return nil, err
+		}
+		var res []struct {
+			Status int    `json:"status"`
+			Result string `json:"result"`
+		}
+		if err := json.Unmarshal(raw, &res); err != nil {
+			return nil, fmt.Errorf("acestep: unexpected result %s", clip(string(raw), 200))
+		}
+		if len(res) > 0 && res[0].Status == 2 {
+			return nil, fmt.Errorf("acestep: the task failed: %s", clip(res[0].Result, 300))
+		}
+		if len(res) > 0 && res[0].Status == 1 {
+			var files []struct {
+				File  string `json:"file"`
+				Model string `json:"dit_model"`
+			}
+			if err := json.Unmarshal([]byte(res[0].Result), &files); err != nil || len(files) == 0 || files[0].File == "" {
+				return nil, fmt.Errorf("acestep: no audio in %s", clip(res[0].Result, 200))
+			}
+			data, _, err := services.DoRaw(ctx, "GET", base+files[0].File, h, nil)
+			if err != nil {
+				return nil, fmt.Errorf("acestep: downloading the audio: %w", err)
+			}
+			m := files[0].Model
+			if m == "" {
+				m = model
+			}
+			return &Track{Data: data, Ext: ".wav", Provider: "acestep", Model: m}, nil
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(2 * time.Second):
+		}
+	}
+}
+
+// bpmIn finds "<n> BPM" in a prompt (cav music gen --board adds it).
+func bpmIn(prompt string) int {
+	f := strings.Fields(strings.ToLower(prompt))
+	for i := 1; i < len(f); i++ {
+		if strings.TrimRight(f[i], ",.;") == "bpm" {
+			if n, err := strconv.ParseFloat(strings.TrimRight(f[i-1], ","), 64); err == nil && n >= 30 && n <= 300 {
+				return int(math.Round(n))
+			}
+		}
+	}
+	return 0
 }
 
 func clip(s string, n int) string {
