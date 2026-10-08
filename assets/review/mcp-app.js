@@ -51,7 +51,9 @@
     let choice = null;
     try { choice = localStorage.getItem('cav-review-theme'); } catch {}
     if ((!choice || choice === 'system') && (ctx.theme === 'light' || ctx.theme === 'dark')) document.documentElement.dataset.theme = ctx.theme;
-    const d = ctx.containerDimensions || {};
+    // host-context-changed carries only the fields that changed: keep the height without one.
+    const d = ctx.containerDimensions;
+    if (!d) return;
     const h = d.height || Math.min(d.maxHeight || 640, 640);
     document.documentElement.style.setProperty('--cav-app-h', h + 'px');
   }

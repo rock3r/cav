@@ -135,6 +135,11 @@ type session struct {
 	srv     *review.Server
 	modTime time.Time
 	size    int64
+	// seen is the changed file as the last request found it. As in review.Server.Watch, a
+	// change is prepared only when two requests in a row find the same size and time, so a
+	// render that is still being written in place keeps the earlier version on screen.
+	seenMod  time.Time
+	seenSize int64
 }
 
 func (h *handler) session(ctx context.Context, video string, create bool) (*session, error) {
@@ -152,8 +157,14 @@ func (h *handler) session(ctx context.Context, video string, create bool) (*sess
 	if s == nil && !create {
 		return nil, fmt.Errorf("%s was not opened with show_review", video)
 	}
-	if s != nil && info.ModTime().Equal(s.modTime) && info.Size() == s.size {
-		return s, nil
+	if s != nil {
+		if info.ModTime().Equal(s.modTime) && info.Size() == s.size {
+			return s, nil
+		}
+		if !info.ModTime().Equal(s.seenMod) || info.Size() != s.seenSize {
+			s.seenMod, s.seenSize = info.ModTime(), info.Size() // still changing: check again next time
+			return s, nil
+		}
 	}
 	src, proxy, err := h.o.Prepare(ctx, abs, h.o.CacheDir)
 	if err != nil {

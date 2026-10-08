@@ -208,9 +208,23 @@ func TestReRenderPreparesAgain(t *testing.T) {
 	later := time.Now().Add(time.Minute)
 	os.WriteFile(video, []byte("render v2, longer"), 0o644)
 	os.Chtimes(video, later, later)
-	call(t, cs, "review_request", map[string]any{"video": video, "method": "GET", "path": "/api/state"}, nil)
+	state := func() {
+		call(t, cs, "review_request", map[string]any{"video": video, "method": "GET", "path": "/api/state"}, nil)
+	}
+	state()
+	if *prepared != 1 {
+		t.Fatalf("prepared %d times, want 1 until the new file is seen unchanged twice", *prepared)
+	}
+	// Still being written in place: it grows between two requests.
+	os.WriteFile(video, []byte("render v2, longer, still growing"), 0o644)
+	os.Chtimes(video, later, later)
+	state()
+	if *prepared != 1 {
+		t.Fatalf("prepared %d times, want 1 while the file is still growing", *prepared)
+	}
+	state()
 	if *prepared != 2 {
-		t.Errorf("prepared %d times, want 2 after a re-render", *prepared)
+		t.Errorf("prepared %d times, want 2 once the re-render stopped changing", *prepared)
 	}
 	d, _ := review.Open(video).Load()
 	if len(d.Versions) != 2 {
