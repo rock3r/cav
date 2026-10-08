@@ -392,10 +392,20 @@ func TestNewProcessKeepsTheEarlierRenderOfABrokenFile(t *testing.T) {
 	// Without the earlier preview there is nothing to show, so the request still fails.
 	os.WriteFile(video, []byte("broken"), 0o644)
 	os.Chtimes(video, later.Add(2*time.Minute), later.Add(2*time.Minute))
-	os.RemoveAll(filepath.Join(filepath.Dir(video), "cache"))
+	cache := filepath.Join(filepath.Dir(video), "cache")
+	os.RemoveAll(cache)
 	fresh, _ := connectTo(t, video)
 	if res := call(t, fresh, "review_request", map[string]any{"video": video, "method": "GET", "path": "/api/state"}, nil); !res.IsError {
 		t.Error("a broken file with no earlier preview must fail the request")
+	}
+
+	// A digest in the review file that is not one must not name a file outside the cache.
+	os.MkdirAll(cache, 0o755)
+	os.WriteFile(filepath.Join(filepath.Dir(video), "secret.mp4"), []byte("not a preview"), 0o644)
+	review.Open(video).Update(func(d *review.Doc) error { d.Source.SHA256 = "../secret"; return nil })
+	fresh, _ = connectTo(t, video)
+	if res := call(t, fresh, "review_request", map[string]any{"video": video, "method": "GET", "path": "/api/state"}, nil); !res.IsError {
+		t.Error("a review file whose digest leaves the cache must not be served")
 	}
 }
 
