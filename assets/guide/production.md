@@ -83,7 +83,8 @@ cav board place                             # the frames as placeholder layers i
   beat at the composition's frame rate, and scaled to fit. Find a placeholder with
   `cav.find('s3')`. When you build the shot, delete its placeholder and give the shot's
   group the same name. Run `cav board place` again after you change beats or frames: it
-  replaces the image layers and keeps any shot whose name a built layer already uses.
+  updates the image layers in place (their parent, transforms and masks stay) and keeps
+  any shot whose name a built layer already uses.
   `--only s2,s3` places some shots; `--comp NAME` targets another composition.
 
 ## 4. Assets

@@ -44,8 +44,9 @@ timed in beats (like the plan table cav guide asks for).
         adds each shot's frame to the open Cavalry composition as an image layer named
         by its shot id, visible from its start beat to its end beat and scaled to fit.
         Beat 0 lands on the composition's start frame.
-        Run it again to update the placeholders: it replaces image layers with those names
-        and leaves alone a shot whose name a built layer (a group, a shape) already uses.
+        Run it again to update the placeholders: it points image layers with those names at
+        the current frames and timing, keeping their parent and transforms, and leaves alone
+        a shot whose name a built layer (a group, a shape) already uses.
   cav board mood [moodboard/] [-o renders/moodboard.png]
         lays a folder of references out as one picture, each with its source and licence
         from the manifest (cav ref get fills the folder).
@@ -335,37 +336,61 @@ func boardAnimatic(a *app, args []string) error {
 }
 
 // boardPlaceJS adds the frames in `shots` to the active comp. It reuses an asset already
-// loaded from the same file (reloading it, in case the frame was remade), replaces image
-// layers named by a shot id (keeping their parent and stack position), and skips a shot
-// whose name another kind of layer uses: that is the built shot replacing its placeholder.
+// loaded from the same file (reloading it, in case the frame was remade). An image layer
+// already named by a shot id is updated in place: its image shader is pointed at the new
+// frame and its in and out frames are reset, so its parent, transforms, masks and stack
+// position stay as they are. A shot whose name another kind of layer uses is skipped:
+// that is the built shot replacing its placeholder.
 const boardPlaceJS = `
 var assets = {}
 api.getAssetWindowLayers(false).forEach(function (a) {
 	if (api.isFileAsset(a)) assets[api.getAssetFilePath(a)] = a
 })
+function asset(path) {
+	if (assets[path]) api.reloadAsset(assets[path])
+	else assets[path] = api.loadAsset(path, false)
+	return assets[path]
+}
+// shaderOf finds the image shader that draws a footage layer.
+function shaderOf(footage) {
+	var all = api.getCompLayers(false)
+	for (var i = 0; i < all.length; i++) {
+		if (api.getLayerType(all[i]) !== 'imageShader') continue
+		var outs = api.getOutConnections(all[i], 'id')
+		for (var j = 0; j < outs.length; j++) if (outs[j].split('.')[0] === footage) return all[i]
+	}
+	return null
+}
 var placed = [], skipped = []
 shots.forEach(function (s) {
-	var old = [], built = null
+	var old = null, built = null
 	// false lists nested layers too, so a placeholder or built shot inside a group counts.
 	api.getCompLayers(false).forEach(function (l) {
 		if (api.getNiceName(l) !== s.id) return
-		if (api.getLayerType(l) === 'footageShape') old.push(l)
-		else if (!built) built = l
+		if (api.getLayerType(l) === 'footageShape') old = old || l
+		else built = built || l
 	})
 	if (built) {
 		skipped.push({ id: s.id, layer: built, type: api.getLayerType(built) })
 		return
 	}
+	var sh = old && shaderOf(old)
+	if (sh) {
+		api.connect(asset(s.path), 'id', sh, 'image', true)
+		api.setInFrame(old, s.in)
+		api.setOutFrame(old, s.out)
+		// The fit scale is in composition space, so it only applies at the top level.
+		var top = !api.getParent(old)
+		if (s.scale > 0 && top) cav.set(old, { scale: s.scale })
+		placed.push({ id: s.id, layer: old, replaced: true, scaled: top })
+		return
+	}
 	var o = { in: s.in, out: s.out }
 	if (s.scale > 0) o.scale = s.scale
-	// The new placeholder takes the old one's parent and place in the stack.
-	var parent = old.length ? api.getParent(old[0]) : ''
-	if (parent) o.parent = parent
 	var l
 	if (assets[s.path]) {
-		api.reloadAsset(assets[s.path])
 		api.select([])
-		l = api.addAssetToComp(assets[s.path])
+		l = api.addAssetToComp(asset(s.path))
 		if (Array.isArray(l)) l = l[0]
 		api.select([])
 		api.rename(l, s.id)
@@ -373,11 +398,7 @@ shots.forEach(function (s) {
 	} else {
 		l = cav.image(s.path, s.id, o)
 	}
-	if (old.length) api.reorder(l, old[0])
-	old.forEach(function (x) {
-		api.deleteLayer(x)
-	})
-	placed.push({ id: s.id, layer: l, replaced: old.length > 0 })
+	placed.push({ id: s.id, layer: l, replaced: false, scaled: true })
 })
 return { placed: placed, skipped: skipped, end: api.get(api.getActiveComp(), 'endFrame') }`
 
@@ -435,6 +456,7 @@ return { id: id, fps: api.get(id, 'fps'), width: r.x, height: r.y, start: api.ge
 			ID       string `json:"id"`
 			Layer    string `json:"layer"`
 			Replaced bool   `json:"replaced"`
+			Scaled   bool   `json:"scaled"`
 		} `json:"placed"`
 		Skipped []struct {
 			ID    string `json:"id"`
@@ -467,21 +489,29 @@ return { id: id, fps: api.get(id, 'fps'), width: r.x, height: r.y, start: api.ge
 		Layer    string  `json:"layer"`
 		In       int     `json:"in"`
 		Out      int     `json:"out"`
-		Scale    float64 `json:"scale"`
+		Scale    float64 `json:"scale,omitempty"` // left out when a nested layer keeps its own scale
 		Replaced bool    `json:"replaced,omitempty"`
 	}
 	rows := []row{}
 	for _, p := range r.Placed {
 		pl := byID[p.ID]
-		rows = append(rows, row{p.ID, p.Layer, pl.In, pl.Out, math.Round(pl.Scale*1000) / 1000, p.Replaced})
+		scale := 0.0
+		if p.Scaled {
+			scale = math.Round(pl.Scale*1000) / 1000
+		}
+		rows = append(rows, row{p.ID, p.Layer, pl.In, pl.Out, scale, p.Replaced})
 	}
 	a.emit(map[string]any{"storyboard": path, "fps": c.FPS, "placed": rows, "skipped": r.Skipped, "notes": notes}, func() {
 		for _, x := range rows {
 			state := "added"
 			if x.Replaced {
-				state = "replaced"
+				state = "updated"
 			}
-			fmt.Printf("%-4s %-16s frames %d-%d  scale %g  (%s)\n", x.Shot, x.Layer, x.In, x.Out, x.Scale, state)
+			scale := fmt.Sprintf("scale %g", x.Scale)
+			if x.Scale == 0 {
+				scale = "scale kept (in a group)"
+			}
+			fmt.Printf("%-4s %-16s frames %d-%d  %s  (%s)\n", x.Shot, x.Layer, x.In, x.Out, scale, state)
 		}
 		for _, s := range r.Skipped {
 			fmt.Printf("%-4s kept %s (a %s already uses the name)\n", s.ID, s.Layer, s.Type)
