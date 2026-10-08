@@ -23,9 +23,11 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
+	"github.com/rock3r/cav/internal/cavapp"
 	"github.com/rock3r/cav/internal/config"
 )
 
@@ -98,6 +100,8 @@ const (
 )
 
 var (
+	// ErrRefused means nothing listens on the bridge port, so the bridge is not running.
+	ErrRefused = errors.New("connection refused")
 	// ErrUnavailable means no bridge answered at all.
 	ErrUnavailable = errors.New("cannot reach cav-bridge")
 	// ErrStillRunning means the wait timed out while the job was queued or running.
@@ -114,7 +118,50 @@ var (
 	ErrSessionChanged = errors.New("bridge session changed before job completion")
 )
 
-const unavailableHint = "Start Cavalry, then run Scripts > cav-bridge and keep its window open. `cav doctor` checks every step."
+// Diagnose checks the Cavalry process for a bridge on host. "Cavalry is not running" is
+// always safe to report. "Cavalry is running but cav-bridge is not" is reported only when
+// the connection was refused, which proves that nothing listens: a silent bridge may
+// only be busy with a long native call.
+func Diagnose(host string, refused bool) cavapp.Diagnosis {
+	unknown := cavapp.Explain(cavapp.Unknown, nil)
+	if !IsLocal(host) {
+		return unknown
+	}
+	d := cavapp.Diagnose()
+	if d.Status == cavapp.Running && !refused {
+		return unknown
+	}
+	return d
+}
+
+// unavailableHint says what to do when no bridge answers.
+func unavailableHint(host string, refused bool) string {
+	return Diagnose(host, refused).Hint() + " `cav doctor` checks every step."
+}
+
+// exitedWhat says what stopped when the bridge refuses a connection mid-job.
+func exitedWhat(host string) string {
+	if !IsLocal(host) {
+		return "Cavalry or its bridge may have exited"
+	}
+	d := Diagnose(host, true)
+	if d.What == "" {
+		return "Cavalry or its bridge may have exited"
+	}
+	if note := d.CrashNote(); note != "" {
+		return d.What + ". " + strings.TrimSuffix(note, ".")
+	}
+	return d.What
+}
+
+// IsLocal reports whether host names this machine, where cav can look at the processes.
+func IsLocal(host string) bool {
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
 
 // slowHint explains a bridge that accepts the connection but answers late. Cavalry serves
 // requests on its UI thread, so a long script, a render or an open dialog box delays
@@ -130,18 +177,18 @@ const SandboxHint = "cav runs inside a sandbox (for example an agent's) that blo
 	"Either let cav connect to 127.0.0.1:8723 and write ~/.cav, or use spool mode: run `cav relay --spool <folder in the project>` " +
 	"outside the sandbox, and put that folder's path in a `.cav-spool` file in the project (see `cav help relay`)"
 
-func unreachable(base string, err error) error {
+func unreachable(host, base string, err error) error {
 	if errors.Is(err, syscall.EPERM) || errors.Is(err, syscall.EACCES) {
 		return fmt.Errorf("%w: %w: connecting to %s was not permitted. %s", ErrUnavailable, ErrBlocked, base, SandboxHint)
 	}
 	if errors.Is(err, syscall.ECONNREFUSED) {
-		return fmt.Errorf("%w at %s: %s", ErrUnavailable, base, unavailableHint)
+		return fmt.Errorf("%w at %s: %w. %s", ErrUnavailable, base, ErrRefused, unavailableHint(host, true))
 	}
 	var ne net.Error
 	if errors.As(err, &ne) && ne.Timeout() {
 		return fmt.Errorf("%w at %s: %w (no answer before the request deadline). %s", ErrUnavailable, base, err, slowHint)
 	}
-	return fmt.Errorf("%w at %s: %v. %s", ErrUnavailable, base, err, unavailableHint)
+	return fmt.Errorf("%w at %s: %v. %s", ErrUnavailable, base, err, unavailableHint(host, false))
 }
 
 type Client struct {
@@ -185,7 +232,7 @@ func (c *Client) Probe(ctx context.Context) (map[string]any, error) {
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, c.base()+"/get", nil)
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return nil, unreachable(c.base(), err)
+		return nil, unreachable(c.Host, c.base(), err)
 	}
 	defer resp.Body.Close()
 	var payload map[string]any
@@ -215,7 +262,7 @@ func (c *Client) Submit(ctx context.Context, r *Request) error {
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return unreachable(c.base(), err)
+		return unreachable(c.Host, c.base(), err)
 	}
 	resp.Body.Close()
 	if resp.StatusCode >= 300 {
@@ -332,11 +379,11 @@ func (c *Client) wait(ctx context.Context, id string, timeout time.Duration, ini
 				return r, nil
 			}
 			set(StateUnknown)
-			return nil, fmt.Errorf("%w: %w (job %s). Cavalry or its bridge may have exited; the native outcome is unknown. Preserve partial output and inspect the operation before retrying.", ErrLost, ErrDisconnected, id)
+			return nil, fmt.Errorf("%w: %w (job %s). %s; the native outcome is unknown. Preserve partial output and inspect the operation before retrying.", ErrLost, ErrDisconnected, id, exitedWhat(c.Host))
 		} else if time.Since(lastSeen) > 120*time.Second {
 			// Cavalry cannot answer while a native operation blocks it (for example deleting
 			// hundreds of layers), so only give up after a long silence.
-			return nil, fmt.Errorf("%w (job %s). Its state is unknown: a blocking native call, closed bridge or crashed app can all cause this silence. %s", ErrLost, id, unavailableHint)
+			return nil, fmt.Errorf("%w (job %s). Its state is unknown: a blocking native call, closed bridge or crashed app can all cause this silence. %s", ErrLost, id, unavailableHint(c.Host, false))
 		} else if time.Since(lastSeen) > 10*time.Second && onState != nil && !warnedBusy {
 			warnedBusy = true
 			set(StateBusy)

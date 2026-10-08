@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- When cav cannot reach cav-bridge, `cav doctor` and the errors of every other command
+  now say whether Cavalry itself is running. "Cavalry is not running (it may have
+  crashed)" names the newest Cavalry crash report on macOS, if there is one. "Cavalry is
+  running but cav-bridge is not" asks you to start only the bridge.
 - Read `keychain:service/account` keys from Windows Credential Manager on Windows. The
   target name is the service and the user name is the account. A missing entry and a
   refused read are reported the same way as on macOS, where a refused read is now told
