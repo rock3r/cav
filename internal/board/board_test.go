@@ -31,6 +31,10 @@ func TestTimeFromBPMAndFromGrid(t *testing.T) {
 	if got := sb.Time(5); math.Abs(got-2.8) > 1e-9 {
 		t.Fatalf("after the grid: %g", got)
 	}
+	// Before the first detected beat, the first spacing continues backwards.
+	if got := sb.Time(-2); math.Abs(got-(-0.9)) > 1e-9 {
+		t.Fatalf("before the grid: %g", got)
+	}
 }
 
 func TestValidate(t *testing.T) {

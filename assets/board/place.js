@@ -61,11 +61,6 @@ var placed = [],
 	last = null // the last frame any shot needs, placed or not
 shots.forEach(function (s) {
 	var f = shotFrames(s.start, s.end, info.fps, info.start)
-	if (!f) {
-		skipped.push({ id: s.id, reason: 'before' })
-		return
-	}
-	last = Math.max(last === null ? f[1] : last, f[1])
 	var old = null,
 		built = null
 	// false lists nested layers too, so a placeholder or built shot inside a group counts.
@@ -74,6 +69,13 @@ shots.forEach(function (s) {
 		if (api.getLayerType(l) === 'footageShape') old = old || l
 		else built = built || l
 	})
+	// A shot that now ends before beat 0 is not shown: its old placeholder is hidden.
+	if (!f) {
+		if (old) api.set(old, { hidden: true })
+		skipped.push({ id: s.id, reason: 'before', layer: old || undefined })
+		return
+	}
+	last = Math.max(last === null ? f[1] : last, f[1])
 	// Another kind of layer with the shot's name is the built shot replacing its placeholder.
 	if (built) {
 		skipped.push({ id: s.id, reason: 'built', layer: built, type: api.getLayerType(built) })
@@ -84,6 +86,8 @@ shots.forEach(function (s) {
 	var sh = old && shaderOf(old)
 	if (sh) {
 		api.connect(asset(s.path), 'id', sh, 'image', true)
+		// Shown again, in case an earlier run hid it while the shot was before beat 0.
+		api.set(old, { hidden: false })
 		api.setInFrame(old, f[0])
 		api.setOutFrame(old, f[1])
 		placed.push({ id: s.id, layer: old, in: f[0], out: f[1], scale: 0, updated: true })

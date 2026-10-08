@@ -588,7 +588,9 @@ func boardPlace(a *app, args []string) error {
 			fmt.Printf("%-4s %-16s frames %d-%d  %s  (%s)\n", x.Shot, x.Layer, x.In, x.Out, scale, state)
 		}
 		for _, s := range r.Skipped {
-			if s.Reason == "before" {
+			if s.Reason == "before" && s.Layer != "" {
+				fmt.Printf("%-4s skipped: it ends before beat 0 (hid %s)\n", s.ID, s.Layer)
+			} else if s.Reason == "before" {
 				fmt.Printf("%-4s skipped: it ends before beat 0\n", s.ID)
 			} else {
 				fmt.Printf("%-4s kept %s (a %s already uses the name)\n", s.ID, s.Layer, s.Type)

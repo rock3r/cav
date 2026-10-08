@@ -24,7 +24,7 @@ function fakeCavalry(comp, layers) {
 		select: () => {},
 		addAssetToComp: a => { const id = 'footageShape#' + ++n; layers.push({ id, type: 'footageShape', name: '' }); calls.added.push(a); return [id] },
 		rename: (id, name) => { byId(id).name = name },
-		set: (id, v) => calls.set.push([id, v]),
+		set: (id, v) => calls.set.push([id, JSON.parse(JSON.stringify(v))]),
 		setInFrame: (id, f) => { byId(id).in = f },
 		setOutFrame: (id, f) => { byId(id).out = f },
 	}
@@ -70,7 +70,8 @@ test('an existing placeholder is updated in place and keeps its transforms', () 
 	const r = run(cv, [shot('s1', 1, 2)])
 	assert.deepEqual(r.placed[0], { id: 's1', layer: 'footageShape#9', in: 60, out: 119, scale: 0, updated: true })
 	assert.deepEqual(cv.calls.connect, [['asset#1', 'imageShader#9', 'image']])
-	assert.equal(cv.calls.set.length, 0)
+	// Only made visible again; no transform is set.
+	assert.deepEqual(cv.calls.set, [['footageShape#9', { hidden: false }]])
 	assert.equal(cv.calls.added.length, 0)
 })
 
@@ -93,4 +94,11 @@ test('the last frame counts skipped built shots too', () => {
 	const cv = fakeCavalry(comp, [{ id: 'group#1', type: 'group', name: 's2' }])
 	const r = run(cv, [shot('s1', 0, 1), shot('s2', 1, 20)])
 	assert.equal(r.last, 1199)
+})
+
+test('a placeholder whose shot moved before beat 0 is hidden', () => {
+	const cv = fakeCavalry(comp, [{ id: 'footageShape#9', type: 'footageShape', name: 's1' }])
+	const r = run(cv, [shot('s1', -3, -1)])
+	assert.deepEqual(r.skipped, [{ id: 's1', reason: 'before', layer: 'footageShape#9' }])
+	assert.deepEqual(cv.calls.set, [['footageShape#9', { hidden: true }]])
 })

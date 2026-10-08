@@ -112,6 +112,10 @@ func (sb *Board) Path(p string) string {
 // Time returns the time of a beat in seconds.
 func (sb *Board) Time(beat float64) float64 {
 	if len(sb.gridBeats) > 1 {
+		if beat < 0 {
+			// Before the first detected beat, the first spacing continues backwards.
+			return sb.gridBeats[0] + beat*(sb.gridBeats[1]-sb.gridBeats[0])
+		}
 		i := int(beat)
 		frac := beat - float64(i)
 		n := len(sb.gridBeats)
