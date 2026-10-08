@@ -113,7 +113,8 @@ The score puts notes and hits on a beat grid:
   {"name": "bass", "instrument": "bass", "notes": [[0, 0.5, 45, 0.8]], "duck": true},
   {"name": "pad", "instrument": "pad", "notes": [[0, 4, 57, 0.5]], "reverb": 0.3, "gain": -8},
   {"name": "hit", "instrument": "sample:/abs/sfx/impact.wav", "hits": [16]},
-  {"name": "lead", "instrument": "vst3:/Library/Audio/Plug-Ins/VST3/Surge XT.vst3", "notes": []}],
+  {"name": "lead", "instrument": "vst3:/Library/Audio/Plug-Ins/VST3/Surge XT.vst3", "notes": [],
+   "preset": "/abs/presets/lead.vstpreset", "params": {"cutoff": 0.4}}],
  "master": {"lufs": -14}}
 ```
 
@@ -122,8 +123,14 @@ The score puts notes and hits on a beat grid:
   `snare`, `hat`, `openhat`, `clap`; `sample:<path>`; `vst3:<path>` or `au:<path>`.
 - Per track: `gain` (dB), `pan` (-1 to 1), `reverb` and `delay` (0-1), and `duck` to dip
   under the kick. `humanize` sets timing and velocity drift.
-- `master.lufs` sets the loudness; the limiter keeps the true peak under -1 dBFS.
-  `master.reference` matches the mix to a reference track (Matchering).
+- A plugin track plays its default sound unless you give it a `preset`: a `.vstpreset`
+  (VST3), or a file with the bytes of pedalboard's `plugin.raw_state` (VST3 or AU). `params`
+  sets parameters by their pedalboard names; an unknown name lists the real ones. macOS loads
+  an AU only from `/Library/Audio/Plug-Ins/Components` or `~/Library/Audio/Plug-Ins/Components`.
+- `master.lufs` sets the loudness; the limiter keeps the true peak under -1 dBTP.
+  `master.reference` matches the tone to a reference track (Matchering); the loudness and
+  peak targets still apply after it. A very sparse mix (a lone kick) cannot reach -14 LUFS
+  under that peak: the result has a `warning`. Fill the mix out, or set `master.lufs` lower.
 - Write the score from the storyboard: shots start on beats, so cuts land on the music.
 
 ### Judge the music

@@ -20,8 +20,9 @@ type renderedMusic struct {
 	Out     string   `json:"out"`
 	Seconds float64  `json:"seconds"`
 	LUFS    float64  `json:"lufs"`
-	Peak    float64  `json:"peak"`
+	Peak    float64  `json:"peak"` // true peak, dBTP
 	Stems   []string `json:"stems"`
+	Warning string   `json:"warning"`
 }
 
 // cmdMusicRender renders a written score (JSON) to a mixed WAV locally: synthesised
@@ -45,7 +46,9 @@ func cmdMusicRender(a *app, args []string) error {
 	var probe struct {
 		BPM    float64 `json:"bpm"`
 		Tracks []struct {
+			Name       string `json:"name"`
 			Instrument string `json:"instrument"`
+			Preset     string `json:"preset"`
 		} `json:"tracks"`
 		Master struct {
 			Reference string `json:"reference"`
@@ -56,6 +59,27 @@ func cmdMusicRender(a *app, args []string) error {
 	}
 	if probe.BPM <= 0 || len(probe.Tracks) == 0 {
 		return fail(exitError, "the score needs a bpm and at least one track", "see cav guide production for the format")
+	}
+	// Missing files would otherwise surface as a Python traceback after the package download.
+	var missing []string
+	need := func(what, p string) {
+		if _, err := os.Stat(p); err != nil {
+			missing = append(missing, what+" "+p)
+		}
+	}
+	for _, t := range probe.Tracks {
+		if kind, p, ok := strings.Cut(t.Instrument, ":"); ok && (kind == "sample" || kind == "vst3" || kind == "au") {
+			need("track "+t.Name+": "+kind, p)
+		}
+		if t.Preset != "" {
+			need("track "+t.Name+": preset", t.Preset)
+		}
+	}
+	if probe.Master.Reference != "" {
+		need("master.reference", probe.Master.Reference)
+	}
+	if len(missing) > 0 {
+		return fail(exitError, "the score names files that do not exist: "+strings.Join(missing, "; "), "use absolute paths in the score")
 	}
 	if *out == "" {
 		*out = filepath.Join("music", strings.TrimSuffix(filepath.Base(scorePath), filepath.Ext(scorePath))+".wav")
@@ -116,8 +140,15 @@ func cmdMusicRender(a *app, args []string) error {
 	if err := m.Save(root); err != nil {
 		return err
 	}
-	a.emit(map[string]any{"out": r.Out, "seconds": r.Seconds, "lufs": r.LUFS, "peak": r.Peak, "stems": r.Stems}, func() {
-		fmt.Printf("%s  %.2f s, %.1f LUFS, peak %.1f dBFS\n", r.Out, r.Seconds, r.LUFS, r.Peak)
+	result := map[string]any{"out": r.Out, "seconds": r.Seconds, "lufs": r.LUFS, "peak": r.Peak, "stems": r.Stems}
+	if r.Warning != "" {
+		result["warning"] = r.Warning
+	}
+	a.emit(result, func() {
+		fmt.Printf("%s  %.2f s, %.1f LUFS, true peak %.1f dBTP\n", r.Out, r.Seconds, r.LUFS, r.Peak)
+		if r.Warning != "" {
+			fmt.Println("warning: " + r.Warning)
+		}
 		for _, s := range r.Stems {
 			fmt.Println("  stem " + s)
 		}

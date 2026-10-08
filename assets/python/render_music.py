@@ -7,11 +7,15 @@
 #       "gain": -4, "pan": 0, "duck": true, "reverb": 0.1, "delay": 0},
 #      {"name": "kick", "instrument": "kick", "hits": [0, 1, 2, 3], "velocity": 0.9},
 #      {"name": "fx", "instrument": "sample:/abs/whoosh.wav", "hits": [15.5]},
-#      {"name": "lead", "instrument": "vst3:/Library/Audio/Plug-Ins/VST3/Surge XT.vst3", "notes": [...]}],
+#      {"name": "lead", "instrument": "vst3:/Library/Audio/Plug-Ins/VST3/Surge XT.vst3", "notes": [...],
+#       "preset": "/abs/lead.vstpreset", "params": {"cutoff": 0.4}}],
 #    "master": {"lufs": -14, "reference": "/abs/reference.wav"}}
 # Instruments: bass, sub, pad, pluck, lead, keys, bell (synthesised here); kick, snare, hat,
 # openhat, clap (synthesised drums); sample:<path>; vst3:<path> or au:<path> (pedalboard).
-# Prints JSON: {"out", "seconds", "lufs", "peak", "stems": [...]}.
+# A plugin track can load a "preset": a .vstpreset (VST3), or a state file holding the bytes of
+# pedalboard's plugin.raw_state (VST3 or AU). "params" then sets parameters by their pedalboard
+# names (see plugin.parameters).
+# Prints JSON: {"out", "seconds", "lufs", "peak" (true peak, dBTP), "stems": [...], "warning"}.
 import json
 import math
 import sys
@@ -138,18 +142,46 @@ def place(buf, sig, start):
     buf[start:end] += sig[: end - start]
 
 
-def limit(x, ceiling_db=-1.6, lookahead_ms=5, release_ms=80):
+def true_peak_env(x, over=4, half=16):
+    # Per-sample true-peak level of a (channels, n) signal: the largest absolute value of the
+    # signal and of its windowed-sinc interpolation at over-1 points between each pair of
+    # samples (4x oversampling, as in ITU-R BS.1770). White-noise drums such as the hat can
+    # peak 2 dB or more between samples. That content sits near the Nyquist frequency, where
+    # the 12-tap filter of BS.1770 misses peaks, so this one has 32 taps per phase: it reads
+    # the same or higher than ffmpeg's ebur128 meter, which cav listen uses.
+    x = np.asarray(x, dtype=np.float32)
+    n = x.shape[1]
+    env = np.max(np.abs(x), axis=0)
+    pad = np.pad(x, ((0, 0), (half, half)))
+    taps = np.arange(-half + 1, half + 1)
+    for p in range(1, over):
+        d = p / over - taps  # distance from the interpolated point to each tap
+        h = np.sinc(d) * (0.5 + 0.5 * np.cos(math.pi * d / (half + 1)))
+        y = np.zeros_like(x)
+        for k, c in zip(taps, h):
+            y += c * pad[:, half + k : half + k + n]
+        env = np.maximum(env, np.max(np.abs(y), axis=0))
+    return env
+
+
+def true_peak_db(x):
+    return float(20 * np.log10(np.max(true_peak_env(x)) + 1e-9))
+
+
+def limit(x, ceiling_db=-1.2, lookahead_ms=5, release_ms=80, env=None):
     # Brick-wall limiter on a (channels, n) mix: the gain falls ahead of each peak, over the
-    # lookahead window, and recovers over the release. No makeup gain. The ceiling sits
-    # under -1 dBFS so inter-sample (true) peaks stay under -1 dBTP too.
-    # (The JUCE Limiter in pedalboard adds makeup gain, so it overshoots a loudness target.)
+    # lookahead window, and recovers over the release. No makeup gain. It detects true
+    # (inter-sample) peaks, and the ceiling sits a little under -1 dBTP for the measurement
+    # error of other meters. (The JUCE Limiter in pedalboard adds makeup gain, so it
+    # overshoots a loudness target.) env is true_peak_env(x), when the caller has it.
     ceil = 10 ** (ceiling_db / 20)
-    need = np.minimum(1.0, ceil / np.maximum(np.max(np.abs(x), axis=0), 1e-9))
+    need = np.minimum(1.0, ceil / np.maximum(true_peak_env(x) if env is None else env, 1e-9))
     la = max(1, int(lookahead_ms * SR / 1000))
     padded = np.pad(need, (0, la), constant_values=1.0)
     ahead = np.lib.stride_tricks.sliding_window_view(padded, la + 1).min(axis=1)
     # Averaging the last la+1 values of `ahead` stays at or under `need` and ramps smoothly.
-    c = np.cumsum(np.pad(ahead, (la + 1, 0), constant_values=1.0))
+    # The values before the start repeat the first one, so a hit at 0 s is limited too.
+    c = np.cumsum(np.pad(ahead, (la + 1, 0), mode="edge"))
     ramp = (c[la + 1 :] - c[: -la - 1]) / (la + 1)
     rel = math.exp(-1 / (release_ms * SR / 1000))
     g = np.empty_like(ramp)
@@ -158,6 +190,66 @@ def limit(x, ceiling_db=-1.6, lookahead_ms=5, release_ms=80):
         cur = want if want < cur else want - (want - cur) * rel
         g[i] = cur
     return (x * g).astype(np.float32)
+
+
+def master_to(pre, target, meter):
+    # Gain to the target and limit the peaks. Limiting lowers the loudness, more so the harder
+    # it works (a sparse kick), so the gain is searched: secant steps on (gain, loudness).
+    # Returns the mix and a warning when the target is out of reach under the ceiling.
+    env = true_peak_env(pre)  # scales with the gain, so it is measured once
+    start = meter.integrated_loudness(pre.T)
+    if not np.isfinite(start):
+        return limit(pre, env=env), ""
+    gain_db, last = target - start, None
+    for _ in range(8):
+        g = 10 ** (gain_db / 20)
+        mix = limit(pre * g, env=env * g)
+        lufs = meter.integrated_loudness(mix.T)
+        if abs(target - lufs) < 0.1:
+            break
+        slope = 1.0
+        if last and last[0] != gain_db:
+            slope = (lufs - last[1]) / (gain_db - last[0])
+            if lufs < target and slope < 0.15:
+                # More gain only crushes the peaks: the mix is too sparse for the target.
+                return mix, (f"the mix reaches {lufs:.1f} LUFS, not {target:g}, under a -1 dBTP peak: "
+                             "it is too sparse or peaky; fill it out or set master.lufs lower")
+            slope = float(np.clip(slope, 0.15, 1.0))
+        last = (gain_db, lufs)
+        gain_db += min(12.0, (target - lufs) / slope)
+    return mix, ""
+
+
+def match_reference(mix, reference, work_dir):
+    # Matchering matches the mix's frequency balance and loudness to the reference. It works
+    # at 44.1 kHz and sets the reference's loudness, so the result comes back unlimited, in
+    # float, and is resampled; master_to then sets the target loudness and peak again.
+    import matchering as mg
+    import pedalboard as pb
+
+    src, dst = f"{work_dir}/premaster.wav", f"{work_dir}/matched.wav"
+    with pb.io.AudioFile(src, "w", SR, 2, bit_depth=32) as f:
+        f.write(mix)
+    mg.process(target=src, reference=reference, results=[mg.Result(dst, subtype="FLOAT", use_limiter=False, normalize=False)])
+    with pb.io.AudioFile(dst).resampled_to(SR) as f:
+        out = f.read(f.frames)
+    n = mix.shape[1]
+    return np.pad(out, ((0, 0), (0, max(0, n - out.shape[1]))))[:, :n].astype(np.float32)
+
+
+def load_instrument(pb, path, tr):
+    plugin = pb.load_plugin(path)
+    preset = tr.get("preset")
+    if preset:
+        if preset.lower().endswith(".vstpreset"):
+            plugin.load_preset(preset)
+        else:
+            plugin.raw_state = open(preset, "rb").read()
+    for name, value in (tr.get("params") or {}).items():
+        if name not in plugin.parameters:
+            raise ValueError(f"track {tr['name']}: the plugin has no parameter {name!r}; it has: {', '.join(plugin.parameters)}")
+        setattr(plugin, name, value)
+    return plugin
 
 
 def main():
@@ -188,7 +280,7 @@ def main():
         inst = tr["instrument"]
         buf = np.zeros(total, dtype=np.float32)
         if inst.startswith("vst3:") or inst.startswith("au:"):
-            plugin = pb.load_plugin(inst.split(":", 1)[1])
+            plugin = load_instrument(pb, inst.split(":", 1)[1], tr)
             import mido
 
             msgs = []
@@ -246,25 +338,17 @@ def main():
 
     meter = pyloudnorm.Meter(SR)
     target = float(master.get("lufs", -14))
-    # Gain to the target, limit the peaks, and repeat: limiting lowers the loudness a little.
-    pre = mix
-    gain_db = 0.0
-    for _ in range(4):
-        mix = limit(pre * (10 ** (gain_db / 20)))
-        lufs = meter.integrated_loudness(mix.T)
-        if not np.isfinite(lufs) or abs(target - lufs) < 0.2:
-            break
-        gain_db += target - lufs
+    mix, warning = master_to(mix, target, meter)
+    if master.get("reference"):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as td:
+            mix, warning = master_to(match_reference(mix, master["reference"], td), target, meter)
     with pb.io.AudioFile(out_path, "w", SR, 2, bit_depth=24) as f:
         f.write(mix)
-    if master.get("reference"):
-        import matchering as mg
-
-        mg.process(target=out_path, reference=master["reference"], results=[mg.pcm24(out_path)])
-        with pb.io.AudioFile(out_path) as f:
-            mix = f.read(f.frames)
     json.dump({"out": out_path, "seconds": seconds, "lufs": round(float(meter.integrated_loudness(mix.T)), 2),
-               "peak": round(float(20 * np.log10(np.max(np.abs(mix)) + 1e-9)), 2), "stems": stem_paths}, sys.stdout)
+               "peak": round(true_peak_db(mix), 2), "stems": stem_paths, "warning": warning}, sys.stdout)
 
 
-main()
+if __name__ == "__main__":
+    main()
