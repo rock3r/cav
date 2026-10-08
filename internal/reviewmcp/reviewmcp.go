@@ -140,6 +140,9 @@ type session struct {
 	// render that is still being written in place keeps the earlier version on screen.
 	seenMod  time.Time
 	seenSize int64
+	// failed is set when the changed file could not be prepared, so the next requests keep
+	// the earlier render instead of preparing the same file again.
+	failed bool
 }
 
 func (h *handler) session(ctx context.Context, video string, create bool) (*session, error) {
@@ -162,11 +165,20 @@ func (h *handler) session(ctx context.Context, video string, create bool) (*sess
 			return s, nil
 		}
 		if !info.ModTime().Equal(s.seenMod) || info.Size() != s.seenSize {
-			s.seenMod, s.seenSize = info.ModTime(), info.Size() // still changing: check again next time
+			s.seenMod, s.seenSize, s.failed = info.ModTime(), info.Size(), false // still changing: check again next time
+			return s, nil
+		}
+		if s.failed {
 			return s, nil
 		}
 	}
 	src, proxy, err := h.o.Prepare(ctx, abs, h.o.CacheDir)
+	if err != nil && s != nil {
+		// Keep reviewing the earlier render; the page shows the error until a new render works.
+		s.failed = true
+		s.srv.SetRenderError(err.Error())
+		return s, nil
+	}
 	if err != nil {
 		return nil, err
 	}

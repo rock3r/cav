@@ -100,7 +100,11 @@
   const media = new Map();
   const dataURL = path => {
     if (!media.has(path)) media.set(path, call('GET', path, '').then(out => {
-      if (out.status !== 200 || !out.dataUrl) throw new Error(out.body || ('HTTP ' + out.status));
+      if (out.status !== 200 || !out.dataUrl) {
+        let msg = 'HTTP ' + out.status;
+        try { msg = JSON.parse(out.body).error || msg; } catch {}
+        throw new Error(msg);
+      }
       return out.dataUrl;
     }).catch(e => { media.delete(path); throw e; }));
     return media.get(path);
@@ -116,16 +120,28 @@
       if (!v.startsWith('/')) { delete this.dataset.cavSrc; desc.set.call(this, v); return; }
       this.dataset.cavSrc = v;
       dataURL(v).then(u => { if (this.dataset.cavSrc === v) desc.set.call(this, u); })
-        .catch(e => console.warn('cav: could not load', v, e.message));
+        .catch(e => showError(this, e.message));
     },
   });
+  // A media request that fails (for example a preview too large for the chat) is shown in
+  // the page: on the stage for the render itself, as a toast for the rest.
+  function showError(el, msg) {
+    const note = document.getElementById('stageNote'), toast = document.getElementById('toast');
+    if (el.id === 'video' && note) {
+      note.textContent = 'Could not load the render: ' + msg;
+      note.hidden = false; note.classList.add('bad');
+    } else if (toast) {
+      toast.textContent = 'Could not load: ' + msg;
+      toast.classList.add('on');
+    }
+  }
   const adopt = el => {
     const s = el.getAttribute && el.getAttribute('src');
     if (!s || !s.startsWith('/')) return;
     if (el instanceof HTMLMediaElement) { el.removeAttribute('src'); el.src = s; return; }
     if (el instanceof HTMLImageElement) {
       el.removeAttribute('src');
-      dataURL(s).then(u => { el.src = u; }).catch(() => {});
+      dataURL(s).then(u => { el.src = u; }).catch(e => showError(el, e.message));
     }
   };
   new MutationObserver(records => {

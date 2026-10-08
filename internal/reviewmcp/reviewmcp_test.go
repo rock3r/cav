@@ -3,6 +3,7 @@ package reviewmcp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -36,6 +37,9 @@ func connect(t *testing.T) (*mcp.ClientSession, string, *int) {
 		},
 		Prepare: func(ctx context.Context, v, cacheDir string) (review.Source, string, error) {
 			prepared++
+			if b, _ := os.ReadFile(v); string(b) == "broken" {
+				return review.Source{}, "", errors.New("no video stream")
+			}
 			sha, err := review.Digest(v)
 			if err != nil {
 				return review.Source{}, "", err
@@ -229,6 +233,37 @@ func TestReRenderPreparesAgain(t *testing.T) {
 	d, _ := review.Open(video).Load()
 	if len(d.Versions) != 2 {
 		t.Errorf("both renders should be recorded, got %d", len(d.Versions))
+	}
+}
+
+func TestBrokenReRenderKeepsTheEarlierOne(t *testing.T) {
+	cs, video, prepared := connect(t)
+	call(t, cs, "show_review", map[string]any{"video": video}, nil)
+	later := time.Now().Add(time.Minute)
+	os.WriteFile(video, []byte("broken"), 0o644)
+	os.Chtimes(video, later, later)
+	state := func() requestOut {
+		var out requestOut
+		res := call(t, cs, "review_request", map[string]any{"video": video, "method": "GET", "path": "/api/state"}, &out)
+		if res.IsError {
+			t.Fatalf("review_request failed: %v", res.Content)
+		}
+		return out
+	}
+	state()        // sees the change
+	out := state() // prepares it, which fails
+	if *prepared != 2 || out.Status != 200 || !strings.Contains(out.Body, `"renderError":"no video stream"`) {
+		t.Fatalf("prepared %d, want 2 with the earlier render still served and the error shown: %+v", *prepared, out)
+	}
+	state()
+	if *prepared != 2 {
+		t.Errorf("prepared %d times: an unchanged broken file must not be prepared again", *prepared)
+	}
+	os.WriteFile(video, []byte("fixed render"), 0o644)
+	os.Chtimes(video, later.Add(time.Minute), later.Add(time.Minute))
+	state()
+	if out := state(); *prepared != 3 || !strings.Contains(out.Body, `"renderError":""`) {
+		t.Errorf("a fixed render should be prepared and clear the error: prepared %d, %s", *prepared, out.Body)
 	}
 }
 
