@@ -11,7 +11,9 @@ func TestReaperINI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// os.UserHomeDir reads HOME, or USERPROFILE on Windows.
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	t.Setenv("APPDATA", filepath.Join(home, "AppData"))
 	touch := func(p string) string {
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
@@ -51,6 +53,7 @@ func TestReaperINI(t *testing.T) {
 
 	// With no home folder, the error reaches the caller instead of skipping the setup.
 	t.Setenv("HOME", "")
+	t.Setenv("USERPROFILE", "")
 	if _, err := reaperINI(installed, "darwin"); err == nil {
 		t.Error("mac with no HOME: want an error")
 	}
