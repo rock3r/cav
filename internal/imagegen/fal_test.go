@@ -132,6 +132,14 @@ func TestAspectSize(t *testing.T) {
 	}
 }
 
+func TestGrokAspectUsesTheNearestAcceptedRatio(t *testing.T) {
+	for in, want := range map[string]string{"16:9": "16:9", "21:9": "20:9", "4:5": "3:4", "5:4": "4:3", "9:16": "9:16", "junk": "16:9", "3:1": "20:9", "1:1.9": "1:2"} {
+		if got := grokAspect(in); got != want {
+			t.Errorf("%s: got %s, want %s", in, got, want)
+		}
+	}
+}
+
 func keys(m map[string]map[string]any) []string {
 	var k []string
 	for x := range m {

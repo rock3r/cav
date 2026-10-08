@@ -45,7 +45,7 @@ func falBody(model string, r Request) map[string]any {
 	w, h := aspectSize(r.Aspect, 1024*1024)
 	switch {
 	case strings.HasPrefix(model, "xai/grok-imagine"):
-		body["aspect_ratio"] = r.Aspect
+		body["aspect_ratio"] = grokAspect(r.Aspect)
 		body["output_format"] = "png"
 	case strings.Contains(model, "seedream"):
 		w, h = aspectSize(r.Aspect, 2048*2048)
@@ -63,17 +63,38 @@ func falBody(model string, r Request) map[string]any {
 	return body
 }
 
-// aspectSize returns a width and height for "W:H" with about the given number of pixels,
-// both multiples of 16.
-func aspectSize(aspect string, pixels float64) (int, int) {
-	ar := 16.0 / 9
+// grokAspects are the aspect ratios Grok Imagine accepts on fal (model page read
+// 2026-10-08).
+var grokAspects = []string{"2:1", "20:9", "19.5:9", "16:9", "4:3", "3:2", "1:1", "2:3", "3:4", "9:16", "9:19.5", "9:20", "1:2"}
+
+// grokAspect returns the accepted ratio closest to aspect (16:9 when it cannot be read).
+func grokAspect(aspect string) string {
+	want := ratio(aspect)
+	best, diff := "16:9", math.Inf(1)
+	for _, a := range grokAspects {
+		if d := math.Abs(math.Log(ratio(a) / want)); d < diff {
+			best, diff = a, d
+		}
+	}
+	return best
+}
+
+// ratio reads "W:H" as W/H, or 16/9 when it cannot.
+func ratio(aspect string) float64 {
 	if a, b, ok := strings.Cut(aspect, ":"); ok {
 		x, err1 := strconv.ParseFloat(a, 64)
 		y, err2 := strconv.ParseFloat(b, 64)
 		if err1 == nil && err2 == nil && x > 0 && y > 0 {
-			ar = x / y
+			return x / y
 		}
 	}
+	return 16.0 / 9
+}
+
+// aspectSize returns a width and height for "W:H" with about the given number of pixels,
+// both multiples of 16.
+func aspectSize(aspect string, pixels float64) (int, int) {
+	ar := ratio(aspect)
 	h := math.Sqrt(pixels / ar)
 	w := h * ar
 	return int(math.Round(w/16)) * 16, int(math.Round(h/16)) * 16
