@@ -5,19 +5,48 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>cav review</title>
 <style>
+  /* Light tokens are the base; dark applies when the system asks for it (unless the person
+     chose light) or when they chose dark. The video stage stays neutral dark in both themes,
+     so colour judgements are not swayed by the surround. */
   :root {
-    --bg: #111317; --panel: #191c22; --panel-2: #20242b; --line: #2e333c;
-    --ink: #e4e7ec; --ink-soft: #9aa2b1; --accent: #8fa4ff; --accent-ink: #0d1020;
-    --ok: #6fcf97; --warn: #f2c94c; --bad: #ff6b6b;
+    --bg: #f3f4f6; --panel: #ffffff; --panel-2: #eceef2; --line: #d3d7de; --sel: #e3e8fb;
+    --ink: #1c2028; --ink-soft: #545c6b; --accent: #3552c8; --accent-ink: #ffffff; --accent-soft: rgba(53, 82, 200, 0.14);
+    --ok: #1d7a45; --ok-soft: rgba(29, 122, 69, 0.13); --warn: #8f5b00; --warn-soft: rgba(143, 91, 0, 0.13); --bad: #b8312b;
+    --tick: #b7bcc6; --stage: #0e0f12; --scroll: #c3c8d1;
     --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
     --sans: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #111317; --panel: #191c22; --panel-2: #22262e; --line: #30353f; --sel: #272d3b;
+      --ink: #e4e7ec; --ink-soft: #a3abba; --accent: #93a6ff; --accent-ink: #0d1020; --accent-soft: rgba(147, 166, 255, 0.18);
+      --ok: #6fcf97; --ok-soft: rgba(111, 207, 151, 0.15); --warn: #f2c94c; --warn-soft: rgba(242, 201, 76, 0.16); --bad: #ff7b74;
+      --tick: #454b56; --stage: #000000; --scroll: #3a404b;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #111317; --panel: #191c22; --panel-2: #22262e; --line: #30353f; --sel: #272d3b;
+    --ink: #e4e7ec; --ink-soft: #a3abba; --accent: #93a6ff; --accent-ink: #0d1020; --accent-soft: rgba(147, 166, 255, 0.18);
+    --ok: #6fcf97; --ok-soft: rgba(111, 207, 151, 0.15); --warn: #f2c94c; --warn-soft: rgba(242, 201, 76, 0.16); --bad: #ff7b74;
+    --tick: #454b56; --stage: #000000; --scroll: #3a404b;
     color-scheme: dark;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: 14px/1.45 var(--sans); }
+  ::selection { background: var(--accent-soft); color: var(--ink); }
+  textarea { caret-color: var(--accent); }
+  * { scrollbar-color: var(--scroll) transparent; scrollbar-width: thin; }
+  select, input { accent-color: var(--accent); }
+  .num, .readout, .item .top, header .meta, .where { font-variant-numeric: tabular-nums; }
   button, select, textarea, input { font: inherit; color: inherit; }
-  button { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; cursor: pointer; min-height: 30px; }
-  button:hover { border-color: var(--accent); }
+  button { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; cursor: pointer; min-height: 32px; transition: border-color 150ms ease-out, background-color 150ms ease-out; }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:active:not(:disabled) { background: var(--sel); }
+  button.icon { display: inline-grid; place-items: center; width: 34px; padding: 0; }
+  button.icon svg { width: 16px; height: 16px; }
+  button.icon.wide { width: auto; padding: 0 10px; grid-auto-flow: column; gap: 6px; }
   button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
   button:disabled { opacity: 0.45; cursor: default; }
   button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
@@ -30,10 +59,12 @@
   @media (max-width: 900px) { .side { border-left: 0; border-top: 1px solid var(--line); } }
 
   header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
-  header h1 { font-size: 15px; margin: 0; font-weight: 600; }
+  header h1 { font-size: 20px; margin: 0; font-weight: 650; letter-spacing: -0.01em; }
   header .meta { color: var(--ink-soft); font: 12px var(--mono); }
 
-  .stage-wrap { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; background: #000; border-radius: 6px; overflow: hidden; }
+  .stage-wrap { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; background: var(--stage); border-radius: 6px; overflow: hidden; }
+  .stage-note { position: absolute; inset: auto 0 auto 0; text-align: center; color: #c9ced8; font-size: 13px; padding: 0 16px; }
+  .stage-note.bad { color: #ff9b95; }
   .stage { position: relative; max-width: 100%; max-height: 100%; }
   .stage video { display: block; width: 100%; height: 100%; }
   .stage svg { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
@@ -46,7 +77,7 @@
   .divider { position: absolute; top: 0; bottom: 0; width: 3px; margin-left: -1px; background: var(--accent); cursor: ew-resize; display: none; z-index: 3; touch-action: none; }
   .divider::after { content: ''; position: absolute; top: 50%; left: -7px; width: 17px; height: 17px; margin-top: -8px; border-radius: 50%; background: var(--accent); }
   .stage.cmp-wipe .divider { display: block; }
-  .cmp-label { position: absolute; top: 6px; font: 11px var(--mono); background: rgba(0,0,0,0.6); color: #fff; padding: 1px 6px; border-radius: 3px; display: none; z-index: 3; }
+  .cmp-label { position: absolute; top: 6px; font: 11px var(--mono); background: rgba(0, 0, 0, 0.62); color: #f3f4f6; padding: 2px 7px; border-radius: 3px; display: none; z-index: 3; }
   .stage.cmp-wipe .cmp-label, .stage.cmp-diff .cmp-label { display: block; }
   .compare { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 12px; color: var(--ink-soft); }
   select { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; min-height: 30px; }
@@ -60,12 +91,16 @@
   .readout .approx { color: var(--warn); font-size: 11px; }
   .spacer { flex: 1; }
   .tools { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
-  .swatch { width: 22px; height: 22px; min-height: 22px; padding: 0; border-radius: 50%; }
+  .swatches { display: inline-flex; gap: 6px; align-items: center; padding-left: 4px; }
+  .swatch { width: 22px; height: 22px; min-height: 22px; padding: 0; border-radius: 50%; border-color: rgba(0, 0, 0, 0.25); }
   .swatch[aria-pressed="true"] { outline: 2px solid var(--ink); outline-offset: 2px; }
 
   .timeline { position: relative; height: 44px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; cursor: pointer; user-select: none; touch-action: none; }
   .timeline .ticks { position: absolute; inset: 0; }
-  .timeline .range { position: absolute; top: 0; bottom: 0; background: rgba(143, 164, 255, 0.18); border-left: 2px solid var(--accent); border-right: 2px solid var(--accent); pointer-events: none; }
+  .timeline .range { position: absolute; top: 0; bottom: 0; background: var(--accent-soft); border-left: 2px solid var(--accent); border-right: 2px solid var(--accent); pointer-events: none; }
+  .ticks line { stroke: var(--tick); }
+  .ticks text { fill: var(--ink-soft); font: 10px var(--mono); }
+  .wave path { fill: var(--accent); opacity: 0.3; }
   .timeline .head { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--accent); pointer-events: none; }
   .timeline .mark { position: absolute; top: 4px; height: 10px; min-width: 6px; border-radius: 5px; background: var(--warn); transform: translateX(-3px); pointer-events: none; }
   .timeline .mark.resolved { background: var(--ok); opacity: 0.6; }
@@ -80,24 +115,33 @@
   .list { flex: 1; overflow: auto; min-height: 200px; }
   .item { padding: 10px 12px; border-bottom: 1px solid var(--line); cursor: pointer; display: grid; grid-template-columns: 84px 1fr; gap: 10px; }
   .item:hover { background: var(--panel-2); }
-  .item.sel { background: #262b36; }
-  .item img { width: 84px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 4px; background: #000; }
+  .item.sel { background: var(--sel); }
+  .item img { width: 84px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 4px; background: var(--stage); }
   .item .noimg { width: 84px; aspect-ratio: 16 / 9; border-radius: 4px; background: var(--bg); }
   .item .top { font: 12px var(--mono); color: var(--ink-soft); display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
   .item .txt { margin-top: 3px; white-space: pre-wrap; overflow-wrap: anywhere; }
   .item .acts { margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap; }
   .item .acts button { min-height: 24px; padding: 1px 8px; font-size: 12px; }
-  .item .reply { font-size: 12px; color: var(--ink-soft); margin-top: 4px; border-left: 2px solid var(--line); padding-left: 6px; white-space: pre-wrap; }
+  .item .reply { font-size: 12px; color: var(--ink-soft); margin-top: 6px; background: var(--panel-2); border-radius: 4px; padding: 4px 8px; white-space: pre-wrap; }
   .pill { font: 600 10px var(--sans); text-transform: uppercase; letter-spacing: 0.06em; padding: 1px 6px; border-radius: 999px; }
-  .pill.open { background: rgba(242, 201, 76, 0.18); color: var(--warn); }
-  .pill.resolved { background: rgba(111, 207, 151, 0.16); color: var(--ok); }
-  .pill.sent { background: rgba(143, 164, 255, 0.18); color: var(--accent); }
+  .pill.open { background: var(--warn-soft); color: var(--warn); }
+  .pill.resolved { background: var(--ok-soft); color: var(--ok); }
+  .pill.sent { background: var(--accent-soft); color: var(--accent); }
   .pill.stale { background: var(--panel-2); color: var(--ink-soft); }
   .sendbar { padding: 12px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
   .sendbar .note { font-size: 12px; color: var(--ink-soft); }
-  .toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); background: var(--panel-2); border: 1px solid var(--line); padding: 8px 14px; border-radius: 6px; opacity: 0; transition: opacity 160ms; pointer-events: none; }
+  .toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); background: var(--ink); color: var(--panel); padding: 9px 14px; border-radius: 6px; opacity: 0; transition: opacity 160ms ease-out; pointer-events: none; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.22); }
   .toast.on { opacity: 1; }
-  dialog { background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; max-width: 520px; }
+  dialog { background: var(--panel); color: var(--ink); border: 0; border-radius: 10px; max-width: 520px; padding: 18px 20px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3); }
+  dialog::backdrop { background: rgba(10, 12, 16, 0.45); }
+  dialog h2 { margin: 0 0 12px; font-size: 16px; font-weight: 650; }
+  .empty { padding: 18px 14px; color: var(--ink-soft); font-size: 14px; line-height: 1.55; max-width: 42ch; }
+  .empty b { color: var(--ink); font-weight: 600; }
+  .theme { display: inline-flex; gap: 2px; padding: 3px; border-radius: 8px; background: var(--panel-2); }
+  .theme button { border: 0; border-radius: 5px; min-height: 26px; padding: 0 10px; font-size: 12px; background: transparent; color: var(--ink-soft); }
+  .theme button:hover:not([aria-checked="true"]) { color: var(--ink); background: var(--sel); }
+  .theme button[aria-checked="true"] { background: var(--panel); color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18); }
+  @media (prefers-reduced-motion: reduce) { .toast, button { transition: none; } }
   dialog table { border-collapse: collapse; width: 100%; font-size: 13px; }
   dialog td { padding: 3px 8px; border-bottom: 1px solid var(--line); }
   kbd { font: 12px var(--mono); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; background: var(--panel-2); }
@@ -110,10 +154,16 @@
       <h1 id="name">cav review</h1>
       <span class="meta" id="meta"></span>
       <span class="spacer"></span>
-      <button id="help" title="Keyboard shortcuts (?)">Keys</button>
+      <div class="theme" role="radiogroup" aria-label="Theme">
+        <button role="radio" data-theme-choice="system" aria-checked="true" title="Follow the system setting">System</button>
+        <button role="radio" data-theme-choice="light" aria-checked="false">Light</button>
+        <button role="radio" data-theme-choice="dark" aria-checked="false">Dark</button>
+      </div>
+      <button id="help" title="Keyboard shortcuts (?)">Shortcuts</button>
     </header>
 
     <div class="stage-wrap" id="stageWrap">
+      <p class="stage-note" id="stageNote" role="status">Loading the render…</p>
       <div class="stage" id="stage">
         <video id="video" src="/video" preload="auto" playsinline></video>
         <video id="videoB" class="layer" preload="auto" muted playsinline></video>
@@ -127,11 +177,11 @@
     </div>
 
     <div class="transport">
-      <button id="bStart" title="First frame (Home)">⏮</button>
-      <button id="bBack" title="One frame back (←)">◀︎ 1</button>
-      <button id="bPlay" title="Play or pause (Space or K)">Play</button>
-      <button id="bFwd" title="One frame forward (→)">1 ▶︎</button>
-      <button id="bEnd" title="Last frame (End)">⏭</button>
+      <button class="icon" id="bStart" title="First frame (Home)" aria-label="First frame"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 3v10"/><path d="M12.5 3.5 6 8l6.5 4.5z"/></svg></button>
+      <button class="icon" id="bBack" title="One frame back (←)" aria-label="One frame back"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.5 3.5 5 8l5.5 4.5"/></svg></button>
+      <button class="icon wide" id="bPlay" title="Play or pause (Space or K)" aria-label="Play"></button>
+      <button class="icon" id="bFwd" title="One frame forward (→)" aria-label="One frame forward"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 3.5 11 8l-5.5 4.5"/></svg></button>
+      <button class="icon" id="bEnd" title="Last frame (End)" aria-label="Last frame"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.5 3v10"/><path d="M3.5 3.5 10 8l-6.5 4.5z"/></svg></button>
       <span class="readout" id="readout"><b>f 0</b></span>
       <button id="bIn" title="Range start (I)">In</button>
       <button id="bOut" title="Range end (O)">Out</button>
@@ -143,11 +193,13 @@
         <button data-tool="arrow" title="Arrow (A)">Arrow</button>
         <button data-tool="rect" title="Box (B)">Box</button>
         <button data-tool="ellipse" title="Ellipse (E)">Ellipse</button>
-        <button class="swatch" data-color="#ffd23f" style="background:#ffd23f" aria-label="Yellow"></button>
-        <button class="swatch" data-color="#ff4d4d" style="background:#ff4d4d" aria-label="Red"></button>
-        <button class="swatch" data-color="#4dd4ff" style="background:#4dd4ff" aria-label="Cyan"></button>
-        <button class="swatch" data-color="#ffffff" style="background:#ffffff" aria-label="White"></button>
-        <button id="bUndo" title="Undo the last stroke (Ctrl/Cmd+Z)">Undo</button>
+        <span class="swatches" role="group" aria-label="Drawing colour">
+          <button class="swatch" data-color="#ffd23f" style="background:#ffd23f" aria-label="Yellow"></button>
+          <button class="swatch" data-color="#ff4d4d" style="background:#ff4d4d" aria-label="Red"></button>
+          <button class="swatch" data-color="#4dd4ff" style="background:#4dd4ff" aria-label="Cyan"></button>
+          <button class="swatch" data-color="#ffffff" style="background:#ffffff" aria-label="White"></button>
+          <button id="bUndo" title="Undo the last stroke (Ctrl/Cmd+Z)">Undo</button>
+        </span>
       </div>
       <div class="compare">
         <label for="cmpMode">Compare</label>
@@ -157,8 +209,8 @@
           <option value="diff">difference</option>
           <option value="onion">onion skin</option>
         </select>
-        <select id="cmpVersion" title="The earlier render to compare with"></select>
-        <select id="onionStep" title="Frames between the ghosts and this frame">
+        <select id="cmpVersion" aria-label="Earlier render to compare with" title="The earlier render to compare with"></select>
+        <select id="onionStep" aria-label="Frames between the ghosts and this frame" title="Frames between the ghosts and this frame">
           <option value="1">±1 frame</option><option value="2" selected>±2 frames</option><option value="4">±4 frames</option><option value="8">±8 frames</option>
         </select>
       </div>
@@ -175,7 +227,7 @@
 
   <aside class="side">
     <div class="composer">
-      <textarea id="text" placeholder="Note for this frame (C to focus, Cmd/Ctrl+Enter to add)"></textarea>
+      <textarea id="text" aria-label="Note for this frame" placeholder="Note for this frame (C to focus, Cmd/Ctrl+Enter to add)"></textarea>
       <div class="row">
         <span class="where" id="where">frame 0</span>
         <button class="primary" id="bAdd">Add note</button>
@@ -193,7 +245,8 @@
   </aside>
 </div>
 
-<dialog id="keys">
+<dialog id="keys" aria-labelledby="keysTitle">
+  <h2 id="keysTitle">Keyboard shortcuts</h2>
   <table>
     <tr><td><kbd>Space</kbd> <kbd>K</kbd></td><td>play / pause</td></tr>
     <tr><td><kbd>L</kbd></td><td>play forward; press again for 2×, 4×, 8×</td></tr>
@@ -210,7 +263,7 @@
   </table>
   <form method="dialog" style="margin-top:12px;text-align:right"><button>Close</button></form>
 </dialog>
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
 (() => {
@@ -315,12 +368,21 @@
     }, 1000 / Math.min(meta.fps, 30));
     renderPlay();
   }
+  video.addEventListener('loadeddata', () => { $('stageNote').hidden = true; });
+  video.addEventListener('error', () => {
+    const n = $('stageNote'); n.hidden = false; n.classList.add('bad');
+    n.textContent = 'The browser could not play this render. Check that cav review is still running, then reload.';
+  });
   video.addEventListener('pause', renderPlay);
   video.addEventListener('play', renderPlay);
   video.addEventListener('ended', () => { shuttle = 0; renderPlay(); });
+  const ICON_PLAY = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3.5v9l7-4.5z"/></svg>';
+  const ICON_PAUSE = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 3.5v9M10.5 3.5v9"/></svg>';
   function renderPlay() {
     const playing = !video.paused || shuttleTimer;
-    $('bPlay').textContent = playing ? (shuttle && shuttle !== 1 ? `Pause (${shuttle > 0 ? '' : '−'}${Math.abs(shuttle)}×)` : 'Pause') : 'Play';
+    const speed = playing && shuttle && shuttle !== 1 ? `<span class="num">${shuttle > 0 ? '' : '−'}${Math.abs(shuttle)}×</span>` : '';
+    $('bPlay').innerHTML = (playing ? ICON_PAUSE : ICON_PLAY) + speed;
+    $('bPlay').setAttribute('aria-label', playing ? 'Pause' : 'Play');
   }
 
   // ---------- compare: an earlier render (wipe, difference) or neighbour frames (onion) ----------
@@ -387,7 +449,7 @@
       let d = 'M0 22';
       w.peaks.forEach((p, i) => { d += ` L${(i / n * 1000 * span).toFixed(1)} ${(22 - p / top * 19).toFixed(1)}`; });
       for (let i = n - 1; i >= 0; i--) d += ` L${(i / n * 1000 * span).toFixed(1)} ${(22 + w.peaks[i] / top * 19).toFixed(1)}`;
-      $('wave').innerHTML = `<path d="${d} Z" fill="#8fa4ff" opacity="0.28"/>`;
+      $('wave').innerHTML = `<path d="${d} Z"/>`;
     } catch (e) { waveFor = ''; }
   }
 
@@ -409,8 +471,8 @@
     let s = '';
     for (let i = 0; i <= secs; i++) {
       const x = (i * meta.fps) / Math.max(1, meta.frames - 1) * w;
-      s += `<line x1="${x}" x2="${x}" y1="${i % 5 === 0 ? 22 : 30}" y2="44" stroke="#3a404b" stroke-width="1"/>`;
-      if (i % 5 === 0) s += `<text x="${x + 3}" y="40" fill="#7d8594" font-size="10" font-family="monospace">${i}s</text>`;
+      s += `<line x1="${x}" x2="${x}" y1="${i % 5 === 0 ? 22 : 30}" y2="44" stroke-width="1"/>`;
+      if (i % 5 === 0) s += `<text x="${x + 3}" y="40">${i}s</text>`;
     }
     t.innerHTML = s;
   }
@@ -547,7 +609,12 @@
     const items = doc.comments.filter(c => showResolved || c.status === 'open');
     const open = doc.comments.filter(c => c.status === 'open').length;
     $('count').textContent = doc.comments.length ? `${open} open · ${doc.comments.length - open} resolved` : 'No notes yet';
-    $('list').innerHTML = items.map(c => {
+    if (!items.length) {
+      $('list').innerHTML = doc.comments.length
+        ? '<p class="empty">Every note is resolved. <b>Show resolved</b> lists them.</p>'
+        : '<p class="empty">No notes yet. Pause on a frame (or set a range with <b>I</b> and <b>O</b>), draw on it if that helps, write what should change, then <b>Add note</b>. <b>Send to agent</b> hands the open notes over.</p>';
+    }
+    if (items.length) $('list').innerHTML = items.map(c => {
       const range = c.frameEnd != null ? `f ${c.frame}–${c.frameEnd}` : `f ${c.frame}`;
       const pills = [`<span class="pill ${c.status}">${c.status}</span>`];
       if (c.sent) pills.push(`<span class="pill sent">sent #${c.sent}</span>`);
@@ -653,7 +720,18 @@
     }
     renderList();
   }
-  setTool('arrow'); setColor('#ffd23f');
+  // ---------- theme: follow the system unless the person picks light or dark ----------
+  const store = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
+  function setTheme(choice) {
+    if (choice === 'light' || choice === 'dark') document.documentElement.dataset.theme = choice;
+    else { delete document.documentElement.dataset.theme; choice = 'system'; }
+    document.querySelectorAll('[data-theme-choice]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.themeChoice === choice)));
+    store.set('cav-review-theme', choice);
+  }
+  document.querySelectorAll('[data-theme-choice]').forEach(b => b.addEventListener('click', () => setTheme(b.dataset.themeChoice)));
+  setTheme(store.get('cav-review-theme') || 'system');
+
+  setTool('arrow'); setColor('#ffd23f'); renderPlay();
   refresh().then(() => { renderWhere(); seek(0); }).catch(e => toast('Could not load: ' + e.message));
   // Poll the local server, also while the tab is hidden, so a re-render or a note the agent
   // resolved shows up at once; and refresh as soon as the tab comes back.
