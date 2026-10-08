@@ -62,7 +62,8 @@ func New(o Options) *mcp.Server {
 	h := &handler{o: o, open: map[string]*session{}}
 	s := mcp.NewServer(&mcp.Implementation{Name: "cav", Title: "cav review", Version: o.Version}, &mcp.ServerOptions{
 		Instructions: "show_review shows a render's cav review page in the chat, where the person can play it, draw and leave notes. " +
-			"It is for a quick look: for frame-by-frame review run `cav review` in a shell. Read the notes with `cav review wait` or `cav review export`.",
+			"It is for a quick look: for frame-by-frame review run `cav review` in a shell. " +
+			"Read the notes with review_notes, or with `cav review wait` or `cav review export` when you have a shell.",
 	})
 	pageMeta := mcp.Meta{"ui": map[string]any{"prefersBorder": true}}
 	s.AddResource(&mcp.Resource{URI: PageURI, Name: "cav review", MIMEType: AppMIME, Meta: pageMeta,
@@ -77,9 +78,16 @@ func New(o Options) *mcp.Server {
 		Title: "Show a render's review page",
 		Description: "Show the cav review page for a rendered video in the chat, so the person can play it, draw on frames and leave notes. " +
 			"Without a video it shows the newest review or MP4 in the renders folder. The result lists the notes so far. " +
-			"After the person presses Send to agent, read the notes with `cav review wait <video>`.",
+			"After the person presses Send to agent, read the notes with review_notes.",
 		Meta: mcp.Meta{"ui": map[string]any{"resourceUri": PageURI}, "ui/resourceUri": PageURI},
 	}, h.show)
+	mcp.AddTool(s, &mcp.Tool{
+		Name:  "review_notes",
+		Title: "Read a render's review notes",
+		Description: "Read the review notes on a video, with the frame each one is about, its text, its drawings and a snapshot image of the frame with the drawing. " +
+			"When the person has pressed Send to agent, it returns that send and marks it received, as `cav review wait` does. " +
+			"Otherwise it returns every open note. Use it in chats without a shell; with a shell, `cav review wait` works too.",
+	}, h.notes)
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "review_request",
 		Title:       "Review page request",
@@ -318,11 +326,161 @@ func (h *handler) show(ctx context.Context, req *mcp.CallToolRequest, in showIn)
 	// The path is named as data, never pasted into a command: no one quoting is safe in
 	// every shell the agent may use.
 	out.Next = "Hosts that draw MCP Apps show the page in the chat; others show only this result. " +
-		"When the person presses Send to agent, run `cav review wait` with the video path as its argument, quoted for your shell. " +
-		"For full review in a browser, run `cav review` with the same path."
+		"When the person presses Send to agent, call review_notes with this video path. " +
+		"With a shell, `cav review wait` with the path as its argument, quoted for your shell, works too; " +
+		"`cav review` with the same path opens the full review in a browser."
 	text := fmt.Sprintf("Showing the review page of this video (%d frames at %g fps). Notes: %d open, %d resolved.%s\nVideo path: %s\n%s",
 		src.Frames, src.FPS, out.Open, out.Resolved, b.String(), out.Video, out.Next)
 	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: text}}}, out, nil
+}
+
+type notesIn struct {
+	Video string `json:"video,omitempty" jsonschema:"path of the rendered video; default: the newest review or MP4 in the renders folder"`
+}
+
+type notesOut struct {
+	Video string `json:"video"`
+	// Send is the number of the send this call received, or 0 when nothing was sent and the
+	// result lists every open note instead.
+	Send  int        `json:"send"`
+	Notes []noteFull `json:"notes"`
+	Next  string     `json:"next"`
+}
+
+type noteFull struct {
+	ID       string         `json:"id"`
+	Status   string         `json:"status"`
+	Frame    int            `json:"frame"`
+	FrameEnd *int           `json:"frameEnd,omitempty"`
+	Timecode string         `json:"timecode"`
+	Text     string         `json:"text"`
+	Shapes   []string       `json:"shapes,omitempty"`
+	Fragment string         `json:"fragment,omitempty"`
+	Snapshot string         `json:"snapshot,omitempty"`
+	Replies  []review.Reply `json:"replies,omitempty"`
+	// OnOlderRender is set for a note made on an earlier render of this file.
+	OnOlderRender bool `json:"onOlderRender,omitempty"`
+}
+
+// maxSnapshots caps the images one review_notes call returns, to keep the answer small.
+const maxSnapshots = 8
+
+// notes is review_notes: `cav review wait` without the wait, for chats without a shell. It
+// receives the pending send, or lists the open notes when there is none, and returns each
+// note's snapshot as an image so that the agent sees what the reviewer drew.
+func (h *handler) notes(ctx context.Context, req *mcp.CallToolRequest, in notesIn) (*mcp.CallToolResult, notesOut, error) {
+	video := in.Video
+	if h.o.Resolve != nil {
+		v, err := h.o.Resolve(video)
+		if err != nil {
+			return nil, notesOut{}, err
+		}
+		video = v
+	}
+	abs, err := filepath.Abs(video)
+	if err != nil {
+		return nil, notesOut{}, err
+	}
+	store := review.Open(abs)
+	if !fileExists(store.DocPath) {
+		return nil, notesOut{}, fmt.Errorf("%s has no review yet: show it with show_review first", video)
+	}
+	out := notesOut{Video: abs, Notes: []noteFull{}}
+	var picked []review.Comment
+	_, err = store.Update(func(d *review.Doc) error {
+		cur := d.Source.SHA256
+		if len(cur) > 12 {
+			cur = cur[:12]
+		}
+		want := map[string]bool{}
+		if s := review.Pending(d); s != nil {
+			now := time.Now().UTC()
+			s.DeliveredAt = &now
+			out.Send = s.N
+			for _, id := range s.Comments {
+				want[id] = true
+			}
+		}
+		for _, c := range d.Comments {
+			if (out.Send > 0 && want[c.ID]) || (out.Send == 0 && c.Status == "open") {
+				picked = append(picked, c)
+				n := noteFull{ID: c.ID, Status: c.Status, Frame: c.Frame, FrameEnd: c.FrameEnd, Timecode: c.Timecode,
+					Text: c.Text, Fragment: c.Fragment, Replies: c.Replies, OnOlderRender: cur != "" && c.Version != cur}
+				for _, sh := range c.Shapes {
+					n.Shapes = append(n.Shapes, sh.Type)
+				}
+				if p := snapshotPath(store, c.Snapshot); p != "" {
+					n.Snapshot = p
+				}
+				out.Notes = append(out.Notes, n)
+			}
+		}
+		if out.Send == 0 {
+			return errNothingSent // nothing to record
+		}
+		return nil
+	})
+	if err != nil && !errors.Is(err, errNothingSent) {
+		return nil, notesOut{}, err
+	}
+
+	var b strings.Builder
+	if out.Send > 0 {
+		fmt.Fprintf(&b, "Send #%d on %s: %d note(s). It is now marked received.\n", out.Send, abs, len(out.Notes))
+	} else {
+		fmt.Fprintf(&b, "Nothing was sent from the review of %s. Its open notes: %d.\n", abs, len(out.Notes))
+	}
+	content := []mcp.Content{nil} // the text goes first, once it is complete
+	images := 0
+	for _, n := range out.Notes {
+		where := fmt.Sprintf("frame %d (%s)", n.Frame, n.Timecode)
+		if n.FrameEnd != nil {
+			where = fmt.Sprintf("frames %d-%d (from %s)", n.Frame, *n.FrameEnd, n.Timecode)
+		}
+		older := ""
+		if n.OnOlderRender {
+			older = " [made on an older render]"
+		}
+		fmt.Fprintf(&b, "\n%s %s, %s%s\n", n.ID, n.Status, where, older)
+		if n.Text != "" {
+			fmt.Fprintf(&b, "  %s\n", strings.ReplaceAll(n.Text, "\n", "\n  "))
+		}
+		if len(n.Shapes) > 0 {
+			fmt.Fprintf(&b, "  drawing: %s (%s)\n", strings.Join(n.Shapes, ", "), n.Fragment)
+		}
+		for _, r := range n.Replies {
+			fmt.Fprintf(&b, "  reply from %s: %s\n", r.Author, r.Text)
+		}
+		if n.Snapshot != "" && images < maxSnapshots {
+			if png, err := os.ReadFile(n.Snapshot); err == nil {
+				fmt.Fprintf(&b, "  snapshot: image %d below\n", images+1)
+				content = append(content, &mcp.ImageContent{Data: png, MIMEType: "image/png"})
+				images++
+			}
+		}
+	}
+	out.Next = "Fix the notes, re-render to the same file, then resolve each one with a short note on what changed " +
+		"(`cav review resolve <id> --note ...` with a shell, or Resolve in the review page)."
+	fmt.Fprintf(&b, "\n%s", out.Next)
+	content[0] = &mcp.TextContent{Text: b.String()}
+	return &mcp.CallToolResult{Content: content}, out, nil
+}
+
+var errNothingSent = errors.New("nothing sent")
+
+// snapshotPath finds a note's snapshot by its file name in the review's own snapshot folder.
+// The recorded path may be relative to wherever `cav review` ran, and the review file sits
+// in the project, so a path it names elsewhere is never read.
+func snapshotPath(store *review.Store, p string) string {
+	name := filepath.Base(filepath.FromSlash(p))
+	if p == "" || name == "." || name == ".." || !strings.HasSuffix(name, ".png") {
+		return ""
+	}
+	abs, err := filepath.Abs(filepath.Join(store.SnapDir, name))
+	if err != nil || !fileExists(abs) {
+		return ""
+	}
+	return abs
 }
 
 func firstLine(s string) string {

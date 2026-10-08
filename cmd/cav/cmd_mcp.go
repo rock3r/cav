@@ -25,9 +25,14 @@ cav mcp runs an MCP server on stdin and stdout. The cavalry plugin for Claude Co
 starts it for you. Without the plugin, register it with your agent:
   Claude Code:  claude mcp add cav -- cav mcp
   Codex:        codex mcp add cav -- cav mcp
-It has one tool for the agent, show_review [video], which shows the cav review page of a
-render inside the chat as an MCP App. The person can play it, draw and leave notes, and
-press "Send to agent", as in the browser. Notes go to the same <video>.review.json.
+It has two tools for the agent:
+  show_review [video]   shows the cav review page of a render inside the chat, as an MCP
+                        App. The person can play it, draw and leave notes, and press
+                        "Send to agent", as in the browser.
+  review_notes [video]  returns the sent notes, with a snapshot image of each, and marks
+                        the send received, as cav review wait does. With nothing sent, it
+                        returns the open notes. For chats without a shell.
+Notes go to the same <video>.review.json.
 
 The chat frame is small and has no network, so the page plays a preview copy (at most 640
 pixels wide, cached in ~/.cav/cache/review-preview) that the server sends inline, up to

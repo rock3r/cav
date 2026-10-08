@@ -4,8 +4,9 @@
 
 - Add `cav mcp`: a small MCP server (stdio) that shows the `cav review` page inside the
   chat as an MCP App, in hosts that draw MCP Apps, such as the chat of the Claude desktop
-  app (its Code tab does not). The page plays a 640-pixel preview sent inline, and its notes go to the same
-  review file. The cavalry plugin starts it in Claude Code and Codex; without the plugin,
+  app (its Code tab does not). The page plays a 640-pixel preview sent inline, and its
+  notes go to the same review file. `review_notes` reads the sent notes with their
+  snapshot images, for chats without a shell. The cavalry plugin starts it in Claude Code and Codex; without the plugin,
   register it with `claude mcp add cav -- cav mcp` or `codex mcp add cav -- cav mcp`.
 - In `cav review` and `cav mcp`, a note now stays on the render the page showed when you
   made it, also when a re-render goes live at the same moment. The page sends the version

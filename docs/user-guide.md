@@ -309,9 +309,16 @@ your project folder, so give the agent the full path of the video.
 
 Then ask the agent to show the review of a render. It calls the `show_review` tool, and a
 chat that supports MCP Apps draws the page. You can play the render, step frames, draw,
-add notes and press "Send to agent", as in the browser. The notes go to the same `<video>.review.json`, so
-`cav review wait`, `export`, `resolve` and the review hook work the same. When the chat
-supports it, "Send to agent" also posts a message that tells the agent to read the notes.
+add notes and press "Send to agent", as in the browser. The notes go to the same
+`<video>.review.json`, so `cav review wait`, `export`, `resolve` and the review hook work
+the same. When the chat supports it, "Send to agent" also puts a message in the chat that
+tells the agent to read the notes. The Claude desktop app shows it in the message box with
+a caution, for you to send.
+
+The agent reads the notes with the server's second tool, `review_notes`. It returns the
+sent notes with a snapshot image of each, and marks the send received, as
+`cav review wait` does. A chat without a shell, such as the Claude desktop app's chat,
+needs this tool, because it cannot run `cav review wait`.
 
 The chat frame is small and has no network access. So the page plays a preview copy: at
 most 640 pixels wide, at a lower quality, cached in `~/.cav/cache/review-preview`. The
