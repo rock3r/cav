@@ -601,11 +601,14 @@
     if (!text && !draft.length) { toast('Write a note or draw something first'); return; }
     if (!videoReady) { toast('Wait until the render has loaded'); return; }
     video.pause(); stopShuttle();
+    // A state refresh can switch the render while the snapshot is drawn: the note belongs
+    // to the render on screen now.
+    const shown = version;
     const [a, b] = rangeNow();
     $('bAdd').disabled = true;
     try {
       const snap = await snapshot(a);
-      const c = await api('POST', '/api/comments', { frame: a, frameEnd: b, text, shapes: draft, snapshot: snap, version });
+      const c = await api('POST', '/api/comments', { frame: a, frameEnd: b, text, shapes: draft, snapshot: snap, version: shown });
       draft = []; $('text').value = ''; inF = outF = null; renderRange(); renderWhere();
       selected = c.id; await refresh(); toast(`Added ${c.id} at frame ${c.frame}`);
     } catch (e) { toast('Could not add the note: ' + e.message); }
