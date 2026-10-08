@@ -885,10 +885,10 @@
     renderMarks(); renderOverlay(); renderHere();
   }
   // The playhead row sits among the notes by frame, and the sheet keeps it at the reading
-  // line as the frames step, unless the person has just scrolled the sheet themselves.
-  let userScroll = 0;
-  sheet.addEventListener('wheel', () => { userScroll = Date.now(); }, { passive: true });
-  sheet.addEventListener('touchmove', () => { userScroll = Date.now(); }, { passive: true });
+  // line as the frames step. Once the person scrolls the sheet themselves (wheel, touch,
+  // scrollbar or keys), it stays where they put it until the frame changes.
+  let browsing = false, ownScroll = 0, followed = -1;
+  sheet.addEventListener('scroll', () => { if (Date.now() - ownScroll > 700) browsing = true; }, { passive: true });
   function layoutSheet(rebuilt) {
     if (!meta) return;
     // The playhead row goes before the first note that starts after this frame.
@@ -909,10 +909,12 @@
       at = Math.max(at, b + 1); lastEl = el;
     }
     if (lastEl && at <= last()) lastEl.after(gapEl(at, last()));
-    if (Date.now() - userScroll > 1500) {
+    if (frame !== followed) { followed = frame; browsing = false; }
+    if (!browsing) {
       const top = Math.max(0, here.offsetTop - sheet.clientHeight * 0.38);
       if (Math.abs(sheet.scrollTop - top) > 1) {
         const playing = !video.paused || shuttleTimer;
+        ownScroll = Date.now();
         sheet.scrollTo({ top, behavior: playing || reduced.matches || rebuilt ? 'auto' : 'smooth' });
       }
     }
