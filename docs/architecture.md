@@ -62,6 +62,12 @@ its method and results.
 | `~/.cav/operations/profile-<id>/` | cav/bridge | Cumulative measured samples and optional PNGs. |
 | `~/.cav/last-job` | `cav` | Id of the most recent job, for `cav job wait` without an id. |
 | `~/.cav/cache/docs/` | `cav docs update` | Downloaded Cavalry docs pages and the search index. |
+| `~/.cav/services.json` | `cav config` | Service order per job, key sources (never key values), models, endpoints; mode 0600. |
+| `~/.cav/oauth/<service>.json` | `cav config login` | OAuth access and refresh tokens; mode 0600. The client secret stays in its own key source. |
+| `~/.cav/sound-libraries.json` | `cav sfx index` | Local sound folders and their licence. |
+| `~/.cav/cache/review/<sha256>.mp4` | `cav review` | The all-intra proxy of a render, one per content hash. |
+| `.cav/project.json`, `.cav/manifest.json` | `cav credits`, `sfx`, `ref`, `gen`, `board`, `music` | Per project: the accepted licence, and every imported or generated asset with its licence, credit and origin. |
+| `<video>.review.json`, `review/<video>/*.png` | `cav review` | Review notes, sends, and one snapshot per note. |
 | `<Cavalry Scripts>/cav-bridge.js` | `cav setup` | The bridge script. macOS: `~/Library/Application Support/Cavalry/Scripts`. Windows: `%APPDATA%\Cavalry\Scripts`. |
 
 `CAV_HOME` moves `~/.cav`. `CAV_SCRIPTS_DIR`, `CAV_BRIDGE_HOST` and `CAV_BRIDGE_PORT` override
@@ -311,6 +317,41 @@ above the 3 frames before it: the fastest frame of a move. A stop is a fall to n
 straight from full speed. Each hit is measured against the nearest detected beat or half way
 between two detected beats, so a track that drifts in tempo is judged against its real beats;
 within about 35 ms counts as on the grid.
+
+### Production commands
+
+`config`, `review`, `board`, `gen`, `sfx`, `ref`, `credits`, `listen`, `music` and `score`
+never talk to the bridge. They are plain Go around ffmpeg, HTTPS and uv:
+
+- `internal/services` holds the catalog of services, the order per job, key resolution
+  (environment, keychain, `op read`, OAuth) and one free health call per service.
+  `services.Pick` returns the first service in the job's order that is usable now, without a
+  network call, and lists the ones it skipped and why.
+- `internal/review` is the review server. The page is one embedded HTML file with no
+  dependencies. It plays an all-intra proxy, so a seek decodes one frame, and it reads the
+  frame on screen from `requestVideoFrameCallback`. The page burns each drawing into a
+  canvas copy of the exact frame and posts it as the note's snapshot. `review.json` is
+  re-read and written atomically on every change, so the server and `cav review resolve`
+  can both edit it. The server answers only `127.0.0.1`/`localhost` hosts and same-origin
+  JSON writes.
+- `internal/sources` and `internal/library` search media libraries, download, and keep the
+  manifest; licence terms are normalised to SPDX-like ids with commercial, share-alike and
+  no-derivatives flags.
+- `internal/imagegen`, `internal/music` and `internal/listen` are thin clients for the
+  image, music and audio-model APIs. Their tests check request shapes against the vendor
+  documentation, not the live services.
+- `internal/pyrun` runs the embedded Python helpers (`assets/python`) with `uv run
+  --no-project --with ...`, so each helper gets Python 3.12 and its packages in uv's cache
+  and nothing is installed globally. `score_takes.py` runs Audiobox Aesthetics and CLAP;
+  `render_music.py` plays a written score with numpy synthesis and pedalboard (effects,
+  VST3/AU hosting, file I/O), then masters it with pyloudnorm and its own lookahead limiter.
+  mflux runs through `uvx` the same way. ComfyUI and ACE-Step are HTTP servers the user
+  runs; cav submits a job and asks for its result until it is done, because neither server
+  pushes.
+- `internal/score` writes REAPER projects (`.rpp`, plain text) and renders them with
+  `reaper -renderproject`.
+- `internal/board` turns a storyboard into a board sheet, an animatic (ffmpeg concat with one
+  still per shot) and mood boards.
 
 ### Offline search
 

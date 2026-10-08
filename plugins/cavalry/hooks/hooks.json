@@ -1,0 +1,14 @@
+{
+  "description": "cav review: tell the agent when the reviewer presses Send to agent and nobody has picked the notes up. Works in Claude Code and Codex. Needs cav 1.2 or newer; with an older cav the hook does nothing.",
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [{ "type": "command", "command": "cav review hook || true", "timeout": 10 }] }
+    ],
+    "UserPromptSubmit": [
+      { "hooks": [{ "type": "command", "command": "cav review hook || true", "timeout": 10 }] }
+    ],
+    "Stop": [
+      { "hooks": [{ "type": "command", "command": "cav review hook || true", "timeout": 10 }] }
+    ]
+  }
+}

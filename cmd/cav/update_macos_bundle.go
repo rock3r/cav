@@ -38,7 +38,7 @@ func macBundleRoot(archive []byte) (string, error) {
 		if path.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, "../") || strings.Contains(name, "\\") {
 			return "", fmt.Errorf("unsafe archive path %q", h.Name)
 		}
-		if h.Typeflag != tar.TypeReg && h.Typeflag != tar.TypeRegA && h.Typeflag != tar.TypeDir {
+		if h.Typeflag != tar.TypeReg && h.Typeflag != tar.TypeDir {
 			return "", fmt.Errorf("unsupported archive entry %q", h.Name)
 		}
 		total += h.Size

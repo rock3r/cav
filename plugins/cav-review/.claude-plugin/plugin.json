@@ -1,0 +1,26 @@
+{
+  "name": "cav-review",
+  "version": "0.1.0",
+  "description": "Shows the open cav review notes above the prompt, says when the reviewer sends notes, and can start a turn to handle them.",
+  "author": {
+    "name": "Sebastiano Poggi"
+  },
+  "homepage": "https://github.com/rock3r/cav#readme",
+  "repository": "https://github.com/rock3r/cav",
+  "license": "MIT",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "wake": {
+      "type": "boolean",
+      "title": "Start a turn when notes arrive",
+      "description": "When the reviewer presses Send to agent, start a turn that reads the notes with cav review wait.",
+      "default": true
+    },
+    "folder": {
+      "type": "string",
+      "title": "Renders folder",
+      "description": "Where cav review keeps its review files, relative to the project.",
+      "default": "renders"
+    }
+  }
+}

@@ -163,7 +163,7 @@ var (
 	reTag     = regexp.MustCompile(`(?s)<[^>]+>`)
 	reSpace   = regexp.MustCompile(`[ \t]+`)
 	reBlank   = regexp.MustCompile(`\n{3,}`)
-	reHash    = regexp.MustCompile(`\s*(Direct link to.*|​)$`)
+	reHash    = regexp.MustCompile(`\s*(Direct link to.*|\x{200B})$`)
 )
 
 // Split turns one HTML page into sections, one per h2/h3 heading.
@@ -210,7 +210,7 @@ func Split(url, page string, typeByName map[string]string) []Chunk {
 func clean(s string) string {
 	s = html.UnescapeString(reTag.ReplaceAllString(s, ""))
 	s = reHash.ReplaceAllString(strings.TrimSpace(s), "")
-	return strings.TrimSpace(strings.ReplaceAll(s, "​", ""))
+	return strings.TrimSpace(strings.ReplaceAll(s, "\u200b", ""))
 }
 
 func toText(s string) string {
@@ -219,7 +219,7 @@ func toText(s string) string {
 	s = reBreak.ReplaceAllString(s, "\n")
 	s = reTag.ReplaceAllString(s, "")
 	s = html.UnescapeString(s)
-	s = strings.ReplaceAll(s, "​", "")
+	s = strings.ReplaceAll(s, "\u200b", "")
 	lines := strings.Split(s, "\n")
 	for i, l := range lines {
 		lines[i] = strings.TrimRight(reSpace.ReplaceAllString(l, " "), " ")

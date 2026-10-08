@@ -2,6 +2,46 @@
 
 ## Unreleased
 
+- Add `cav review`: a local review page for a render. It steps exact frames, shuttles with
+  J/K/L, sets ranges, and draws arrows, boxes, ellipses and freehand. Notes go to
+  `<video>.review.json` with a snapshot of the frame and drawing. "Send to agent" releases a
+  waiting `cav review wait`; `export`, `resolve` and `reopen` close the loop.
+- Add `cav config` and `cav doctor --services`: one service per production job, in an order
+  you choose, with keys read from environment variables, the macOS keychain, 1Password
+  (`op://`) or an OAuth login. Keys are never printed or stored.
+- Add `cav sfx` and `cav ref`: search Freesound, Openverse, Pexels, Unsplash, Wikimedia
+  Commons and folders you index, download with the licence and credit recorded, and
+  generate sound effects (`cav sfx gen`, ElevenLabs).
+- Add `cav credits`: a per-project licence setting (`nc-ok` or `commercial`), credit lines,
+  and licence checks, which `cav check` also reports.
+- Add `cav board`: storyboards timed in beats, frames per shot (greybox cards, or Gemini,
+  OpenAI, OpenRouter, Recraft), a board sheet, an animatic cut on the beat, and mood boards.
+- Add `cav gen`: generated stills, transparent PNGs and SVG, and PNG-to-SVG tracing.
+- Add `cav listen`: loudness, structure, storyboard cuts against downbeats, a picture, and an
+  audio model's critique of a track. Add `cav music gen` (ElevenLabs Music, Stable Audio).
+- Add `cav music render`: play a written score (notes and hits on a beat grid) with
+  built-in synths and drums, samples, or VST3/AU instruments, mixed and mastered locally.
+- Add local services: mflux (open image models on Apple silicon), ComfyUI (a workflow you
+  choose), and ACE-Step 1.5 (an open music model on a server you run).
+- `cav listen --score` rates takes with local models (Audiobox Aesthetics, CLAP), and several
+  tracks are compared side by side.
+- Add `cav score`: a REAPER project with the render, a marker per shot and the takes, and
+  `cav score render` to render it from the command line.
+- Add `cav ref arena`: copy an Are.na channel into the mood board as reference-only assets.
+- `cav config check --live` (and `cav doctor --services --live`) makes one small paid call
+  per keyed service, after asking.
+- The review page shows the audio waveform, reloads a re-rendered file, and compares it with
+  the earlier render (A/B wipe, difference) or as an onion skin. It follows the system's
+  light or dark theme, with a manual override.
+- Add `cav guide production`.
+- The cavalry plugin adds a command hook for Claude Code and Codex (`cav review hook`): when
+  the reviewer sends notes that no `cav review wait` picked up, the agent hears about it once,
+  on the next prompt or at the end of its turn.
+- Add the cav-review plugin for Claude Code: the open review notes above the prompt, a link
+  to the page, a toast when notes arrive, and an optional turn that handles them. It reads
+  the review through `cav review export` when Claude Code reports a change to the review
+  files; it does not poll.
+
 - `cav beats` with an audio file also reports sections, rises, falls, silences, the strongest
   accents with their frequency band, and the energy of each bar.
 - Add `cav spectrogram`: draw a track as one labelled image (spectrogram, loudness, bars,

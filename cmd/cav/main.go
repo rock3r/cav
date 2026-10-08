@@ -273,7 +273,7 @@ New to cav? Run "cav guide" first: it explains the workflow from plan to render.
 `)
 }
 
-var helpOrder = []string{"setup", "doctor", "status", "run", "job", "operation", "scene", "tree", "layer", "frame", "sheet", "onion", "check", "render", "beats", "spectrogram", "sync", "api", "docs", "helpers", "guide", "relay", "version", "update"}
+var helpOrder = []string{"setup", "doctor", "config", "status", "run", "job", "operation", "scene", "tree", "layer", "frame", "sheet", "onion", "check", "render", "review", "board", "gen", "sfx", "ref", "credits", "beats", "spectrogram", "sync", "listen", "music", "score", "api", "docs", "helpers", "guide", "relay", "version", "update"}
 
 func order(name string) int {
 	for i, n := range helpOrder {

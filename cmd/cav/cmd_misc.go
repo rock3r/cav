@@ -75,12 +75,12 @@ func init() {
 }
 
 // guideTopics lists the guides in the order `cav guide` presents them.
-var guideTopics = []string{"workflow", "design", "music", "traps", "native"}
+var guideTopics = []string{"workflow", "design", "music", "traps", "native", "production"}
 
 func init() {
 	register(command{
 		name:    "guide",
-		args:    "[workflow|design|music|traps|native]",
+		args:    "[workflow|design|music|traps|native|production]",
 		summary: "Print how to make motion graphics with cav: workflow, design, music, traps.",
 		run:     cmdGuide,
 	})
@@ -92,6 +92,7 @@ Without a topic, prints the workflow guide. Read it before your first build.
   music     beat grids and syncing motion to music
   traps     Cavalry scripting behaviours that fail silently, and how cav avoids them
   native    duplicators, stagger, text effects, filters, 2.5D, particles and other nodes
+  production  services and keys, licences, storyboards, assets, music, listening, review
 `
 }
 

@@ -6,6 +6,43 @@ on:
 permissions:
   contents: read
 jobs:
+  static:
+    name: Static analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: gofmt
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then echo "run gofmt -w on:"; echo "$unformatted"; exit 1; fi
+      - name: go vet
+        run: go vet ./...
+      - name: staticcheck (configured in staticcheck.conf)
+        run: go run honnef.co/go/tools/cmd/staticcheck@v0.8.1 ./...
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
+  windows:
+    name: Build and tests (windows-latest)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Build
+        run: go build ./cmd/cav
+      - name: go vet
+        run: go vet ./...
+      - name: Go tests
+        # Most cmd/cav tests stub ffmpeg, Cavalry's bridge and pipes with POSIX shell scripts,
+        # and packaging/ drives the POSIX release scripts: those run on Linux and macOS.
+        run: |
+          go test ./internal/...
+          go test ./cmd/cav -run 'TestReviewHook'
+
   fixtures:
     name: Fixtures (${{ matrix.os }})
     strategy:
