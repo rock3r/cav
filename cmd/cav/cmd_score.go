@@ -141,9 +141,9 @@ func reaperBinary() string {
 // -renderproject stops on that question and waits for a click. It returns the file it
 // changed, or "" when it changed nothing.
 func pickReaperAudioDevice(bin string) (string, error) {
-	ini := reaperINI(bin, runtime.GOOS)
-	if ini == "" {
-		return "", nil
+	ini, err := reaperINI(bin, runtime.GOOS)
+	if err != nil || ini == "" {
+		return "", err
 	}
 	b, err := os.ReadFile(ini)
 	if err != nil && !os.IsNotExist(err) {
@@ -161,8 +161,9 @@ func pickReaperAudioDevice(bin string) (string, error) {
 
 // reaperINI is the reaper.ini that the REAPER binary bin reads. A portable install keeps
 // its reaper.ini beside the program: next to reaper.exe on Windows, next to REAPER.app on
-// macOS. Otherwise REAPER uses the per-user file. It returns "" on other systems.
-func reaperINI(bin, goos string) string {
+// macOS. Otherwise REAPER uses the per-user file. It returns "" on other systems, and an
+// error when the per-user folder cannot be found.
+func reaperINI(bin, goos string) (string, error) {
 	if p, err := filepath.EvalSymlinks(bin); err == nil {
 		bin = p
 	}
@@ -173,23 +174,23 @@ func reaperINI(bin, goos string) string {
 	}
 	portable := filepath.Join(dir, "reaper.ini")
 	if _, err := os.Stat(portable); err == nil && (goos == "darwin" || goos == "windows") {
-		return portable
+		return portable, nil
 	}
 	switch goos {
 	case "darwin":
 		home, err := os.UserHomeDir()
 		if err != nil {
-			return ""
+			return "", err
 		}
-		return filepath.Join(home, "Library", "Application Support", "REAPER", "reaper.ini")
+		return filepath.Join(home, "Library", "Application Support", "REAPER", "reaper.ini"), nil
 	case "windows":
 		dir, err := os.UserConfigDir() // %AppData%
 		if err != nil {
-			return ""
+			return "", err
 		}
-		return filepath.Join(dir, "REAPER", "reaper.ini")
+		return filepath.Join(dir, "REAPER", "reaper.ini"), nil
 	}
-	return ""
+	return "", nil
 }
 
 func scoreRender(a *app, args []string) error {
