@@ -183,6 +183,9 @@ func Check(root string, m *Manifest, p *Project) []Problem {
 		if e.Generated != nil {
 			continue
 		}
+		if e.Licence == "reference-only" {
+			continue // collected to look at; the mood board is not the piece
+		}
 		if e.Licence == "" || e.Licence == "unknown" {
 			out = append(out, Problem{e.Path, "unknown-licence", "no licence recorded: check the source before using it"})
 			continue

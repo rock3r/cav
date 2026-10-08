@@ -197,6 +197,24 @@ var Catalog = map[string]*Def{
 			}
 			return fmt.Sprintf("search works (%d results for \"neon\")", r.Total), nil
 		}},
+	"arena": {Title: "Are.na (cav ref arena imports a channel; a token only for private channels)", Kind: KindFree,
+		EnvVars: []string{"ARENA_TOKEN"}, Signup: "https://www.are.na/settings/oauth",
+		Check: func(ctx context.Context, _ *Config, key string) (string, error) {
+			h := map[string]string{}
+			if key != "" {
+				h = bearer(key)
+			}
+			var r struct {
+				Title string `json:"title"`
+			}
+			if err := Do(ctx, "GET", "https://api.are.na/v2/channels/arena-influences?per=1", h, nil, &r); err != nil {
+				return "", err
+			}
+			if key == "" {
+				return "reachable (public channels only, no token)", nil
+			}
+			return "reachable, token accepted", nil
+		}},
 	"qwen-omni": {Title: "Qwen3-Omni Captioner on an OpenAI-compatible server you choose", Kind: KindEndpoint,
 		Jobs: []string{"ears"}, EnvVars: []string{"QWEN_OMNI_API_KEY"},
 		Check: func(ctx context.Context, c *Config, key string) (string, error) {

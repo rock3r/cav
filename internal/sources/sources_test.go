@@ -208,3 +208,39 @@ func TestLicenceNames(t *testing.T) {
 		t.Errorf("URL: %+v", got)
 	}
 }
+
+func TestArenaChannelRealAnswer(t *testing.T) {
+	// arena_contents.json is page 1 of are.na/abstract-motion-design, recorded 2026-10-08.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Host") != "api.are.na" || r.URL.Path != "/v2/channels/abstract-motion-design/contents" {
+			t.Errorf("unexpected %s%s", r.Header.Get("X-Host"), r.URL.Path)
+		}
+		if r.URL.Query().Get("page") == "1" {
+			w.Write(fixture(t, "arena_contents.json"))
+			return
+		}
+		w.Write([]byte(`{"contents":[]}`))
+	}))
+	defer srv.Close()
+	u, _ := url.Parse(srv.URL)
+	old := services.HTTPClient
+	services.HTTPClient = &http.Client{Transport: replay{t, u}}
+	defer func() { services.HTTPClient = old }()
+
+	rs, err := ArenaChannel(context.Background(), &services.Config{}, "", "https://www.are.na/zed-zara/abstract-motion-design", 50)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Six blocks: two attachments without a preview image, one with, and three images.
+	if len(rs) != 4 {
+		t.Fatalf("got %d images", len(rs))
+	}
+	for _, r := range rs {
+		if r.Licence != "reference-only" || r.Original == "" || r.Author == "" {
+			t.Fatalf("result %+v", r)
+		}
+	}
+	if ArenaSlug("abstract-motion-design/") != "abstract-motion-design" {
+		t.Fatal("slug")
+	}
+}

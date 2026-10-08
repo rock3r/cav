@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -248,3 +249,5 @@ func fileName(r Result, ctype, disposition, src string) string {
 }
 
 func q(v string) string { return url.QueryEscape(v) }
+
+func asHTTP(err error, target **services.HTTPError) bool { return errors.As(err, target) }

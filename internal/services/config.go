@@ -156,7 +156,7 @@ func (c *Config) SetKey(service, source string) error {
 	if !ok {
 		return fmt.Errorf("unknown service %q (services: %s)", service, strings.Join(ServiceNames(), ", "))
 	}
-	if d.Kind != KindKey && d.Kind != KindEndpoint {
+	if d.Kind != KindKey && d.Kind != KindEndpoint && len(d.EnvVars) == 0 {
 		return fmt.Errorf("service %q needs no key", service)
 	}
 	if _, err := ParseSource(source); err != nil {

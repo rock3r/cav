@@ -44,7 +44,7 @@ commercial hides NC sounds; nc-ok shows them. Without a setting, everything show
 marked. cav credits prints the credit lines; cav check warns about licences that do not fit.`
 	register(command{
 		name:    "ref",
-		args:    "search <words> [--service S] [--licence any|commercial|nc-ok] [--limit N] | get <service:id> [-o moodboard/] [--original] | add <file> --licence ID [--author A] [--source S] [--url U]",
+		args:    "search <words> [--service S] [--licence any|commercial|nc-ok] [--limit N] | get <service:id> [-o moodboard/] [--original] | arena <channel or URL> [--limit 30] | add <file> --licence ID [--author A] [--source S] [--url U]",
 		summary: "Find reference images for mood boards, download them, and record their credits.",
 		run:     func(a *app, args []string) error { return cmdSources(a, "ref", "image", "moodboard", args) },
 	})
@@ -54,7 +54,10 @@ unsplash with a key, openverse and wikimedia without one (--service picks one).
 cav ref get <ref> [-o moodboard/] downloads it (a large preview; --original for the full
 file) and records licence and credit in .cav/manifest.json. cav board mood lays the folder
 out as one picture. Reference images are for looking at: check the licence before putting
-one in the final piece.`
+one in the final piece.
+cav ref arena https://www.are.na/<user>/<channel> [--limit 30] copies a channel's images
+into moodboard/ (a public channel needs no token; ARENA_TOKEN or cav config set-key arena
+for a private one). They are recorded as reference-only: Are.na blocks carry no licence.`
 	register(command{
 		name:    "credits",
 		args:    "[show] [--all] [-o CREDITS.txt] | check | licence nc-ok|commercial | list",
@@ -100,6 +103,11 @@ func cmdSources(a *app, cmd, kind, defaultDir string, args []string) error {
 			break
 		}
 		return sfxIndex(a, args)
+	case "arena":
+		if kind != "image" {
+			break
+		}
+		return refArena(a, root, defaultDir, args)
 	case "gen":
 		if kind != "audio" {
 			break
@@ -362,6 +370,55 @@ func sfxGen(a *app, root, dir string, args []string) error {
 	sum, _ := fileSHA(path)
 	return recordAndReport(a, root, library.Entry{Path: path, Kind: "audio", Title: prompt, Source: tr.Provider, Licence: "generated",
 		CommercialOK: true, RetrievedAt: time.Now().UTC(), SHA256: sum, Generated: &library.Generated{Provider: tr.Provider, Model: tr.Model, Prompt: prompt}})
+}
+
+func refArena(a *app, root, dir string, args []string) error {
+	fs := flag.NewFlagSet("ref arena", flag.ContinueOnError)
+	limit := fs.Int("limit", 30, "most images to copy")
+	out := fs.String("o", dir, "folder")
+	pos, err := parseFlags(fs, args)
+	if err != nil {
+		return err
+	}
+	if len(pos) != 1 {
+		return usageErr("usage: cav ref arena <channel-slug or https://www.are.na/user/channel>")
+	}
+	c, err := services.Load()
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+	defer cancel()
+	key, _ := services.Resolve(ctx, "arena", c.KeySource("arena"))
+	rs, err := sources.ArenaChannel(ctx, c, key, pos[0], *limit)
+	if err != nil {
+		return fail(exitError, err.Error(), "")
+	}
+	m, err := library.Load(root)
+	if err != nil {
+		return err
+	}
+	var saved, failed []string
+	for _, r := range rs {
+		e, err := sources.Download(ctx, c, key, r, *out, true)
+		if err != nil {
+			failed = append(failed, r.Ref()+": "+err.Error())
+			continue
+		}
+		e = m.Put(root, e)
+		saved = append(saved, e.Path)
+	}
+	if err := m.Save(root); err != nil {
+		return err
+	}
+	a.emit(map[string]any{"channel": sources.ArenaSlug(pos[0]), "saved": saved, "failed": failed}, func() {
+		fmt.Printf("copied %d images from are.na/%s into %s (recorded as reference-only)\n", len(saved), sources.ArenaSlug(pos[0]), *out)
+		for _, f := range failed {
+			fmt.Fprintln(os.Stderr, "skipped "+f)
+		}
+		fmt.Println("Lay them out: cav board mood " + *out)
+	})
+	return nil
 }
 
 // termsFor reads a licence given on the command line.
