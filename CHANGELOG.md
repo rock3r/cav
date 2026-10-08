@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Redesign the review page as an animator's exposure sheet. Notes sit in rows by frame,
+  beside the stage, with snapshots at one scale. Frames with no note show as ruled paper
+  whose height grows with the run. You write a note in the orange playhead row, which
+  moves with the frame. The page draws its own icons, puts labels and shortcuts in
+  tooltips, follows the system's light or dark theme, and fits from a phone to a desktop
+  and in a chat frame. Replies are written inline, and deleting takes a second click
+  instead of a confirm box, so both work in chat frames.
+- `cav review` finds a note's snapshot by name in the review's own folder, so a review
+  opened from another folder (the chat's server, for one) shows its snapshots, and a
+  review file cannot make the server send a file from elsewhere.
 - Add `cav mcp`: a small MCP server (stdio) that shows the `cav review` page inside the
   chat as an MCP App, in hosts that draw MCP Apps, such as the chat of the Claude desktop
   app (its Code tab does not). The page plays a 640-pixel preview sent inline, and its

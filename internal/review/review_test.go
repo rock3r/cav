@@ -274,3 +274,25 @@ func TestNoteKeepsTheVersionThePageShowed(t *testing.T) {
 		t.Errorf("a version the review never saw: %d, want 409", w.Code)
 	}
 }
+
+func TestSnapshotIsFoundByNameInTheReviewFolder(t *testing.T) {
+	s, h := newTestServer(t)
+	os.MkdirAll(s.Store.SnapDir, 0o755)
+	os.WriteFile(filepath.Join(s.Store.SnapDir, "c_01_f3.png"), []byte("\x89PNGsnap"), 0o644)
+	outside := filepath.Join(t.TempDir(), "c_02_f5.png")
+	os.WriteFile(outside, []byte("\x89PNGsecret"), 0o644)
+	s.Store.Update(func(d *Doc) error {
+		d.Comments = append(d.Comments,
+			// Recorded relative to the folder another `cav review` ran in.
+			Comment{ID: "c_01", Frame: 3, Status: "open", Snapshot: "renders/review/v3/c_01_f3.png"},
+			// Names a file outside the review's folder.
+			Comment{ID: "c_02", Frame: 5, Status: "open", Snapshot: outside})
+		return nil
+	})
+	if w := do(t, h, "GET", "/api/snapshot/c_01", nil, nil); w.Code != 200 || w.Body.String() != "\x89PNGsnap" {
+		t.Errorf("a relative snapshot path should be found in the review folder: %d %q", w.Code, w.Body.String())
+	}
+	if w := do(t, h, "GET", "/api/snapshot/c_02", nil, nil); w.Code != 404 {
+		t.Errorf("a snapshot outside the review folder must not be served: %d", w.Code)
+	}
+}
