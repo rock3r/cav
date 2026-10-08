@@ -286,21 +286,50 @@ func Do(hd http.Handler, method, path, body string) requestOut {
 	if method != http.MethodGet && method != http.MethodHead {
 		r.Header.Set("Content-Type", "application/json")
 	}
-	w := httptest.NewRecorder()
+	w := &capWriter{header: http.Header{}, code: http.StatusOK}
 	hd.ServeHTTP(w, r)
-	ct := w.Header().Get("Content-Type")
-	out := requestOut{Status: w.Code, ContentType: ct}
+	ct := w.header.Get("Content-Type")
+	out := requestOut{Status: w.code, ContentType: ct}
 	switch {
-	case w.Body.Len() > MaxInline:
+	case w.over:
 		out.Status, out.ContentType = http.StatusRequestEntityTooLarge, "application/json"
-		out.Body = fmt.Sprintf(`{"error":"the preview is %d MB, more than the %d MB the chat view takes: review it in the browser with cav review"}`,
-			w.Body.Len()>>20, MaxInline>>20)
+		out.Body = fmt.Sprintf(`{"error":"the preview is more than the %d MB the chat view takes: review it in the browser with cav review"}`, MaxInline>>20)
 	case isText(ct):
-		out.Body = w.Body.String()
+		out.Body = w.body.String()
 	default:
-		out.DataURL = "data:" + ct + ";base64," + base64.StdEncoding.EncodeToString(w.Body.Bytes())
+		out.DataURL = "data:" + ct + ";base64," + base64.StdEncoding.EncodeToString(w.body.Bytes())
 	}
 	return out
+}
+
+// capWriter keeps at most MaxInline bytes of a response. A longer one fails the write, which
+// stops http.ServeFile, so a long render is never read into memory whole.
+type capWriter struct {
+	header http.Header
+	code   int
+	wrote  bool
+	body   bytes.Buffer
+	over   bool
+}
+
+var errTooLarge = errors.New("response larger than the inline limit")
+
+func (w *capWriter) Header() http.Header { return w.header }
+
+func (w *capWriter) WriteHeader(code int) {
+	if !w.wrote {
+		w.code, w.wrote = code, true
+	}
+}
+
+func (w *capWriter) Write(b []byte) (int, error) {
+	w.wrote = true
+	if w.over || w.body.Len()+len(b) > MaxInline {
+		w.over = true
+		w.body.Reset()
+		return 0, errTooLarge
+	}
+	return w.body.Write(b)
 }
 
 func isText(ct string) bool {

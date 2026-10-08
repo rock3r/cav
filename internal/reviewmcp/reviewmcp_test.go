@@ -233,13 +233,35 @@ func TestReRenderPreparesAgain(t *testing.T) {
 }
 
 func TestDoRefusesFilesTooLargeForTheChat(t *testing.T) {
+	// Served in chunks, as http.ServeFile does: the writer must stop the copy at the limit
+	// instead of buffering the whole file.
+	written := 0
 	big := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "video/mp4")
-		w.Write(make([]byte, MaxInline+1))
+		chunk := make([]byte, 1<<20)
+		for i := 0; i < 4*(MaxInline>>20); i++ {
+			n, err := w.Write(chunk)
+			written += n
+			if err != nil {
+				return
+			}
+		}
 	})
 	out := Do(big, "GET", "/video", "")
 	if out.Status != http.StatusRequestEntityTooLarge || out.DataURL != "" || !strings.Contains(out.Body, "cav review") {
 		t.Errorf("got status %d, body %q", out.Status, out.Body)
+	}
+	if written > MaxInline {
+		t.Errorf("the writer took %d bytes, more than the %d limit", written, MaxInline)
+	}
+}
+
+func TestDoServesAFileUpToTheLimit(t *testing.T) {
+	f := filepath.Join(t.TempDir(), "p.mp4")
+	os.WriteFile(f, []byte("tiny video"), 0o644)
+	out := Do(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.ServeFile(w, r, f) }), "GET", "/video", "")
+	if out.Status != 200 || out.DataURL != "data:video/mp4;base64,dGlueSB2aWRlbw==" {
+		t.Errorf("got %+v", out)
 	}
 }
 

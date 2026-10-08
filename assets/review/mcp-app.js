@@ -84,11 +84,16 @@
   // "Send to agent" in the chat: also say so in the conversation, so the agent picks the
   // notes up without waiting for the next prompt. Hosts that do not support ui/message
   // ignore it; the cav review hook still tells the agent.
+  // The 2026-01-26 spec text sends one content block; the ext-apps SDK sends an array. Try
+  // the spec's form first, and the array if the host refuses it.
   function tellAgent(send) {
     if (!send || !send.comments) return;
     const n = send.comments.length;
-    request('ui/message', { role: 'user', content: [{ type: 'text',
-      text: `I sent ${n} review note${n > 1 ? 's' : ''} on ${video}. Read the notes with \`cav review wait "${video}"\`, fix them, then resolve each one.` }] }).catch(() => {});
+    const block = { type: 'text',
+      text: `I sent ${n} review note${n > 1 ? 's' : ''} on ${video}. Read the notes with \`cav review wait "${video}"\`, fix them, then resolve each one.` };
+    request('ui/message', { role: 'user', content: block })
+      .catch(() => request('ui/message', { role: 'user', content: [block] }))
+      .catch(() => {});
   }
 
   // ---------- media: fetch once per path, hand the element a data: URL ----------
