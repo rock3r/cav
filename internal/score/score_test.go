@@ -36,22 +36,33 @@ func TestRPPStructure(t *testing.T) {
 }
 
 func TestWithAudioDevice(t *testing.T) {
-	for _, c := range []struct{ name, in, want string }{
-		{"no file", "", "[reaper]\ncoreaudioindevnew=<default>\ncoreaudiooutdevnew=<default>\ncoreaudiobs=512\ncoreaudiosrate=48000\n"},
-		{"fresh install",
+	for _, c := range []struct{ name, goos, in, want string }{
+		{"mac, no file", "darwin", "", "[reaper]\ncoreaudioindevnew=<default>\ncoreaudiooutdevnew=<default>\ncoreaudiobs=512\ncoreaudiosrate=48000\n"},
+		{"mac, fresh install", "darwin",
 			"[nag]\nnag=x\n\n[reaper]\nwnd_w=1024\n\n[Recent]\nrecent01=a.rpp\n",
 			"[nag]\nnag=x\n\n[reaper]\nwnd_w=1024\ncoreaudioindevnew=<default>\ncoreaudiooutdevnew=<default>\ncoreaudiobs=512\ncoreaudiosrate=48000\n\n[Recent]\nrecent01=a.rpp\n"},
-		{"keeps the user's buffer size",
+		{"mac, keeps the user's buffer size", "darwin",
 			"[reaper]\ncoreaudiobs=256\n",
 			"[reaper]\ncoreaudiobs=256\ncoreaudioindevnew=<default>\ncoreaudiooutdevnew=<default>\ncoreaudiosrate=48000\n"},
+		{"windows, fresh install keeps CRLF", "windows",
+			"[reaper]\r\nrenderclosewhendone=4\r\nmixwnd_vis=1\r\n",
+			"[reaper]\r\nrenderclosewhendone=4\r\nmixwnd_vis=1\r\n[audioconfig]\r\nmode=2\r\n"},
+		{"windows, section without a mode", "windows",
+			"[audioconfig]\nwasapi_bs=512\n[reaper]\nx=1\n",
+			"[audioconfig]\nwasapi_bs=512\nmode=2\n[reaper]\nx=1\n"},
 	} {
-		got, changed := WithAudioDevice(c.in)
+		got, changed := WithAudioDevice(c.in, c.goos)
 		if !changed || got != c.want {
 			t.Errorf("%s: changed=%v\n got: %q\nwant: %q", c.name, changed, got, c.want)
 		}
 	}
-	picked := "[reaper]\ncoreaudiooutdevnew=MOTU\n"
-	if got, changed := WithAudioDevice(picked); changed || got != picked {
-		t.Errorf("changed a device the user picked: %q", got)
+	for _, c := range []struct{ goos, ini string }{
+		{"darwin", "[reaper]\ncoreaudiooutdevnew=MOTU\n"},
+		{"windows", "[audioconfig]\nmode=0\n"},
+		{"linux", "[reaper]\n"},
+	} {
+		if got, changed := WithAudioDevice(c.ini, c.goos); changed || got != c.ini {
+			t.Errorf("%s: changed a device the user picked: %q", c.goos, got)
+		}
 	}
 }

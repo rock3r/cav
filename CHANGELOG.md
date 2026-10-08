@@ -30,10 +30,10 @@
 - `cav listen --score` rates takes with local models (Audiobox Aesthetics, CLAP), and several
   tracks are compared side by side.
 - Add `cav score`: a REAPER project with the render, a marker per shot and the takes, and
-  `cav score render` to render it from the command line. Tested with REAPER 7.82 on macOS.
-  The video track is silent, so the render's own soundtrack stays out of the music WAV.
-  On macOS, `cav score render` selects the default audio device when REAPER has none yet,
-  so REAPER does not stop to ask.
+  `cav score render` to render it from the command line. Tested with REAPER 7.82 on macOS
+  and Windows. The video track is silent, so the render's own soundtrack stays out of the
+  music WAV. When REAPER has no audio device yet, `cav score render` selects REAPER's
+  default first, so REAPER does not stop to ask.
 - Add `cav ref arena`: copy an Are.na channel into the mood board as reference-only assets.
 - `cav config check --live` (and `cav doctor --services --live`) makes one small paid call
   per keyed service, after asking.

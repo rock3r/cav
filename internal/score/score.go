@@ -107,46 +107,64 @@ func ReaperArgs(rpp string) []string {
 	return []string{"-nosplash", "-newinst", "-ignoreerrors", "-renderproject", rpp}
 }
 
-// macAudioDevice is what REAPER 7 writes to reaper.ini when the default Core Audio device
-// is picked in Preferences > Audio > Device. Until all four keys are present, REAPER asks
-// "You have not yet selected an audio device" at startup, and -renderproject waits on
-// that question.
-var macAudioDevice = []string{
-	"coreaudioindevnew=<default>",
-	"coreaudiooutdevnew=<default>",
-	"coreaudiobs=512",
-	"coreaudiosrate=48000",
+// audioDevice is what REAPER 7 writes to reaper.ini when its default audio device is
+// accepted at the first-run question "You have not yet selected an audio device". Until
+// the marker key is present, REAPER asks that question at startup, and -renderproject
+// waits on it. Both were found by testing REAPER 7.82 (issue #12):
+//   - macOS: the default Core Audio device; all four keys are needed.
+//   - Windows: mode=2 in [audioconfig] is REAPER's own default audio system; it alone
+//     is enough. REAPER fills in the other [audioconfig] keys with defaults.
+var audioDevice = map[string]struct {
+	section, marker string
+	keys            []string
+}{
+	"darwin": {"reaper", "coreaudiooutdevnew", []string{
+		"coreaudioindevnew=<default>",
+		"coreaudiooutdevnew=<default>",
+		"coreaudiobs=512",
+		"coreaudiosrate=48000",
+	}},
+	"windows": {"audioconfig", "mode", []string{"mode=2"}},
 }
 
-// WithAudioDevice returns REAPER's reaper.ini text with the default Core Audio device
-// selected, and whether it changed anything. It leaves a device the user picked alone.
-func WithAudioDevice(ini string) (string, bool) {
+// WithAudioDevice returns REAPER's reaper.ini text with REAPER's default audio device
+// selected for goos, and whether it changed anything. It leaves a device the user picked
+// alone, and changes nothing on other systems.
+func WithAudioDevice(ini, goos string) (string, bool) {
+	dev, ok := audioDevice[goos]
+	if !ok {
+		return ini, false
+	}
+	eol := "\n"
+	if strings.Contains(ini, "\r\n") {
+		eol = "\r\n"
+	}
 	lines := strings.Split(strings.ReplaceAll(ini, "\r\n", "\n"), "\n")
 	section, start, end := "", -1, len(lines)
 	have := map[string]bool{}
 	for i, l := range lines {
 		t := strings.TrimSpace(l)
 		if strings.HasPrefix(t, "[") && strings.HasSuffix(t, "]") {
-			if section == "reaper" {
+			if section == dev.section {
 				end = i
 			}
 			section = strings.ToLower(strings.Trim(t, "[]"))
-			if section == "reaper" {
+			if section == dev.section {
 				start = i
 			}
 			continue
 		}
-		if section == "reaper" {
+		if section == dev.section {
 			if k, _, ok := strings.Cut(t, "="); ok {
 				have[k] = true
 			}
 		}
 	}
-	if have["coreaudiooutdevnew"] {
+	if have[dev.marker] {
 		return ini, false
 	}
 	var add []string
-	for _, kv := range macAudioDevice {
+	for _, kv := range dev.keys {
 		if k, _, _ := strings.Cut(kv, "="); !have[k] {
 			add = append(add, kv)
 		}
@@ -155,9 +173,9 @@ func WithAudioDevice(ini string) (string, bool) {
 		if n := len(lines); n > 0 && lines[n-1] == "" {
 			lines = lines[:n-1]
 		}
-		lines = append(lines, "[reaper]")
+		lines = append(lines, "["+dev.section+"]")
 		lines = append(lines, add...)
-		return strings.Join(lines, "\n") + "\n", true
+		return strings.Join(lines, eol) + eol, true
 	}
 	// Insert after the section's last non-blank line.
 	at := end
@@ -165,5 +183,5 @@ func WithAudioDevice(ini string) (string, bool) {
 		at--
 	}
 	out := append(append(append([]string{}, lines[:at]...), add...), lines[at:]...)
-	return strings.Join(out, "\n"), true
+	return strings.Join(out, eol), true
 }
