@@ -227,9 +227,12 @@ func (h *handler) earlier(abs string, info os.FileInfo, prepErr error) *session 
 		return nil
 	}
 	d, err := store.Load()
+	if err != nil {
+		return nil
+	}
 	// The review file sits in the project, so its digest must be one before it names a file.
 	sha := d.Source.SHA256
-	if err != nil || len(sha) != 64 || strings.Trim(sha, "0123456789abcdef") != "" || d.Source.Frames <= 0 || d.Source.FPS <= 0 {
+	if len(sha) != 64 || strings.Trim(sha, "0123456789abcdef") != "" || d.Source.Frames <= 0 || d.Source.FPS <= 0 {
 		return nil
 	}
 	proxy := filepath.Join(h.o.CacheDir, sha+".mp4")

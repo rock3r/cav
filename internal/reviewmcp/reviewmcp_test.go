@@ -407,6 +407,14 @@ func TestNewProcessKeepsTheEarlierRenderOfABrokenFile(t *testing.T) {
 	if res := call(t, fresh, "review_request", map[string]any{"video": video, "method": "GET", "path": "/api/state"}, nil); !res.IsError {
 		t.Error("a review file whose digest leaves the cache must not be served")
 	}
+
+	// A review file that cannot be read fails the request too, without stopping the server.
+	doc, _ := review.Paths(video)
+	os.WriteFile(doc, []byte("{not json"), 0o644)
+	fresh, _ = connectTo(t, video)
+	if res := call(t, fresh, "review_request", map[string]any{"video": video, "method": "GET", "path": "/api/state"}, nil); !res.IsError {
+		t.Error("an unreadable review file must fail the request")
+	}
 }
 
 func TestDoRefusesFilesTooLargeForTheChat(t *testing.T) {
