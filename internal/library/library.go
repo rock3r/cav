@@ -215,11 +215,16 @@ func Credits(m *Manifest, all bool) []string {
 		if e.Generated != nil && !all {
 			continue
 		}
+		// A source may suggest a credit for a licence that needs none (Openverse does for
+		// CC0); list it only with --all.
+		if !e.AttributionRequired && !all {
+			continue
+		}
 		line := e.Attribution
-		if line == "" && (e.AttributionRequired || all) {
+		if line == "" {
 			line = DefaultAttribution(e)
 		}
-		if line == "" || seen[line] {
+		if seen[line] {
 			continue
 		}
 		seen[line] = true

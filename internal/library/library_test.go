@@ -16,7 +16,7 @@ func TestCheckFollowsTheProjectLicence(t *testing.T) {
 	nc := Entry{Path: filepath.Join(root, "sfx/a.wav"), Title: "Swish", Author: "someone", Source: "freesound"}
 	FromCC("by-nc", "4.0").Apply(&nc)
 	nc.Attribution = DefaultAttribution(nc)
-	cc0 := Entry{Path: filepath.Join(root, "sfx/b.wav")}
+	cc0 := Entry{Path: filepath.Join(root, "sfx/b.wav"), Attribution: "suggested by the source, not required"}
 	FromCC("cc0", "").Apply(&cc0)
 	sa := Entry{Path: filepath.Join(root, "img/c.jpg"), Title: "Neon"}
 	FromName("CC BY-SA 3.0").Apply(&sa)
@@ -46,5 +46,8 @@ func TestCheckFollowsTheProjectLicence(t *testing.T) {
 	lines := Credits(m, false)
 	if len(lines) != 2 || lines[0] != "“Swish” by someone (freesound), CC BY-NC 4.0" {
 		t.Fatalf("credits: %q", lines)
+	}
+	if all := Credits(m, true); len(all) != 4 {
+		t.Fatalf("--all lists every asset once: %q", all)
 	}
 }

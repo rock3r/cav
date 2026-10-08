@@ -347,11 +347,7 @@ func cmdFrame(a *app, args []string) error {
 	return a.checkpoint("publication-complete")
 }
 
-// parseFrameList understands "12" (count, needs comp range), "0,30,60" and "0-600:30".
-func parseFrameList(spec string, compRange *[2]int) ([]int, error) {
-	return parseFrameListLimit(spec, 0)
-}
-
+// parseFrameListLimit understands "12" (count, needs comp range), "0,30,60" and "0-600:30".
 func parseFrameListLimit(spec string, limit int) ([]int, error) {
 	spec = strings.TrimSpace(spec)
 	var out []int
@@ -898,19 +894,6 @@ func probeFramesContext(ctx context.Context, path string) (int, error) {
 		return 0, fmt.Errorf("invalid ffprobe frame count %q", out)
 	}
 	return n, nil
-}
-
-func probeFrames(path string) int {
-	out, err := exec.Command("ffprobe", "-v", "error", "-count_packets", "-select_streams", "v:0",
-		"-show_entries", "stream=nb_read_packets", "-of", "csv=p=0", path).Output()
-	if err != nil {
-		return -1
-	}
-	n, err := strconv.Atoi(strings.TrimSpace(strings.Split(string(out), "\n")[0]))
-	if err != nil {
-		return -1
-	}
-	return n
 }
 
 func safeName(s string) string {

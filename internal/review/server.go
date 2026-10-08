@@ -360,16 +360,16 @@ func guard(next http.Handler) http.Handler {
 			host = r.Host
 		}
 		if host != "127.0.0.1" && host != "localhost" && host != "::1" {
-			http.Error(w, "forbidden host", 403)
+			http.Error(w, "forbidden host", http.StatusForbidden)
 			return
 		}
 		if r.Method != "GET" && r.Method != "HEAD" {
 			if o := r.Header.Get("Origin"); o != "" && o != "http://"+r.Host {
-				http.Error(w, "forbidden origin", 403)
+				http.Error(w, "forbidden origin", http.StatusForbidden)
 				return
 			}
 			if !strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") && r.Method != "DELETE" {
-				http.Error(w, "send JSON", 415)
+				http.Error(w, "send JSON", http.StatusUnsupportedMediaType)
 				return
 			}
 		}
