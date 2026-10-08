@@ -25,6 +25,10 @@
   audio model's critique of a track. Add `cav music gen` (ElevenLabs Music, Stable Audio).
 - Add `cav music render`: play a written score (notes and hits on a beat grid) with
   built-in synths and drums, samples, or VST3/AU instruments, mixed and mastered locally.
+  Plugin tracks take a `preset` and `params`. The limiter measures true (inter-sample)
+  peaks and limits a hit at 0 s. `master.reference` (Matchering) now keeps the loudness
+  target, the true peak and 48 kHz. The command names missing score files up front, and
+  warns when a mix is too sparse to reach its loudness target.
 - Add local services: mflux (open image models on Apple silicon), ComfyUI (a workflow you
   choose), and ACE-Step 1.5 (an open music model on a server you run).
 - `cav listen --score` rates takes with local models (Audiobox Aesthetics, CLAP), and several
