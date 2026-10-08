@@ -35,6 +35,9 @@ type Shot struct {
 	Prompt string     `json:"prompt,omitempty"` // extra words for the generated frame
 	Frame  string     `json:"frame,omitempty"`  // the image; cav board frames fills it
 	Source string     `json:"source,omitempty"` // greybox, gemini, openai, file, ...
+	// Clip is a moving version of the shot (cav board motion fills it); the animatic plays it
+	// instead of holding the frame.
+	Clip string `json:"clip,omitempty"`
 }
 
 type Board struct {
@@ -163,6 +166,23 @@ func Normalize(ctx context.Context, in, out string, w, h int) error {
 		return fmt.Errorf("ffmpeg could not read %s: %v: %s", in, err, strings.TrimSpace(string(b)))
 	}
 	return nil
+}
+
+// CaptionLayer writes a transparent w x h PNG with only the caption strip, to lay over a
+// moving shot.
+func CaptionLayer(path string, w, h int, text string) error {
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	if err := png.Encode(f, image.NewRGBA(image.Rect(0, 0, w, h))); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	return Caption(path, text)
 }
 
 // Caption draws a strip with text along the bottom of a PNG, in place.

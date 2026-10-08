@@ -1,0 +1,9 @@
+{
+  "images": [
+    {"url": "https://v3b.fal.media/files/b/0a98f887/YYbm6L.png", "content_type": "image/png", "width": 1024, "height": 576}
+  ],
+  "timings": {"inference": 3.1},
+  "seed": 42,
+  "has_nsfw_concepts": [false],
+  "prompt": "a frame"
+}

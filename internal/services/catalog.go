@@ -30,6 +30,9 @@ type Def struct {
 	Binary  string   // for KindLocal
 	OnlyOn  string   // "darwin/arm64": the only platform it runs on
 	Signup  string   // where to get a key
+	// KeyFrom names another service whose configured key this one shares when it has none
+	// of its own (Veo and Lyria use the Gemini key).
+	KeyFrom string
 	// Check makes one free call that proves the key works. key is "" for free services.
 	Check func(ctx context.Context, c *Config, key string) (string, error)
 }
@@ -53,6 +56,38 @@ var Catalog = map[string]*Def{
 				}
 			}
 			return fmt.Sprintf("%d models, %d image models", len(r.Models), n), nil
+		}},
+	"veo": {Title: "Google Veo 3.1 (moving shots for the animatic; uses the Gemini key)", Kind: KindKey,
+		Jobs: []string{"video"}, EnvVars: []string{"GEMINI_API_KEY", "GOOGLE_API_KEY"}, KeyFrom: "gemini",
+		Signup: "https://aistudio.google.com/apikey",
+		Check:  googleModels("veo"),
+	},
+	"lyria": {Title: "Google Lyria 3.5 (music; uses the Gemini key)", Kind: KindKey,
+		Jobs: []string{"music"}, EnvVars: []string{"GEMINI_API_KEY", "GOOGLE_API_KEY"}, KeyFrom: "gemini",
+		Signup: "https://aistudio.google.com/apikey",
+		Check:  googleModels("lyria"),
+	},
+	"fal": {Title: "fal.ai (one key for FLUX.2, Seedream, Ideogram, Grok Imagine and more)", Kind: KindKey,
+		Jobs: []string{"image"}, EnvVars: []string{"FAL_KEY", "FAL_API_KEY"},
+		Signup: "https://fal.ai/dashboard/keys",
+		Check: func(ctx context.Context, _ *Config, key string) (string, error) {
+			// The pricing endpoint needs a key but costs nothing.
+			var r struct {
+				Prices []struct {
+					Endpoint string  `json:"endpoint_id"`
+					Price    float64 `json:"unit_price"`
+					Unit     string  `json:"unit"`
+					Currency string  `json:"currency"`
+				} `json:"prices"`
+			}
+			if err := Do(ctx, "GET", "https://api.fal.ai/v1/models/pricing?endpoint_id=fal-ai/flux-2", map[string]string{"Authorization": "Key " + key}, nil, &r); err != nil {
+				return "", err
+			}
+			if len(r.Prices) == 0 {
+				return "key accepted", nil
+			}
+			p := r.Prices[0]
+			return fmt.Sprintf("key accepted; %s costs %g %s per %s", p.Endpoint, p.Price, p.Currency, p.Unit), nil
 		}},
 	"openai": {Title: "OpenAI (gpt-image: transparent PNG, text in images)", Kind: KindKey,
 		Jobs: []string{"image", "image.alpha"}, EnvVars: []string{"OPENAI_API_KEY"},
@@ -275,6 +310,29 @@ var Catalog = map[string]*Def{
 func init() {
 	for n, d := range Catalog {
 		d.Name = n
+	}
+}
+
+// googleModels checks a Gemini API key by listing the models whose name contains want.
+func googleModels(want string) func(ctx context.Context, _ *Config, key string) (string, error) {
+	return func(ctx context.Context, _ *Config, key string) (string, error) {
+		var r struct {
+			Models []struct{ Name string } `json:"models"`
+		}
+		err := Do(ctx, "GET", "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000", map[string]string{"x-goog-api-key": key}, nil, &r)
+		if err != nil {
+			return "", err
+		}
+		var found []string
+		for _, m := range r.Models {
+			if strings.Contains(m.Name, want) {
+				found = append(found, strings.TrimPrefix(m.Name, "models/"))
+			}
+		}
+		if len(found) == 0 {
+			return fmt.Sprintf("key accepted, but it lists no %s model (%d models)", want, len(r.Models)), nil
+		}
+		return "key accepted; " + strings.Join(found, ", "), nil
 	}
 }
 

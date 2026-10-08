@@ -63,12 +63,14 @@ func TestPickSkipsUnusableServices(t *testing.T) {
 	os.Unsetenv("GEMINI_API_KEY")
 	os.Unsetenv("GOOGLE_API_KEY")
 	t.Setenv("OPENAI_API_KEY", "")
+	t.Setenv("FAL_KEY", "")
+	t.Setenv("FAL_API_KEY", "")
 	c := &Config{}
 	ch, err := Pick(context.Background(), c, "image", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ch.Service != "greybox" || len(ch.Skipped) != 4 {
+	if ch.Service != "greybox" || len(ch.Skipped) != 5 {
 		t.Fatalf("no keys: got %s, skipped %v", ch.Service, ch.Skipped)
 	}
 	t.Setenv("OPENAI_API_KEY", "sk-test")
@@ -156,5 +158,68 @@ func TestConfigRoundTrip(t *testing.T) {
 	c2, _ := Load()
 	if c2.KeySource("openai") != "op://Private/OpenAI/api key" {
 		t.Fatalf("round trip: %v", c2.Keys)
+	}
+}
+
+func TestVeoAndLyriaShareTheGeminiKey(t *testing.T) {
+	t.Setenv("GEMINI_API_KEY", "")
+	t.Setenv("GOOGLE_API_KEY", "")
+	c := &Config{}
+	if c.KeySource("veo") != "env:GEMINI_API_KEY" || c.KeySource("lyria") != "env:GEMINI_API_KEY" {
+		t.Fatalf("default: veo %q, lyria %q", c.KeySource("veo"), c.KeySource("lyria"))
+	}
+	if err := c.SetKey("gemini", "op://Private/Gemini/key"); err != nil {
+		t.Fatal(err)
+	}
+	if c.KeySource("veo") != "op://Private/Gemini/key" || c.KeySource("lyria") != "op://Private/Gemini/key" {
+		t.Fatalf("shared: veo %q, lyria %q", c.KeySource("veo"), c.KeySource("lyria"))
+	}
+	if err := c.SetKey("veo", "env:VEO_ONLY"); err != nil {
+		t.Fatal(err)
+	}
+	if c.KeySource("veo") != "env:VEO_ONLY" || c.KeySource("lyria") != "op://Private/Gemini/key" {
+		t.Fatalf("own key wins: veo %q, lyria %q", c.KeySource("veo"), c.KeySource("lyria"))
+	}
+	t.Setenv("VEO_ONLY", "v-key")
+	ch, err := Pick(context.Background(), c, "video", "")
+	if err != nil || ch.Service != "veo" || ch.Key != "v-key" {
+		t.Fatalf("video pick: %+v %v", ch, err)
+	}
+}
+
+// The checks for fal, Veo and Lyria are free calls; these tests check their requests
+// against the docs read on 2026-10-08 (fal platform pricing API, Gemini models list).
+func TestNewServiceChecks(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Header.Get("X-Original-Host") + r.URL.Path {
+		case "api.fal.ai/v1/models/pricing":
+			if r.Header.Get("Authorization") != "Key fal-key" || r.URL.Query().Get("endpoint_id") != "fal-ai/flux-2" {
+				t.Errorf("fal check: auth %q, query %q", r.Header.Get("Authorization"), r.URL.RawQuery)
+			}
+			w.Write([]byte(`{"prices":[{"endpoint_id":"fal-ai/flux-2","unit_price":0.012,"unit":"megapixels","currency":"USD"}],"next_cursor":null,"has_more":false}`))
+		case "generativelanguage.googleapis.com/v1beta/models":
+			if r.Header.Get("x-goog-api-key") != "g-key" {
+				t.Errorf("gemini key header %q", r.Header.Get("x-goog-api-key"))
+			}
+			w.Write([]byte(`{"models":[{"name":"models/gemini-3.1-flash-image"},{"name":"models/veo-3.1-lite-generate-preview"},{"name":"models/veo-3.1-fast-generate-preview"}]}`))
+		default:
+			t.Errorf("unexpected %s%s", r.Header.Get("X-Original-Host"), r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+	u, _ := url.Parse(srv.URL)
+	old := HTTPClient
+	HTTPClient = &http.Client{Transport: redirect{u}}
+	defer func() { HTTPClient = old }()
+	t.Setenv("FAL_KEY", "fal-key")
+	t.Setenv("GEMINI_API_KEY", "g-key")
+	if st := Probe(context.Background(), &Config{}, "fal"); st.State != "ok" || !strings.Contains(st.Detail, "0.012 USD per megapixels") {
+		t.Fatalf("fal: %+v", st)
+	}
+	if st := Probe(context.Background(), &Config{}, "veo"); st.State != "ok" || !strings.Contains(st.Detail, "veo-3.1-lite-generate-preview, veo-3.1-fast-generate-preview") {
+		t.Fatalf("veo: %+v", st)
+	}
+	if st := Probe(context.Background(), &Config{}, "lyria"); st.State != "ok" || !strings.Contains(st.Detail, "lists no lyria model") {
+		t.Fatalf("lyria: %+v", st)
 	}
 }
