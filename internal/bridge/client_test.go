@@ -37,9 +37,31 @@ func TestUnreachableSaysWhetherCavalryRuns(t *testing.T) {
 	} {
 		fakeCavalry(t, tc.s)
 		err := unreachable(tc.host, "http://"+tc.host+":8723", refusedErr)
-		if !errors.Is(err, ErrUnavailable) || !strings.Contains(err.Error(), tc.want) {
+		if !errors.Is(err, ErrUnavailable) || !errors.Is(err, ErrRefused) || !strings.Contains(err.Error(), tc.want) {
 			t.Errorf("%s, %v: %v", tc.host, tc.s, err)
 		}
+	}
+}
+
+// Without a refused connection the bridge may only be busy, so a running Cavalry must not
+// produce "cav-bridge is not running". A stopped Cavalry is still reported.
+func TestUnansweredBridgeStaysNoncommittal(t *testing.T) {
+	resetErr := &net.OpError{Op: "read", Err: os.NewSyscallError("read", syscall.ECONNRESET)}
+
+	fakeCavalry(t, cavapp.Running)
+	err := unreachable("127.0.0.1", "http://127.0.0.1:8723", resetErr)
+	if errors.Is(err, ErrRefused) || strings.Contains(err.Error(), "cav-bridge is not") ||
+		!strings.Contains(err.Error(), "Open Cavalry, then Scripts menu > cav-bridge") {
+		t.Errorf("running, reset: %v", err)
+	}
+	if d := Diagnose("127.0.0.1", false); d.Status != cavapp.Unknown {
+		t.Errorf("running, not refused: %+v", d)
+	}
+
+	fakeCavalry(t, cavapp.NotRunning)
+	err = unreachable("127.0.0.1", "http://127.0.0.1:8723", resetErr)
+	if !strings.Contains(err.Error(), "Cavalry is not running (it may have crashed)") {
+		t.Errorf("not running, reset: %v", err)
 	}
 }
 

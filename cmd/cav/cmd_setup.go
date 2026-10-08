@@ -313,11 +313,7 @@ func bridgeCheck(a *app) check {
 			Fix: bridge.SandboxHint}
 	}
 	if err != nil {
-		d := cavapp.Explain(cavapp.Unknown, nil)
-		if bridge.IsLocal(c.Host) {
-			d = cavapp.Diagnose()
-		}
-		return bridgeDownCheck(c.Host, c.Port, d)
+		return bridgeDownCheck(c.Host, c.Port, bridge.Diagnose(c.Host, errors.Is(err, bridge.ErrRefused)))
 	}
 	want := bridgeVersionFromJS()
 	got, _ := payload["bridgeVersion"].(string)
