@@ -50,6 +50,12 @@
   beat grid, and list strong musical moments that no visual hit answers.
 - Add the `cav.sound` helper: drive an attribute from Cavalry's Sound behaviour.
 - `cav check` reports text layers whose font is not installed.
+- Add fal.ai as an image service: one key (`FAL_KEY`) for FLUX.2, Seedream, Ideogram, Grok
+  Imagine and any other fal model id you set with `cav config model fal`.
+- Add a `video` job and `cav board motion`: Veo 3.1 (Lite by default) turns chosen shots'
+  frames into moving clips, and `cav board animatic` plays them, cut to each shot.
+- Add Lyria (`lyria-3.5`) as a music service. Veo and Lyria use the Gemini key unless they
+  have their own.
 - Add `cav onion`: blend a few frames into one image that shows a motion path, the spacing
   of its easing and any overshoot, and report holds and jumps between neighbouring frames.
 

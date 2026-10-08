@@ -1,0 +1,5 @@
+{
+  "name": "models/veo-3.1-lite-generate-preview/operations/op123",
+  "done": true,
+  "error": {"code": 3, "message": "The prompt could not be submitted."}
+}

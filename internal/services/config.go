@@ -41,13 +41,14 @@ type Endpoint struct {
 }
 
 // Jobs, in the order `cav config` prints them.
-var Jobs = []string{"image", "image.alpha", "image.vector", "music", "sfx", "ref", "ears"}
+var Jobs = []string{"image", "image.alpha", "image.vector", "video", "music", "sfx", "ref", "ears"}
 
 // JobHelp says what each job is for.
 var JobHelp = map[string]string{
 	"image":        "storyboard frames and generated stills",
 	"image.alpha":  "assets with a transparent background",
 	"image.vector": "SVG assets",
+	"video":        "moving shots for the animatic, from a storyboard frame",
 	"music":        "music tracks",
 	"sfx":          "sound effect and music search",
 	"ref":          "reference image search for mood boards",
@@ -58,10 +59,11 @@ var JobHelp = map[string]string{
 // key first, then free and local ones. A service without a key is skipped, so with no keys
 // at all the free entries win.
 var DefaultOrder = map[string][]string{
-	"image":        {"gemini", "openai", "openrouter", "comfyui", "greybox"},
+	"image":        {"gemini", "openai", "openrouter", "fal", "comfyui", "greybox"},
 	"image.alpha":  {"openai", "recraft"},
 	"image.vector": {"recraft", "vtracer", "potrace"},
-	"music":        {"elevenlabs", "stability", "acestep"},
+	"video":        {"veo"},
+	"music":        {"elevenlabs", "stability", "lyria", "acestep"},
 	"sfx":          {"freesound", "openverse"},
 	"ref":          {"pexels", "unsplash", "openverse", "wikimedia"},
 	"ears":         {"gemini", "qwen-omni"},
@@ -109,13 +111,20 @@ func (c *Config) OrderFor(job string) []string {
 	return DefaultOrder[job]
 }
 
-// KeySource returns where the key of a service lives: the configured source, or the
-// service's default environment variable. Empty means the service needs no key.
+// KeySource returns where the key of a service lives: the configured source, the source of
+// the service it shares a key with (KeyFrom), or its default environment variable. Empty
+// means the service needs no key.
 func (c *Config) KeySource(service string) string {
 	if s, ok := c.Keys[service]; ok && s != "" {
 		return s
 	}
-	if d, ok := Catalog[service]; ok && len(d.EnvVars) > 0 {
+	d, ok := Catalog[service]
+	if ok && d.KeyFrom != "" {
+		if s := c.Keys[d.KeyFrom]; s != "" {
+			return s
+		}
+	}
+	if ok && len(d.EnvVars) > 0 {
 		for _, v := range d.EnvVars {
 			if os.Getenv(v) != "" {
 				return "env:" + v

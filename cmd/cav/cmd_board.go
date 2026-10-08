@@ -14,12 +14,13 @@ import (
 	"github.com/rock3r/cav/internal/imagegen"
 	"github.com/rock3r/cav/internal/library"
 	"github.com/rock3r/cav/internal/services"
+	"github.com/rock3r/cav/internal/videogen"
 )
 
 func init() {
 	register(command{
 		name:    "board",
-		args:    "init | frames | sheet | animatic | mood   (cav help board)",
+		args:    "init | frames | motion | sheet | animatic | mood   (cav help board)",
 		summary: "Plan a piece as a storyboard: frames per shot, a board image, an animatic on the music, and mood boards.",
 		run:     cmdBoard,
 	})
@@ -34,11 +35,16 @@ timed in beats (like the plan table cav guide asks for).
         image key (cav config) it generates frames, sending style.refs with every one so
         the look stays consistent. A shot whose "frame" points at an image you made (for
         example with cav frame) keeps it.
+  cav board motion [storyboard.json] --only s2,s4 | --all [--service veo] [--force]
+        turns a shot's frame into a moving clip (Veo 3.1 Lite by default, with the Gemini
+        key) into board/<id>.mp4 and sets the shot's "clip". Veo makes 4, 6 or 8 seconds:
+        the clip covers the shot, and a longer shot holds the clip's last frame. Each clip
+        costs money, so name the shots or pass --all.
   cav board sheet [storyboard.json] [-o renders/board.png]
         every frame in one labelled picture. Look at it.
   cav board animatic [storyboard.json] [--audio music.wav] [-o renders/animatic.mp4]
-        each frame held for its beats, cut on the shot boundaries, with the music. Review
-        it with cav review renders/animatic.mp4.
+        each frame held for its beats (or its clip played), cut on the shot boundaries,
+        with the music. Review it with cav review renders/animatic.mp4.
   cav board mood [moodboard/] [-o renders/moodboard.png]
         lays a folder of references out as one picture, each with its source and licence
         from the manifest (cav ref get fills the folder).
@@ -66,6 +72,8 @@ func cmdBoard(a *app, args []string) error {
 		return boardInit(a, args)
 	case "frames":
 		return boardFrames(a, args)
+	case "motion":
+		return boardMotion(a, args)
 	case "sheet":
 		return boardSheet(a, args)
 	case "animatic":
@@ -73,7 +81,7 @@ func cmdBoard(a *app, args []string) error {
 	case "mood":
 		return boardMood(a, args)
 	}
-	return usageErr("unknown board command %q (init, frames, sheet, animatic, mood)", sub)
+	return usageErr("unknown board command %q (init, frames, motion, sheet, animatic, mood)", sub)
 }
 
 func boardInit(a *app, args []string) error {
@@ -274,6 +282,143 @@ func boardFrames(a *app, args []string) error {
 			fmt.Printf("%-4s %s (%s)\n", d.Shot, d.Frame, state)
 		}
 		fmt.Println("Look at them together: cav board sheet")
+	})
+	return nil
+}
+
+// motionPrompt asks for movement that starts from the shot's frame.
+func motionPrompt(sb *board.Board, s board.Shot) string {
+	var b strings.Builder
+	b.WriteString("Animate this storyboard frame of a motion-graphics piece. Start exactly on the frame and keep its look, layout and colours. ")
+	fmt.Fprintf(&b, "This shot: %s. ", s.What)
+	if s.Camera != "" {
+		fmt.Fprintf(&b, "Camera: %s. ", s.Camera)
+	} else {
+		b.WriteString("Camera: locked off unless the shot says otherwise. ")
+	}
+	if s.Prompt != "" {
+		b.WriteString(s.Prompt + ". ")
+	}
+	if sb.Style.Prompt != "" {
+		fmt.Fprintf(&b, "Look: %s. ", sb.Style.Prompt)
+	}
+	b.WriteString("Smooth, deliberate motion. No new text, no captions, no logos.")
+	return b.String()
+}
+
+func boardMotion(a *app, args []string) error {
+	fs := flag.NewFlagSet("board motion", flag.ContinueOnError)
+	service := fs.String("service", "", "video service (default: the video order in cav config)")
+	only := fs.String("only", "", "comma-separated shot ids")
+	all := fs.Bool("all", false, "every shot")
+	force := fs.Bool("force", false, "remake clips that exist")
+	model := fs.String("model", "", "model (default: cav config model veo, or Veo 3.1 Lite)")
+	res := fs.String("resolution", "720p", "720p, or 1080p (8-second clips only)")
+	dir := fs.String("dir", "board", "folder for the clips, next to the storyboard")
+	pos, err := parseFlags(fs, args)
+	if err != nil {
+		return err
+	}
+	if *only == "" && !*all {
+		return usageErr("name the shots to animate with --only s2,s4, or pass --all (each clip costs money)")
+	}
+	path := boardPath(pos, "storyboard.json")
+	sb, err := board.Load(path)
+	if err != nil {
+		return fail(exitError, err.Error(), "cav board init writes a starting storyboard")
+	}
+	want := map[string]bool{}
+	for _, id := range splitList(*only) {
+		want[id] = true
+	}
+	for id := range want {
+		found := false
+		for _, s := range sb.Shots {
+			found = found || s.ID == id
+		}
+		if !found {
+			return usageErr("no shot is called %s", id)
+		}
+	}
+	c, err := services.Load()
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Hour)
+	defer cancel()
+	ch, err := services.Pick(ctx, c, "video", *service)
+	if err != nil {
+		return fail(exitError, err.Error(), "Veo uses the Gemini key: cav config set-key gemini <source>")
+	}
+	aspect := "16:9"
+	if sb.Height > sb.Width {
+		aspect = "9:16"
+	}
+	root := library.Root()
+	m, err := library.Load(root)
+	if err != nil {
+		return err
+	}
+	type made struct {
+		Shot    string `json:"shot"`
+		Clip    string `json:"clip"`
+		Seconds int    `json:"seconds,omitempty"`
+		Kept    bool   `json:"kept,omitempty"`
+	}
+	var done []made
+	for i := range sb.Shots {
+		s := &sb.Shots[i]
+		if !*all && !want[s.ID] {
+			continue
+		}
+		if s.Clip != "" && !*force {
+			if _, err := os.Stat(sb.Path(s.Clip)); err == nil {
+				done = append(done, made{Shot: s.ID, Clip: s.Clip, Kept: true})
+				continue
+			}
+		}
+		if s.Frame == "" {
+			return fail(exitError, s.ID+" has no frame yet", "cav board frames makes the frame the clip starts from")
+		}
+		length := sb.Time(s.Beats[1]) - sb.Time(s.Beats[0])
+		prompt := motionPrompt(sb, *s)
+		fmt.Fprintf(os.Stderr, "%s: animating with %s (%d s clip for a %.1f s shot)…\n", s.ID, ch.Service, videogen.Duration(length), length)
+		cl, err := videogen.Generate(ctx, c, ch, videogen.Request{Prompt: prompt, Image: sb.Path(s.Frame), Aspect: aspect,
+			Seconds: length, Resolution: *res, Model: *model})
+		if err != nil {
+			return fail(exitError, s.ID+": "+err.Error(), "the clips made so far are saved; run again to continue")
+		}
+		rel := filepath.ToSlash(filepath.Join(*dir, s.ID+".mp4"))
+		out := sb.Path(rel)
+		if err := os.MkdirAll(filepath.Dir(out), 0o755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(out, cl.Data, 0o644); err != nil {
+			return err
+		}
+		s.Clip = rel
+		sum, _ := fileSHA(out)
+		m.Put(root, library.Entry{Path: out, Kind: "video", Title: "storyboard " + s.ID + " (moving)", Source: cl.Provider,
+			Licence: "generated", CommercialOK: true, RetrievedAt: time.Now().UTC(), SHA256: sum,
+			Generated: &library.Generated{Provider: cl.Provider, Model: cl.Model, Prompt: prompt, Refs: []string{s.Frame}}})
+		// Save after every clip, so an interrupted run keeps what it made.
+		if err := sb.Save(path); err != nil {
+			return err
+		}
+		if err := m.Save(root); err != nil {
+			return err
+		}
+		done = append(done, made{Shot: s.ID, Clip: rel, Seconds: cl.Seconds})
+	}
+	a.emit(map[string]any{"storyboard": path, "service": ch.Service, "clips": done}, func() {
+		for _, d := range done {
+			state := fmt.Sprintf("%d s, made with %s", d.Seconds, ch.Service)
+			if d.Kept {
+				state = "kept"
+			}
+			fmt.Printf("%-4s %s (%s)\n", d.Shot, d.Clip, state)
+		}
+		fmt.Println("See them in place: cav board animatic")
 	})
 	return nil
 }

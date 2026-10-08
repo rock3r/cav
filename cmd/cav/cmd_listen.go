@@ -62,8 +62,9 @@ The numbers and the picture are measurements; the critique is a model's opinion.
 	longHelp["music"] = `
 cav music gen "warm synthwave, confident, builds to a drop" --board storyboard.json --takes 2
     makes takes in music/, recorded in .cav/manifest.json. With --board, each shot
-    becomes a section of the same length (ElevenLabs composition plan; Stable Audio gets
-    the structure in its prompt), so changes in the music fall on the shot cuts. Without
+    becomes a section of the same length (ElevenLabs composition plan; Lyria gets one
+    timed "[m:ss - m:ss]" line per shot; Stable Audio gets the structure in its prompt),
+    so changes in the music fall on the shot cuts. Without
     --board, --seconds sets the length.
 Then compare the takes: cav listen music/<take>.mp3 --board storyboard.json --brief "...".
 Needs a key for the "music" job (cav config). Check the service's terms for your use:
@@ -368,7 +369,7 @@ func cmdMusic(a *app, args []string) error {
 	defer cancel()
 	ch, err := services.Pick(ctx, c, "music", *service)
 	if err != nil {
-		return fail(exitError, err.Error(), "add an ElevenLabs or Stability key (cav config); or use cav sfx search to find music")
+		return fail(exitError, err.Error(), "add an ElevenLabs, Stability or Gemini (Lyria) key (cav config); or use cav sfx search to find music")
 	}
 	root := library.Root()
 	var made []string

@@ -3,6 +3,7 @@ package board
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -42,13 +43,19 @@ func (sb *Board) Sheet(ctx context.Context, out string, cols int) error {
 }
 
 // Animatic holds each frame for its shot's length, cuts on the shot boundaries and adds
-// the music when given. Captions name the shot, bar and time.
+// the music when given. Captions name the shot, bar and time. A shot with a clip plays the
+// clip instead, cut to the shot's length.
 func (sb *Board) Animatic(ctx context.Context, audio, out string, captions bool) (float64, error) {
 	tmp, err := os.MkdirTemp("", "cav-animatic")
 	if err != nil {
 		return 0, err
 	}
 	defer os.RemoveAll(tmp)
+	for _, s := range sb.Shots {
+		if s.Clip != "" {
+			return sb.animaticWithClips(ctx, tmp, audio, out, captions)
+		}
+	}
 	var list strings.Builder
 	var total float64
 	last := ""
@@ -107,6 +114,97 @@ func (sb *Board) Animatic(ctx context.Context, audio, out string, captions bool)
 		args = append(args, "-map", "0:v:0", "-map", "1:a:0", "-c:a", "aac", "-b:a", "192k")
 	}
 	args = append(args, "-movflags", "+faststart", out)
+	if b, err := exec.CommandContext(ctx, "ffmpeg", args...).CombinedOutput(); err != nil {
+		return 0, fmt.Errorf("ffmpeg: %v: %s", err, strings.TrimSpace(string(b)))
+	}
+	return total, nil
+}
+
+// animaticWithClips builds the animatic in one ffmpeg filter graph: each segment (black gap,
+// held frame or clip) is scaled to the board size, cut or held to its length, and the
+// segments are joined in order. Clip audio is dropped; the music, when given, is the only
+// sound.
+func (sb *Board) animaticWithClips(ctx context.Context, tmp, audio, out string, captions bool) (float64, error) {
+	var args, chains []string
+	n, total := 0, 0.0
+	fit := fmt.Sprintf("scale=%d:%d:force_original_aspect_ratio=decrease,pad=%d:%d:(ow-iw)/2:(oh-ih)/2:color=0x16181d,setsar=1,fps=%g", sb.Width, sb.Height, sb.Width, sb.Height, sb.FPS)
+	segment := func(d float64, input []string, overlay string) {
+		if d <= 0 {
+			return
+		}
+		// Count frames from the start of the piece, so rounding never drifts the cuts.
+		frames := int(math.Round((total+d)*sb.FPS)) - int(math.Round(total*sb.FPS))
+		args = append(args, input...)
+		v := n
+		n++
+		chain := fmt.Sprintf("[%d:v]%s", v, fit)
+		if overlay != "" {
+			// The caption layer is a looped still: repeat its last frame so it never ends the
+			// shot early.
+			args = append(args, "-loop", "1", "-t", fmt.Sprintf("%.6f", d+1), "-i", overlay)
+			chain += fmt.Sprintf("[b%d];[b%d][%d:v]overlay=0:0:eof_action=repeat", v, v, n)
+			n++
+		}
+		chain += fmt.Sprintf(",tpad=stop_mode=clone:stop_duration=%.6f,trim=end_frame=%d,setpts=PTS-STARTPTS", d+1, frames)
+		chains = append(chains, chain+fmt.Sprintf(",format=yuv420p[s%d]", len(chains)))
+		total += d
+	}
+	black := func(d float64) {
+		segment(d, []string{"-f", "lavfi", "-t", fmt.Sprintf("%.6f", d), "-i", fmt.Sprintf("color=c=black:s=%dx%d:r=%g", sb.Width, sb.Height, sb.FPS)}, "")
+	}
+	cursor := 0.0
+	for _, s := range sb.Shots {
+		start, end := sb.Time(s.Beats[0]), sb.Time(s.Beats[1])
+		black(start - cursor)
+		d := end - start
+		caption := ""
+		if captions {
+			caption = filepath.Join(tmp, s.ID+"-caption.png")
+			bar := int(s.Beats[0])/4 + 1
+			if err := CaptionLayer(caption, sb.Width, sb.Height, fmt.Sprintf("%s  bar %d  %.2fs  %s", s.ID, bar, start, s.What)); err != nil {
+				return 0, err
+			}
+		}
+		switch {
+		case s.Clip != "":
+			if _, err := os.Stat(sb.Path(s.Clip)); err != nil {
+				return 0, fmt.Errorf("%s: clip %s: %w", s.ID, s.Clip, err)
+			}
+			segment(d, []string{"-i", sb.Path(s.Clip)}, caption)
+		case s.Frame != "":
+			p := filepath.Join(tmp, s.ID+".png")
+			if err := Normalize(ctx, sb.Path(s.Frame), p, sb.Width, sb.Height); err != nil {
+				return 0, err
+			}
+			segment(d, []string{"-loop", "1", "-t", fmt.Sprintf("%.6f", d), "-i", p}, caption)
+		default:
+			return 0, fmt.Errorf("%s has no frame yet: run cav board frames", s.ID)
+		}
+		cursor = end
+	}
+	if sb.Seconds > cursor {
+		black(sb.Seconds - cursor)
+	}
+	var join strings.Builder
+	for i := range chains {
+		fmt.Fprintf(&join, "[s%d]", i)
+	}
+	// Restamp the joined frames at the board's rate: segments from different sources keep
+	// uneven timestamps through concat, and -t would then drop the last frames.
+	fmt.Fprintf(&join, "concat=n=%d:v=1:a=0,setpts=N/(%g*TB)[v]", len(chains), sb.FPS)
+	graph := strings.Join(append(chains, join.String()), ";")
+	if audio != "" {
+		args = append(args, "-i", audio)
+	}
+	args = append(args, "-filter_complex", graph, "-map", "[v]")
+	if audio != "" {
+		args = append(args, "-map", fmt.Sprintf("%d:a:0", n), "-c:a", "aac", "-b:a", "192k")
+	}
+	args = append(args, "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-t", fmt.Sprintf("%.6f", total), "-movflags", "+faststart", out)
+	if err := os.MkdirAll(filepath.Dir(out), 0o755); err != nil {
+		return 0, err
+	}
+	args = append([]string{"-v", "error", "-y"}, args...)
 	if b, err := exec.CommandContext(ctx, "ffmpeg", args...).CombinedOutput(); err != nil {
 		return 0, fmt.Errorf("ffmpeg: %v: %s", err, strings.TrimSpace(string(b)))
 	}
