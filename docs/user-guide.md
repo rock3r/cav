@@ -291,9 +291,25 @@ command = "cav"
 args = ["mcp"]
 ```
 
+In the chat of the Claude desktop app, add the server to
+`~/Library/Application Support/Claude/claude_desktop_config.json`. Quit the app first:
+it writes this file when it quits, and drops changes made while it runs. Give the full
+path to `cav`, because the app may not search `~/.local/bin`:
+
+```json
+{
+  "mcpServers": {
+    "cav": { "command": "/Users/you/.local/bin/cav", "args": ["mcp"] }
+  }
+}
+```
+
+Keep the other keys in the file as they are. In this chat the server does not start in
+your project folder, so give the agent the full path of the video.
+
 Then ask the agent to show the review of a render. It calls the `show_review` tool, and a
-chat that supports MCP Apps draws the page. You can play the render, step frames, draw, add notes and press
-"Send to agent", as in the browser. The notes go to the same `<video>.review.json`, so
+chat that supports MCP Apps draws the page. You can play the render, step frames, draw,
+add notes and press "Send to agent", as in the browser. The notes go to the same `<video>.review.json`, so
 `cav review wait`, `export`, `resolve` and the review hook work the same. When the chat
 supports it, "Send to agent" also posts a message that tells the agent to read the notes.
 
@@ -304,8 +320,8 @@ browser. Use the chat for a quick look and a few notes, and `cav review` for
 frame-by-frame review. The A/B compare works only with earlier renders that were also
 shown in the chat.
 
-Not every chat draws MCP Apps. In October 2026, the Code tab of the Claude desktop app ran
-the tool but did not draw the page. Chats that do not draw it still give the agent the list
+Not every chat draws MCP Apps. In October 2026, the chat of the Claude desktop app drew the
+page, and its Code tab ran the tool but did not draw the page. Chats that do not draw it still give the agent the list
 of open notes, both as text and in the structured result. The server resolves a relative
 video path against the folder the agent started it in.
 
