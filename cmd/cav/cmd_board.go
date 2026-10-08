@@ -496,7 +496,13 @@ func boardAnimatic(a *app, args []string) error {
 // position stay as they are. A shot whose name another kind of layer uses is skipped:
 // that is the built shot replacing its placeholder.
 const boardPlaceJS = `
-if (api.getSceneFilePath() !== scene) throw new Error('the open scene changed while cav board place was reading the frames; run it again')
+// The frames were timed and sized from "measured". Refuse if the scene or the composition
+// changed since: an untitled scene has no path, so the settings themselves are compared.
+var cid = api.getActiveComp(), res = api.get(cid, 'resolution'),
+	now = { scene: api.getSceneFilePath(), fps: api.get(cid, 'fps'), width: res.x, height: res.y, start: api.get(cid, 'startFrame') }
+for (var k in now) {
+	if (now[k] !== measured[k]) throw new Error('the scene or composition changed while cav board place was reading the frames (' + k + '): run it again')
+}
 var assets = {}
 api.getAssetWindowLayers(false).forEach(function (a) {
 	if (api.isFileAsset(a)) assets[api.getAssetFilePath(a)] = a
@@ -567,20 +573,23 @@ func boardPlace(a *app, args []string) error {
 		return fail(exitError, err.Error(), "cav board init writes a starting storyboard")
 	}
 	a.compSelector = *comp
-	var c struct {
-		ID     string  `json:"id"`
+	type compInfo struct {
 		Scene  string  `json:"scene"`
 		FPS    float64 `json:"fps"`
 		Width  int     `json:"width"`
 		Height int     `json:"height"`
 		Start  int     `json:"start"`
 	}
+	var c struct {
+		ID string `json:"id"`
+		compInfo
+	}
 	if err := a.jsCall(`var id = api.getActiveComp(), r = api.get(id, 'resolution');
 return { id: id, scene: api.getSceneFilePath(), fps: api.get(id, 'fps'), width: r.x, height: r.y, start: api.get(id, 'startFrame') }`, *timeout, &c); err != nil {
 		return err
 	}
 	// Place into the composition just measured, even if the user switches to another one;
-	// the placement job also checks that the same scene is still open.
+	// the placement job also checks that the scene and the composition settings are unchanged.
 	a.compSelector = c.ID
 	want := map[string]bool{}
 	for _, id := range splitList(*only) {
@@ -596,7 +605,11 @@ return { id: id, scene: api.getSceneFilePath(), fps: api.get(id, 'fps'), width: 
 	if err != nil {
 		return err
 	}
-	o, err := a.execJS("var shots = "+string(shots)+", scene = "+jsString(c.Scene)+";\n"+boardPlaceJS, execOpts{helpers: true, timeout: *timeout, source: "cav board place"})
+	measured, err := json.Marshal(c.compInfo)
+	if err != nil {
+		return err
+	}
+	o, err := a.execJS("var shots = "+string(shots)+", measured = "+string(measured)+";\n"+boardPlaceJS, execOpts{helpers: true, timeout: *timeout, source: "cav board place"})
 	if err != nil {
 		return err
 	}
