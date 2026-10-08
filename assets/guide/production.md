@@ -124,3 +124,8 @@ cav review export renders/final.mp4         # every note
 - `wait` exits with code 3 when its timeout passes with nothing sent. Run it again.
 - `cav review` needs to listen on 127.0.0.1. A sandbox that blocks local ports must run
   it outside.
+- The cavalry plugin for Claude Code and Codex adds a hook (`cav review hook`): when the
+  reviewer presses Send to agent and no `cav review wait` picks the notes up, the next prompt
+  or the end of your turn tells you once. Then run `cav review wait`.
+- In Claude Code, the optional cav-review plugin also shows the open notes above the prompt,
+  links to the page, and can start a turn when notes arrive.

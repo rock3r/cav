@@ -26,6 +26,15 @@ type Doc struct {
 	Source   Source    `json:"source"`
 	Comments []Comment `json:"comments"`
 	Sends    []Send    `json:"sends,omitempty"`
+	// Server is the running review page, while `cav review` serves it; tools such as the
+	// Claude Code plugin read it to link to the page.
+	Server *ServerInfo `json:"server,omitempty"`
+}
+
+type ServerInfo struct {
+	URL     string    `json:"url"`
+	PID     int       `json:"pid"`
+	Started time.Time `json:"started"`
 }
 
 type Source struct {

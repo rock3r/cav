@@ -51,6 +51,9 @@ cav doctor
 /plugin install cavalry@cav
 ```
 
+For `cav review`, Claude Code can also show the open review notes above the prompt and start
+a turn when the reviewer sends notes: `/plugin install cav-review@cav`.
+
 In Codex:
 
 ```bash

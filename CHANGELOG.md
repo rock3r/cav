@@ -20,6 +20,13 @@
 - Add `cav listen`: loudness, structure, storyboard cuts against downbeats, a picture, and an
   audio model's critique of a track. Add `cav music gen` (ElevenLabs Music, Stable Audio).
 - Add `cav guide production`.
+- The cavalry plugin adds a command hook for Claude Code and Codex (`cav review hook`): when
+  the reviewer sends notes that no `cav review wait` picked up, the agent hears about it once,
+  on the next prompt or at the end of its turn.
+- Add the cav-review plugin for Claude Code: the open review notes above the prompt, a link
+  to the page, a toast when notes arrive, and an optional turn that handles them. It reads
+  the review through `cav review export` when Claude Code reports a change to the review
+  files; it does not poll.
 
 - `cav beats` with an audio file also reports sections, rises, falls, silences, the strongest
   accents with their frequency band, and the energy of each bar.

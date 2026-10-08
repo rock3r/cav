@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/rock3r/cav/assets"
@@ -48,9 +49,13 @@ For the agent:
         blocks until the reviewer presses "Send to agent", then prints those notes (with
         frame, range, text, shapes and the snapshot path) and marks the send received.
         Exit 3 when the timeout passes with nothing sent: run it again.
-  cav review export [video]          every note, as JSON with --json
+  cav review export [video] [--dir renders]   every note, as JSON with --json
   cav review resolve <id> [--note "what changed"] [video]
   cav review reopen <id> [video]
+  cav review hook
+        a command hook for Claude Code and Codex (SessionStart, UserPromptSubmit, Stop):
+        reads the hook event on stdin and, when notes were sent and nobody picked them up,
+        tells the agent once. The cavalry plugin installs it.
 Fix a note, re-render to the same file, then resolve it with a short note. The page
 shows resolved notes, and marks notes made on an older render.`
 }
@@ -59,7 +64,7 @@ func cmdReview(a *app, args []string) error {
 	sub := ""
 	if len(args) > 0 {
 		switch args[0] {
-		case "wait", "export", "resolve", "reopen", "serve":
+		case "wait", "export", "resolve", "reopen", "serve", "hook":
 			sub, args = args[0], args[1:]
 		}
 	}
@@ -68,6 +73,8 @@ func cmdReview(a *app, args []string) error {
 		return reviewWait(a, args)
 	case "serve":
 		return reviewServe(a, args)
+	case "hook":
+		os.Exit(reviewHook(os.Stdin, os.Stdout, os.Stderr))
 	case "export":
 		return reviewExport(a, args)
 	case "resolve", "reopen":
@@ -135,7 +142,7 @@ func reviewServe(a *app, args []string) error {
 	if err != nil {
 		return err
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	prepare := func(ctx context.Context) (review.Source, string, error) {
 		src, err := review.Probe(ctx, video)
@@ -169,6 +176,16 @@ func reviewServe(a *app, args []string) error {
 		return err
 	}
 	url := "http://" + ln.Addr().String() + "/"
+	store.Update(func(d *review.Doc) error {
+		d.Server = &review.ServerInfo{URL: url, PID: os.Getpid(), Started: time.Now().UTC()}
+		return nil
+	})
+	defer store.Update(func(d *review.Doc) error {
+		if d.Server != nil && d.Server.PID == os.Getpid() {
+			d.Server = nil
+		}
+		return nil
+	})
 	hs := &http.Server{Handler: srv.Handler(), ReadHeaderTimeout: 10 * time.Second}
 	go func() {
 		<-ctx.Done()
@@ -338,9 +355,14 @@ func reviewWait(a *app, args []string) error {
 var errNoSend = errors.New("nothing sent")
 
 func reviewExport(a *app, args []string) error {
-	pos, err := parseFlags(flag.NewFlagSet("review export", flag.ContinueOnError), args)
+	fs := flag.NewFlagSet("review export", flag.ContinueOnError)
+	dir := fs.String("dir", "", "folder to look in when no video is given (default: renders)")
+	pos, err := parseFlags(fs, args)
 	if err != nil {
 		return err
+	}
+	if *dir != "" {
+		os.Setenv("CAV_OUT_DIR", *dir)
 	}
 	video, err := reviewVideo(pos)
 	if err != nil {
@@ -352,7 +374,7 @@ func reviewExport(a *app, args []string) error {
 		return err
 	}
 	notes := notesFor(d, nil)
-	a.emit(map[string]any{"video": video, "reviewFile": store.DocPath, "source": d.Source, "notes": notes, "sends": d.Sends}, func() {
+	a.emit(map[string]any{"video": video, "reviewFile": store.DocPath, "source": d.Source, "notes": notes, "sends": d.Sends, "server": d.Server}, func() {
 		if len(notes) == 0 {
 			fmt.Printf("no notes on %s yet (%s)\n", video, store.DocPath)
 			return

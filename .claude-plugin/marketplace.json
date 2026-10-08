@@ -11,7 +11,22 @@
       "source": "./plugins/cavalry",
       "description": "Build professional, beat-synced motion graphics in Cavalry from the shell with the cav CLI.",
       "category": "Design",
-      "tags": ["cavalry", "motion-design", "animation"]
+      "tags": [
+        "cavalry",
+        "motion-design",
+        "animation"
+      ]
+    },
+    {
+      "name": "cav-review",
+      "source": "./plugins/cav-review",
+      "description": "Claude Code only: a band above the prompt with the open cav review notes, a toast when the reviewer sends notes, and an optional wake-up that starts a turn to handle them.",
+      "category": "Design",
+      "tags": [
+        "cavalry",
+        "review",
+        "motion-design"
+      ]
     }
   ]
 }
