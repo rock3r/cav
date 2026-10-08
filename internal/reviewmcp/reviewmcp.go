@@ -368,16 +368,18 @@ type noteFull struct {
 // can hold full-size snapshots.
 const (
 	maxSnapshots     = 8
-	maxSnapshotBytes = 12 << 20
+	maxSnapshotBytes = 8 << 20
 )
 
-// The page accepts long notes and replies, so their text is capped too: with at most
-// maxNotes notes, the text stays well under the host's message limit.
+// The page accepts long notes and replies, so their text is capped too. The whole answer
+// stays under MaxInline (24 MB): the text appears twice (content and structuredContent), at
+// most maxNotes × (maxNoteText + maxReplies × maxReplyText) = 50 × 14 KB = 700 KB each, and
+// the snapshots grow by a third in base64, so 8 MB of them take under 11 MB.
 const (
-	maxNotes     = 200
-	maxNoteText  = 8000
-	maxReplies   = 20
-	maxReplyText = 2000
+	maxNotes     = 50
+	maxNoteText  = 4000
+	maxReplies   = 10
+	maxReplyText = 1000
 )
 
 // clip shortens s to at most n bytes, on a rune boundary, and marks the cut.
