@@ -101,7 +101,9 @@ cav board place                             # the frames as placeholder layers i
   `cav board frames` keeps frames that exist (`--force` remakes them).
 - `cav board place` starts the build. It adds each frame to the active composition as an
   image layer named by its shot id (`s1`, `s2`, ...), shown from its start beat to its end
-  beat at the composition's frame rate, and scaled to fit. Find a placeholder with
+  beat at the composition's frame rate, and scaled to fit. Time 0 of the music is the
+  composition's first frame, so beat 0 sits at the storyboard's `offset` (or the grid's
+  first beat), as in the music. Find a placeholder with
   `cav.find('s3')`. When you build the shot, delete its placeholder and give the shot's
   group the same name. Run `cav board place` again after you change beats or frames: it
   updates the image layers in place (their parent, transforms and masks stay; delete a

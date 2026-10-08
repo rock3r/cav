@@ -50,7 +50,8 @@ timed in beats (like the plan table cav guide asks for).
   cav board place [storyboard.json] [--only s1,s3] [--comp NAME]
         adds each shot's frame to the open Cavalry composition as an image layer named
         by its shot id, visible from its start beat to its end beat and scaled to fit.
-        Beat 0 lands on the composition's start frame.
+        Time 0 of the music lands on the composition's start frame, so a storyboard
+        "offset" (or a beat grid) moves beat 0 later, as it does in the music.
         Run it again to update the placeholders: it points image layers with those names at
         the current frames and timing, keeping their parent and transforms (delete one to
         have it fitted again), and leaves alone a shot whose name a built layer (a group, a
@@ -547,7 +548,7 @@ func boardPlace(a *app, args []string) error {
 		} `json:"placed"`
 		Skipped []struct {
 			ID     string `json:"id"`
-			Reason string `json:"reason"` // "built" or "before"
+			Reason string `json:"reason"` // "built", "before" or "short"
 			Layer  string `json:"layer,omitempty"`
 			Type   string `json:"type,omitempty"`
 		} `json:"skipped"`
@@ -588,12 +589,14 @@ func boardPlace(a *app, args []string) error {
 			fmt.Printf("%-4s %-16s frames %d-%d  %s  (%s)\n", x.Shot, x.Layer, x.In, x.Out, scale, state)
 		}
 		for _, s := range r.Skipped {
-			if s.Reason == "before" && s.Layer != "" {
-				fmt.Printf("%-4s skipped: it ends before beat 0 (hid %s)\n", s.ID, s.Layer)
-			} else if s.Reason == "before" {
-				fmt.Printf("%-4s skipped: it ends before beat 0\n", s.ID)
-			} else {
+			why := map[string]string{"before": "it ends before the composition starts", "short": "it is shorter than one frame"}[s.Reason]
+			switch {
+			case why == "":
 				fmt.Printf("%-4s kept %s (a %s already uses the name)\n", s.ID, s.Layer, s.Type)
+			case s.Layer != "":
+				fmt.Printf("%-4s skipped: %s (hid %s)\n", s.ID, why, s.Layer)
+			default:
+				fmt.Printf("%-4s skipped: %s\n", s.ID, why)
 			}
 		}
 		for _, n := range notes {

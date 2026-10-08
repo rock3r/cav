@@ -1,20 +1,22 @@
 // cav board place: add storyboard frames to the active composition as image layers.
 // Input: shots = [{id, path, start, end, width, height}], with start and end in seconds
-// from beat 0 and width and height the image's pixel size (0 when unknown).
+// on the music's timeline (beat 0 is at the storyboard's offset, or at the grid's first
+// beat) and width and height the image's pixel size (0 when unknown).
 // Everything runs in this one job, so the frames are timed and sized from the
 // composition they are placed in.
 
-// shotFrames is the first and last visible frame of a shot. Beat 0 lands on the
+// shotFrames is the first and last visible frame of a shot. Time 0 lands on the
 // composition's start frame. The last frame is one before the frame where the shot ends,
 // so shots that touch hand off with no overlap or gap. api.setOutFrame takes it inclusive.
-// A shot that ends before beat 0 (a negative offset) returns null; one that starts before
-// it is cut to start at beat 0.
+// A shot that starts before time 0 is cut to start there. A shot with no frame of its own
+// returns the reason it is skipped: 'before' when it ends before time 0, 'short' when it
+// is shorter than one frame once rounded.
 function shotFrames(start, end, fps, first) {
-	var a = Math.round(start * fps),
+	var a = Math.max(0, Math.round(start * fps)),
 		b = Math.round(end * fps) - 1
-	if (b < 0) return null
-	a = Math.max(0, a)
-	return [first + a, first + Math.max(a, b)]
+	if (b < 0) return 'before'
+	if (b < a) return 'short'
+	return [first + a, first + b]
 }
 
 // fitScale fits a w x h image inside the composition, letterboxed like the animatic.
@@ -69,10 +71,10 @@ shots.forEach(function (s) {
 		if (api.getLayerType(l) === 'footageShape') old = old || l
 		else built = built || l
 	})
-	// A shot that now ends before beat 0 is not shown: its old placeholder is hidden.
-	if (!f) {
+	// A shot with no frame of its own is not shown: its old placeholder is hidden.
+	if (typeof f === 'string') {
 		if (old) api.set(old, { hidden: true })
-		skipped.push({ id: s.id, reason: 'before', layer: old || undefined })
+		skipped.push({ id: s.id, reason: f, layer: old || undefined })
 		return
 	}
 	last = Math.max(last === null ? f[1] : last, f[1])
@@ -86,7 +88,7 @@ shots.forEach(function (s) {
 	var sh = old && shaderOf(old)
 	if (sh) {
 		api.connect(asset(s.path), 'id', sh, 'image', true)
-		// Shown again, in case an earlier run hid it while the shot was before beat 0.
+		// Shown again, in case an earlier run hid it while the shot had no frame.
 		api.set(old, { hidden: false })
 		api.setInFrame(old, f[0])
 		api.setOutFrame(old, f[1])

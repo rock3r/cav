@@ -42,9 +42,9 @@ test('shots hand off without overlap and fit the composition', () => {
 	assert.deepEqual(r.comp, comp)
 })
 
-test('beat 0 lands on the composition start frame, and odd rates round to the nearest frame', () => {
-	const r = run(fakeCavalry({ width: 1080, height: 1920, fps: 25, start: 100, end: 400 }), [shot('s1', 2.25, 4.25), shot('s2', 4.25, 4.26)])
-	assert.deepEqual(r.placed.map(p => [p.in, p.out]), [[156, 205], [206, 206]])
+test('time 0 lands on the composition start frame, and odd rates round to the nearest frame', () => {
+	const r = run(fakeCavalry({ width: 1080, height: 1920, fps: 25, start: 100, end: 400 }), [shot('s1', 2.25, 4.25), shot('s2', 4.25, 4.33)])
+	assert.deepEqual(r.placed.map(p => [p.in, p.out]), [[156, 205], [206, 207]])
 	// A landscape frame in a portrait composition fits its width.
 	assert.equal(r.placed[0].scale, 1080 / 1280)
 })
@@ -101,4 +101,11 @@ test('a placeholder whose shot moved before beat 0 is hidden', () => {
 	const r = run(cv, [shot('s1', -3, -1)])
 	assert.deepEqual(r.skipped, [{ id: 's1', reason: 'before', layer: 'footageShape#9' }])
 	assert.deepEqual(cv.calls.set, [['footageShape#9', { hidden: true }]])
+})
+
+test('a shot shorter than one frame is skipped, not stretched over the next', () => {
+	// At 24 fps, 1.00-1.01 s rounds to frame 24 at both ends.
+	const r = run(fakeCavalry(Object.assign({}, comp, { fps: 24 })), [shot('s1', 0, 1), shot('s2', 1, 1.01), shot('s3', 1.01, 2)])
+	assert.deepEqual(r.skipped, [{ id: 's2', reason: 'short' }])
+	assert.deepEqual(r.placed.map(p => [p.id, p.in, p.out]), [['s1', 0, 23], ['s3', 24, 47]])
 })
