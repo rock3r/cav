@@ -152,7 +152,8 @@ choose. Then sync with `cav beats` and `cav guide music`, and render with
 on its own track. The user opens it in REAPER to pick a take, trim, fade and fix the sync by
 ear. The video track is silent, so only the takes are heard. `cav score render
 score/project.rpp` renders it to a WAV for `cav render --audio`. REAPER opens a window while
-it renders, so the render needs a logged-in desktop session.
+it renders. It also renders from a background launchd job while a user is logged in;
+rendering on a Mac where nobody is logged in is untested.
 
 ## 6. Review
 
