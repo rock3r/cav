@@ -129,9 +129,20 @@ func (s *Server) Handler() http.Handler {
 		}
 		w.Write(page)
 	})
+	// The current render. With ?v=<version>, that render: the page asks for the version that
+	// /api/state named, and a later re-render must not answer in its place, or the page would
+	// show one render while it takes notes on another.
 	mux.HandleFunc("GET /video", func(w http.ResponseWriter, r *http.Request) {
+		src, proxy := s.current()
+		if v := r.URL.Query().Get("v"); v != "" && v != shortSHA(src.SHA256) {
+			p, ok := s.shortVersionProxy(v)
+			if !ok {
+				http.NotFound(w, r)
+				return
+			}
+			proxy = p
+		}
 		w.Header().Set("Cache-Control", "no-store")
-		_, proxy := s.current()
 		http.ServeFile(w, r, proxy)
 	})
 	// An earlier version's proxy, for comparing; only versions this review recorded.
@@ -482,6 +493,20 @@ func (s *Server) versionProxy(sha string) (string, bool) {
 			if _, err := os.Stat(p); err == nil {
 				return p, true
 			}
+		}
+	}
+	return "", false
+}
+
+// shortVersionProxy finds the proxy of a recorded version by its 12-digit name.
+func (s *Server) shortVersionProxy(v string) (string, bool) {
+	d, err := s.Store.Load()
+	if err != nil {
+		return "", false
+	}
+	for _, rec := range d.Versions {
+		if shortSHA(rec.SHA256) == v {
+			return s.versionProxy(rec.SHA256)
 		}
 	}
 	return "", false

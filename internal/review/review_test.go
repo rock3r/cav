@@ -183,6 +183,16 @@ func TestVersionsAndPeaks(t *testing.T) {
 	if w := do(t, h, "GET", "/video/"+old, nil, nil); w.Code != 200 || w.Body.String() != "old proxy" {
 		t.Fatalf("recorded version: %d %q", w.Code, w.Body.String())
 	}
+	// The page asks for the version /api/state named; a newer current render must not answer.
+	if w := do(t, h, "GET", "/video?v="+old[:12], nil, nil); w.Code != 200 || w.Body.String() != "old proxy" {
+		t.Fatalf("/video?v=<recorded version>: %d %q", w.Code, w.Body.String())
+	}
+	if w := do(t, h, "GET", "/video?v=abcdef012345", nil, nil); w.Code != 200 || w.Body.String() != "not really a video" {
+		t.Fatalf("/video?v=<current version>: %d %q", w.Code, w.Body.String())
+	}
+	if w := do(t, h, "GET", "/video?v=bbbbbbbbbbbb", nil, nil); w.Code != 404 {
+		t.Fatalf("/video?v=<unknown version>: %d, want 404", w.Code)
+	}
 	for _, bad := range []string{strings.Repeat("b", 64), "..%2F..%2Fetc", "abc"} {
 		if w := do(t, h, "GET", "/video/"+bad, nil, nil); w.Code != 404 {
 			t.Fatalf("%s: got %d, want 404", bad, w.Code)

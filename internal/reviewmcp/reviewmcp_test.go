@@ -180,8 +180,10 @@ func TestReviewRequestRunsThePageAPI(t *testing.T) {
 		t.Errorf("the note should be in the review file: %+v", d.Comments)
 	}
 
+	var shown struct{ Version string }
+	json.Unmarshal([]byte(state.Body), &shown)
 	var vid requestOut
-	call(t, cs, "review_request", map[string]any{"video": video, "method": "GET", "path": "/video?v=abc"}, &vid)
+	call(t, cs, "review_request", map[string]any{"video": video, "method": "GET", "path": "/video?v=" + shown.Version}, &vid)
 	if vid.Status != 200 || !strings.HasPrefix(vid.DataURL, "data:video/mp4;base64,") || vid.Body != "" {
 		t.Errorf("GET /video should come back as a data URL, got status %d, %.60q", vid.Status, vid.DataURL)
 	}
