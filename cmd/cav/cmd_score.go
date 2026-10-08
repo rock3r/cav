@@ -31,6 +31,8 @@ cav score storyboard.json --video renders/final.mp4 --audio music/take1.mp3 --au
 cav score render score/project.rpp
     renders it from the command line (reaper -renderproject) to score/<name>-music.wav,
     then: cav render --audio score/<name>-music.wav. The REAPER window opens while it runs.
+    On macOS and Windows, when REAPER has no audio device yet, it first sets REAPER's
+    default, so REAPER does not stop to ask.
 Needs REAPER (https://www.reaper.fm). The project layout follows REAPER 7.`
 }
 
@@ -134,6 +136,63 @@ func reaperBinary() string {
 	return ""
 }
 
+// pickReaperAudioDevice selects REAPER's default audio device in its settings on macOS
+// and Windows when none is set yet, as answering REAPER's first-run question would. Without it,
+// -renderproject stops on that question and waits for a click. It returns the file it
+// changed, or "" when it changed nothing.
+func pickReaperAudioDevice(bin string) (string, error) {
+	ini, err := reaperINI(bin, runtime.GOOS)
+	if err != nil || ini == "" {
+		return "", err
+	}
+	b, err := os.ReadFile(ini)
+	if err != nil && !os.IsNotExist(err) {
+		return "", err
+	}
+	text, changed := score.WithAudioDevice(string(b), runtime.GOOS)
+	if !changed {
+		return "", nil
+	}
+	if err := os.MkdirAll(filepath.Dir(ini), 0o755); err != nil {
+		return "", err
+	}
+	return ini, os.WriteFile(ini, []byte(text), 0o644)
+}
+
+// reaperINI is the reaper.ini that the REAPER binary bin reads. A portable install keeps
+// its reaper.ini beside the program: next to reaper.exe on Windows, next to REAPER.app on
+// macOS. Otherwise REAPER uses the per-user file. It returns "" on other systems, and an
+// error when the per-user folder cannot be found.
+func reaperINI(bin, goos string) (string, error) {
+	if p, err := filepath.EvalSymlinks(bin); err == nil {
+		bin = p
+	}
+	dir := filepath.Dir(bin)
+	if goos == "darwin" {
+		// .../REAPER.app/Contents/MacOS/REAPER: the folder that holds REAPER.app.
+		dir = filepath.Dir(filepath.Dir(filepath.Dir(dir)))
+	}
+	portable := filepath.Join(dir, "reaper.ini")
+	if _, err := os.Stat(portable); err == nil && (goos == "darwin" || goos == "windows") {
+		return portable, nil
+	}
+	switch goos {
+	case "darwin":
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		return filepath.Join(home, "Library", "Application Support", "REAPER", "reaper.ini"), nil
+	case "windows":
+		dir, err := os.UserConfigDir() // %AppData%
+		if err != nil {
+			return "", err
+		}
+		return filepath.Join(dir, "REAPER", "reaper.ini"), nil
+	}
+	return "", nil
+}
+
 func scoreRender(a *app, args []string) error {
 	pos, err := parseFlags(flag.NewFlagSet("score render", flag.ContinueOnError), args)
 	if err != nil {
@@ -147,6 +206,13 @@ func scoreRender(a *app, args []string) error {
 		return fail(exitError, "REAPER is not installed", "install it from https://www.reaper.fm, or render from REAPER's File > Render")
 	}
 	rpp, _ := filepath.Abs(pos[0])
+	picked, err := pickReaperAudioDevice(bin)
+	if err != nil {
+		return fail(exitError, "cannot set REAPER's audio device: "+err.Error(), "open REAPER once and pick a device in Preferences > Audio > Device")
+	}
+	if picked != "" && !a.json {
+		fmt.Fprintf(os.Stderr, "REAPER had no audio device yet; set REAPER's default in %s so the render does not stop to ask\n", picked)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 	start := time.Now()

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"math"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rock3r/cav/assets"
 	"github.com/rock3r/cav/internal/board"
 	"github.com/rock3r/cav/internal/imagegen"
 	"github.com/rock3r/cav/internal/library"
@@ -20,7 +22,7 @@ import (
 func init() {
 	register(command{
 		name:    "board",
-		args:    "init | frames | motion | sheet | animatic | mood   (cav help board)",
+		args:    "init | frames | motion | sheet | animatic | place | mood   (cav help board)",
 		summary: "Plan a piece as a storyboard: frames per shot, a board image, an animatic on the music, and mood boards.",
 		run:     cmdBoard,
 	})
@@ -45,6 +47,15 @@ timed in beats (like the plan table cav guide asks for).
   cav board animatic [storyboard.json] [--audio music.wav] [-o renders/animatic.mp4]
         each frame held for its beats (or its clip played), cut on the shot boundaries,
         with the music. Review it with cav review renders/animatic.mp4.
+  cav board place [storyboard.json] [--only s1,s3] [--comp NAME]
+        adds each shot's frame to the open Cavalry composition as an image layer named
+        by its shot id, visible from its start beat to its end beat and scaled to fit.
+        Time 0 of the music lands on the composition's start frame, so a storyboard
+        "offset" (or a beat grid) moves beat 0 later, as it does in the music.
+        Run it again to update the placeholders: it points image layers with those names at
+        the current frames and timing, keeping their parent and transforms (delete one to
+        have it fitted again), and leaves alone a shot whose name a built layer (a group, a
+        shape) already uses.
   cav board mood [moodboard/] [-o renders/moodboard.png]
         lays a folder of references out as one picture, each with its source and licence
         from the manifest (cav ref get fills the folder).
@@ -78,10 +89,12 @@ func cmdBoard(a *app, args []string) error {
 		return boardSheet(a, args)
 	case "animatic":
 		return boardAnimatic(a, args)
+	case "place":
+		return boardPlace(a, args)
 	case "mood":
 		return boardMood(a, args)
 	}
-	return usageErr("unknown board command %q (init, frames, motion, sheet, animatic, mood)", sub)
+	return usageErr("unknown board command %q (init, frames, motion, sheet, animatic, place, mood)", sub)
 }
 
 func boardInit(a *app, args []string) error {
@@ -474,6 +487,121 @@ func boardAnimatic(a *app, args []string) error {
 	}
 	a.emit(map[string]any{"file": *out, "seconds": secs, "shots": len(sb.Shots), "audio": *audio}, func() {
 		fmt.Printf("%s: %.2f s, %d shots\nReview it: cav review %s\n", *out, secs, len(sb.Shots), *out)
+	})
+	return nil
+}
+
+func boardPlace(a *app, args []string) error {
+	fs := flag.NewFlagSet("board place", flag.ContinueOnError)
+	only := fs.String("only", "", "comma-separated shot ids")
+	comp := fs.String("comp", "", "composition ID or unique name (default: the active one)")
+	timeout := fs.Duration("timeout", 2*time.Minute, "maximum wait for Cavalry")
+	pos, err := parseFlags(fs, args)
+	if err != nil {
+		return err
+	}
+	path := boardPath(pos, "storyboard.json")
+	sb, err := board.Load(path)
+	if err != nil {
+		return fail(exitError, err.Error(), "cav board init writes a starting storyboard")
+	}
+	want := map[string]bool{}
+	for _, id := range splitList(*only) {
+		want[id] = true
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), *timeout)
+	defer cancel()
+	ps, err := sb.Placements(ctx, want)
+	if err != nil {
+		return fail(exitError, err.Error(), "")
+	}
+	shots, err := json.Marshal(ps)
+	if err != nil {
+		return err
+	}
+	// One job reads the composition and places the frames, so nothing can change in between.
+	a.compSelector = *comp
+	o, err := a.execJS("var shots = "+string(shots)+";\n"+assets.BoardPlace, execOpts{helpers: true, timeout: *timeout, source: "cav board place"})
+	if err != nil {
+		return err
+	}
+	if !o.result.OK {
+		return scriptErr(o)
+	}
+	type row struct {
+		Shot    string  `json:"shot"`
+		Layer   string  `json:"layer"`
+		In      int     `json:"in"`
+		Out     int     `json:"out"`
+		Scale   float64 `json:"scale,omitempty"` // left out when an existing layer keeps its scale
+		Updated bool    `json:"updated,omitempty"`
+	}
+	var r struct {
+		Comp struct {
+			FPS   float64 `json:"fps"`
+			Start int     `json:"start"`
+			End   int     `json:"end"`
+		} `json:"comp"`
+		Placed []struct {
+			ID string `json:"id"`
+			row
+		} `json:"placed"`
+		Skipped []struct {
+			ID     string `json:"id"`
+			Reason string `json:"reason"` // "built", "before" or "short"
+			Layer  string `json:"layer,omitempty"`
+			Type   string `json:"type,omitempty"`
+		} `json:"skipped"`
+		Last int `json:"last"` // the last frame any shot needs, placed or skipped
+	}
+	if err := json.Unmarshal(o.result.Value, &r); err != nil {
+		return err
+	}
+	notes := []string{}
+	for _, p := range ps {
+		if p.Width == 0 {
+			notes = append(notes, p.ID+": unknown image size, placed at its native size")
+		}
+	}
+	rows := []row{}
+	for _, p := range r.Placed {
+		x := p.row
+		x.Shot, x.Scale = p.ID, math.Round(x.Scale*1000)/1000
+		rows = append(rows, x)
+	}
+	if last := r.Last; last > r.Comp.End {
+		// --range keeps the start frame; --seconds would move it back to 0 under the placed layers.
+		fix := fmt.Sprintf("extend it with cav scene comp --range %d-%d", r.Comp.Start, last)
+		if *comp != "" {
+			// cav scene comp changes only the active composition.
+			fix = fmt.Sprintf("make %s the active composition in Cavalry, then %s", *comp, fix)
+		}
+		notes = append(notes, fmt.Sprintf("the composition ends at frame %d but the last shot runs to frame %d: %s", r.Comp.End, last, fix))
+	}
+	a.emit(map[string]any{"storyboard": path, "fps": r.Comp.FPS, "placed": rows, "skipped": r.Skipped, "notes": notes}, func() {
+		for _, x := range rows {
+			state, scale := "added", fmt.Sprintf("scale %g", x.Scale)
+			if x.Updated {
+				state, scale = "updated", "scale kept"
+			} else if x.Scale == 0 {
+				scale = "native size"
+			}
+			fmt.Printf("%-4s %-16s frames %d-%d  %s  (%s)\n", x.Shot, x.Layer, x.In, x.Out, scale, state)
+		}
+		for _, s := range r.Skipped {
+			why := map[string]string{"before": "it ends before the composition starts", "short": "it is shorter than one frame"}[s.Reason]
+			switch {
+			case why == "":
+				fmt.Printf("%-4s kept %s (a %s already uses the name)\n", s.ID, s.Layer, s.Type)
+			case s.Layer != "":
+				fmt.Printf("%-4s skipped: %s (hid %s)\n", s.ID, why, s.Layer)
+			default:
+				fmt.Printf("%-4s skipped: %s\n", s.ID, why)
+			}
+		}
+		for _, n := range notes {
+			fmt.Fprintln(os.Stderr, "note: "+n)
+		}
 	})
 	return nil
 }

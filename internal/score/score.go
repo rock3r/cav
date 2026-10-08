@@ -2,7 +2,7 @@
 // ear: the render on a video track, a marker at every shot, and the music takes on their own
 // tracks. REAPER renders it from the command line with -renderproject.
 //
-// The .rpp layout follows REAPER 7 projects; it has not been opened in REAPER by these tests.
+// The .rpp layout follows REAPER 7 projects. It was checked by hand in REAPER 7.82 (see issue #12).
 package score
 
 import (
@@ -67,13 +67,19 @@ func (p Project) RPP() string {
 		dir, file := filepath.Split(p.RenderTo)
 		fmt.Fprintf(&b, "  RENDER_FILE %s\n", quote(strings.TrimSuffix(dir, string(filepath.Separator))))
 		fmt.Fprintf(&b, "  RENDER_PATTERN %s\n", quote(strings.TrimSuffix(file, filepath.Ext(file))))
-		b.WriteString("  RENDER_SRATE 0\n  RENDER_RANGE 1 0 0 18 1000\n")
+		// The whole project with no tail: REAPER's default adds a 1 s tail, so the WAV
+		// came out a second longer than the piece. The render sample rate follows the
+		// project; REAPER 7 has no RENDER_SRATE token and warns about it on load.
+		b.WriteString("  RENDER_RANGE 1 0 0 0 1000\n")
 	}
 	for i, m := range p.Markers {
 		fmt.Fprintf(&b, "  MARKER %d %.6f %s 0 0 1\n", i+1, m.Seconds, quote(m.Name))
 	}
 	if p.Video != "" {
-		b.WriteString("  <TRACK\n    NAME \"Video\"\n")
+		// Volume at zero: the render carries its own soundtrack, which would otherwise
+		// play under the takes and end up in the music WAV. Muting the track would also
+		// hide the video.
+		b.WriteString("  <TRACK\n    NAME \"Video\"\n    VOLPAN 0 0 -1 -1 1\n")
 		item(&b, filepath.Base(p.Video), p.Video, p.Seconds)
 		b.WriteString("  >\n")
 	}
@@ -95,7 +101,87 @@ func (p Project) RPP() string {
 	return b.String()
 }
 
-// ReaperArgs is the command line that renders a project and exits.
+// ReaperArgs is the command line that renders a project and exits. -ignoreerrors keeps a
+// load error (a missing file, an unknown token) from waiting on a dialog.
 func ReaperArgs(rpp string) []string {
-	return []string{"-nosplash", "-newinst", "-renderproject", rpp}
+	return []string{"-nosplash", "-newinst", "-ignoreerrors", "-renderproject", rpp}
+}
+
+// audioDevice is what REAPER 7 writes to reaper.ini when its default audio device is
+// accepted at the first-run question "You have not yet selected an audio device". Until
+// the marker key is present, REAPER asks that question at startup, and -renderproject
+// waits on it. Both were found by testing REAPER 7.82 (issue #12):
+//   - macOS: the default Core Audio device; all four keys are needed.
+//   - Windows: mode=2 in [audioconfig] is REAPER's own default audio system; it alone
+//     is enough. REAPER fills in the other [audioconfig] keys with defaults.
+var audioDevice = map[string]struct {
+	section, marker string
+	keys            []string
+}{
+	"darwin": {"reaper", "coreaudiooutdevnew", []string{
+		"coreaudioindevnew=<default>",
+		"coreaudiooutdevnew=<default>",
+		"coreaudiobs=512",
+		"coreaudiosrate=48000",
+	}},
+	"windows": {"audioconfig", "mode", []string{"mode=2"}},
+}
+
+// WithAudioDevice returns REAPER's reaper.ini text with REAPER's default audio device
+// selected for goos, and whether it changed anything. It leaves a device the user picked
+// alone, and changes nothing on other systems.
+func WithAudioDevice(ini, goos string) (string, bool) {
+	dev, ok := audioDevice[goos]
+	if !ok {
+		return ini, false
+	}
+	eol := "\n"
+	if strings.Contains(ini, "\r\n") {
+		eol = "\r\n"
+	}
+	lines := strings.Split(strings.ReplaceAll(ini, "\r\n", "\n"), "\n")
+	section, start, end := "", -1, len(lines)
+	have := map[string]bool{}
+	for i, l := range lines {
+		t := strings.TrimSpace(l)
+		if strings.HasPrefix(t, "[") && strings.HasSuffix(t, "]") {
+			if section == dev.section {
+				end = i
+			}
+			section = strings.ToLower(strings.Trim(t, "[]"))
+			if section == dev.section {
+				start = i
+			}
+			continue
+		}
+		if section == dev.section {
+			if k, _, ok := strings.Cut(t, "="); ok {
+				have[k] = true
+			}
+		}
+	}
+	if have[dev.marker] {
+		return ini, false
+	}
+	var add []string
+	for _, kv := range dev.keys {
+		if k, _, _ := strings.Cut(kv, "="); !have[k] {
+			add = append(add, kv)
+		}
+	}
+	if start < 0 {
+		if n := len(lines); n > 0 && lines[n-1] == "" {
+			lines = lines[:n-1]
+		}
+		lines = append(lines, "["+dev.section+"]")
+		lines = append(lines, add...)
+		return strings.Join(lines, eol) + eol, true
+	}
+	// Insert after the section's last non-blank line.
+	at := end
+	for at > start+1 && strings.TrimSpace(lines[at-1]) == "" {
+		at--
+	}
+	out := append(append(append([]string{}, lines[:at]...), add...), lines[at:]...)
+	return strings.Join(out, eol), true
 }

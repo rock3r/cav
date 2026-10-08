@@ -2,6 +2,8 @@ package board
 
 import (
 	"context"
+	"image"
+	"image/png"
 	"math"
 	"os"
 	"os/exec"
@@ -29,6 +31,10 @@ func TestTimeFromBPMAndFromGrid(t *testing.T) {
 	if got := sb.Time(5); math.Abs(got-2.8) > 1e-9 {
 		t.Fatalf("after the grid: %g", got)
 	}
+	// Before the first detected beat, the first spacing continues backwards.
+	if got := sb.Time(-2); math.Abs(got-(-0.9)) > 1e-9 {
+		t.Fatalf("before the grid: %g", got)
+	}
 }
 
 func TestValidate(t *testing.T) {
@@ -43,6 +49,34 @@ func TestValidate(t *testing.T) {
 		if b.Validate() == nil {
 			t.Errorf("board %d should not validate", i)
 		}
+	}
+}
+
+func TestPlacements(t *testing.T) {
+	dir := t.TempDir()
+	img := image.NewRGBA(image.Rect(0, 0, 640, 360))
+	f, _ := os.Create(filepath.Join(dir, "s1.png"))
+	png.Encode(f, img)
+	f.Close()
+	os.WriteFile(filepath.Join(dir, "sb.json"), []byte(`{"bpm":120,"offset":0.25,"shots":[
+		{"id":"s1","beats":[0,4],"frame":"s1.png"},{"id":"s2","beats":[4,8]}]}`), 0o644)
+	sb, err := Load(filepath.Join(dir, "sb.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ps, err := sb.Placements(context.Background(), map[string]bool{"s1": true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Times include the offset; the native job turns them into frames.
+	if len(ps) != 1 || ps[0].Start != 0.25 || ps[0].End != 2.25 || ps[0].Width != 640 || ps[0].Height != 360 || !filepath.IsAbs(ps[0].Path) {
+		t.Fatalf("placements: %+v", ps)
+	}
+	if _, err := sb.Placements(context.Background(), nil); err == nil || !strings.Contains(err.Error(), "s2 has no frame") {
+		t.Errorf("a shot without a frame should fail: %v", err)
+	}
+	if _, err := sb.Placements(context.Background(), map[string]bool{"s9": true}); err == nil {
+		t.Error("an unknown shot id should fail")
 	}
 }
 

@@ -3,10 +3,10 @@
 ## Unreleased
 
 - Add `cav mcp`: a small MCP server (stdio) that shows the `cav review` page inside the
-  chat as an MCP App, in Claude Code, Codex and other hosts that draw MCP Apps. The page
-  plays a 640-pixel preview sent inline, and its notes go to the same review file. The
-  cavalry plugin starts it in Claude Code and Codex; without the plugin, register it with
-  `claude mcp add cav -- cav mcp` or `codex mcp add cav -- cav mcp`.
+  chat as an MCP App, in hosts that draw MCP Apps (the Claude desktop app's Code tab does
+  not). The page plays a 640-pixel preview sent inline, and its notes go to the same
+  review file. The cavalry plugin starts it in Claude Code and Codex; without the plugin,
+  register it with `claude mcp add cav -- cav mcp` or `codex mcp add cav -- cav mcp`.
 - In `cav review` and `cav mcp`, a note now stays on the render the page showed when you
   made it, also when a re-render goes live at the same moment. The page sends the version
   it shows with each note. In the chat, a re-render goes live only when the page asks for
@@ -50,7 +50,12 @@
 - `cav listen --score` rates takes with local models (Audiobox Aesthetics, CLAP), and several
   tracks are compared side by side.
 - Add `cav score`: a REAPER project with the render, a marker per shot and the takes, and
-  `cav score render` to render it from the command line.
+  `cav score render` to render it from the command line. Tested with REAPER 7.82 on macOS
+  and Windows. The video track is silent, so the render's own soundtrack stays out of the
+  music WAV. When REAPER has no audio device yet, `cav score render` selects REAPER's
+  default first, so REAPER does not stop to ask.
+- Add `cav board place`: each shot's frame becomes an image layer named by its shot id in the
+  open composition, shown for its beats, so the build starts from the storyboard.
 - Add `cav ref arena`: copy an Are.na channel into the mood board as reference-only assets.
 - `cav config check --live` (and `cav doctor --services --live`) makes one small paid call
   per keyed service, after asking.

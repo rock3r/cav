@@ -41,3 +41,8 @@ var ReviewAppShim []byte
 //
 //go:embed diagnostics/*.js
 var Diagnostics embed.FS
+
+// BoardPlace is the native job of cav board place.
+//
+//go:embed board/place.js
+var BoardPlace string

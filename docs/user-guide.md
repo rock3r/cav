@@ -190,7 +190,8 @@ max: 1.4, low: 20, high: 150})`.
 
 ## Planning, assets, music and review
 
-These commands work before and after the Cavalry scene, and none of them needs the bridge.
+These commands work before and after the Cavalry scene, and none of them needs the bridge,
+except `cav board place`, which adds the storyboard to the open scene.
 `cav guide production` is the full walkthrough; this is the short version.
 
 **Services and keys.** Each job (frames, transparent assets, SVG, reference images, sound
@@ -234,6 +235,7 @@ cav board init --bpm 120 --seconds 16 --shots 6  # then describe each shot in st
 cav board frames                                 # greybox cards, or generated with a key
 cav board sheet                                  # renders/board.png
 cav board animatic --audio music.wav             # renders/animatic.mp4, cut on the beat
+cav board place                                  # frames as placeholder layers (needs the bridge)
 ```
 
 **Assets.** `cav gen image "<prompt>"` makes a still; `--alpha` a transparent PNG, `--vector`
@@ -289,8 +291,8 @@ command = "cav"
 args = ["mcp"]
 ```
 
-Then ask the agent to show the review of a render. It calls the `show_review` tool, and the
-chat draws the page. You can play the render, step frames, draw, add notes and press
+Then ask the agent to show the review of a render. It calls the `show_review` tool, and a
+chat that supports MCP Apps draws the page. You can play the render, step frames, draw, add notes and press
 "Send to agent", as in the browser. The notes go to the same `<video>.review.json`, so
 `cav review wait`, `export`, `resolve` and the review hook work the same. When the chat
 supports it, "Send to agent" also posts a message that tells the agent to read the notes.
@@ -302,8 +304,10 @@ browser. Use the chat for a quick look and a few notes, and `cav review` for
 frame-by-frame review. The A/B compare works only with earlier renders that were also
 shown in the chat.
 
-Chats that cannot draw MCP Apps still get the list of open notes as text. The server
-resolves a relative video path against the folder the agent started it in.
+Not every chat draws MCP Apps. In October 2026, the Code tab of the Claude desktop app ran
+the tool but did not draw the page. Chats that do not draw it still give the agent the list
+of open notes, both as text and in the structured result. The server resolves a relative
+video path against the folder the agent started it in.
 
 ## Using cav with a coding agent
 

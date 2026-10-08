@@ -144,8 +144,15 @@ func TestShowReviewOpensTheVideoAndListsNotes(t *testing.T) {
 	if out.Video != video || out.Frames != 50 || out.Open != 1 || out.Resolved != 1 {
 		t.Errorf("structured result %+v", out)
 	}
+	// Some hosts pass the model only the structured result, so it carries the notes too.
+	if len(out.OpenNotes) != 1 || out.OpenNotes[0].ID != "c_01" || out.OpenNotes[0].Frame != 12 || out.OpenNotes[0].Text != "the logo lands late" {
+		t.Errorf("openNotes = %+v", out.OpenNotes)
+	}
+	if !strings.Contains(out.Next, "cav review wait") || strings.Contains(out.Next, video) {
+		t.Errorf("next must name the command without pasting the path into it: %q", out.Next)
+	}
 	text := res.Content[0].(*mcp.TextContent).Text
-	for _, want := range []string{"c_01 frame 12: the logo lands late", "1 open, 1 resolved", "cav review wait " + video} {
+	for _, want := range []string{"c_01 frame 12: the logo lands late", "1 open, 1 resolved", "Video path: " + video + "\n", "`cav review wait`"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("text lacks %q:\n%s", want, text)
 		}
