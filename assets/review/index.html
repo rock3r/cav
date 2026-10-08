@@ -165,7 +165,7 @@
     <div class="stage-wrap" id="stageWrap">
       <p class="stage-note" id="stageNote" role="status">Loading the render…</p>
       <div class="stage" id="stage">
-        <video id="video" src="/video" preload="auto" playsinline></video>
+        <video id="video" preload="auto" playsinline></video>
         <video id="videoB" class="layer" preload="auto" muted playsinline></video>
         <video id="ghostPrev" class="layer ghost" preload="auto" muted playsinline></video>
         <video id="ghostNext" class="layer ghost" preload="auto" muted playsinline></video>
@@ -608,6 +608,7 @@
     $('bAdd').disabled = true;
     try {
       const snap = await snapshot(a);
+      if (version !== shown) { toast('A new render arrived while the note was drawn: check the frame and add the note again'); return; }
       const c = await api('POST', '/api/comments', { frame: a, frameEnd: b, text, shapes: draft, snapshot: snap, version: shown });
       draft = []; $('text').value = ''; inF = outF = null; renderRange(); renderWhere();
       selected = c.id; await refresh(); toast(`Added ${c.id} at frame ${c.frame}`);
@@ -726,6 +727,9 @@
     renderVersions(); renderWave();
     if (cmp === 'onion') setCompare('onion');
     if (first) {
+      // Ask for the version that the state named, so the first frames and the notes on
+      // them belong to the same render.
+      video.src = '/video?v=' + s.version;
       $('name').textContent = s.name;
       document.title = s.name + ' · cav review';
       $('meta').textContent = `${meta.width}×${meta.height} · ${+meta.fps.toFixed(3)} fps · ${meta.frames} frames · ${author}`;

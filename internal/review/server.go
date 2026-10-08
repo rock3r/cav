@@ -335,7 +335,9 @@ func (s *Server) addComment(w http.ResponseWriter, r *http.Request) {
 	}
 	var made Comment
 	_, err = s.Store.Update(func(d *Doc) error {
-		d.Source = src
+		// The render can change while the snapshot decodes: keep the review file on the
+		// current one, whichever render the note is about.
+		d.Source, _ = s.current()
 		c := Comment{
 			ID: NextID(d), Version: version, Frame: in.Frame, FrameEnd: in.FrameEnd,
 			Timecode: Timecode(in.Frame, fps), Fragment: Fragment(in.Frame, in.FrameEnd, fps, in.Shapes),
