@@ -187,8 +187,10 @@ func TestReviewRequestRunsThePageAPI(t *testing.T) {
 		t.Errorf("the note should be in the review file: %+v", d.Comments)
 	}
 
+	var shown struct{ Version string }
+	json.Unmarshal([]byte(state.Body), &shown)
 	var vid requestOut
-	call(t, cs, "review_request", map[string]any{"video": video, "method": "GET", "path": "/video?v=abc"}, &vid)
+	call(t, cs, "review_request", map[string]any{"video": video, "method": "GET", "path": "/video?v=" + shown.Version}, &vid)
 	if vid.Status != 200 || !strings.HasPrefix(vid.DataURL, "data:video/mp4;base64,") || vid.Body != "" {
 		t.Errorf("GET /video should come back as a data URL, got status %d, %.60q", vid.Status, vid.DataURL)
 	}
@@ -240,6 +242,49 @@ func TestReRenderPreparesAgain(t *testing.T) {
 	d, _ := review.Open(video).Load()
 	if len(d.Versions) != 2 {
 		t.Errorf("both renders should be recorded, got %d", len(d.Versions))
+	}
+}
+
+// A note posted while a re-render waits to go live stays on the render the page shows: only
+// GET /api/state, whose answer tells the page, makes the new render current (issue #26).
+func TestNoteDuringReRenderStaysOnTheShownRender(t *testing.T) {
+	cs, video, prepared := connect(t)
+	call(t, cs, "show_review", map[string]any{"video": video}, nil)
+	var state requestOut
+	call(t, cs, "review_request", map[string]any{"video": video, "method": "GET", "path": "/api/state"}, &state)
+	var shown struct{ Version string }
+	json.Unmarshal([]byte(state.Body), &shown)
+
+	later := time.Now().Add(time.Minute)
+	os.WriteFile(video, []byte("render v2, longer"), 0o644)
+	os.Chtimes(video, later, later)
+	call(t, cs, "review_request", map[string]any{"video": video, "method": "GET", "path": "/api/state"}, nil) // sees the change
+
+	var added requestOut
+	call(t, cs, "review_request", map[string]any{"video": video, "method": "POST", "path": "/api/comments",
+		"body": `{"frame":3,"text":"on what I see"}`}, &added)
+	if added.Status != 200 || *prepared != 1 {
+		t.Fatalf("a POST must not make the re-render current: status %d, prepared %d", added.Status, *prepared)
+	}
+	var c review.Comment
+	json.Unmarshal([]byte(added.Body), &c)
+	if c.Version != shown.Version {
+		t.Errorf("note on version %s, want the shown %s", c.Version, shown.Version)
+	}
+
+	call(t, cs, "review_request", map[string]any{"video": video, "method": "GET", "path": "/api/state"}, &state)
+	var now struct{ Version string }
+	json.Unmarshal([]byte(state.Body), &now)
+	if *prepared != 2 || now.Version == shown.Version {
+		t.Fatalf("GET /api/state should make the re-render current: prepared %d, version %s", *prepared, now.Version)
+	}
+
+	// A page whose state is still cached posts against the earlier render, by name.
+	call(t, cs, "review_request", map[string]any{"video": video, "method": "POST", "path": "/api/comments",
+		"body": `{"frame":4,"text":"still the old one","version":"` + shown.Version + `"}`}, &added)
+	json.Unmarshal([]byte(added.Body), &c)
+	if added.Status != 200 || c.Version != shown.Version {
+		t.Errorf("a note naming the shown render should keep it: %d %+v", added.Status, c)
 	}
 }
 

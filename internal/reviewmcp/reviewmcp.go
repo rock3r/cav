@@ -145,7 +145,11 @@ type session struct {
 	failed bool
 }
 
-func (h *handler) session(ctx context.Context, video string, create bool) (*session, error) {
+// session finds the review of a video, and prepares it again when the file changed. With
+// activate false it only notes the change: a request such as the page posting a note must
+// run against the render the page shows, so a new render goes live only through a request
+// whose answer tells the page about it (show_review and GET /api/state).
+func (h *handler) session(ctx context.Context, video string, create, activate bool) (*session, error) {
 	abs, err := filepath.Abs(video)
 	if err != nil {
 		return nil, err
@@ -168,7 +172,7 @@ func (h *handler) session(ctx context.Context, video string, create bool) (*sess
 			s.seenMod, s.seenSize, s.failed = info.ModTime(), info.Size(), false // still changing: check again next time
 			return s, nil
 		}
-		if s.failed {
+		if s.failed || !activate {
 			return s, nil
 		}
 	}
@@ -231,7 +235,7 @@ func (h *handler) show(ctx context.Context, req *mcp.CallToolRequest, in showIn)
 	if video == "" {
 		return nil, showOut{}, errors.New("give the video to show")
 	}
-	s, err := h.session(ctx, video, true)
+	s, err := h.session(ctx, video, true, true)
 	if err != nil {
 		return nil, showOut{}, err
 	}
@@ -296,7 +300,8 @@ func (h *handler) request(ctx context.Context, req *mcp.CallToolRequest, in requ
 	if !strings.HasPrefix(in.Path, "/") {
 		return nil, requestOut{}, fmt.Errorf("path must start with /, got %q", in.Path)
 	}
-	s, err := h.session(ctx, in.Video, false)
+	activate := (in.Method == "" || in.Method == http.MethodGet) && in.Path == "/api/state"
+	s, err := h.session(ctx, in.Video, false, activate)
 	if err != nil {
 		return nil, requestOut{}, err
 	}
