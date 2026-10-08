@@ -98,17 +98,21 @@ func TestPlacements(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ps, err := sb.Placements(context.Background(), 30, 1920, 1080, map[string]bool{"s1": true})
+	ps, err := sb.Placements(context.Background(), 30, 0, 1920, 1080, map[string]bool{"s1": true})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(ps) != 1 || ps[0].In != 0 || ps[0].Out != 59 || ps[0].Scale != 3 || !filepath.IsAbs(ps[0].Path) {
 		t.Fatalf("placements: %+v", ps)
 	}
-	if _, err := sb.Placements(context.Background(), 30, 1920, 1080, nil); err == nil || !strings.Contains(err.Error(), "s2 has no frame") {
+	// A composition that starts at frame 100 shifts every shot by 100 frames.
+	if ps, err := sb.Placements(context.Background(), 30, 100, 1920, 1080, map[string]bool{"s1": true}); err != nil || ps[0].In != 100 || ps[0].Out != 159 {
+		t.Errorf("start frame 100: %+v %v", ps, err)
+	}
+	if _, err := sb.Placements(context.Background(), 30, 0, 1920, 1080, nil); err == nil || !strings.Contains(err.Error(), "s2 has no frame") {
 		t.Errorf("a shot without a frame should fail: %v", err)
 	}
-	if _, err := sb.Placements(context.Background(), 30, 1920, 1080, map[string]bool{"s9": true}); err == nil {
+	if _, err := sb.Placements(context.Background(), 30, 0, 1920, 1080, map[string]bool{"s9": true}); err == nil {
 		t.Error("an unknown shot id should fail")
 	}
 }

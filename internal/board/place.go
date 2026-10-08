@@ -42,9 +42,10 @@ func FitScale(iw, ih, cw, ch int) float64 {
 	return math.Min(float64(cw)/float64(iw), float64(ch)/float64(ih))
 }
 
-// Placements lists the frames to place in a cw x ch comp at fps. With only set, it keeps
-// just those shot ids. Every listed shot needs a frame image on disk.
-func (sb *Board) Placements(ctx context.Context, fps float64, cw, ch int, only map[string]bool) ([]Placement, error) {
+// Placements lists the frames to place in a cw x ch comp at fps whose first frame is
+// start; beat 0 lands on start. With only set, it keeps just those shot ids. Every listed
+// shot needs a frame image on disk.
+func (sb *Board) Placements(ctx context.Context, fps float64, start, cw, ch int, only map[string]bool) ([]Placement, error) {
 	if fps <= 0 {
 		return nil, fmt.Errorf("the composition frame rate must be positive (got %g)", fps)
 	}
@@ -65,7 +66,7 @@ func (sb *Board) Placements(ctx context.Context, fps float64, cw, ch int, only m
 		}
 		iw, ih := imageSize(ctx, p)
 		in, last := sb.ShotFrames(s, fps)
-		out = append(out, Placement{ID: s.ID, Path: p, In: in, Out: last, Scale: FitScale(iw, ih, cw, ch)})
+		out = append(out, Placement{ID: s.ID, Path: p, In: start + in, Out: start + last, Scale: FitScale(iw, ih, cw, ch)})
 	}
 	for id := range only {
 		found := false

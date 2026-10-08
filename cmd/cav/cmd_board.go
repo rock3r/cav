@@ -43,6 +43,7 @@ timed in beats (like the plan table cav guide asks for).
   cav board place [storyboard.json] [--only s1,s3] [--comp NAME]
         adds each shot's frame to the open Cavalry composition as an image layer named
         by its shot id, visible from its start beat to its end beat and scaled to fit.
+        Beat 0 lands on the composition's start frame.
         Run it again to update the placeholders: it replaces image layers with those names
         and leaves alone a shot whose name a built layer (a group, a shape) already uses.
   cav board mood [moodboard/] [-o renders/moodboard.png]
@@ -390,19 +391,25 @@ func boardPlace(a *app, args []string) error {
 	}
 	a.compSelector = *comp
 	var c struct {
+		ID     string  `json:"id"`
 		FPS    float64 `json:"fps"`
 		Width  int     `json:"width"`
 		Height int     `json:"height"`
+		Start  int     `json:"start"`
 	}
 	if err := a.jsCall(`var id = api.getActiveComp(), r = api.get(id, 'resolution');
-return { fps: api.get(id, 'fps'), width: r.x, height: r.y }`, *timeout, &c); err != nil {
+return { id: id, fps: api.get(id, 'fps'), width: r.x, height: r.y, start: api.get(id, 'startFrame') }`, *timeout, &c); err != nil {
 		return err
 	}
+	// Place into the composition just measured, even if the user switches to another one.
+	a.compSelector = c.ID
 	want := map[string]bool{}
 	for _, id := range splitList(*only) {
 		want[id] = true
 	}
-	ps, err := sb.Placements(a.ctx, c.FPS, c.Width, c.Height, want)
+	ctx, cancel := context.WithTimeout(context.Background(), *timeout)
+	defer cancel()
+	ps, err := sb.Placements(ctx, c.FPS, c.Start, c.Width, c.Height, want)
 	if err != nil {
 		return fail(exitError, err.Error(), "")
 	}
