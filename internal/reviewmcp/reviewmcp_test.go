@@ -351,6 +351,54 @@ func TestBrokenReRenderKeepsTheEarlierOne(t *testing.T) {
 	}
 }
 
+// A server process that never opened the video, and finds it broken, serves the last render
+// in the review file with the error shown, as a process that had the session does (issue #33).
+func TestNewProcessKeepsTheEarlierRenderOfABrokenFile(t *testing.T) {
+	model, video, _ := connect(t)
+	call(t, model, "show_review", map[string]any{"video": video}, nil)
+	later := time.Now().Add(time.Minute)
+	os.WriteFile(video, []byte("broken"), 0o644)
+	os.Chtimes(video, later, later)
+
+	page, prepared := connectTo(t, video)
+	state := func() requestOut {
+		var out requestOut
+		res := call(t, page, "review_request", map[string]any{"video": video, "method": "GET", "path": "/api/state"}, &out)
+		if res.IsError {
+			t.Fatalf("review_request failed: %v", res.Content)
+		}
+		return out
+	}
+	out := state()
+	if out.Status != 200 || !strings.Contains(out.Body, `"frames":50`) || !strings.Contains(out.Body, `"renderError":"no video stream"`) {
+		t.Fatalf("the earlier render should be served with the error shown: %+v", out)
+	}
+	var vid requestOut
+	call(t, page, "review_request", map[string]any{"video": video, "method": "GET", "path": "/video"}, &vid)
+	if vid.Status != 200 || !strings.HasPrefix(vid.DataURL, "data:video/mp4;base64,") {
+		t.Errorf("GET /video should play the earlier preview: status %d", vid.Status)
+	}
+	state()
+	if *prepared != 1 {
+		t.Errorf("prepared %d times: an unchanged broken file must not be prepared again", *prepared)
+	}
+	os.WriteFile(video, []byte("fixed render"), 0o644)
+	os.Chtimes(video, later.Add(time.Minute), later.Add(time.Minute))
+	state()
+	if out := state(); *prepared != 2 || !strings.Contains(out.Body, `"renderError":""`) {
+		t.Errorf("a fixed render should be prepared and clear the error: prepared %d, %s", *prepared, out.Body)
+	}
+
+	// Without the earlier preview there is nothing to show, so the request still fails.
+	os.WriteFile(video, []byte("broken"), 0o644)
+	os.Chtimes(video, later.Add(2*time.Minute), later.Add(2*time.Minute))
+	os.RemoveAll(filepath.Join(filepath.Dir(video), "cache"))
+	fresh, _ := connectTo(t, video)
+	if res := call(t, fresh, "review_request", map[string]any{"video": video, "method": "GET", "path": "/api/state"}, nil); !res.IsError {
+		t.Error("a broken file with no earlier preview must fail the request")
+	}
+}
+
 func TestDoRefusesFilesTooLargeForTheChat(t *testing.T) {
 	// Served in chunks, as http.ServeFile does: the writer must stop the copy at the limit
 	// instead of buffering the whole file.

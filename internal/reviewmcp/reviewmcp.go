@@ -201,6 +201,9 @@ func (h *handler) session(ctx context.Context, video string, create, activate bo
 		return s, nil
 	}
 	if err != nil {
+		if s := h.earlier(abs, info, err); s != nil {
+			return s, nil
+		}
 		return nil, err
 	}
 	store := review.Open(abs)
@@ -211,6 +214,31 @@ func (h *handler) session(ctx context.Context, video string, create, activate bo
 		srv: &review.Server{Store: store, Source: src, Proxy: proxy, Author: h.o.Author, CacheDir: h.o.CacheDir}}
 	h.open[abs] = s
 	return s, nil
+}
+
+// earlier rebuilds the session of a video that this process has not opened yet but cannot
+// prepare now, for example because it is being rewritten in place. It uses the last render in
+// the review file and its preview, so the page keeps the earlier render and shows the error,
+// as a process that already had the session does. It returns nil when there is no usable
+// earlier preview.
+func (h *handler) earlier(abs string, info os.FileInfo, prepErr error) *session {
+	store := review.Open(abs)
+	if !fileExists(store.DocPath) {
+		return nil
+	}
+	d, err := store.Load()
+	if err != nil || d.Source.SHA256 == "" || d.Source.Frames <= 0 || d.Source.FPS <= 0 {
+		return nil
+	}
+	proxy := filepath.Join(h.o.CacheDir, d.Source.SHA256+".mp4")
+	if !fileExists(proxy) {
+		return nil
+	}
+	s := &session{modTime: info.ModTime(), size: info.Size(), seenMod: info.ModTime(), seenSize: info.Size(), failed: true,
+		srv: &review.Server{Store: store, Source: d.Source, Proxy: proxy, Author: h.o.Author, CacheDir: h.o.CacheDir}}
+	s.srv.SetRenderError(prepErr.Error())
+	h.open[abs] = s
+	return s
 }
 
 func fileExists(p string) bool {
