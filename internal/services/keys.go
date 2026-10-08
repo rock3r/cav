@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"runtime"
 	"strings"
 	"time"
 )
@@ -103,23 +102,42 @@ func Resolve(ctx context.Context, service, source string) (string, error) {
 	return "", &KeyError{Msg: "unsupported key source " + src.Kind}
 }
 
+// errKeychainNoEntry and errKeychainDenied are what each platform's readKeychain returns
+// when the entry does not exist or the OS refuses to hand it over.
+var (
+	errKeychainNoEntry = errors.New("no keychain entry")
+	errKeychainDenied  = errors.New("keychain access denied")
+)
+
+// keychainRead reads keychain:service/account from the OS credential store: the macOS
+// keychain, or Windows Credential Manager (keychain_<os>.go).
 func keychainRead(ctx context.Context, service, ref string) (string, error) {
 	svc, acct, _ := strings.Cut(ref, "/")
-	if runtime.GOOS != "darwin" {
-		return "", &KeyError{Msg: "keychain sources work on macOS only", Fix: "use env:NAME or op://… on this system"}
-	}
-	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
-	defer cancel()
-	out, _, err := runCmd(ctx, "security", "find-generic-password", "-s", svc, "-a", acct, "-w")
+	v, err := readKeychain(ctx, svc, acct)
 	if err != nil {
-		return "", &KeyError{Msg: fmt.Sprintf("no keychain entry for service %q account %q", svc, acct),
-			Fix: fmt.Sprintf("security add-generic-password -s %q -a %q -w", svc, acct)}
+		return "", keychainError(svc, acct, err)
 	}
-	v := strings.TrimSpace(string(out))
+	v = strings.TrimSpace(v)
 	if v == "" {
-		return "", &KeyError{Msg: "the keychain entry is empty"}
+		return "", &KeyError{Msg: "the " + keychainName + " entry is empty"}
 	}
 	return v, nil
+}
+
+// keychainError turns a platform error into the same KeyError on every OS.
+func keychainError(svc, acct string, err error) error {
+	var ke *KeyError
+	switch {
+	case errors.As(err, &ke):
+		return ke
+	case errors.Is(err, errKeychainNoEntry):
+		return &KeyError{Msg: fmt.Sprintf("no %s entry for service %q account %q", keychainName, svc, acct),
+			Fix: keychainAddHint(svc, acct)}
+	case errors.Is(err, errKeychainDenied):
+		return &KeyError{Msg: fmt.Sprintf("%s denied access to service %q account %q", keychainName, svc, acct),
+			Fix: keychainDeniedHint}
+	}
+	return &KeyError{Msg: keychainName + " read failed: " + err.Error()}
 }
 
 func opRead(ctx context.Context, service, ref string) (string, error) {

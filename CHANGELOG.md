@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Read `keychain:service/account` keys from Windows Credential Manager on Windows. The
+  target name is the service and the user name is the account. A missing entry and a
+  refused read are reported the same way as on macOS, where a refused read is now told
+  apart from a missing entry.
 - Add `cav review`: a local review page for a render. It steps exact frames, shuttles with
   J/K/L, sets ranges, and draws arrows, boxes, ellipses and freehand. Notes go to
   `<video>.review.json` with a snapshot of the frame and drawing. "Send to agent" releases a

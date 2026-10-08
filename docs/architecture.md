@@ -324,7 +324,7 @@ within about 35 ms counts as on the grid.
 never talk to the bridge. They are plain Go around ffmpeg, HTTPS and uv:
 
 - `internal/services` holds the catalog of services, the order per job, key resolution
-  (environment, keychain, `op read`, OAuth) and one free health call per service.
+  (environment, macOS keychain or Windows Credential Manager, `op read`, OAuth) and one free health call per service.
   `services.Pick` returns the first service in the job's order that is usable now, without a
   network call, and lists the ones it skipped and why.
 - `internal/review` is the review server. The page is one embedded HTML file with no

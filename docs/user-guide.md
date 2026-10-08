@@ -204,9 +204,21 @@ cav config check                                    # one free call per service
 cav config check --live                             # plus one small paid call each
 ```
 
-A key source is `env:NAME`, `keychain:service/account` (macOS), `op://vault/item/field`
+A key source is `env:NAME`, `keychain:service/account`, `op://vault/item/field`
 (1Password, read with `op read` when needed) or `oauth` (`cav config login freesound`). cav
 never prints or stores a key.
+
+On macOS, `keychain:service/account` reads a generic password from the login keychain. On
+Windows, it reads a generic credential from Credential Manager. The target name is the
+service, and the user name is the account. Save one with `cmdkey`; it asks for the key:
+
+```bash
+cmdkey /generic:cav /user:openai /pass
+cav config set-key openai keychain:cav/openai
+```
+
+cav reports a missing entry and a refused read in the same way on both systems. Keychain
+sources do not work on Linux.
 
 **Licences.** `cav credits licence nc-ok` or `cav credits licence commercial` tells cav what
 the project may use. Everything cav downloads or generates is recorded in
