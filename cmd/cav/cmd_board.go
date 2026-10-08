@@ -346,7 +346,8 @@ api.getAssetWindowLayers(false).forEach(function (a) {
 var placed = [], skipped = []
 shots.forEach(function (s) {
 	var replaced = 0, built = null
-	api.getCompLayers(true).forEach(function (l) {
+	// false lists nested layers too, so a placeholder or built shot inside a group counts.
+	api.getCompLayers(false).forEach(function (l) {
 		if (api.getNiceName(l) !== s.id) return
 		if (api.getLayerType(l) === 'footageShape') {
 			api.deleteLayer(l)

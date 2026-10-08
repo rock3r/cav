@@ -190,7 +190,8 @@ max: 1.4, low: 20, high: 150})`.
 
 ## Planning, assets, music and review
 
-These commands work before and after the Cavalry scene, and none of them needs the bridge.
+These commands work before and after the Cavalry scene, and none of them needs the bridge,
+except `cav board place`, which adds the storyboard to the open scene.
 `cav guide production` is the full walkthrough; this is the short version.
 
 **Services and keys.** Each job (frames, transparent assets, SVG, reference images, sound
@@ -222,7 +223,7 @@ cav board init --bpm 120 --seconds 16 --shots 6  # then describe each shot in st
 cav board frames                                 # greybox cards, or generated with a key
 cav board sheet                                  # renders/board.png
 cav board animatic --audio music.wav             # renders/animatic.mp4, cut on the beat
-cav board place                                  # frames as placeholder layers in Cavalry
+cav board place                                  # frames as placeholder layers (needs the bridge)
 ```
 
 **Assets.** `cav gen image "<prompt>"` makes a still; `--alpha` a transparent PNG, `--vector`
