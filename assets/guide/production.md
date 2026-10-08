@@ -151,9 +151,7 @@ choose. Then sync with `cav beats` and `cav guide music`, and render with
 `score/project.rpp`: the tempo, a marker per shot, the render on a video track and each take
 on its own track. The user opens it in REAPER to pick a take, trim, fade and fix the sync by
 ear. The video track is silent, so only the takes are heard. `cav score render
-score/project.rpp` renders it to a WAV for `cav render --audio`. REAPER opens a window while
-it renders. It also renders from a background launchd job while a user is logged in;
-rendering on a Mac where nobody is logged in is untested.
+score/project.rpp` renders it to a WAV for `cav render --audio`.
 
 ## 6. Review
 
