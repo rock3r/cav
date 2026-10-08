@@ -336,8 +336,8 @@ func boardAnimatic(a *app, args []string) error {
 
 // boardPlaceJS adds the frames in `shots` to the active comp. It reuses an asset already
 // loaded from the same file (reloading it, in case the frame was remade), replaces image
-// layers named by a shot id, and skips a shot whose name another kind of layer uses: that
-// is the built shot replacing its placeholder.
+// layers named by a shot id (keeping their parent and stack position), and skips a shot
+// whose name another kind of layer uses: that is the built shot replacing its placeholder.
 const boardPlaceJS = `
 var assets = {}
 api.getAssetWindowLayers(false).forEach(function (a) {
@@ -345,14 +345,12 @@ api.getAssetWindowLayers(false).forEach(function (a) {
 })
 var placed = [], skipped = []
 shots.forEach(function (s) {
-	var replaced = 0, built = null
+	var old = [], built = null
 	// false lists nested layers too, so a placeholder or built shot inside a group counts.
 	api.getCompLayers(false).forEach(function (l) {
 		if (api.getNiceName(l) !== s.id) return
-		if (api.getLayerType(l) === 'footageShape') {
-			api.deleteLayer(l)
-			replaced++
-		} else if (!built) built = l
+		if (api.getLayerType(l) === 'footageShape') old.push(l)
+		else if (!built) built = l
 	})
 	if (built) {
 		skipped.push({ id: s.id, layer: built, type: api.getLayerType(built) })
@@ -360,6 +358,9 @@ shots.forEach(function (s) {
 	}
 	var o = { in: s.in, out: s.out }
 	if (s.scale > 0) o.scale = s.scale
+	// The new placeholder takes the old one's parent and place in the stack.
+	var parent = old.length ? api.getParent(old[0]) : ''
+	if (parent) o.parent = parent
 	var l
 	if (assets[s.path]) {
 		api.reloadAsset(assets[s.path])
@@ -372,7 +373,11 @@ shots.forEach(function (s) {
 	} else {
 		l = cav.image(s.path, s.id, o)
 	}
-	placed.push({ id: s.id, layer: l, replaced: replaced > 0 })
+	if (old.length) api.reorder(l, old[0])
+	old.forEach(function (x) {
+		api.deleteLayer(x)
+	})
+	placed.push({ id: s.id, layer: l, replaced: old.length > 0 })
 })
 return { placed: placed, skipped: skipped, end: api.get(api.getActiveComp(), 'endFrame') }`
 
