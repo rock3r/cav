@@ -862,10 +862,15 @@
     const open = doc.comments.filter(c => c.status === 'open').length, done = doc.comments.length - open;
     $('count').textContent = doc.comments.length ? `${open} open${done ? ` · ${done} resolved` : ''}` : '';
     $('bFilter').hidden = !done;
-    const sig = JSON.stringify([items, selected, version, replying, armed, meta && meta.frames]);
+    const sig = JSON.stringify([items, selected, version, replying, meta && meta.frames]);
     if (force || sig !== sheetSig) {
       sheetSig = sig;
       // Rebuild every row but the playhead row, which keeps the note being written.
+      // A rebuild must not lose what the person is doing in a row: the focused control and
+      // a reply being written are put back afterwards.
+      const ae = document.activeElement, keep = ae && ae !== $('text') && sheet.contains(ae) ? {
+        id: ae.closest('.note')?.dataset.id, act: ae.dataset.act, reply: ae.closest('.replyform') ? ae.value : null,
+        sel: ae.closest('.replyform') ? [ae.selectionStart, ae.selectionEnd] : null } : null;
       for (const el of [...sheet.children]) if (el !== here) el.remove();
       let html = items.map(noteRow).join('');
       if (!items.length) html += doc.comments.length
@@ -873,7 +878,13 @@
         : '<p class="hint">Step to a frame, draw on it if that helps, and write what should change. Each note lands on its frame here.</p>';
       sheet.insertAdjacentHTML('beforeend', html);
       layoutSheet(true);
-      const input = sheet.querySelector('.replyform input'); if (input) input.focus();
+      const input = sheet.querySelector('.replyform input');
+      if (keep && keep.reply != null && input && input.closest('.note')?.dataset.id === keep.id) {
+        input.value = keep.reply; input.focus(); input.setSelectionRange(...keep.sel);
+      } else if (keep && keep.id) {
+        const row = sheet.querySelector(`.note[data-id="${keep.id}"]`);
+        (row && (keep.act ? row.querySelector(`[data-act="${keep.act}"]`) : row))?.focus();
+      } else if (input) input.focus();
     }
     const unsent = doc.comments.filter(c => c.status === 'open' && !c.sent).length;
     $('bSend').disabled = !unsent;
@@ -942,7 +953,16 @@
       if (act === 'reply') { replying = replying === id ? null : id; renderList(true); return; }
       if (act === 'delete') {
         // Two clicks instead of a confirm box, which a chat frame may not allow.
-        if (armed !== id) { armed = id; renderList(true); clearTimeout(sheet.armT); sheet.armT = setTimeout(() => { armed = null; renderList(true); }, 3000); return; }
+        // Armed in place, so the button keeps focus and a second Enter confirms.
+        const btn = e.target.closest('[data-act="delete"]');
+        const label = on => { btn.classList.toggle('armed', on); btn.ariaLabel = btn.dataset.tip = on ? 'Click again to delete' : 'Delete'; };
+        if (armed !== id) {
+          sheet.querySelector('.btn.armed')?.classList.remove('armed');
+          armed = id; label(true); clearTimeout(sheet.armT);
+          sheet.armT = setTimeout(() => { armed = null; if (btn.isConnected) label(false); }, 3000);
+          return;
+        }
+        clearTimeout(sheet.armT);
         armed = null; await api('DELETE', `/api/comments/${id}`); if (selected === id) selected = null; await refresh(true); toast(`Deleted ${id}`); return;
       }
     } catch (err) { toast(err.message); return; }
