@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -43,15 +44,22 @@ func defaultCrashDir() string {
 	return filepath.Join(home, "Library", "Logs", "DiagnosticReports")
 }
 
+// probe looks only at the processes of the current user: on a shared machine, another
+// user's Cavalry says nothing about this user's bridge.
 func probe() Status {
+	me, err := user.Current()
+	if err != nil {
+		return Unknown
+	}
 	switch runtime.GOOS {
 	case "darwin":
 		// The executable is Cavalry.app/Contents/MacOS/Cavalry. Match the name exactly:
 		// `pgrep -f cavalry` also matches unrelated tools such as the cavalry-mcp server.
-		err := exec.Command("pgrep", "-x", exeName).Run()
+		err := exec.Command("pgrep", "-x", "-U", me.Uid, exeName).Run()
 		return pgrepStatus(err)
 	case "windows":
-		out, err := exec.Command("tasklist", "/FI", "IMAGENAME eq "+exeName+".exe", "/FO", "CSV", "/NH").Output()
+		// Username is DOMAIN\user here, which the USERNAME filter accepts.
+		out, err := exec.Command("tasklist", "/FI", "IMAGENAME eq "+exeName+".exe", "/FI", "USERNAME eq "+me.Username, "/FO", "CSV", "/NH").Output()
 		if err != nil {
 			return Unknown
 		}
