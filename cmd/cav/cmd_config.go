@@ -43,6 +43,8 @@ no keys (greybox frames, Openverse, Wikimedia) and gets better as you add keys.
                                     the model a service uses (no id: cav's default)
   cav config endpoint qwen-omni <base-url> [model]
                                     an OpenAI-compatible server you run or rent
+  cav config endpoint comfyui http://127.0.0.1:8188 <workflow-api.json>
+  cav config endpoint acestep http://127.0.0.1:8001
   cav config login freesound --client-id ID [--secret SOURCE]
                                     OAuth login, needed to download Freesound originals
 

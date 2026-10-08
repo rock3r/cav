@@ -201,6 +201,7 @@ it can use now, so everything works without keys and gets better with them:
 cav config                                          # the order per job, and key sources
 cav config set-key gemini op://Private/Gemini/api key
 cav config check                                    # one free call per service
+cav config check --live                             # plus one small paid call each
 ```
 
 A key source is `env:NAME`, `keychain:service/account` (macOS), `op://vault/item/field`
@@ -224,20 +225,27 @@ cav board animatic --audio music.wav             # renders/animatic.mp4, cut on 
 ```
 
 **Assets.** `cav gen image "<prompt>"` makes a still; `--alpha` a transparent PNG, `--vector`
-an SVG. `cav gen vector logo.png` traces a PNG.
+an SVG. `cav gen vector logo.png` traces a PNG. Without a key, `--service mflux` runs an open
+model on an Apple silicon Mac (the first run downloads several GB), and a ComfyUI server
+runs a workflow you choose (`cav config endpoint comfyui`).
 
 **Music and sound.** `cav sfx search whoosh` finds free sounds, `cav sfx get <ref>` downloads
 one with its credit, `cav sfx index <folder>` adds a library you own (for example a Sonniss
 GDC bundle), and `cav sfx gen "<prompt>"` generates one. With a key, `cav music gen` makes
-takes whose sections follow the storyboard's shots. `cav listen <track> --board
-storyboard.json` reports length, tempo, loudness, the cuts against the downbeats, a picture
-and, with a Gemini key, a written critique.
+takes whose sections follow the storyboard's shots; an ACE-Step 1.5 server you run does the
+same without a key. `cav music render score.json` plays a score written as notes on a beat
+grid, with built-in synths and drums, samples or VST3/AU instruments, and masters it.
+`cav listen <track> --board storyboard.json` reports length, tempo, loudness, the cuts
+against the downbeats, a picture and, with a Gemini key, a written critique. `--score` adds
+local quality scores; several tracks are compared side by side. `cav score` writes a REAPER
+project to finish the music by ear.
 
 **Review.** `cav review renders/final.mp4` serves a page on http://127.0.0.1:8790. Step
 frames with the arrow keys, shuttle with J/K/L, set a range with I and O, draw on the frame,
 and add notes. "Send to agent" hands the open notes to an agent waiting in
 `cav review wait`. Notes live in `renders/final.review.json`, each with a snapshot of the
-frame and the drawing.
+frame and the drawing. A re-render to the same file reloads the page; W compares it with
+the earlier render (wipe, difference) or shows an onion skin.
 
 ## Using cav with a coding agent
 

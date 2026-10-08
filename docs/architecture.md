@@ -320,8 +320,8 @@ within about 35 ms counts as on the grid.
 
 ### Production commands
 
-`config`, `review`, `board`, `gen`, `sfx`, `ref`, `credits`, `listen` and `music` never talk
-to the bridge. They are plain Go around ffmpeg and HTTPS:
+`config`, `review`, `board`, `gen`, `sfx`, `ref`, `credits`, `listen`, `music` and `score`
+never talk to the bridge. They are plain Go around ffmpeg, HTTPS and uv:
 
 - `internal/services` holds the catalog of services, the order per job, key resolution
   (environment, keychain, `op read`, OAuth) and one free health call per service.
@@ -340,6 +340,16 @@ to the bridge. They are plain Go around ffmpeg and HTTPS:
 - `internal/imagegen`, `internal/music` and `internal/listen` are thin clients for the
   image, music and audio-model APIs. Their tests check request shapes against the vendor
   documentation, not the live services.
+- `internal/pyrun` runs the embedded Python helpers (`assets/python`) with `uv run
+  --no-project --with ...`, so each helper gets Python 3.12 and its packages in uv's cache
+  and nothing is installed globally. `score_takes.py` runs Audiobox Aesthetics and CLAP;
+  `render_music.py` plays a written score with numpy synthesis and pedalboard (effects,
+  VST3/AU hosting, file I/O), then masters it with pyloudnorm and its own lookahead limiter.
+  mflux runs through `uvx` the same way. ComfyUI and ACE-Step are HTTP servers the user
+  runs; cav submits a job and asks for its result until it is done, because neither server
+  pushes.
+- `internal/score` writes REAPER projects (`.rpp`, plain text) and renders them with
+  `reaper -renderproject`.
 - `internal/board` turns a storyboard into a board sheet, an animatic (ffmpeg concat with one
   still per shot) and mood boards.
 

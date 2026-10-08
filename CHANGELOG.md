@@ -19,6 +19,20 @@
 - Add `cav gen`: generated stills, transparent PNGs and SVG, and PNG-to-SVG tracing.
 - Add `cav listen`: loudness, structure, storyboard cuts against downbeats, a picture, and an
   audio model's critique of a track. Add `cav music gen` (ElevenLabs Music, Stable Audio).
+- Add `cav music render`: play a written score (notes and hits on a beat grid) with
+  built-in synths and drums, samples, or VST3/AU instruments, mixed and mastered locally.
+- Add local services: mflux (open image models on Apple silicon), ComfyUI (a workflow you
+  choose), and ACE-Step 1.5 (an open music model on a server you run).
+- `cav listen --score` rates takes with local models (Audiobox Aesthetics, CLAP), and several
+  tracks are compared side by side.
+- Add `cav score`: a REAPER project with the render, a marker per shot and the takes, and
+  `cav score render` to render it from the command line.
+- Add `cav ref arena`: copy an Are.na channel into the mood board as reference-only assets.
+- `cav config check --live` (and `cav doctor --services --live`) makes one small paid call
+  per keyed service, after asking.
+- The review page shows the audio waveform, reloads a re-rendered file, and compares it with
+  the earlier render (A/B wipe, difference) or as an onion skin. It follows the system's
+  light or dark theme, with a manual override.
 - Add `cav guide production`.
 - The cavalry plugin adds a command hook for Claude Code and Codex (`cav review hook`): when
   the reviewer sends notes that no `cav review wait` picked up, the agent hears about it once,

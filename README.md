@@ -108,7 +108,8 @@ troubleshooting.
 | `cav board init\|frames\|sheet\|animatic\|mood` | Storyboard timed in beats, frames per shot, a board image, an animatic on the music, mood boards |
 | `cav gen image\|vector` | Generate stills, transparent PNGs and SVG; trace a PNG to SVG |
 | `cav ref` / `cav sfx search\|get\|gen\|index` | Find reference images, sounds and music under free licences; generate sound effects |
-| `cav music gen` / `cav listen <track>` | Generate music planned on the storyboard; judge a track: loudness, cuts, picture, critique |
+| `cav music gen\|render` / `cav listen <track>` | Generate music planned on the storyboard, or render a written score locally; judge takes: loudness, cuts, picture, local scores, critique |
+| `cav score [storyboard.json]` | A REAPER project with the render, a marker per shot and the takes, to finish the music by ear |
 | `cav credits [check\|licence]` | Credit lines and licence checks for every asset the project uses |
 | `cav config [check\|set-key\|order\|model]` | Which service does each job, where its key lives; `cav doctor --services` tests them |
 | `cav api` / `cav docs` / `cav types` / `cav helpers` | Offline search: API, Cavalry docs, layer types, the helper library |
@@ -116,7 +117,8 @@ troubleshooting.
 | `cav version [--check]` / `cav update` | Versions, and updates that ask before they install |
 
 The production commands work without API keys (greybox frames, Openverse, Wikimedia,
-local tools) and use better services when you add keys. `cav guide production` explains
+written scores, local models through uv, ComfyUI and ACE-Step servers) and use better
+services when you add keys. `cav guide production` explains
 them.
 
 Every command accepts `--json`. Exit codes: 0 ok, 1 error, 2 bridge not reachable, 3 job still
