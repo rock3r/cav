@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"math"
@@ -19,7 +20,7 @@ import (
 func init() {
 	register(command{
 		name:    "board",
-		args:    "init | frames | sheet | animatic | mood   (cav help board)",
+		args:    "init | frames | sheet | animatic | place | mood   (cav help board)",
 		summary: "Plan a piece as a storyboard: frames per shot, a board image, an animatic on the music, and mood boards.",
 		run:     cmdBoard,
 	})
@@ -39,6 +40,11 @@ timed in beats (like the plan table cav guide asks for).
   cav board animatic [storyboard.json] [--audio music.wav] [-o renders/animatic.mp4]
         each frame held for its beats, cut on the shot boundaries, with the music. Review
         it with cav review renders/animatic.mp4.
+  cav board place [storyboard.json] [--only s1,s3] [--comp NAME]
+        adds each shot's frame to the open Cavalry composition as an image layer named
+        by its shot id, visible from its start beat to its end beat and scaled to fit.
+        Run it again to update the placeholders: it replaces image layers with those names
+        and leaves alone a shot whose name a built layer (a group, a shape) already uses.
   cav board mood [moodboard/] [-o renders/moodboard.png]
         lays a folder of references out as one picture, each with its source and licence
         from the manifest (cav ref get fills the folder).
@@ -70,10 +76,12 @@ func cmdBoard(a *app, args []string) error {
 		return boardSheet(a, args)
 	case "animatic":
 		return boardAnimatic(a, args)
+	case "place":
+		return boardPlace(a, args)
 	case "mood":
 		return boardMood(a, args)
 	}
-	return usageErr("unknown board command %q (init, frames, sheet, animatic, mood)", sub)
+	return usageErr("unknown board command %q (init, frames, sheet, animatic, place, mood)", sub)
 }
 
 func boardInit(a *app, args []string) error {
@@ -321,6 +329,152 @@ func boardAnimatic(a *app, args []string) error {
 	}
 	a.emit(map[string]any{"file": *out, "seconds": secs, "shots": len(sb.Shots), "audio": *audio}, func() {
 		fmt.Printf("%s: %.2f s, %d shots\nReview it: cav review %s\n", *out, secs, len(sb.Shots), *out)
+	})
+	return nil
+}
+
+// boardPlaceJS adds the frames in `shots` to the active comp. It reuses an asset already
+// loaded from the same file (reloading it, in case the frame was remade), replaces image
+// layers named by a shot id, and skips a shot whose name another kind of layer uses: that
+// is the built shot replacing its placeholder.
+const boardPlaceJS = `
+var assets = {}
+api.getAssetWindowLayers(false).forEach(function (a) {
+	if (api.isFileAsset(a)) assets[api.getAssetFilePath(a)] = a
+})
+var placed = [], skipped = []
+shots.forEach(function (s) {
+	var replaced = 0, built = null
+	api.getCompLayers(true).forEach(function (l) {
+		if (api.getNiceName(l) !== s.id) return
+		if (api.getLayerType(l) === 'footageShape') {
+			api.deleteLayer(l)
+			replaced++
+		} else if (!built) built = l
+	})
+	if (built) {
+		skipped.push({ id: s.id, layer: built, type: api.getLayerType(built) })
+		return
+	}
+	var o = { in: s.in, out: s.out }
+	if (s.scale > 0) o.scale = s.scale
+	var l
+	if (assets[s.path]) {
+		api.reloadAsset(assets[s.path])
+		api.select([])
+		l = api.addAssetToComp(assets[s.path])
+		if (Array.isArray(l)) l = l[0]
+		api.select([])
+		api.rename(l, s.id)
+		cav.set(l, o)
+	} else {
+		l = cav.image(s.path, s.id, o)
+	}
+	placed.push({ id: s.id, layer: l, replaced: replaced > 0 })
+})
+return { placed: placed, skipped: skipped, end: api.get(api.getActiveComp(), 'endFrame') }`
+
+func boardPlace(a *app, args []string) error {
+	fs := flag.NewFlagSet("board place", flag.ContinueOnError)
+	only := fs.String("only", "", "comma-separated shot ids")
+	comp := fs.String("comp", "", "composition ID or unique name (default: the active one)")
+	timeout := fs.Duration("timeout", 2*time.Minute, "maximum wait for Cavalry")
+	pos, err := parseFlags(fs, args)
+	if err != nil {
+		return err
+	}
+	path := boardPath(pos, "storyboard.json")
+	sb, err := board.Load(path)
+	if err != nil {
+		return fail(exitError, err.Error(), "cav board init writes a starting storyboard")
+	}
+	a.compSelector = *comp
+	var c struct {
+		FPS    float64 `json:"fps"`
+		Width  int     `json:"width"`
+		Height int     `json:"height"`
+	}
+	if err := a.jsCall(`var id = api.getActiveComp(), r = api.get(id, 'resolution');
+return { fps: api.get(id, 'fps'), width: r.x, height: r.y }`, *timeout, &c); err != nil {
+		return err
+	}
+	want := map[string]bool{}
+	for _, id := range splitList(*only) {
+		want[id] = true
+	}
+	ps, err := sb.Placements(a.ctx, c.FPS, c.Width, c.Height, want)
+	if err != nil {
+		return fail(exitError, err.Error(), "")
+	}
+	shots, err := json.Marshal(ps)
+	if err != nil {
+		return err
+	}
+	o, err := a.execJS("var shots = "+string(shots)+";\n"+boardPlaceJS, execOpts{helpers: true, timeout: *timeout, source: "cav board place"})
+	if err != nil {
+		return err
+	}
+	if !o.result.OK {
+		return scriptErr(o)
+	}
+	var r struct {
+		Placed []struct {
+			ID       string `json:"id"`
+			Layer    string `json:"layer"`
+			Replaced bool   `json:"replaced"`
+		} `json:"placed"`
+		Skipped []struct {
+			ID    string `json:"id"`
+			Layer string `json:"layer"`
+			Type  string `json:"type"`
+		} `json:"skipped"`
+		End int `json:"end"`
+	}
+	if err := json.Unmarshal(o.result.Value, &r); err != nil {
+		return err
+	}
+	byID := map[string]board.Placement{}
+	last := 0
+	for _, p := range ps {
+		byID[p.ID] = p
+		last = max(last, p.Out)
+	}
+	notes := []string{}
+	for _, p := range ps {
+		if p.Scale == 0 {
+			notes = append(notes, p.ID+": unknown image size, placed at its native size")
+		}
+	}
+	if last > r.End {
+		notes = append(notes, fmt.Sprintf("the composition ends at frame %d but the last shot runs to frame %d: set its length with cav scene comp --seconds %g", r.End, last, sb.Seconds))
+	}
+	type row struct {
+		Shot     string  `json:"shot"`
+		Layer    string  `json:"layer"`
+		In       int     `json:"in"`
+		Out      int     `json:"out"`
+		Scale    float64 `json:"scale"`
+		Replaced bool    `json:"replaced,omitempty"`
+	}
+	rows := []row{}
+	for _, p := range r.Placed {
+		pl := byID[p.ID]
+		rows = append(rows, row{p.ID, p.Layer, pl.In, pl.Out, math.Round(pl.Scale*1000) / 1000, p.Replaced})
+	}
+	a.emit(map[string]any{"storyboard": path, "fps": c.FPS, "placed": rows, "skipped": r.Skipped, "notes": notes}, func() {
+		for _, x := range rows {
+			state := "added"
+			if x.Replaced {
+				state = "replaced"
+			}
+			fmt.Printf("%-4s %-16s frames %d-%d  scale %g  (%s)\n", x.Shot, x.Layer, x.In, x.Out, x.Scale, state)
+		}
+		for _, s := range r.Skipped {
+			fmt.Printf("%-4s kept %s (a %s already uses the name)\n", s.ID, s.Layer, s.Type)
+		}
+		for _, n := range notes {
+			fmt.Fprintln(os.Stderr, "note: "+n)
+		}
 	})
 	return nil
 }

@@ -222,6 +222,7 @@ cav board init --bpm 120 --seconds 16 --shots 6  # then describe each shot in st
 cav board frames                                 # greybox cards, or generated with a key
 cav board sheet                                  # renders/board.png
 cav board animatic --audio music.wav             # renders/animatic.mp4, cut on the beat
+cav board place                                  # frames as placeholder layers in Cavalry
 ```
 
 **Assets.** `cav gen image "<prompt>"` makes a still; `--alpha` a transparent PNG, `--vector`

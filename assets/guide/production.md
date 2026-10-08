@@ -2,7 +2,8 @@
 
 These commands work around the Cavalry scene: planning before you build, finding and
 making assets and music, and getting feedback after you render. They need no Cavalry
-bridge, so you can use them before Cavalry is open.
+bridge, so you can use them before Cavalry is open. `cav board place` is the exception: it
+adds the storyboard to the open scene.
 
 Every job works without API keys. With a key, cav uses a better service and says which
 one it used. `cav config` shows the order per job; `cav config check` (or
@@ -67,6 +68,7 @@ cav board frames                            # one frame per shot into board/
 cav board sheet                             # renders/board.png: look at it
 cav board animatic --audio music.wav        # renders/animatic.mp4, cut on the beat
 cav review renders/animatic.mp4             # get the user's notes before building
+cav board place                             # the frames as placeholder layers in Cavalry
 ```
 
 - Time shots in beats, like the plan table in `cav guide`. Put cuts on bar starts
@@ -76,6 +78,13 @@ cav review renders/animatic.mp4             # get the user's notes before buildi
 - Greybox cards are text placeholders. For a greybox made of real shapes, build it in
   Cavalry, render it with `cav frame <n> -o board/s3.png`, and set that shot's `"frame"`.
   `cav board frames` keeps frames that exist (`--force` remakes them).
+- `cav board place` starts the build. It adds each frame to the active composition as an
+  image layer named by its shot id (`s1`, `s2`, ...), shown from its start beat to its end
+  beat at the composition's frame rate, and scaled to fit. Find a placeholder with
+  `cav.find('s3')`. When you build the shot, delete its placeholder and give the shot's
+  group the same name. Run `cav board place` again after you change beats or frames: it
+  replaces the image layers and keeps any shot whose name a built layer already uses.
+  `--only s2,s3` places some shots; `--comp NAME` targets another composition.
 
 ## 4. Assets
 

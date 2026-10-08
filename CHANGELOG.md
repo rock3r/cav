@@ -27,6 +27,8 @@
   tracks are compared side by side.
 - Add `cav score`: a REAPER project with the render, a marker per shot and the takes, and
   `cav score render` to render it from the command line.
+- Add `cav board place`: each shot's frame becomes an image layer named by its shot id in the
+  open composition, shown for its beats, so the build starts from the storyboard.
 - Add `cav ref arena`: copy an Are.na channel into the mood board as reference-only assets.
 - `cav config check --live` (and `cav doctor --services --live`) makes one small paid call
   per keyed service, after asking.
