@@ -32,8 +32,8 @@ press "Send to agent", as in the browser. Notes go to the same <video>.review.js
 The chat frame is small and has no network, so the page plays a preview copy (at most 640
 pixels wide, cached in ~/.cav/cache/review-preview) that the server sends inline, up to
 24 MB. It suits a quick look: for frame-by-frame review run cav review in a shell.
-Not every host draws MCP Apps (the Claude desktop app's Code tab does not); those still
-get the list of open notes.`
+Not every host draws MCP Apps: the chat of the Claude desktop app does, its Code tab does
+not. Hosts that do not still get the list of open notes.`
 }
 
 func cmdMCP(a *app, args []string) error {

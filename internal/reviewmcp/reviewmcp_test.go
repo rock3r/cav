@@ -26,6 +26,14 @@ func connect(t *testing.T) (*mcp.ClientSession, string, *int) {
 	if err := os.WriteFile(video, []byte("render v1"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	cs, prepared := connectTo(t, video)
+	return cs, video, prepared
+}
+
+// connectTo starts another server process, as a host does, for a video that already exists.
+func connectTo(t *testing.T, video string) (*mcp.ClientSession, *int) {
+	t.Helper()
+	dir := filepath.Dir(video)
 	prepared := 0
 	srv := New(Options{
 		Version: "test", Page: []byte(page), Shim: []byte("/* shim */"), Author: "ann", CacheDir: filepath.Join(dir, "cache"),
@@ -64,7 +72,7 @@ func connect(t *testing.T) (*mcp.ClientSession, string, *int) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { cs.Close() })
-	return cs, video, &prepared
+	return cs, &prepared
 }
 
 func call(t *testing.T, cs *mcp.ClientSession, name string, args map[string]any, out any) *mcp.CallToolResult {
@@ -208,6 +216,30 @@ func TestReviewRequestOnlyReachesOpenedVideos(t *testing.T) {
 	res = call(t, cs, "review_request", map[string]any{"video": video, "method": "GET", "path": "api/state"}, nil)
 	if !res.IsError {
 		t.Error("a path without a leading / must be refused")
+	}
+}
+
+// Claude Desktop runs show_review in one server process and sends the page's requests to
+// another: the second one must serve a video that the first opened.
+func TestPageRequestsReachAnotherServerProcess(t *testing.T) {
+	model, video, _ := connect(t)
+	call(t, model, "show_review", map[string]any{"video": video}, nil)
+	page, _ := connectTo(t, video)
+	var state requestOut
+	res := call(t, page, "review_request", map[string]any{"video": video, "method": "GET", "path": "/api/state"}, &state)
+	if res.IsError || state.Status != 200 || !strings.Contains(state.Body, `"frames":50`) {
+		t.Fatalf("the second process should serve the opened video: %v %+v", res.Content, state)
+	}
+	var vid requestOut
+	call(t, page, "review_request", map[string]any{"video": video, "method": "GET", "path": "/video"}, &vid)
+	if vid.Status != 200 || !strings.HasPrefix(vid.DataURL, "data:video/mp4;base64,") {
+		t.Errorf("GET /video from the second process: status %d", vid.Status)
+	}
+	// A video with no review file is still out of reach for it.
+	other := filepath.Join(filepath.Dir(video), "other.mp4")
+	os.WriteFile(other, []byte("x"), 0o644)
+	if res := call(t, page, "review_request", map[string]any{"video": other, "method": "GET", "path": "/api/state"}, nil); !res.IsError {
+		t.Error("a video without a review file must be refused")
 	}
 }
 

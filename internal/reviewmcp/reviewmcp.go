@@ -93,8 +93,19 @@ func New(o Options) *mcp.Server {
 // window height, but the host sizes the frame from the page's own height, so in the frame
 // the page takes its natural height and the wide layout a fixed one.
 func AppPage(page, shim []byte) []byte {
+	// Chat frames are often 700-800 pixels wide, where the page would stack the notes under
+	// the video and grow taller than the window. In the chat, keep the two columns down to
+	// 600 pixels, with a narrower notes column that scrolls inside a fixed height.
 	head := "<style>html.cav-mcp, html.cav-mcp body { height: auto; }\n" +
-		"@media (min-width: 901px) { html.cav-mcp .app { height: var(--cav-app-h, 640px); } }</style>\n" +
+		"@media (min-width: 600px) {\n" +
+		"  html.cav-mcp .app { grid-template-columns: minmax(0, 1fr) 360px; height: var(--cav-app-h, 600px); }\n" +
+		"  html.cav-mcp .side { border-left: 1px solid var(--line); border-top: 0; }\n" +
+		"  html.cav-mcp .list { min-height: 0; }\n" +
+		// The page sizes the stage from its width below 900 pixels; here it fills the column.
+		"  html.cav-mcp .stage-wrap { height: auto !important; }\n" +
+		"}\n" +
+		"@media (min-width: 600px) and (max-width: 900px) { html.cav-mcp .app { grid-template-columns: minmax(0, 1fr) 280px; } }\n" +
+		"</style>\n" +
 		"<script>\n" + string(shim) + "\n</script>\n"
 	i := bytes.Index(page, []byte("</head>"))
 	if i < 0 {
@@ -162,7 +173,13 @@ func (h *handler) session(ctx context.Context, video string, create, activate bo
 	defer h.mu.Unlock()
 	s := h.open[abs]
 	if s == nil && !create {
-		return nil, fmt.Errorf("%s was not opened with show_review", video)
+		// A host may send the page's requests to another server process than the one that
+		// ran show_review (Claude Desktop does), so this process may not know the video yet.
+		// The review file that show_review (or cav review) wrote next to it shows that it was
+		// opened for review; any other file stays out of reach.
+		if doc, _ := review.Paths(abs); !fileExists(doc) {
+			return nil, fmt.Errorf("%s was not opened with show_review", video)
+		}
 	}
 	if s != nil {
 		if info.ModTime().Equal(s.modTime) && info.Size() == s.size {
@@ -194,6 +211,11 @@ func (h *handler) session(ctx context.Context, video string, create, activate bo
 		srv: &review.Server{Store: store, Source: src, Proxy: proxy, Author: h.o.Author, CacheDir: h.o.CacheDir}}
 	h.open[abs] = s
 	return s, nil
+}
+
+func fileExists(p string) bool {
+	info, err := os.Stat(p)
+	return err == nil && info.Mode().IsRegular()
 }
 
 type showIn struct {
