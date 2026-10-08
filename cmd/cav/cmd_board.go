@@ -453,7 +453,8 @@ return { id: id, fps: api.get(id, 'fps'), width: r.x, height: r.y, start: api.ge
 		}
 	}
 	if last > r.End {
-		notes = append(notes, fmt.Sprintf("the composition ends at frame %d but the last shot runs to frame %d: set its length with cav scene comp --seconds %g", r.End, last, sb.Seconds))
+		// --range keeps the start frame; --seconds would move it back to 0 under the placed layers.
+		notes = append(notes, fmt.Sprintf("the composition ends at frame %d but the last shot runs to frame %d: extend it with cav scene comp --range %d-%d", r.End, last, c.Start, last))
 	}
 	type row struct {
 		Shot     string  `json:"shot"`
