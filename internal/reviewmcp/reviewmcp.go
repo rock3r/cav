@@ -102,18 +102,17 @@ func New(o Options) *mcp.Server {
 // window height, but the host sizes the frame from the page's own height, so in the frame
 // the page takes its natural height and the wide layout a fixed one.
 func AppPage(page, shim []byte) []byte {
-	// Chat frames are often 700-800 pixels wide, where the page would stack the notes under
-	// the video and grow taller than the window. In the chat, keep the two columns down to
-	// 600 pixels, with a narrower notes column that scrolls inside a fixed height.
+	// The page stacks the sheet under the stage below 760 pixels. Chat frames are often 600
+	// to 800 pixels wide and about 600 tall, so in the chat the two columns hold down to 600
+	// pixels, with a narrower sheet, and the whole page takes the frame's height.
 	head := "<style>html.cav-mcp, html.cav-mcp body { height: auto; }\n" +
-		"@media (min-width: 600px) {\n" +
-		"  html.cav-mcp .app { grid-template-columns: minmax(0, 1fr) 360px; height: var(--cav-app-h, 600px); }\n" +
-		"  html.cav-mcp .side { border-left: 1px solid var(--line); border-top: 0; }\n" +
-		"  html.cav-mcp .list { min-height: 0; }\n" +
-		// The page sizes the stage from its width below 900 pixels; here it fills the column.
+		"@media (min-width: 600px) { html.cav-mcp .app { height: var(--cav-app-h, 600px); } }\n" +
+		"@media (min-width: 600px) and (max-width: 759px) {\n" +
+		"  html.cav-mcp .app { grid-template-columns: minmax(0, 1fr) 264px; grid-template-rows: auto minmax(0, 1fr); }\n" +
+		"  html.cav-mcp .side { border-left: 1px solid var(--rule-3); border-top: 0; height: auto; }\n" +
+		// The page sizes the stage from its width when stacked; here it fills the column.
 		"  html.cav-mcp .stage-wrap { height: auto !important; }\n" +
 		"}\n" +
-		"@media (min-width: 600px) and (max-width: 900px) { html.cav-mcp .app { grid-template-columns: minmax(0, 1fr) 280px; } }\n" +
 		"</style>\n" +
 		"<script>\n" + string(shim) + "\n</script>\n"
 	i := bytes.Index(page, []byte("</head>"))
@@ -560,36 +559,8 @@ func (h *handler) store(abs string) *review.Store {
 	return review.Open(abs)
 }
 
-// snapshotPath finds a note's snapshot by its file name in the review's own snapshot folder.
-// The recorded path may be relative to wherever `cav review` ran, and the review file sits
-// in the project, so a path it names elsewhere is never read. Nor is a symlink, or a file
-// whose real location is outside that folder: a checkout could carry either.
-func snapshotPath(store *review.Store, p string) string {
-	name := filepath.Base(filepath.FromSlash(p))
-	if p == "" || name == "." || name == ".." || !strings.HasSuffix(name, ".png") {
-		return ""
-	}
-	// The folder must be review/<video name> beside the video, as a real folder: neither
-	// "review" nor the folder in it may be a symlink to elsewhere. Folders above the video
-	// may be symlinks (macOS keeps /tmp under /private/tmp).
-	dir, err := filepath.EvalSymlinks(store.SnapDir)
-	if err != nil {
-		return ""
-	}
-	videoDir, err := filepath.EvalSymlinks(filepath.Dir(store.Video))
-	if err != nil || dir != filepath.Join(videoDir, "review", filepath.Base(store.SnapDir)) {
-		return ""
-	}
-	abs, err := filepath.Abs(filepath.Join(dir, name))
-	if err != nil {
-		return ""
-	}
-	info, err := os.Lstat(abs)
-	if err != nil || !info.Mode().IsRegular() {
-		return ""
-	}
-	return abs
-}
+// snapshotPath finds a note's snapshot; see review.Store.SnapshotFile.
+func snapshotPath(store *review.Store, p string) string { return store.SnapshotFile(p) }
 
 func firstLine(s string) string {
 	s, _, _ = strings.Cut(strings.TrimSpace(s), "\n")

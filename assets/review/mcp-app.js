@@ -144,6 +144,9 @@
     if (el.id === 'video' && note) {
       note.textContent = 'Could not load the render: ' + msg;
       note.hidden = false; note.classList.add('bad');
+    } else if (el instanceof HTMLImageElement) {
+      // A missing snapshot is not worth an alert: the thumbnail keeps its empty frame.
+      el.removeAttribute('src');
     } else if (toast) {
       toast.textContent = 'Could not load: ' + msg;
       toast.classList.add('on');

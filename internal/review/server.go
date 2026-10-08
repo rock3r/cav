@@ -189,12 +189,20 @@ func (s *Server) Handler() http.Handler {
 			return
 		}
 		c := Find(d, r.PathValue("id"))
-		if c == nil || c.Snapshot == "" {
+		if c == nil {
+			http.NotFound(w, r)
+			return
+		}
+		// Found by name in the review's snapshot folder: the recorded path may be relative
+		// to another working folder (the chat's server runs elsewhere), and a review file
+		// must not make the server send a file from anywhere else.
+		p := s.Store.SnapshotFile(c.Snapshot)
+		if p == "" {
 			http.NotFound(w, r)
 			return
 		}
 		w.Header().Set("Cache-Control", "no-store")
-		http.ServeFile(w, r, c.Snapshot)
+		http.ServeFile(w, r, p)
 	})
 	mux.HandleFunc("POST /api/comments", s.addComment)
 	mux.HandleFunc("POST /api/comments/{id}", s.editComment)

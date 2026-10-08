@@ -5,163 +5,335 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>cav review</title>
 <style>
-  /* Light tokens are the base; dark applies when the system asks for it (unless the person
-     chose light) or when they chose dark. The video stage stays neutral dark in both themes,
-     so colour judgements are not swayed by the surround. */
+  /* The page is an animator's exposure sheet: frames run down ruled rows, and each note is
+     written into the row of the frame it is about. Light is the base; dark applies when the
+     system asks for it (unless the person chose light) or when they chose dark. The stage
+     stays neutral black in both, so the surround never sways a colour judgement. Cav orange
+     is reserved for what is under the eye: the playhead, its row, and the live drawing. */
+  /* The sheet's lettering: Barlow Semi Condensed SemiBold (SIL Open Font License 1.1, by
+     Jeremy Tribby), Latin subset, embedded so the page needs no network. */
+  @font-face { font-family: 'Sheet'; font-weight: 600; font-style: normal; font-display: block; src: url(data:font/woff2;base64,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) format('woff2'); }
   :root {
-    --bg: #f3f4f6; --panel: #ffffff; --panel-2: #eceef2; --line: #d3d7de; --sel: #e3e8fb;
-    --ink: #1c2028; --ink-soft: #545c6b; --accent: #3552c8; --accent-ink: #ffffff; --accent-soft: rgba(53, 82, 200, 0.14);
-    --ok: #1d7a45; --ok-soft: rgba(29, 122, 69, 0.13); --warn: #8f5b00; --warn-soft: rgba(143, 91, 0, 0.13); --bad: #b8312b;
-    --tick: #b7bcc6; --stage: #0e0f12; --scroll: #c3c8d1;
-    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-    --sans: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --paper: #ffffff; --paper-2: #f4f5f7; --paper-3: #e8eaee;
+    --ink: #16181f; --ink-2: #353a45; --graphite: #5c6370;
+    --rule: rgba(22, 24, 31, 0.11); --rule-2: rgba(22, 24, 31, 0.22); --rule-3: rgba(22, 24, 31, 0.62);
+    --sel: rgba(22, 24, 31, 0.045); --hover: rgba(22, 24, 31, 0.06);
+    --mark: #ff5a36; --mark-ink: #c2360e; --mark-soft: rgba(255, 90, 54, 0.11); --on-mark: #16181f;
+    --ok: #1d7a47; --warn: #9a5800; --bad: #bf2d2d; --on-bad: #ffffff;
+    --stage: #0b0c0e; --tip: #16181f; --on-tip: #f4f5f7;
+    --sheet: 'Sheet', ui-sans-serif, -apple-system, sans-serif;
+    --sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --sheet-w: 392px; --fcol: 76px;
     color-scheme: light;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --bg: #111317; --panel: #191c22; --panel-2: #22262e; --line: #30353f; --sel: #272d3b;
-      --ink: #e4e7ec; --ink-soft: #a3abba; --accent: #93a6ff; --accent-ink: #0d1020; --accent-soft: rgba(147, 166, 255, 0.18);
-      --ok: #6fcf97; --ok-soft: rgba(111, 207, 151, 0.15); --warn: #f2c94c; --warn-soft: rgba(242, 201, 76, 0.16); --bad: #ff7b74;
-      --tick: #454b56; --stage: #000000; --scroll: #3a404b;
+      --paper: #16181f; --paper-2: #1c1f27; --paper-3: #282c35;
+      --ink: #eceef2; --ink-2: #c8ccd4; --graphite: #9aa1ad;
+      --rule: rgba(236, 238, 242, 0.09); --rule-2: rgba(236, 238, 242, 0.19); --rule-3: rgba(236, 238, 242, 0.5);
+      --sel: rgba(236, 238, 242, 0.045); --hover: rgba(236, 238, 242, 0.06);
+      --mark-ink: #ff8a66; --mark-soft: rgba(255, 90, 54, 0.15);
+      --ok: #62d293; --warn: #f2b94d; --bad: #ff8079; --on-bad: #16181f;
+      --tip: #eceef2; --on-tip: #16181f;
       color-scheme: dark;
     }
   }
   :root[data-theme="dark"] {
-    --bg: #111317; --panel: #191c22; --panel-2: #22262e; --line: #30353f; --sel: #272d3b;
-    --ink: #e4e7ec; --ink-soft: #a3abba; --accent: #93a6ff; --accent-ink: #0d1020; --accent-soft: rgba(147, 166, 255, 0.18);
-    --ok: #6fcf97; --ok-soft: rgba(111, 207, 151, 0.15); --warn: #f2c94c; --warn-soft: rgba(242, 201, 76, 0.16); --bad: #ff7b74;
-    --tick: #454b56; --stage: #000000; --scroll: #3a404b;
+    --paper: #16181f; --paper-2: #1c1f27; --paper-3: #282c35;
+    --ink: #eceef2; --ink-2: #c8ccd4; --graphite: #9aa1ad;
+    --rule: rgba(236, 238, 242, 0.09); --rule-2: rgba(236, 238, 242, 0.19); --rule-3: rgba(236, 238, 242, 0.5);
+    --sel: rgba(236, 238, 242, 0.045); --hover: rgba(236, 238, 242, 0.06);
+    --mark-ink: #ff8a66; --mark-soft: rgba(255, 90, 54, 0.15);
+    --ok: #62d293; --warn: #f2b94d; --bad: #ff8079; --on-bad: #16181f;
+    --tip: #eceef2; --on-tip: #16181f;
     color-scheme: dark;
   }
+
+  /* ---------- browser surfaces ---------- */
   * { box-sizing: border-box; }
-  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: 14px/1.45 var(--sans); }
-  ::selection { background: var(--accent-soft); color: var(--ink); }
-  textarea { caret-color: var(--accent); }
-  * { scrollbar-color: var(--scroll) transparent; scrollbar-width: thin; }
-  select, input { accent-color: var(--accent); }
-  .num, .readout, .item .top, header .meta, .where { font-variant-numeric: tabular-nums; }
+  html, body { margin: 0; height: 100%; background: var(--paper); color: var(--ink); font: 13px/1.45 var(--sans); -webkit-font-smoothing: antialiased; }
+  ::selection { background: var(--mark-soft); color: var(--ink); }
+  * { scrollbar-width: thin; scrollbar-color: var(--rule-2) transparent; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: var(--rule-2); border-radius: 4px; border: 2px solid var(--paper); }
+  ::-webkit-scrollbar-track { background: transparent; }
+  textarea, input { caret-color: var(--mark); }
   button, select, textarea, input { font: inherit; color: inherit; }
-  button { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; cursor: pointer; min-height: 32px; transition: border-color 150ms ease-out, background-color 150ms ease-out; }
-  button:hover:not(:disabled) { border-color: var(--accent); }
-  button:active:not(:disabled) { background: var(--sel); }
-  button.icon { display: inline-grid; place-items: center; width: 34px; padding: 0; }
-  button.icon svg { width: 16px; height: 16px; }
-  button.icon.wide { width: auto; padding: 0 10px; grid-auto-flow: column; gap: 6px; }
-  button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
-  button:disabled { opacity: 0.45; cursor: default; }
-  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
-  :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  :focus-visible { outline: 2px solid var(--mark); outline-offset: 2px; }
+  .num { font-variant-numeric: tabular-nums; }
+  svg.i { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+  [hidden] { display: none !important; }
 
-  .app { display: grid; grid-template-columns: minmax(0, 1fr) 360px; height: 100vh; }
-  @media (max-width: 900px) { .app { grid-template-columns: 1fr; height: auto; } }
-  .main { display: flex; flex-direction: column; min-width: 0; min-height: 0; padding: 12px 14px; gap: 10px; }
-  .side { border-left: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column; min-height: 0; }
-  @media (max-width: 900px) { .side { border-left: 0; border-top: 1px solid var(--line); } }
+  /* ---------- controls ---------- */
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 30px; min-width: 30px; padding: 0 7px; border: 0; border-radius: 4px; background: transparent; color: var(--ink-2); cursor: pointer; transition: background-color 120ms ease-out, color 120ms ease-out; }
+  .btn:hover:not(:disabled) { background: var(--hover); color: var(--ink); }
+  .btn:active:not(:disabled) { background: var(--rule-2); }
+  .btn[aria-pressed="true"], .btn[aria-checked="true"] { background: var(--ink); color: var(--paper); }
+  .btn:disabled { color: var(--graphite); opacity: 0.55; cursor: default; }
+  .btn.label { padding: 0 10px; font-weight: 550; }
+  select { appearance: none; height: 30px; border: 1px solid var(--rule-2); border-radius: 4px; background: var(--paper) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4.5 6.5 8 10l3.5-3.5' fill='none' stroke='%237d8492' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 6px center / 14px; padding: 0 24px 0 8px; font-size: 12px; cursor: pointer; }
+  select:hover:not(:disabled) { border-color: var(--rule-3); }
+  select:disabled { opacity: 0.5; cursor: default; }
+  .sep { width: 1px; align-self: stretch; margin: 6px 4px; background: var(--rule-2); flex: none; }
 
-  header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
-  header h1 { font-size: 20px; margin: 0; font-weight: 650; letter-spacing: -0.01em; }
-  header .meta { color: var(--ink-soft); font: 12px var(--mono); }
+  /* Tooltips: the label and the key, drawn from the page's own ink. */
+  [data-tip] { position: relative; }
+  [data-tip]::after { content: attr(data-tip); position: absolute; left: 50%; bottom: calc(100% + 7px); transform: translate(-50%, 3px); z-index: 30; padding: 4px 8px; border-radius: 4px; background: var(--tip); color: var(--on-tip); font: 500 11.5px/1.3 var(--sans); white-space: nowrap; letter-spacing: 0; pointer-events: none; opacity: 0; transition: opacity 120ms ease-out, transform 120ms ease-out; }
+  [data-tip]:hover::after, [data-tip]:focus-visible::after { opacity: 1; transform: translate(-50%, 0); transition-delay: 350ms; }
+  [data-tip-pos="below"]::after { bottom: auto; top: calc(100% + 7px); transform: translate(-50%, -3px); }
+  [data-tip-pos="end"]::after { left: auto; right: 0; transform: translate(0, 3px); }
+  [data-tip-pos="end"]:hover::after, [data-tip-pos="end"]:focus-visible::after { transform: none; }
+  [data-tip-pos="below-end"]::after { bottom: auto; top: calc(100% + 7px); left: auto; right: 0; transform: translate(0, -3px); }
+  [data-tip-pos="below-end"]:hover::after, [data-tip-pos="below-end"]:focus-visible::after { transform: none; }
+  [data-tip-pos="start"]::after { left: 0; transform: translate(0, 3px); }
+  [data-tip-pos="start"]:hover::after, [data-tip-pos="start"]:focus-visible::after { transform: none; }
+  @media (hover: none) { [data-tip]::after { display: none; } }
 
-  .stage-wrap { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; background: var(--stage); border-radius: 6px; overflow: hidden; }
-  .stage-note { position: absolute; inset: auto 0 auto 0; text-align: center; color: #c9ced8; font-size: 13px; padding: 0 16px; }
+  /* ---------- layout ---------- */
+  .app { display: grid; grid-template-columns: minmax(0, 1fr) var(--sheet-w); grid-template-rows: auto minmax(0, 1fr); height: 100vh; height: 100dvh; }
+  .titleblock { grid-column: 1 / -1; }
+  .main { display: grid; grid-template-rows: minmax(0, 1fr) auto auto; min-width: 0; min-height: 0; background: var(--paper); }
+  .side { display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--rule-3); background: var(--paper); }
+  @media (max-width: 1179px) { :root { --sheet-w: 312px; } }
+  @media (max-width: 759px) {
+    .app { grid-template-columns: 1fr; grid-template-rows: auto auto auto; height: auto; }
+    .side { border-left: 0; border-top: 1px solid var(--rule-3); height: min(70vh, 560px); }
+  }
+
+  /* ---------- title block ---------- */
+  .titleblock { display: flex; align-items: center; gap: 14px; min-height: 46px; padding: 0 10px 0 14px; border-bottom: 1px solid var(--rule-3); }
+  .mark { width: 22px; height: 22px; flex: none; }
+  .titleblock h1 { margin: 0; font-size: 16px; font-weight: 650; letter-spacing: -0.005em; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fields { display: flex; align-items: center; min-width: 0; overflow: hidden; color: var(--graphite); font-size: 12px; }
+  .field { display: flex; align-items: baseline; gap: 6px; padding: 0 12px; border-left: 1px solid var(--rule-2); white-space: nowrap; }
+  .field .k { font: 600 12px/1 var(--sheet); letter-spacing: 0.09em; text-transform: uppercase; }
+  .field .v { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .titleblock .end { margin-left: auto; display: flex; align-items: center; gap: 2px; }
+  .theme { display: inline-flex; gap: 1px; padding: 2px; border: 1px solid var(--rule-2); border-radius: 5px; }
+  .theme .btn { height: 24px; min-width: 26px; padding: 0 5px; }
+  @media (max-width: 1023px) { .field.opt { display: none; } }
+  @media (max-width: 759px) { .fields { display: none; } }
+
+  /* ---------- stage ---------- */
+  .stage-wrap { position: relative; min-height: 0; display: flex; align-items: center; justify-content: center; background: var(--stage); overflow: hidden; }
+  .stage-note { position: absolute; inset: auto 0 auto 0; margin: 0; text-align: center; color: #b9bec8; font-size: 13px; padding: 0 24px; }
   .stage-note.bad { color: #ff9b95; }
   .stage { position: relative; max-width: 100%; max-height: 100%; }
   .stage video { display: block; width: 100%; height: 100%; }
-  .stage svg { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
+  .stage svg#overlay { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
+  .stage.drawing svg#overlay { cursor: crosshair; }
   .stage video.layer { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; display: none; }
   .stage.cmp-wipe #videoB, .stage.cmp-diff #videoB, .stage.cmp-onion .ghost { display: block; }
   .stage.cmp-diff #videoB { mix-blend-mode: difference; }
   .stage .ghost { opacity: 0.38; }
   #ghostPrev { filter: sepia(1) saturate(4) hue-rotate(-30deg); }
   #ghostNext { filter: sepia(1) saturate(4) hue-rotate(150deg); }
-  .divider { position: absolute; top: 0; bottom: 0; width: 3px; margin-left: -1px; background: var(--accent); cursor: ew-resize; display: none; z-index: 3; touch-action: none; }
-  .divider::after { content: ''; position: absolute; top: 50%; left: -7px; width: 17px; height: 17px; margin-top: -8px; border-radius: 50%; background: var(--accent); }
+  .divider { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--mark); cursor: ew-resize; display: none; z-index: 3; touch-action: none; }
+  .divider::after { content: ''; position: absolute; top: 50%; left: -9px; width: 20px; height: 20px; margin-top: -10px; border-radius: 50%; background: var(--mark); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4); }
   .stage.cmp-wipe .divider { display: block; }
-  .cmp-label { position: absolute; top: 6px; font: 11px var(--mono); background: rgba(0, 0, 0, 0.62); color: #f3f4f6; padding: 2px 7px; border-radius: 3px; display: none; z-index: 3; }
+  .cmp-label { position: absolute; top: 8px; font: 600 12px/1 var(--sheet); letter-spacing: 0.09em; text-transform: uppercase; background: rgba(11, 12, 14, 0.72); color: #eceef2; padding: 5px 7px; border-radius: 3px; display: none; z-index: 3; }
   .stage.cmp-wipe .cmp-label, .stage.cmp-diff .cmp-label { display: block; }
-  .compare { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 12px; color: var(--ink-soft); }
-  select { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; min-height: 30px; }
-  .timeline .wave { position: absolute; inset: 0; width: 100%; height: 100%; }
-  .stage.drawing svg { cursor: crosshair; }
 
-  .transport { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-  .readout { font: 13px var(--mono); padding: 0 8px; min-width: 15ch; }
-  .readout b { font-size: 16px; }
-  .readout .exact { color: var(--ok); font-size: 11px; }
-  .readout .approx { color: var(--warn); font-size: 11px; }
-  .spacer { flex: 1; }
-  .tools { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
-  .swatches { display: inline-flex; gap: 6px; align-items: center; padding-left: 4px; }
-  .swatch { width: 22px; height: 22px; min-height: 22px; padding: 0; border-radius: 50%; border-color: rgba(0, 0, 0, 0.25); }
-  .swatch[aria-pressed="true"] { outline: 2px solid var(--ink); outline-offset: 2px; }
+  /* ---------- timeline: a ruled strip, seconds heavy ---------- */
+  .timeline { position: relative; height: 38px; border-top: 1px solid var(--rule-3); background: var(--paper); cursor: pointer; user-select: none; touch-action: none; }
+  .timeline svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .wave path { fill: var(--graphite); opacity: 0.2; }
+  .ticks line { stroke: var(--rule-2); }
+  .ticks line.s5 { stroke: var(--rule-3); }
+  .tlabels { position: absolute; inset: 0; pointer-events: none; }
+  .tlabels span { position: absolute; top: 11px; transform: translateX(4px); font: 600 12px/1 var(--sheet); font-variant-numeric: tabular-nums; color: var(--graphite); pointer-events: none; }
+  .timeline .range { position: absolute; top: 0; bottom: 0; background: var(--mark-soft); box-shadow: inset 1px 0 var(--mark), inset -1px 0 var(--mark); pointer-events: none; }
+  .timeline .mk { position: absolute; top: 0; height: 9px; min-width: 2px; background: var(--ink); pointer-events: none; }
+  .timeline .mk.done { background: var(--graphite); opacity: 0.45; }
+  .timeline .mk.stale { background: var(--graphite); }
+  .timeline .mk.sel { background: var(--mark); }
+  .timeline .head { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--mark); pointer-events: none; }
+  .timeline .head::before { content: ''; position: absolute; top: 0; left: -4px; border: 5px solid transparent; border-top: 6px solid var(--mark); border-bottom: 0; }
 
-  .timeline { position: relative; height: 44px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; cursor: pointer; user-select: none; touch-action: none; }
-  .timeline .ticks { position: absolute; inset: 0; }
-  .timeline .range { position: absolute; top: 0; bottom: 0; background: var(--accent-soft); border-left: 2px solid var(--accent); border-right: 2px solid var(--accent); pointer-events: none; }
-  .ticks line { stroke: var(--tick); }
-  .ticks text { fill: var(--ink-soft); font: 10px var(--mono); }
-  .wave path { fill: var(--accent); opacity: 0.3; }
-  .timeline .head { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--accent); pointer-events: none; }
-  .timeline .mark { position: absolute; top: 4px; height: 10px; min-width: 6px; border-radius: 5px; background: var(--warn); transform: translateX(-3px); pointer-events: none; }
-  .timeline .mark.resolved { background: var(--ok); opacity: 0.6; }
-  .timeline .mark.stale { background: var(--ink-soft); }
+  /* ---------- transport ---------- */
+  .transport { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 2px; min-height: 46px; padding: 6px 10px; border-top: 1px solid var(--rule); }
+  .group { display: flex; align-items: center; gap: 1px; }
+  .readout { display: flex; align-items: baseline; gap: 8px; padding: 0 10px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .readout .rf { font: 600 24px/1 var(--sheet); font-variant-numeric: tabular-nums; letter-spacing: 0.01em; color: var(--ink); }
+  .readout .rl { font-size: 12px; color: var(--graphite); }
+  .readout .rtc { font-size: 12px; color: var(--ink-2); }
+  .readout .lock { align-self: center; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
+  .readout .lock.seeking { background: transparent; box-shadow: inset 0 0 0 1.5px var(--warn); }
+  .play { width: 38px; }
+  .play .speed { font-size: 11px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .swatch { width: 30px; padding: 0; }
+  .swatch span { width: 14px; height: 14px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.28); }
+  .swatch[aria-pressed="true"] { background: transparent; }
+  .swatch[aria-pressed="true"] span { box-shadow: 0 0 0 2px var(--paper), 0 0 0 3.5px var(--ink); }
+  .push { margin-left: auto; }
+  /* When the transport wraps, its divider would start the second row. */
+  .main { container-type: inline-size; }
+  @container (max-width: 640px) { .transport .sep { display: none; } }
+  .compare { display: flex; align-items: center; gap: 4px; }
 
-  .composer { padding: 12px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
-  .composer textarea { width: 100%; min-height: 64px; resize: vertical; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px; }
-  .composer .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  .composer .where { font: 12px var(--mono); color: var(--ink-soft); flex: 1; }
-  .list-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
-  .list-head .count { color: var(--ink-soft); font-size: 12px; flex: 1; }
-  .list { flex: 1; overflow: auto; min-height: 200px; }
-  .item { padding: 10px 12px; border-bottom: 1px solid var(--line); cursor: pointer; display: grid; grid-template-columns: 84px 1fr; gap: 10px; }
-  .item:hover { background: var(--panel-2); }
-  .item.sel { background: var(--sel); }
-  .item img { width: 84px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 4px; background: var(--stage); }
-  .item .noimg { width: 84px; aspect-ratio: 16 / 9; border-radius: 4px; background: var(--bg); }
-  .item .top { font: 12px var(--mono); color: var(--ink-soft); display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-  .item .txt { margin-top: 3px; white-space: pre-wrap; overflow-wrap: anywhere; }
-  .item .acts { margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap; }
-  .item .acts button { min-height: 24px; padding: 1px 8px; font-size: 12px; }
-  .item .reply { font-size: 12px; color: var(--ink-soft); margin-top: 6px; background: var(--panel-2); border-radius: 4px; padding: 4px 8px; white-space: pre-wrap; }
-  .pill { font: 600 10px var(--sans); text-transform: uppercase; letter-spacing: 0.06em; padding: 1px 6px; border-radius: 999px; }
-  .pill.open { background: var(--warn-soft); color: var(--warn); }
-  .pill.resolved { background: var(--ok-soft); color: var(--ok); }
-  .pill.sent { background: var(--accent-soft); color: var(--accent); }
-  .pill.stale { background: var(--panel-2); color: var(--ink-soft); }
-  .sendbar { padding: 12px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
-  .sendbar .note { font-size: 12px; color: var(--ink-soft); }
-  .toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); background: var(--ink); color: var(--panel); padding: 9px 14px; border-radius: 6px; opacity: 0; transition: opacity 160ms ease-out; pointer-events: none; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.22); }
-  .toast.on { opacity: 1; }
-  dialog { background: var(--panel); color: var(--ink); border: 0; border-radius: 10px; max-width: 520px; padding: 18px 20px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3); }
-  dialog::backdrop { background: rgba(10, 12, 16, 0.45); }
-  dialog h2 { margin: 0 0 12px; font-size: 16px; font-weight: 650; }
-  .empty { padding: 18px 14px; color: var(--ink-soft); font-size: 14px; line-height: 1.55; max-width: 42ch; }
-  .empty b { color: var(--ink); font-weight: 600; }
-  .theme { display: inline-flex; gap: 2px; padding: 3px; border-radius: 8px; background: var(--panel-2); }
-  .theme button { border: 0; border-radius: 5px; min-height: 26px; padding: 0 10px; font-size: 12px; background: transparent; color: var(--ink-soft); }
-  .theme button:hover:not([aria-checked="true"]) { color: var(--ink); background: var(--sel); }
-  .theme button[aria-checked="true"] { background: var(--panel); color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18); }
-  @media (prefers-reduced-motion: reduce) { .toast, button { transition: none; } }
-  dialog table { border-collapse: collapse; width: 100%; font-size: 13px; }
-  dialog td { padding: 3px 8px; border-bottom: 1px solid var(--line); }
-  kbd { font: 12px var(--mono); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; background: var(--panel-2); }
+  /* ---------- the sheet ---------- */
+  .sheet-head { display: grid; grid-template-columns: var(--fcol) minmax(0, 1fr) auto; align-items: center; height: 46px; padding-right: 6px; border-bottom: 1px solid var(--rule-3); }
+  .colhead { font: 600 12px/1 var(--sheet); letter-spacing: 0.1em; text-transform: uppercase; color: var(--graphite); padding-left: 12px; }
+  .sheet-head .count { display: flex; align-items: center; gap: 2px; color: var(--graphite); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .sheet { position: relative; flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+  /* A narrow sheet keeps its columns: a slimmer frame column and a smaller snapshot. */
+  .side { container-type: inline-size; }
+  @container (max-width: 340px) {
+    .sheet-head, .sheet { --fcol: 72px; }
+    .fr { padding-left: 10px; padding-right: 6px; }
+    .gap .fr { letter-spacing: -0.02em; padding-right: 2px; }
+    .note .body { grid-template-columns: 52px minmax(0, 1fr); gap: 8px; }
+    .note .snap { width: 52px; }
+  }
+
+  .row { display: grid; grid-template-columns: var(--fcol) minmax(0, 1fr); border-bottom: 1px solid var(--rule); }
+  .fr { padding: 9px 8px 9px 12px; white-space: nowrap; border-right: 1px solid var(--rule-2); font-variant-numeric: tabular-nums; }
+  .fr b { display: block; font: 600 16px/1.1 var(--sheet); font-variant-numeric: tabular-nums; letter-spacing: 0.01em; color: var(--ink); }
+  .fr .tc { display: block; margin-top: 1px; font-size: 11px; color: var(--graphite); }
+  .fr .to { display: block; font: 600 13px/1.1 var(--sheet); font-variant-numeric: tabular-nums; color: var(--ink-2); }
+  .fr .to::before { content: ''; display: block; width: 1px; height: 8px; margin: 2px 0 2px 3px; background: var(--rule-3); }
+
+  /* A note: snapshot at one fixed scale, the words, then who and where it stands. */
+  .note { position: relative; cursor: pointer; }
+  .note:hover { background: var(--sel); }
+  .note .body { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 10px; padding: 9px 10px 10px; }
+  .note .snap { width: 72px; aspect-ratio: 16 / 9; border-radius: 2px; background: var(--stage); object-fit: cover; display: block; box-shadow: 0 0 0 1px var(--rule-2); }
+  .note .body.bare { grid-template-columns: minmax(0, 1fr); }
+  .note .txt { margin: 0; font-size: 13px; line-height: 1.42; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+  .note .txt.quiet { color: var(--graphite); font-style: italic; }
+  .note .meta { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; margin-top: 5px; color: var(--graphite); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .note .meta svg.i { width: 13px; height: 13px; }
+  .state { display: inline-flex; align-items: center; gap: 3px; }
+  .state.sent { color: var(--ink-2); }
+  .state.done { color: var(--ok); }
+  .note.live .fr b { color: var(--mark-ink); }
+  .note.sel { background: var(--mark-soft); }
+  .note.done .txt, .note.done .fr b { color: var(--graphite); }
+  .note.done .snap { filter: grayscale(0.85); opacity: 0.7; }
+  .note .acts { display: flex; gap: 1px; margin: -6px -4px -6px auto; opacity: 0; transition: opacity 120ms ease-out; }
+  .note:hover .acts, .note:focus-within .acts, .note.sel .acts { opacity: 1; }
+  @media (hover: none) { .note .acts { opacity: 1; } }
+  .note .acts .btn { height: 24px; min-width: 24px; padding: 0 3px; }
+  .note .acts svg.i { width: 15px; height: 15px; }
+  .note .acts .btn.armed { background: var(--bad); color: var(--on-bad); }
+  .thread { grid-column: 2; margin-top: 6px; padding-left: 9px; border-left: 1px solid var(--rule-2); font-size: 12px; color: var(--ink-2); }
+  .thread p { margin: 3px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .thread b { font-weight: 600; color: var(--ink); }
+  .thread .fix { color: var(--ok); }
+  .replyform { display: flex; gap: 4px; margin-top: 6px; }
+  .replyform input { flex: 1; min-width: 0; height: 28px; padding: 0 8px; border: 1px solid var(--rule-2); border-radius: 4px; background: var(--paper); }
+  .replyform input:focus { outline: none; border-color: var(--mark); }
+
+  /* Frames with no note: the sheet's ruled paper, taller for longer runs. */
+  .gap { display: grid; grid-template-columns: var(--fcol) minmax(0, 1fr); border-bottom: 1px solid var(--rule); }
+  .gap .fr { padding-top: 3px; padding-bottom: 3px; color: var(--graphite); font: 600 12px/1.2 var(--sheet); font-variant-numeric: tabular-nums; }
+  .gap .paper { background: repeating-linear-gradient(to bottom, transparent 0 5px, var(--rule) 5px 6px); }
+
+  /* The playhead row: the reading line, ruled in orange, where the next note is written. */
+  .here { display: grid; grid-template-columns: var(--fcol) minmax(0, 1fr); background: var(--paper); box-shadow: inset 0 1px var(--mark), inset 0 -1px var(--mark); position: relative; z-index: 1; }
+  .here .fr { border-right-color: var(--mark); }
+  .here .fr b { color: var(--mark-ink); }
+  .here .fr { position: relative; }
+  .here .fr::before { content: ''; position: absolute; left: 0; top: 13px; border: 5px solid transparent; border-left: 6px solid var(--mark); border-right: 0; }
+  .here .write { display: flex; flex-direction: column; gap: 6px; padding: 8px 8px 8px 10px; }
+  .here textarea { width: 100%; min-height: 40px; max-height: 160px; resize: none; border: 0; padding: 2px 0; background: transparent; line-height: 1.42; font-size: 13px; overflow: auto; field-sizing: content; }
+  .here textarea::placeholder { color: var(--graphite); }
+  .here textarea:focus { outline: none; }
+  .here .bar { display: flex; align-items: center; gap: 6px; }
+  .here .where { flex: 1; color: var(--graphite); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .add { height: 28px; padding: 0 10px 0 8px; border: 0; border-radius: 4px; background: var(--mark); color: var(--on-mark); font-weight: 650; font-size: 12px; display: inline-flex; align-items: center; gap: 5px; cursor: pointer; transition: filter 120ms ease-out; }
+  .add:hover:not(:disabled) { filter: brightness(1.06); }
+  .add:disabled { background: var(--paper-3); color: var(--graphite); cursor: default; }
+  .hint { margin: 0; padding: 14px 12px 14px calc(var(--fcol) + 12px); color: var(--graphite); font-size: 12px; line-height: 1.5; }
+
+  .sheet-foot { border-top: 1px solid var(--rule-3); padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+  .send { height: 36px; border: 0; border-radius: 4px; background: var(--ink); color: var(--paper); font-weight: 650; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: filter 120ms ease-out; }
+  .send:hover:not(:disabled) { filter: brightness(1.15); }
+  .send:disabled { background: var(--paper-3); color: var(--graphite); cursor: default; }
+  .sendnote { margin: 0; text-align: center; font-size: 11px; color: var(--graphite); font-variant-numeric: tabular-nums; }
+
+  .toast { position: fixed; left: 50%; bottom: 16px; transform: translate(-50%, 8px); max-width: min(92vw, 460px); background: var(--ink); color: var(--paper); padding: 9px 14px; border-radius: 5px; font-size: 12.5px; opacity: 0; pointer-events: none; transition: opacity 160ms ease-out, transform 160ms ease-out; z-index: 40; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18); }
+  .toast.on { opacity: 1; transform: translate(-50%, 0); }
+
+  dialog { background: var(--paper); color: var(--ink); border: 1px solid var(--rule-3); border-radius: 6px; width: min(92vw, 460px); padding: 0; }
+  dialog::backdrop { background: rgba(11, 12, 14, 0.42); }
+  dialog header { display: flex; align-items: center; justify-content: space-between; padding: 10px 10px 10px 16px; border-bottom: 1px solid var(--rule-3); }
+  dialog h2 { margin: 0; font-size: 16px; font-weight: 650; }
+  dialog table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+  dialog td { padding: 7px 16px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  dialog td:first-child { white-space: nowrap; width: 1%; }
+  dialog tr:last-child td { border-bottom: 0; }
+  kbd { display: inline-block; min-width: 20px; text-align: center; font: 600 11px/18px var(--sans); border: 1px solid var(--rule-2); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; background: var(--paper-2); color: var(--ink); }
+
+  /* Fingers and pencils get room: 40px targets wherever the pointer is coarse. */
+  @media (pointer: coarse) {
+    .btn, .play, .swatch { height: 40px; min-width: 40px; }
+    .theme .btn { height: 36px; min-width: 38px; }
+    .note .acts { margin: 0 -4px 0 auto; }
+    .note .acts .btn { height: 40px; min-width: 40px; }
+    .add, .replyform input { height: 40px; }
+    select { height: 40px; }
+  }
+  /* On a phone the readout shares the playback row: frame number and timecode only. */
+  @media (max-width: 759px) {
+    .readout { padding: 0 4px; gap: 6px; }
+    .readout .rf { font-size: 21px; }
+    .readout .rl { display: none; }
+    .transport .group .btn { min-width: 36px; }
+  }
+  @media (prefers-reduced-motion: reduce) { *, *::after { transition: none !important; } }
 </style>
 </head>
 <body>
-<div class="app">
-  <div class="main">
-    <header>
-      <h1 id="name">cav review</h1>
-      <span class="meta" id="meta"></span>
-      <span class="spacer"></span>
-      <div class="theme" role="radiogroup" aria-label="Theme">
-        <button role="radio" data-theme-choice="system" aria-checked="true" title="Follow the system setting">System</button>
-        <button role="radio" data-theme-choice="light" aria-checked="false">Light</button>
-        <button role="radio" data-theme-choice="dark" aria-checked="false">Dark</button>
-      </div>
-      <button id="help" title="Keyboard shortcuts (?)">Shortcuts</button>
-    </header>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-first" viewBox="0 0 16 16"><path d="M4 3.5v9M12 4 6.5 8 12 12z"/></symbol>
+  <symbol id="i-back" viewBox="0 0 16 16"><path d="M10 3.5 5.5 8l4.5 4.5"/></symbol>
+  <symbol id="i-play" viewBox="0 0 16 16"><path d="M5.5 3.5v9l7-4.5z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 16 16"><path d="M6 4v8M10 4v8"/></symbol>
+  <symbol id="i-fwd" viewBox="0 0 16 16"><path d="M6 3.5 10.5 8 6 12.5"/></symbol>
+  <symbol id="i-last" viewBox="0 0 16 16"><path d="M12 3.5v9M4 4l5.5 4L4 12z"/></symbol>
+  <symbol id="i-in" viewBox="0 0 16 16"><path d="M7 3.5H4.5v9H7M8.5 8h4M10.5 6l2 2-2 2"/></symbol>
+  <symbol id="i-out" viewBox="0 0 16 16"><path d="M9 3.5h2.5v9H9M3.5 8h4M5.5 6l2 2-2 2"/></symbol>
+  <symbol id="i-clear" viewBox="0 0 16 16"><path d="M4.5 3.5H3v9h1.5M11.5 3.5H13v9h-1.5M6.5 6.5l3 3M9.5 6.5l-3 3"/></symbol>
+  <symbol id="i-view" viewBox="0 0 16 16"><path d="M4 3l8.5 4.6-3.6 1-1.6 3.4z"/></symbol>
+  <symbol id="i-pen" viewBox="0 0 16 16"><path d="M3 13c2.5-.2 3.4-2.3 5-4.2 1.4-1.7 3-3 5-3.6M3 13c.4-2.2 1.6-3.4 3.3-4"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 16 16"><path d="M3.5 12.5 12 4M7 4h5v5"/></symbol>
+  <symbol id="i-box" viewBox="0 0 16 16"><rect x="3" y="4" width="10" height="8" rx=".5"/></symbol>
+  <symbol id="i-ellipse" viewBox="0 0 16 16"><ellipse cx="8" cy="8" rx="5.5" ry="4"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 16 16"><path d="M5.5 4.5 3 7l2.5 2.5M3 7h6.5a3.5 3.5 0 0 1 0 7H8"/></symbol>
+  <symbol id="i-compare" viewBox="0 0 16 16"><rect x="2.5" y="3.5" width="11" height="9" rx=".5"/><path d="M8 2v12"/></symbol>
+  <symbol id="i-keys" viewBox="0 0 16 16"><rect x="1.5" y="4" width="13" height="8" rx="1"/><path d="M4 6.5h.01M6.5 6.5h.01M9 6.5h.01M11.5 6.5h.01M5 9.5h6"/></symbol>
+  <symbol id="i-system" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="8" rx="1"/><path d="M6 13.5h4"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.75"/><path d="M8 1.75v1.5M8 12.75v1.5M1.75 8h1.5M12.75 8h1.5M3.6 3.6l1 1M11.4 11.4l1 1M3.6 12.4l1-1M11.4 4.6l1-1"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 16 16"><path d="M12.5 9.8A5 5 0 0 1 6.2 3.5a5 5 0 1 0 6.3 6.3z"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 16 16"><path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></symbol>
+  <symbol id="i-check" viewBox="0 0 16 16"><path d="M3.5 8.5 6.5 11.5 12.5 4.5"/></symbol>
+  <symbol id="i-reopen" viewBox="0 0 16 16"><path d="M3 8a5 5 0 1 0 1.5-3.6M3 2.5v2.5h2.5"/></symbol>
+  <symbol id="i-reply" viewBox="0 0 16 16"><path d="M6.5 4 3 7.5 6.5 11M3 7.5h6a4 4 0 0 1 4 4v1"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 16 16"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5"/></symbol>
+  <symbol id="i-send" viewBox="0 0 16 16"><path d="M14 2 2 7.2l4.6 1.7L14 2zM14 2l-5.2 12-1.6-4.6"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 16 16"><path d="M8 3.5v9M3.5 8h9"/></symbol>
+  <symbol id="i-dot" viewBox="0 0 16 16"><circle cx="8" cy="8" r="3.5"/></symbol>
+  <symbol id="i-older" viewBox="0 0 16 16"><path d="M8 4.5V8l2 1.5M3 8a5 5 0 1 0 1.5-3.6M3 2.5v2.5h2.5"/></symbol>
+  <symbol id="i-close" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></symbol>
+</svg>
 
+<div class="app">
+  <header class="titleblock">
+    <svg class="mark" viewBox="0 0 256 256" aria-hidden="true"><rect width="256" height="256" rx="56" fill="#16181f"/><path d="M40 196 C 120 196, 118 72, 184 72" fill="none" stroke="#ff6a3d" stroke-width="18" stroke-linecap="round"/><circle cx="40" cy="196" r="14" fill="#f5f7fa"/><path d="M184 44 L212 72 L184 100 L156 72 Z" fill="#f5f7fa"/></svg>
+    <h1 id="name">cav review</h1>
+    <div class="fields" id="meta"></div>
+    <div class="end">
+      <div class="theme" role="radiogroup" aria-label="Theme">
+        <button class="btn" role="radio" data-theme-choice="system" aria-checked="true" aria-label="Follow the system" data-tip="Follow the system" data-tip-pos="below"><svg class="i"><use href="#i-system"/></svg></button>
+        <button class="btn" role="radio" data-theme-choice="light" aria-checked="false" aria-label="Light" data-tip="Light" data-tip-pos="below"><svg class="i"><use href="#i-sun"/></svg></button>
+        <button class="btn" role="radio" data-theme-choice="dark" aria-checked="false" aria-label="Dark" data-tip="Dark" data-tip-pos="below-end"><svg class="i"><use href="#i-moon"/></svg></button>
+      </div>
+      <button class="btn" id="help" aria-label="Keyboard shortcuts" data-tip="Keyboard shortcuts  ?" data-tip-pos="below-end"><svg class="i"><use href="#i-keys"/></svg></button>
+    </div>
+  </header>
+
+  <main class="main">
     <div class="stage-wrap" id="stageWrap">
       <p class="stage-note" id="stageNote" role="status">Loading the render…</p>
       <div class="stage" id="stage">
@@ -170,98 +342,107 @@
         <video id="ghostPrev" class="layer ghost" preload="auto" muted playsinline></video>
         <video id="ghostNext" class="layer ghost" preload="auto" muted playsinline></video>
         <svg id="overlay" aria-label="Drawing layer"></svg>
-        <div class="divider" id="divider" title="Drag to move the wipe"></div>
-        <span class="cmp-label" id="labelA" style="left:6px">A: this render</span>
-        <span class="cmp-label" id="labelB" style="right:6px">B: earlier</span>
+        <div class="divider" id="divider" data-tip="Drag to move the wipe"></div>
+        <span class="cmp-label" id="labelA" style="left:8px">A · this render</span>
+        <span class="cmp-label" id="labelB" style="right:8px">B · earlier</span>
       </div>
     </div>
 
-    <div class="transport">
-      <button class="icon" id="bStart" title="First frame (Home)" aria-label="First frame"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 3v10"/><path d="M12.5 3.5 6 8l6.5 4.5z"/></svg></button>
-      <button class="icon" id="bBack" title="One frame back (←)" aria-label="One frame back"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.5 3.5 5 8l5.5 4.5"/></svg></button>
-      <button class="icon wide" id="bPlay" title="Play or pause (Space or K)" aria-label="Play"></button>
-      <button class="icon" id="bFwd" title="One frame forward (→)" aria-label="One frame forward"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 3.5 11 8l-5.5 4.5"/></svg></button>
-      <button class="icon" id="bEnd" title="Last frame (End)" aria-label="Last frame"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.5 3v10"/><path d="M3.5 3.5 10 8l-6.5 4.5z"/></svg></button>
-      <span class="readout" id="readout"><b>f 0</b></span>
-      <button id="bIn" title="Range start (I)">In</button>
-      <button id="bOut" title="Range end (O)">Out</button>
-      <button id="bClearRange" title="Clear range (X)">Clear range</button>
-      <span class="spacer"></span>
-      <div class="tools" role="group" aria-label="Drawing tools">
-        <button data-tool="none" title="No drawing (V)">View</button>
-        <button data-tool="pen" title="Pen (P)">Pen</button>
-        <button data-tool="arrow" title="Arrow (A)">Arrow</button>
-        <button data-tool="rect" title="Box (B)">Box</button>
-        <button data-tool="ellipse" title="Ellipse (E)">Ellipse</button>
-        <span class="swatches" role="group" aria-label="Drawing colour">
-          <button class="swatch" data-color="#ffd23f" style="background:#ffd23f" aria-label="Yellow"></button>
-          <button class="swatch" data-color="#ff4d4d" style="background:#ff4d4d" aria-label="Red"></button>
-          <button class="swatch" data-color="#4dd4ff" style="background:#4dd4ff" aria-label="Cyan"></button>
-          <button class="swatch" data-color="#ffffff" style="background:#ffffff" aria-label="White"></button>
-          <button id="bUndo" title="Undo the last stroke (Ctrl/Cmd+Z)">Undo</button>
-        </span>
-      </div>
-      <div class="compare">
-        <label for="cmpMode">Compare</label>
-        <select id="cmpMode" title="Compare with an earlier render, or show the frames around this one (W)">
-          <option value="off">off</option>
-          <option value="wipe">A/B wipe</option>
-          <option value="diff">difference</option>
-          <option value="onion">onion skin</option>
-        </select>
-        <select id="cmpVersion" aria-label="Earlier render to compare with" title="The earlier render to compare with"></select>
-        <select id="onionStep" aria-label="Frames between the ghosts and this frame" title="Frames between the ghosts and this frame">
-          <option value="1">±1 frame</option><option value="2" selected>±2 frames</option><option value="4">±4 frames</option><option value="8">±8 frames</option>
-        </select>
-      </div>
-    </div>
-
-    <div class="timeline" id="timeline" aria-label="Timeline: click or drag to seek">
-      <svg class="wave" id="wave" viewBox="0 0 1000 44" preserveAspectRatio="none" aria-hidden="true"></svg>
-      <svg class="ticks" id="ticks" preserveAspectRatio="none"></svg>
+    <div class="timeline" id="timeline" role="slider" aria-label="Timeline" tabindex="-1">
+      <svg class="wave" id="wave" viewBox="0 0 1000 38" preserveAspectRatio="none" aria-hidden="true"></svg>
+      <svg class="ticks" id="ticks" preserveAspectRatio="none" aria-hidden="true"></svg>
+      <div class="tlabels" id="tlabels" aria-hidden="true"></div>
       <div class="range" id="range" hidden></div>
       <div id="marks"></div>
       <div class="head" id="head"></div>
     </div>
-  </div>
 
-  <aside class="side">
-    <div class="composer">
-      <textarea id="text" aria-label="Note for this frame" placeholder="Note for this frame (C to focus, Cmd/Ctrl+Enter to add)"></textarea>
-      <div class="row">
-        <span class="where" id="where">frame 0</span>
-        <button class="primary" id="bAdd">Add note</button>
+    <div class="transport">
+      <div class="group" role="group" aria-label="Playback">
+        <button class="btn" id="bStart" aria-label="First frame" data-tip="First frame  Home" data-tip-pos="start"><svg class="i"><use href="#i-first"/></svg></button>
+        <button class="btn" id="bBack" aria-label="One frame back" data-tip="Back one frame  ←"><svg class="i"><use href="#i-back"/></svg></button>
+        <button class="btn play" id="bPlay" aria-label="Play" data-tip="Play  Space · J K L shuttle"></button>
+        <button class="btn" id="bFwd" aria-label="One frame forward" data-tip="Forward one frame  →"><svg class="i"><use href="#i-fwd"/></svg></button>
+        <button class="btn" id="bEnd" aria-label="Last frame" data-tip="Last frame  End"><svg class="i"><use href="#i-last"/></svg></button>
+      </div>
+      <div class="readout" id="readout" aria-live="off"><span class="rf">0</span></div>
+      <div class="group" role="group" aria-label="Range">
+        <button class="btn" id="bIn" aria-label="Range start" data-tip="Range start  I"><svg class="i"><use href="#i-in"/></svg></button>
+        <button class="btn" id="bOut" aria-label="Range end" data-tip="Range end  O"><svg class="i"><use href="#i-out"/></svg></button>
+        <button class="btn" id="bClearRange" aria-label="Clear the range" data-tip="Clear range  X"><svg class="i"><use href="#i-clear"/></svg></button>
+      </div>
+      <span class="sep"></span>
+      <div class="group" role="group" aria-label="Drawing tools">
+        <button class="btn" data-tool="none" aria-label="View, no drawing" data-tip="View  V"><svg class="i"><use href="#i-view"/></svg></button>
+        <button class="btn" data-tool="arrow" aria-label="Arrow" data-tip="Arrow  A"><svg class="i"><use href="#i-arrow"/></svg></button>
+        <button class="btn" data-tool="rect" aria-label="Box" data-tip="Box  B"><svg class="i"><use href="#i-box"/></svg></button>
+        <button class="btn" data-tool="ellipse" aria-label="Ellipse" data-tip="Ellipse  E"><svg class="i"><use href="#i-ellipse"/></svg></button>
+        <button class="btn" data-tool="pen" aria-label="Pen" data-tip="Pen  P"><svg class="i"><use href="#i-pen"/></svg></button>
+      </div>
+      <div class="group" role="group" aria-label="Drawing colour">
+        <button class="btn swatch" data-color="#ffd23f" aria-label="Yellow" data-tip="Yellow"><span style="background:#ffd23f"></span></button>
+        <button class="btn swatch" data-color="#ff4d4d" aria-label="Red" data-tip="Red"><span style="background:#ff4d4d"></span></button>
+        <button class="btn swatch" data-color="#4dd4ff" aria-label="Cyan" data-tip="Cyan"><span style="background:#4dd4ff"></span></button>
+        <button class="btn swatch" data-color="#ffffff" aria-label="White" data-tip="White"><span style="background:#ffffff"></span></button>
+        <button class="btn" id="bUndo" aria-label="Undo the last stroke" data-tip="Undo stroke  ⌘Z"><svg class="i"><use href="#i-undo"/></svg></button>
+      </div>
+      <div class="compare push" role="group" aria-label="Compare">
+        <select id="cmpMode" aria-label="Compare" data-tip="Compare  W" data-tip-pos="end">
+          <option value="off">Compare off</option>
+          <option value="wipe">A/B wipe</option>
+          <option value="diff">Difference</option>
+          <option value="onion">Onion skin</option>
+        </select>
+        <select id="cmpVersion" aria-label="Earlier render to compare with"></select>
+        <select id="onionStep" aria-label="Frames between the ghosts and this frame">
+          <option value="1">±1</option><option value="2" selected>±2</option><option value="4">±4</option><option value="8">±8</option>
+        </select>
       </div>
     </div>
-    <div class="list-head">
-      <span class="count" id="count">No notes yet</span>
-      <button id="bFilter" aria-pressed="false" title="Show resolved notes too">Show resolved</button>
+  </main>
+
+  <aside class="side" aria-label="Notes">
+    <div class="sheet-head">
+      <span class="colhead">Frame</span>
+      <span class="colhead">Note</span>
+      <span class="count"><span id="count" class="num"></span>
+        <button class="btn" id="bFilter" aria-pressed="false" aria-label="Show resolved notes" data-tip="Show resolved notes" data-tip-pos="below-end"><svg class="i"><use href="#i-eye"/></svg></button>
+      </span>
     </div>
-    <div class="list" id="list"></div>
-    <div class="sendbar">
-      <button class="primary" id="bSend">Send to agent</button>
-      <span class="note" id="sendNote">The agent receives new open notes through <code>cav review wait</code>.</span>
+    <div class="sheet" id="list">
+      <div class="here" id="here">
+        <div class="fr"><b id="hereFrame">0</b><span class="tc" id="hereTc"></span></div>
+        <div class="write">
+          <textarea id="text" rows="1" aria-label="Note on this frame" placeholder="Note on this frame…"></textarea>
+          <div class="bar">
+            <span class="where" id="where"></span>
+            <button class="add" id="bAdd" data-tip="Add note  ⌘↵" data-tip-pos="end"><svg class="i"><use href="#i-plus"/></svg>Add</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="sheet-foot">
+      <p class="sendnote" id="sendNote" hidden></p>
+      <button class="send" id="bSend"><svg class="i"><use href="#i-send"/></svg><span id="sendLabel">Send to agent</span></button>
     </div>
   </aside>
 </div>
 
 <dialog id="keys" aria-labelledby="keysTitle">
-  <h2 id="keysTitle">Keyboard shortcuts</h2>
+  <header><h2 id="keysTitle">Keyboard</h2><form method="dialog"><button class="btn" aria-label="Close"><svg class="i"><use href="#i-close"/></svg></button></form></header>
   <table>
-    <tr><td><kbd>Space</kbd> <kbd>K</kbd></td><td>play / pause</td></tr>
-    <tr><td><kbd>L</kbd></td><td>play forward; press again for 2×, 4×, 8×</td></tr>
-    <tr><td><kbd>J</kbd></td><td>play backward; press again for 2×, 4×, 8×</td></tr>
-    <tr><td><kbd>←</kbd> <kbd>→</kbd></td><td>one frame (Shift: 10 frames)</td></tr>
-    <tr><td><kbd>Home</kbd> <kbd>End</kbd></td><td>first / last frame</td></tr>
-    <tr><td><kbd>I</kbd> <kbd>O</kbd> <kbd>X</kbd></td><td>range start / end / clear</td></tr>
-    <tr><td><kbd>V</kbd> <kbd>P</kbd> <kbd>A</kbd> <kbd>B</kbd> <kbd>E</kbd></td><td>view, pen, arrow, box, ellipse</td></tr>
-    <tr><td><kbd>Ctrl/Cmd+Z</kbd></td><td>undo the last stroke</td></tr>
-    <tr><td><kbd>C</kbd></td><td>write a note; <kbd>Cmd/Ctrl+Enter</kbd> adds it</td></tr>
-    <tr><td><kbd>N</kbd> <kbd>Shift+N</kbd></td><td>next / previous note</td></tr>
-    <tr><td><kbd>W</kbd></td><td>cycle compare: off, A/B wipe, difference, onion skin</td></tr>
-    <tr><td><kbd>Esc</kbd></td><td>leave the note field, drop the drawing</td></tr>
+    <tr><td><kbd>Space</kbd> <kbd>K</kbd></td><td>Play or pause</td></tr>
+    <tr><td><kbd>J</kbd> <kbd>L</kbd></td><td>Shuttle back or forward; again for 2×, 4×, 8×</td></tr>
+    <tr><td><kbd>←</kbd> <kbd>→</kbd></td><td>One frame; with <kbd>Shift</kbd>, ten</td></tr>
+    <tr><td><kbd>Home</kbd> <kbd>End</kbd></td><td>First or last frame</td></tr>
+    <tr><td><kbd>I</kbd> <kbd>O</kbd> <kbd>X</kbd></td><td>Range start, end, clear</td></tr>
+    <tr><td><kbd>V</kbd> <kbd>A</kbd> <kbd>B</kbd> <kbd>E</kbd> <kbd>P</kbd></td><td>View, arrow, box, ellipse, pen</td></tr>
+    <tr><td><kbd>⌘Z</kbd></td><td>Undo the last stroke</td></tr>
+    <tr><td><kbd>C</kbd></td><td>Write a note; <kbd>⌘↵</kbd> adds it</td></tr>
+    <tr><td><kbd>N</kbd> <kbd>Shift N</kbd></td><td>Next or previous note</td></tr>
+    <tr><td><kbd>W</kbd></td><td>Cycle compare: wipe, difference, onion skin</td></tr>
+    <tr><td><kbd>Esc</kbd></td><td>Leave the note, drop the drawing</td></tr>
   </table>
-  <form method="dialog" style="margin-top:12px;text-align:right"><button>Close</button></form>
 </dialog>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
@@ -269,14 +450,18 @@
 (() => {
   const $ = id => document.getElementById(id);
   const video = $('video'), overlay = $('overlay'), stage = $('stage'), wrap = $('stageWrap');
+  const sheet = $('list'), here = $('here');
   const SVGNS = 'http://www.w3.org/2000/svg';
   let meta = null, doc = { comments: [], sends: [] }, version = '', author = '';
   let frame = 0, exact = false, inF = null, outF = null;
   let tool = 'arrow', color = '#ffd23f', draft = [], drawing = null;
   let selected = null, showResolved = false, shuttle = 0, shuttleTimer = null;
+  let replying = null, armed = null;
   const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+  const icon = (name, cls) => `<svg class="i${cls ? ' ' + cls : ''}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
 
-  const toast = msg => { const t = $('toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('on'), 2200); };
+  const toast = msg => { const t = $('toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('on'), 2400); };
   const api = async (method, url, body) => {
     // Every write sends JSON: the server refuses other content types, so another site
     // cannot post here with a plain form.
@@ -286,11 +471,18 @@
     if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
     return j;
   };
-  const tc = f => { const fps = Math.round(meta.fps), s = Math.floor(f / fps); const p = n => String(n).padStart(2, '0'); return `${p(Math.floor(s / 3600))}:${p(Math.floor(s / 60) % 60)}:${p(s % 60)}:${p(f % fps)}`; };
+  const tc = f => {
+    const fps = Math.round(meta.fps), s = Math.floor(f / fps), p = n => String(n).padStart(2, '0');
+    const hh = meta.frames / meta.fps >= 3600 ? `${p(Math.floor(s / 3600))}:` : '';
+    return `${hh}${p(Math.floor(s / 60) % 60)}:${p(s % 60)}:${p(f % fps)}`;
+  };
   const last = () => Math.max(0, meta.frames - 1);
+  // Frame numbers are printed at one width, as on a sheet: 0040, 0124, 3599.
+  const fw = () => Math.max(3, String(last()).length);
+  const fn = f => String(f).padStart(fw(), '0');
 
   // ---------- layout: keep the stage at the video's aspect ratio inside the free area ----------
-  const narrow = matchMedia('(max-width: 900px)');
+  const narrow = matchMedia('(max-width: 759px)');
   narrow.addEventListener('change', () => { wrap.style.height = ''; fit(); });
   function fit() {
     if (!meta) return;
@@ -307,7 +499,7 @@
   // ---------- frames ----------
   function onFrame(f, isExact) {
     frame = Math.max(0, Math.min(last(), f)); exact = isExact;
-    renderReadout(); renderHead(); renderOverlay(); renderWhere(); syncLayers();
+    renderReadout(); renderHead(); renderOverlay(); renderWhere(); renderHere(); syncLayers();
   }
   // While a seek is in flight, `pending` is the frame asked for. A frame callback from an
   // earlier seek must not move the playhead back, or quick key presses lose steps.
@@ -339,7 +531,7 @@
     // Aim for the middle of the frame so rounding never lands on its neighbour.
     pending = f;
     video.currentTime = (f + 0.5) / meta.fps;
-    frame = f; exact = false; renderReadout(); renderHead(); renderOverlay(); renderWhere(); syncLayers();
+    frame = f; exact = false; renderReadout(); renderHead(); renderOverlay(); renderWhere(); renderHere(); syncLayers();
   }
   const seekDone = () => new Promise(res => { if (!video.seeking) return res(); video.addEventListener('seeked', () => res(), { once: true }); });
 
@@ -364,7 +556,7 @@
     shuttleTimer = setInterval(() => {
       if (frame <= 0) { stopShuttle(); return; }
       const f = Math.max(0, frame - speed);
-      pending = f; video.currentTime = (f + 0.5) / meta.fps; frame = f; exact = false; renderReadout(); renderHead();
+      pending = f; video.currentTime = (f + 0.5) / meta.fps; frame = f; exact = false; renderReadout(); renderHead(); renderHere();
     }, 1000 / Math.min(meta.fps, 30));
     renderPlay();
   }
@@ -384,13 +576,12 @@
   video.addEventListener('pause', renderPlay);
   video.addEventListener('play', renderPlay);
   video.addEventListener('ended', () => { shuttle = 0; renderPlay(); });
-  const ICON_PLAY = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3.5v9l7-4.5z"/></svg>';
-  const ICON_PAUSE = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 3.5v9M10.5 3.5v9"/></svg>';
   function renderPlay() {
     const playing = !video.paused || shuttleTimer;
-    const speed = playing && shuttle && shuttle !== 1 ? `<span class="num">${shuttle > 0 ? '' : '−'}${Math.abs(shuttle)}×</span>` : '';
-    $('bPlay').innerHTML = (playing ? ICON_PAUSE : ICON_PLAY) + speed;
+    const speed = playing && shuttle && shuttle !== 1 ? `<span class="speed">${shuttle > 0 ? '' : '−'}${Math.abs(shuttle)}×</span>` : '';
+    $('bPlay').innerHTML = (speed || icon(playing ? 'pause' : 'play'));
     $('bPlay').setAttribute('aria-label', playing ? 'Pause' : 'Play');
+    $('bPlay').dataset.tip = (playing ? 'Pause' : 'Play') + '  Space · J K L shuttle';
   }
 
   // ---------- compare: an earlier render (wipe, difference) or neighbour frames (onion) ----------
@@ -400,7 +591,8 @@
   function renderVersions() {
     const vs = cmpVersions(), sel = $('cmpVersion');
     const keep = versionB && vs.find(v => v.sha256 === versionB.sha256) ? versionB.sha256 : (vs[0] && vs[0].sha256);
-    sel.innerHTML = vs.length ? vs.map((v, i) => `<option value="${v.sha256}">B: ${i === 0 ? 'previous' : 'earlier'} render, ${new Date(v.at).toLocaleString()} (${v.frames} f)</option>`).join('') : '<option value="">no earlier render yet</option>';
+    const when = at => new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    sel.innerHTML = vs.length ? vs.map((v, i) => `<option value="${v.sha256}">B · ${i === 0 ? 'previous' : 'earlier'}, ${when(v.at)}</option>`).join('') : '<option value="">No earlier render</option>';
     sel.value = keep || '';
     versionB = vs.find(v => v.sha256 === keep) || null;
     sel.disabled = !vs.length;
@@ -453,17 +645,18 @@
       if (!w.peaks || !w.peaks.length) { $('wave').innerHTML = ''; return; }
       const n = w.peaks.length, videoSecs = meta.frames / meta.fps, span = Math.min(1, (w.seconds || videoSecs) / videoSecs);
       // Scale to the loudest peak, so a quiet track still shows its shape.
-      const top = Math.max(0.001, ...w.peaks);
-      let d = 'M0 22';
-      w.peaks.forEach((p, i) => { d += ` L${(i / n * 1000 * span).toFixed(1)} ${(22 - p / top * 19).toFixed(1)}`; });
-      for (let i = n - 1; i >= 0; i--) d += ` L${(i / n * 1000 * span).toFixed(1)} ${(22 + w.peaks[i] / top * 19).toFixed(1)}`;
+      const top = Math.max(0.001, ...w.peaks), mid = 23, amp = 13;
+      let d = `M0 ${mid}`;
+      w.peaks.forEach((p, i) => { d += ` L${(i / n * 1000 * span).toFixed(1)} ${(mid - p / top * amp).toFixed(1)}`; });
+      for (let i = n - 1; i >= 0; i--) d += ` L${(i / n * 1000 * span).toFixed(1)} ${(mid + w.peaks[i] / top * amp).toFixed(1)}`;
       $('wave').innerHTML = `<path d="${d} Z"/>`;
     } catch (e) { waveFor = ''; }
   }
 
   // ---------- readout, head, range, marks ----------
   function renderReadout() {
-    $('readout').innerHTML = `<b>f ${frame}</b> / ${last()} · ${tc(frame)} <span class="${exact ? 'exact' : 'approx'}">${exact ? 'exact' : 'seeking'}</span>`;
+    $('readout').innerHTML = `<span class="rf">${fn(frame)}</span><span class="rl">/ ${fn(last())}</span><span class="rtc">${tc(frame)}</span>` +
+      `<span class="lock${exact ? '' : ' seeking'}" title="${exact ? 'Exact frame' : 'Seeking'}"></span>`;
   }
   const pct = f => (meta.frames > 1 ? f / (meta.frames - 1) : 0) * 100;
   function renderHead() { $('head').style.left = pct(frame) + '%'; }
@@ -474,20 +667,27 @@
     r.hidden = false; r.style.left = pct(Math.min(a, b)) + '%'; r.style.width = Math.max(0.3, pct(Math.abs(b - a))) + '%';
   }
   function renderTicks() {
-    const t = $('ticks'), secs = meta.frames / meta.fps, w = 1000;
-    t.setAttribute('viewBox', `0 0 ${w} 44`);
-    let s = '';
-    for (let i = 0; i <= secs; i++) {
-      const x = (i * meta.fps) / Math.max(1, meta.frames - 1) * w;
-      s += `<line x1="${x}" x2="${x}" y1="${i % 5 === 0 ? 22 : 30}" y2="44" stroke-width="1"/>`;
-      if (i % 5 === 0) s += `<text x="${x + 3}" y="40">${i}s</text>`;
+    // A tick per second, heavier every five; quarter seconds when there is room. The labels
+    // are HTML, so they keep their shape however wide the strip is: every second on a short
+    // clip, every five or ten on a longer one.
+    const t = $('ticks'), secs = meta.frames / meta.fps, w = 1000, px = $('timeline').clientWidth, room = px / Math.max(1, secs);
+    t.setAttribute('viewBox', `0 0 ${w} 38`);
+    let s = '', labels = '';
+    const step = room > 60 ? 0.25 : 1, every = room > 44 ? 1 : room > 12 ? 5 : 10;
+    for (let i = 0; i <= secs + 1e-6; i += step) {
+      const x = (i * meta.fps) / Math.max(1, meta.frames - 1) * w, whole = Math.abs(i - Math.round(i)) < 1e-6, five = whole && Math.round(i) % 5 === 0;
+      s += `<line class="${five ? 's5' : ''}" x1="${x}" x2="${x}" y1="${five ? 14 : whole ? 24 : 31}" y2="38" stroke-width="1" vector-effect="non-scaling-stroke"/>`;
+      if (whole && i > 0 && Math.round(i) % every === 0 && x / w * px < px - 28) labels += `<span style="left:${(x / w * 100).toFixed(3)}%">${Math.round(i)}s</span>`;
     }
     t.innerHTML = s;
+    $('tlabels').innerHTML = labels;
   }
+  new ResizeObserver(() => { if (meta) renderTicks(); }).observe($('timeline'));
   function renderMarks() {
     $('marks').innerHTML = doc.comments.filter(c => showResolved || c.status === 'open').map(c => {
-      const end = c.frameEnd ?? c.frame, cls = c.status === 'resolved' ? 'resolved' : (c.version !== version ? 'stale' : '');
-      return `<div class="mark ${cls}" style="left:${pct(c.frame)}%;width:calc(${pct(end) - pct(c.frame)}% + 6px)"></div>`;
+      const end = c.frameEnd ?? c.frame;
+      const cls = c.id === selected ? 'sel' : c.status === 'resolved' ? 'done' : (c.version !== version ? 'stale' : '');
+      return `<div class="mk ${cls}" style="left:${pct(c.frame)}%;width:calc(${pct(end) - pct(c.frame)}% + 2px)"></div>`;
     }).join('');
   }
 
@@ -557,8 +757,7 @@
     const [a, b] = [drawing.pts[0], drawing.pts[drawing.pts.length - 1]];
     const big = drawing.type === 'pen' ? drawing.pts.length > 2 : Math.hypot(b[0] - a[0], b[1] - a[1]) > 0.01;
     if (big) {
-      if (drawing.type === 'pen') drawing.pts = drawing.pts.map(p => [+p[0].toFixed(4), +p[1].toFixed(4)]);
-      else drawing.pts = drawing.pts.map(p => [+p[0].toFixed(4), +p[1].toFixed(4)]);
+      drawing.pts = drawing.pts.map(p => [+p[0].toFixed(4), +p[1].toFixed(4)]);
       draft.push(drawing);
     }
     drawing = null; renderOverlay(); renderWhere();
@@ -569,15 +768,17 @@
   document.querySelectorAll('[data-color]').forEach(b => b.addEventListener('click', () => setColor(b.dataset.color)));
   $('bUndo').addEventListener('click', () => { draft.pop(); renderOverlay(); renderWhere(); });
 
-  // ---------- composer ----------
+  // ---------- composer: the playhead row ----------
   function rangeNow() {
     if (inF == null) return [frame, null];
     const a = inF, b = outF == null ? frame : outF;
     return [Math.min(a, b), Math.max(a, b) === Math.min(a, b) ? null : Math.max(a, b)];
   }
   function renderWhere() {
-    const [a, b] = rangeNow();
-    $('where').textContent = (b == null ? `frame ${a}` : `frames ${a}–${b}`) + (draft.length ? ` · ${draft.length} drawing${draft.length > 1 ? 's' : ''}` : '');
+    const [a, b] = rangeNow(), bits = [];
+    if (b != null) bits.push(`${fn(a)}–${fn(b)}`);
+    if (draft.length) bits.push(`${draft.length} drawing${draft.length > 1 ? 's' : ''}`);
+    $('where').textContent = bits.join(' · ');
   }
   async function snapshot(f) {
     // Burn the drawing into the exact frame the note is about.
@@ -598,7 +799,7 @@
   }
   async function addNote() {
     const text = $('text').value.trim();
-    if (!text && !draft.length) { toast('Write a note or draw something first'); return; }
+    if (!text && !draft.length) { toast('Write a note or draw on the frame first'); $('text').focus(); return; }
     if (!videoReady) { toast('Wait until the render has loaded'); return; }
     video.pause(); stopShuttle();
     // A state refresh can switch the render while the snapshot is drawn: the note belongs
@@ -611,61 +812,160 @@
       if (version !== shown) { toast('A new render arrived while the note was drawn: check the frame and add the note again'); return; }
       const c = await api('POST', '/api/comments', { frame: a, frameEnd: b, text, shapes: draft, snapshot: snap, version: shown });
       draft = []; $('text').value = ''; inF = outF = null; renderRange(); renderWhere();
-      selected = c.id; await refresh(); toast(`Added ${c.id} at frame ${c.frame}`);
+      selected = c.id; await refresh(true); toast(`Added ${c.id} on frame ${fn(c.frame)}`);
     } catch (e) { toast('Could not add the note: ' + e.message); }
     finally { $('bAdd').disabled = !videoReady; }
   }
   $('bAdd').addEventListener('click', addNote);
 
-  // ---------- list ----------
-  function renderList() {
-    const items = doc.comments.filter(c => showResolved || c.status === 'open');
-    const open = doc.comments.filter(c => c.status === 'open').length;
-    $('count').textContent = doc.comments.length ? `${open} open · ${doc.comments.length - open} resolved` : 'No notes yet';
-    if (!items.length) {
-      $('list').innerHTML = doc.comments.length
-        ? '<p class="empty">Every note is resolved. <b>Show resolved</b> lists them.</p>'
-        : '<p class="empty">No notes yet. Pause on a frame (or set a range with <b>I</b> and <b>O</b>), draw on it if that helps, write what should change, then <b>Add note</b>. <b>Send to agent</b> hands the open notes over.</p>';
+  // ---------- the sheet ----------
+  const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+  const visible = () => doc.comments.filter(c => showResolved || c.status === 'open').slice().sort((a, b) => a.frame - b.frame || a.id.localeCompare(b.id));
+  // Frames with no note: a strip of ruled paper whose height grows with the run, so the sheet
+  // shows where notes sit in time, and stepping through a run moves the paper.
+  function gapEl(a, b) {
+    const el = document.createElement('div'), n = b - a + 1;
+    el.className = 'gap'; el.setAttribute('aria-hidden', 'true');
+    el.innerHTML = `<span class="fr">${b > a ? `${fn(a)}–${fn(b)}` : fn(a)}</span><span class="paper" style="height:${Math.round(Math.min(160, 4 + 2.2 * Math.sqrt(n)))}px"></span>`;
+    return el;
+  }
+  function noteRow(c) {
+    const done = c.status === 'resolved', end = c.frameEnd;
+    const state = done ? `<span class="state done" title="Resolved">${icon('check')}resolved</span>`
+      : c.sent ? `<span class="state sent" title="Sent to the agent in send #${c.sent}">${icon('send')}sent #${c.sent}</span>`
+      : '';
+    const older = c.version !== version ? `<span class="state" title="Made on an earlier render of this file">${icon('older')}earlier render</span>` : '';
+    const thread = (c.replies || []).map(r => `<p><b>${esc(r.author)}</b> ${esc(r.text)}</p>`).join('') +
+      (c.resolvedNote ? `<p class="fix">${icon('check')} ${esc(c.resolvedNote)}</p>` : '') +
+      (replying === c.id ? `<form class="replyform" data-reply="${c.id}"><input aria-label="Reply to ${c.id}" placeholder="Reply…" maxlength="2000"><button class="btn" aria-label="Send reply" data-tip="Reply  ↵" data-tip-pos="end">${icon('send')}</button></form>` : '');
+    const del = armed === c.id;
+    const acts = `<span class="acts">
+        ${done ? `<button class="btn" data-act="open" aria-label="Reopen" data-tip="Reopen">${icon('reopen')}</button>` : `<button class="btn" data-act="resolve" aria-label="Resolve" data-tip="Resolve">${icon('check')}</button>`}
+        <button class="btn" data-act="reply" aria-label="Reply" data-tip="Reply">${icon('reply')}</button>
+        <button class="btn${del ? ' armed' : ''}" data-act="delete" aria-label="${del ? 'Click again to delete' : 'Delete'}" data-tip="${del ? 'Click again to delete' : 'Delete'}" data-tip-pos="end">${icon('trash')}</button>
+      </span>`;
+    return `<div class="row note${done ? ' done' : ''}${c.id === selected ? ' sel' : ''}" data-id="${c.id}" data-start="${c.frame}" data-end="${end ?? c.frame}" tabindex="0" aria-label="${c.id} on frame ${c.frame}">
+      <div class="fr"><b>${fn(c.frame)}</b>${end != null ? `<span class="to">${fn(end)}</span>` : ''}<span class="tc">${tc(c.frame)}</span></div>
+      <div class="body${c.snapshot ? '' : ' bare'}">
+        ${c.snapshot ? `<img class="snap" loading="lazy" src="/api/snapshot/${c.id}?v=${c.createdAt}" alt="Frame ${c.frame} with the drawing">` : ''}
+        <div>
+          <p class="txt${c.text ? '' : ' quiet'}">${esc(c.text || 'Drawing only')}</p>
+          <div class="meta"><span>${c.id}</span>${c.author && c.author !== author ? `<span>${esc(c.author)}</span>` : ''}${state}${older}${acts}</div>
+          ${thread ? `<div class="thread">${thread}</div>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }
+  let sheetSig = '';
+  function renderList(force) {
+    const items = visible();
+    const open = doc.comments.filter(c => c.status === 'open').length, done = doc.comments.length - open;
+    $('count').textContent = doc.comments.length ? `${open} open${done ? ` · ${done} resolved` : ''}` : '';
+    $('bFilter').hidden = !done;
+    const sig = JSON.stringify([items, selected, version, replying, armed, meta && meta.frames]);
+    if (force || sig !== sheetSig) {
+      sheetSig = sig;
+      // Rebuild every row but the playhead row, which keeps the note being written.
+      for (const el of [...sheet.children]) if (el !== here) el.remove();
+      let html = items.map(noteRow).join('');
+      if (!items.length) html += doc.comments.length
+        ? '<p class="hint">Every note is resolved.</p>'
+        : '<p class="hint">Step to a frame, draw on it if that helps, and write what should change. Each note lands on its frame here.</p>';
+      sheet.insertAdjacentHTML('beforeend', html);
+      layoutSheet(true);
+      const input = sheet.querySelector('.replyform input'); if (input) input.focus();
     }
-    if (items.length) $('list').innerHTML = items.map(c => {
-      const range = c.frameEnd != null ? `f ${c.frame}–${c.frameEnd}` : `f ${c.frame}`;
-      const pills = [`<span class="pill ${c.status}">${c.status}</span>`];
-      if (c.sent) pills.push(`<span class="pill sent">sent #${c.sent}</span>`);
-      if (c.version !== version) pills.push('<span class="pill stale">older render</span>');
-      const replies = (c.replies || []).map(r => `<div class="reply"><b>${esc(r.author)}</b>: ${esc(r.text)}</div>`).join('');
-      const note = c.resolvedNote ? `<div class="reply"><b>resolved</b>: ${esc(c.resolvedNote)}</div>` : '';
-      return `<div class="item ${c.id === selected ? 'sel' : ''}" data-id="${c.id}">
-        ${c.snapshot ? `<img loading="lazy" src="/api/snapshot/${c.id}?v=${c.createdAt}" alt="">` : '<div class="noimg"></div>'}
-        <div><div class="top"><b>${c.id}</b> ${range} · ${esc(c.author || '')} ${pills.join(' ')}</div>
-        <div class="txt">${esc(c.text || '(drawing only)')}</div>${replies}${note}
-        <div class="acts">${c.status === 'open' ? `<button data-act="resolve">Resolve</button>` : `<button data-act="open">Reopen</button>`}
-          <button data-act="reply">Reply</button><button data-act="delete">Delete</button></div></div></div>`;
-    }).join('');
     const unsent = doc.comments.filter(c => c.status === 'open' && !c.sent).length;
     $('bSend').disabled = !unsent;
-    $('bSend').textContent = unsent ? `Send ${unsent} new note${unsent > 1 ? 's' : ''} to agent` : 'Send to agent';
+    $('sendLabel').textContent = unsent ? `Send ${unsent} note${unsent > 1 ? 's' : ''} to the agent` : 'Nothing new to send';
+    $('bSend').dataset.tip = 'Hands the new open notes to the agent';
     const lastSend = doc.sends && doc.sends[doc.sends.length - 1];
-    if (lastSend) $('sendNote').innerHTML = `Send #${lastSend.n}: ${lastSend.comments.length} note${lastSend.comments.length > 1 ? 's' : ''}, ` + (lastSend.deliveredAt ? 'received by the agent.' : 'waiting for <code>cav review wait</code>.');
-    renderMarks(); renderOverlay();
+    $('sendNote').hidden = !lastSend;
+    if (lastSend) $('sendNote').textContent = `Send #${lastSend.n}, ${lastSend.comments.length} note${lastSend.comments.length > 1 ? 's' : ''}: ` + (lastSend.deliveredAt ? 'received by the agent' : 'waiting for the agent');
+    renderMarks(); renderOverlay(); renderHere();
   }
-  const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
-  $('list').addEventListener('click', async e => {
-    const item = e.target.closest('.item'); if (!item) return;
-    const id = item.dataset.id, c = doc.comments.find(x => x.id === id), act = e.target.dataset.act;
+  // The playhead row sits among the notes by frame, and the sheet keeps it at the reading
+  // line as the frames step, unless the person has just scrolled the sheet themselves.
+  let userScroll = 0;
+  sheet.addEventListener('wheel', () => { userScroll = Date.now(); }, { passive: true });
+  sheet.addEventListener('touchmove', () => { userScroll = Date.now(); }, { passive: true });
+  function layoutSheet(rebuilt) {
+    if (!meta) return;
+    // The playhead row goes before the first note that starts after this frame.
+    const notes = [...sheet.querySelectorAll('.note')];
+    const next = notes.find(n => +n.dataset.start > frame) || sheet.querySelector('.hint');
+    if (here.nextElementSibling !== next || rebuilt) {
+      const typing = document.activeElement === $('text');
+      if (here.nextElementSibling !== next) sheet.insertBefore(here, next);
+      if (typing) $('text').focus();
+    }
+    // Then the empty runs between rows, split at the playhead.
+    sheet.querySelectorAll('.gap').forEach(g => g.remove());
+    let at = 0, lastEl = null;
+    for (const el of sheet.children) {
+      if (el !== here && !el.classList.contains('note')) continue;
+      const a = el === here ? frame : +el.dataset.start, b = el === here ? frame : +el.dataset.end;
+      if (a > at) el.before(gapEl(at, a - 1));
+      at = Math.max(at, b + 1); lastEl = el;
+    }
+    if (lastEl && at <= last()) lastEl.after(gapEl(at, last()));
+    if (Date.now() - userScroll > 1500) {
+      const top = Math.max(0, here.offsetTop - sheet.clientHeight * 0.38);
+      if (Math.abs(sheet.scrollTop - top) > 1) {
+        const playing = !video.paused || shuttleTimer;
+        sheet.scrollTo({ top, behavior: playing || reduced.matches || rebuilt ? 'auto' : 'smooth' });
+      }
+    }
+  }
+  function renderHere() {
+    if (!meta) return;
+    $('hereFrame').textContent = fn(frame);
+    $('hereTc').textContent = tc(frame);
+    for (const el of sheet.querySelectorAll('.note')) {
+      const c = doc.comments.find(x => x.id === el.dataset.id);
+      el.classList.toggle('live', !!c && onScreen(c));
+    }
+    layoutSheet(false);
+  }
+  sheet.addEventListener('click', async e => {
+    const row = e.target.closest('.note'); if (!row) return;
+    if (e.target.closest('.replyform')) return;
+    const id = row.dataset.id, c = doc.comments.find(x => x.id === id), act = e.target.closest('[data-act]')?.dataset.act;
     try {
-      if (act === 'resolve' || act === 'open') { await api('POST', `/api/comments/${id}`, { status: act === 'resolve' ? 'resolved' : 'open' }); await refresh(); return; }
-      if (act === 'delete') { if (confirm(`Delete ${id}?`)) { await api('DELETE', `/api/comments/${id}`); await refresh(); } return; }
-      if (act === 'reply') { const t = prompt(`Reply to ${id}`); if (t) { await api('POST', `/api/comments/${id}`, { reply: t }); await refresh(); } return; }
+      if (act === 'resolve' || act === 'open') { await api('POST', `/api/comments/${id}`, { status: act === 'resolve' ? 'resolved' : 'open' }); await refresh(true); return; }
+      if (act === 'reply') { replying = replying === id ? null : id; renderList(true); return; }
+      if (act === 'delete') {
+        // Two clicks instead of a confirm box, which a chat frame may not allow.
+        if (armed !== id) { armed = id; renderList(true); clearTimeout(sheet.armT); sheet.armT = setTimeout(() => { armed = null; renderList(true); }, 3000); return; }
+        armed = null; await api('DELETE', `/api/comments/${id}`); if (selected === id) selected = null; await refresh(true); toast(`Deleted ${id}`); return;
+      }
     } catch (err) { toast(err.message); return; }
     selected = id; draft = []; seek(c.frame); renderList();
   });
-  $('bFilter').addEventListener('click', () => { showResolved = !showResolved; $('bFilter').setAttribute('aria-pressed', String(showResolved)); renderList(); });
+  sheet.addEventListener('keydown', e => {
+    const row = e.target.classList && e.target.classList.contains('note') ? e.target : null;
+    if (row && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); e.stopPropagation(); row.click(); }
+  });
+  sheet.addEventListener('submit', async e => {
+    const form = e.target.closest('.replyform'); if (!form) return;
+    e.preventDefault();
+    const t = form.querySelector('input').value.trim(), id = form.dataset.reply;
+    if (!t) return;
+    try { await api('POST', `/api/comments/${id}`, { reply: t }); replying = null; await refresh(true); }
+    catch (err) { toast(err.message); }
+  });
+  $('bFilter').addEventListener('click', () => {
+    showResolved = !showResolved;
+    const b = $('bFilter'); b.setAttribute('aria-pressed', String(showResolved));
+    b.dataset.tip = b.ariaLabel = showResolved ? 'Hide resolved notes' : 'Show resolved notes';
+    renderList();
+  });
   $('bSend').addEventListener('click', async () => {
-    try { const s = await api('POST', '/api/send'); toast(`Sent ${s.comments.length} note${s.comments.length > 1 ? 's' : ''} to the agent`); await refresh(); }
+    try { const s = await api('POST', '/api/send'); toast(`Sent ${s.comments.length} note${s.comments.length > 1 ? 's' : ''} to the agent`); await refresh(true); }
     catch (e) { toast(e.message); }
   });
   function stepNote(dir) {
-    const open = doc.comments.filter(c => showResolved || c.status === 'open');
+    const open = visible();
     if (!open.length) return;
     const next = dir > 0 ? open.find(c => c.frame > frame) || open[0] : [...open].reverse().find(c => c.frame < frame) || open[open.length - 1];
     selected = next.id; seek(next.frame); renderList();
@@ -675,12 +975,13 @@
   document.addEventListener('keydown', e => {
     const typing = e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT';
     if (typing) {
-      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); addNote(); }
-      if (e.key === 'Escape') e.target.blur();
+      if (e.target.id === 'text' && e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); addNote(); }
+      if (e.key === 'Escape') { if (replying) { replying = null; renderList(true); } e.target.blur(); }
       return;
     }
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); draft.pop(); renderOverlay(); renderWhere(); return; }
     if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.target.closest && e.target.closest('dialog')) return;
     const k = e.key;
     const map = {
       ' ': playPause, k: playPause, K: playPause, l: forward, L: forward, j: backward, J: backward,
@@ -693,23 +994,30 @@
       c: () => $('text').focus(), n: () => stepNote(1), N: () => stepNote(-1),
       w: () => { const order = ['off', 'wipe', 'diff', 'onion']; setCompare(order[(order.indexOf(cmp) + 1) % order.length]); },
       '?': () => $('keys').showModal(),
-      Escape: () => { draft = []; drawing = null; renderOverlay(); renderWhere(); },
+      Escape: () => { draft = []; drawing = null; armed = null; renderOverlay(); renderWhere(); },
     };
-    const fn = map[k] || map[k.toLowerCase && k.length === 1 ? k.toLowerCase() : k];
-    if (fn) { e.preventDefault(); fn(); }
+    const fn2 = map[k] || map[k.toLowerCase && k.length === 1 ? k.toLowerCase() : k];
+    if (fn2) { e.preventDefault(); fn2(); }
   });
   $('bPlay').addEventListener('click', playPause);
   $('bBack').addEventListener('click', () => seek(frame - 1));
   $('bFwd').addEventListener('click', () => seek(frame + 1));
   $('bStart').addEventListener('click', () => seek(0));
   $('bEnd').addEventListener('click', () => seek(last()));
-  $('bIn').addEventListener('click', () => { inF = frame; renderRange(); renderWhere(); });
+  $('bIn').addEventListener('click', () => { inF = frame; if (outF != null && outF < inF) outF = null; renderRange(); renderWhere(); });
   $('bOut').addEventListener('click', () => { if (inF == null) inF = 0; outF = frame; renderRange(); renderWhere(); });
   $('bClearRange').addEventListener('click', () => { inF = outF = null; renderRange(); renderWhere(); });
   $('help').addEventListener('click', () => $('keys').showModal());
 
   // ---------- state ----------
-  async function refresh() {
+  function renderTitle(s) {
+    $('name').textContent = s.name;
+    $('name').title = s.name;
+    document.title = s.name + ' · cav review';
+    const f = (k, v, opt) => `<span class="field${opt ? ' opt' : ''}"><span class="k">${k}</span><span class="v">${esc(v)}</span></span>`;
+    $('meta').innerHTML = f('Size', `${meta.width}×${meta.height}`) + f('Rate', `${+meta.fps.toFixed(3)} fps`) + f('Frames', String(meta.frames), true) + '';
+  }
+  async function refresh(force) {
     const s = await api('GET', '/api/state');
     const first = !meta;
     if (s.preparing && !refresh.told) { toast('A new render is being prepared…'); refresh.told = true; }
@@ -721,7 +1029,7 @@
       video.src = '/video?v=' + s.version;
       video.addEventListener('loadedmetadata', () => seek(Math.min(keep, s.source.frames - 1)), { once: true });
       refresh.told = false;
-      toast('New render loaded; notes on the old one are marked');
+      toast('New render loaded; notes on the earlier one are marked');
     }
     meta = s.source; doc = s.doc; version = s.version; author = s.author;
     renderVersions(); renderWave();
@@ -730,12 +1038,10 @@
       // Ask for the version that the state named, so the first frames and the notes on
       // them belong to the same render.
       video.src = '/video?v=' + s.version;
-      $('name').textContent = s.name;
-      document.title = s.name + ' · cav review';
-      $('meta').textContent = `${meta.width}×${meta.height} · ${+meta.fps.toFixed(3)} fps · ${meta.frames} frames · ${author}`;
+      renderTitle(s);
       renderTicks(); fit(); renderReadout();
     }
-    renderList();
+    renderList(force);
   }
   // ---------- theme: follow the system unless the person picks light or dark ----------
   const store = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
@@ -749,7 +1055,7 @@
   setTheme(store.get('cav-review-theme') || 'system');
 
   setTool('arrow'); setColor('#ffd23f'); renderPlay();
-  refresh().then(() => { renderWhere(); seek(0); }).catch(e => toast('Could not load: ' + e.message));
+  refresh(true).then(() => { renderWhere(); seek(0); }).catch(e => toast('Could not load: ' + e.message));
   // Poll the local server, also while the tab is hidden, so a re-render or a note the agent
   // resolved shows up at once; and refresh as soon as the tab comes back.
   setInterval(() => { if (!drawing) refresh().catch(() => {}); }, 3000);

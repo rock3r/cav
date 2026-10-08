@@ -256,3 +256,35 @@ func Pending(d *Doc) *Send {
 	}
 	return nil
 }
+
+// SnapshotFile finds a note's snapshot by its file name in the review's own snapshot
+// folder, or returns "". The recorded path may be relative to wherever `cav review` ran, and
+// the review file sits in the project, so a path it names elsewhere is never served. Nor is
+// a symlink, or a file whose real location is outside that folder: a checkout could carry
+// either.
+func (s *Store) SnapshotFile(p string) string {
+	name := filepath.Base(filepath.FromSlash(p))
+	if p == "" || name == "." || name == ".." || !strings.HasSuffix(name, ".png") {
+		return ""
+	}
+	// The folder must be review/<video name> beside the video, as a real folder: neither
+	// "review" nor the folder in it may be a symlink to elsewhere. Folders above the video
+	// may be symlinks (macOS keeps /tmp under /private/tmp).
+	dir, err := filepath.EvalSymlinks(s.SnapDir)
+	if err != nil {
+		return ""
+	}
+	videoDir, err := filepath.EvalSymlinks(filepath.Dir(s.Video))
+	if err != nil || dir != filepath.Join(videoDir, "review", filepath.Base(s.SnapDir)) {
+		return ""
+	}
+	abs, err := filepath.Abs(filepath.Join(dir, name))
+	if err != nil {
+		return ""
+	}
+	info, err := os.Lstat(abs)
+	if err != nil || !info.Mode().IsRegular() {
+		return ""
+	}
+	return abs
+}

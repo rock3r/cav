@@ -6,3 +6,7 @@
 # Eval harness dependencies (install with npm ci in tools/evals/mcp)
 tools/evals/mcp/node_modules/
 __pycache__/
+
+# Impeccable review captures (local)
+.impeccable/review/
+.impeccable/questions/

@@ -1,0 +1,787 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-08T22:59:38+00:00",
+  "title": "Design System: cav review",
+  "extensions": {
+    "colorMeta": {
+      "cav-orange": {
+        "role": "primary",
+        "displayName": "Cav Orange",
+        "purpose": "Fill for the playhead, playhead row rules and flag, selected mark, range edges, wipe divider, focus ring, caret and the Add button.",
+        "canonical": "#ff5a36",
+        "tonalRamp": [
+          "oklch(15% 0.200 33.9)",
+          "oklch(26% 0.200 33.9)",
+          "oklch(38% 0.200 33.9)",
+          "oklch(50% 0.200 33.9)",
+          "oklch(62% 0.200 33.9)",
+          "oklch(74% 0.200 33.9)",
+          "oklch(85% 0.200 33.9)",
+          "oklch(95% 0.200 33.9)"
+        ]
+      },
+      "cav-orange-ink": {
+        "role": "primary",
+        "displayName": "Cav Orange Ink",
+        "purpose": "Orange as text in light: the playhead row and live note frame numerals.",
+        "canonical": "#c2360e",
+        "tonalRamp": [
+          "oklch(15% 0.183 34.9)",
+          "oklch(26% 0.183 34.9)",
+          "oklch(38% 0.183 34.9)",
+          "oklch(50% 0.183 34.9)",
+          "oklch(62% 0.183 34.9)",
+          "oklch(74% 0.183 34.9)",
+          "oklch(85% 0.183 34.9)",
+          "oklch(95% 0.183 34.9)"
+        ]
+      },
+      "cav-orange-ink-dark": {
+        "role": "primary",
+        "displayName": "Cav Orange Ink (dark)",
+        "purpose": "Orange as text in dark.",
+        "canonical": "#ff8a66",
+        "tonalRamp": [
+          "oklch(15% 0.151 37.9)",
+          "oklch(26% 0.151 37.9)",
+          "oklch(38% 0.151 37.9)",
+          "oklch(50% 0.151 37.9)",
+          "oklch(62% 0.151 37.9)",
+          "oklch(74% 0.151 37.9)",
+          "oklch(85% 0.151 37.9)",
+          "oklch(95% 0.151 37.9)"
+        ]
+      },
+      "cav-orange-soft": {
+        "role": "primary",
+        "displayName": "Cav Orange Wash",
+        "purpose": "Selected note, I/O range and text selection, light.",
+        "canonical": "rgba(255, 90, 54, 0.11)",
+        "tonalRamp": [
+          "oklch(15% 0.200 33.9)",
+          "oklch(26% 0.200 33.9)",
+          "oklch(38% 0.200 33.9)",
+          "oklch(50% 0.200 33.9)",
+          "oklch(62% 0.200 33.9)",
+          "oklch(74% 0.200 33.9)",
+          "oklch(85% 0.200 33.9)",
+          "oklch(95% 0.200 33.9)"
+        ]
+      },
+      "cav-orange-soft-dark": {
+        "role": "primary",
+        "displayName": "Cav Orange Wash (dark)",
+        "purpose": "Selected note, I/O range and text selection, dark.",
+        "canonical": "rgba(255, 90, 54, 0.15)",
+        "tonalRamp": [
+          "oklch(15% 0.200 33.9)",
+          "oklch(26% 0.200 33.9)",
+          "oklch(38% 0.200 33.9)",
+          "oklch(50% 0.200 33.9)",
+          "oklch(62% 0.200 33.9)",
+          "oklch(74% 0.200 33.9)",
+          "oklch(85% 0.200 33.9)",
+          "oklch(95% 0.200 33.9)"
+        ]
+      },
+      "on-orange": {
+        "role": "primary",
+        "displayName": "On Orange",
+        "purpose": "Text on cav orange.",
+        "canonical": "#16181f",
+        "tonalRamp": [
+          "oklch(15% 0.014 272.6)",
+          "oklch(26% 0.014 272.6)",
+          "oklch(38% 0.014 272.6)",
+          "oklch(50% 0.014 272.6)",
+          "oklch(62% 0.014 272.6)",
+          "oklch(74% 0.014 272.6)",
+          "oklch(85% 0.014 272.6)",
+          "oklch(95% 0.014 272.6)"
+        ]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Sheet Paper",
+        "purpose": "Page and sheet ground, light.",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "oklch(15% 0.000 89.9)",
+          "oklch(26% 0.000 89.9)",
+          "oklch(38% 0.000 89.9)",
+          "oklch(50% 0.000 89.9)",
+          "oklch(62% 0.000 89.9)",
+          "oklch(74% 0.000 89.9)",
+          "oklch(85% 0.000 89.9)",
+          "oklch(95% 0.000 89.9)"
+        ]
+      },
+      "paper-2": {
+        "role": "neutral",
+        "displayName": "Paper Shade",
+        "purpose": "Key caps; tooltip text.",
+        "canonical": "#f4f5f7",
+        "tonalRamp": [
+          "oklch(15% 0.003 264.5)",
+          "oklch(26% 0.003 264.5)",
+          "oklch(38% 0.003 264.5)",
+          "oklch(50% 0.003 264.5)",
+          "oklch(62% 0.003 264.5)",
+          "oklch(74% 0.003 264.5)",
+          "oklch(85% 0.003 264.5)",
+          "oklch(95% 0.003 264.5)"
+        ]
+      },
+      "paper-3": {
+        "role": "neutral",
+        "displayName": "Paper Deep",
+        "purpose": "Disabled Add and Send fills.",
+        "canonical": "#e8eaee",
+        "tonalRamp": [
+          "oklch(15% 0.006 264.5)",
+          "oklch(26% 0.006 264.5)",
+          "oklch(38% 0.006 264.5)",
+          "oklch(50% 0.006 264.5)",
+          "oklch(62% 0.006 264.5)",
+          "oklch(74% 0.006 264.5)",
+          "oklch(85% 0.006 264.5)",
+          "oklch(95% 0.006 264.5)"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "purpose": "Open note text, frame numerals, Send fill, pressed tools.",
+        "canonical": "#16181f",
+        "tonalRamp": [
+          "oklch(15% 0.014 272.6)",
+          "oklch(26% 0.014 272.6)",
+          "oklch(38% 0.014 272.6)",
+          "oklch(50% 0.014 272.6)",
+          "oklch(62% 0.014 272.6)",
+          "oklch(74% 0.014 272.6)",
+          "oklch(85% 0.014 272.6)",
+          "oklch(95% 0.014 272.6)"
+        ]
+      },
+      "ink-2": {
+        "role": "neutral",
+        "displayName": "Ink Soft",
+        "purpose": "Resting icons, readout timecode, reply threads.",
+        "canonical": "#353a45",
+        "tonalRamp": [
+          "oklch(15% 0.020 266.0)",
+          "oklch(26% 0.020 266.0)",
+          "oklch(38% 0.020 266.0)",
+          "oklch(50% 0.020 266.0)",
+          "oklch(62% 0.020 266.0)",
+          "oklch(74% 0.020 266.0)",
+          "oklch(85% 0.020 266.0)",
+          "oklch(95% 0.020 266.0)"
+        ]
+      },
+      "graphite": {
+        "role": "neutral",
+        "displayName": "Graphite",
+        "purpose": "Column heads, run labels, meta, resolved notes.",
+        "canonical": "#5c6370",
+        "tonalRamp": [
+          "oklch(15% 0.022 262.9)",
+          "oklch(26% 0.022 262.9)",
+          "oklch(38% 0.022 262.9)",
+          "oklch(50% 0.022 262.9)",
+          "oklch(62% 0.022 262.9)",
+          "oklch(74% 0.022 262.9)",
+          "oklch(85% 0.022 262.9)",
+          "oklch(95% 0.022 262.9)"
+        ]
+      },
+      "rule": {
+        "role": "neutral",
+        "displayName": "Light Rule",
+        "purpose": "Between sheet rows.",
+        "canonical": "rgba(22, 24, 31, 0.11)",
+        "tonalRamp": [
+          "oklch(15% 0.014 272.6)",
+          "oklch(26% 0.014 272.6)",
+          "oklch(38% 0.014 272.6)",
+          "oklch(50% 0.014 272.6)",
+          "oklch(62% 0.014 272.6)",
+          "oklch(74% 0.014 272.6)",
+          "oklch(85% 0.014 272.6)",
+          "oklch(95% 0.014 272.6)"
+        ]
+      },
+      "rule-2": {
+        "role": "neutral",
+        "displayName": "Middle Rule",
+        "purpose": "Frame column edge, control borders, separators.",
+        "canonical": "rgba(22, 24, 31, 0.22)",
+        "tonalRamp": [
+          "oklch(15% 0.014 272.6)",
+          "oklch(26% 0.014 272.6)",
+          "oklch(38% 0.014 272.6)",
+          "oklch(50% 0.014 272.6)",
+          "oklch(62% 0.014 272.6)",
+          "oklch(74% 0.014 272.6)",
+          "oklch(85% 0.014 272.6)",
+          "oklch(95% 0.014 272.6)"
+        ]
+      },
+      "rule-3": {
+        "role": "neutral",
+        "displayName": "Heavy Rule",
+        "purpose": "The page frame: bar edges, sheet edge, timeline top.",
+        "canonical": "rgba(22, 24, 31, 0.62)",
+        "tonalRamp": [
+          "oklch(15% 0.014 272.6)",
+          "oklch(26% 0.014 272.6)",
+          "oklch(38% 0.014 272.6)",
+          "oklch(50% 0.014 272.6)",
+          "oklch(62% 0.014 272.6)",
+          "oklch(74% 0.014 272.6)",
+          "oklch(85% 0.014 272.6)",
+          "oklch(95% 0.014 272.6)"
+        ]
+      },
+      "paper-dark": {
+        "role": "neutral",
+        "displayName": "Ink Stock",
+        "purpose": "Page and sheet ground, dark.",
+        "canonical": "#16181f",
+        "tonalRamp": [
+          "oklch(15% 0.014 272.6)",
+          "oklch(26% 0.014 272.6)",
+          "oklch(38% 0.014 272.6)",
+          "oklch(50% 0.014 272.6)",
+          "oklch(62% 0.014 272.6)",
+          "oklch(74% 0.014 272.6)",
+          "oklch(85% 0.014 272.6)",
+          "oklch(95% 0.014 272.6)"
+        ]
+      },
+      "paper-2-dark": {
+        "role": "neutral",
+        "displayName": "Ink Stock Shade",
+        "purpose": "Key caps, dark.",
+        "canonical": "#1c1f27",
+        "tonalRamp": [
+          "oklch(15% 0.016 269.0)",
+          "oklch(26% 0.016 269.0)",
+          "oklch(38% 0.016 269.0)",
+          "oklch(50% 0.016 269.0)",
+          "oklch(62% 0.016 269.0)",
+          "oklch(74% 0.016 269.0)",
+          "oklch(85% 0.016 269.0)",
+          "oklch(95% 0.016 269.0)"
+        ]
+      },
+      "paper-3-dark": {
+        "role": "neutral",
+        "displayName": "Ink Stock Deep",
+        "purpose": "Disabled fills, dark.",
+        "canonical": "#282c35",
+        "tonalRamp": [
+          "oklch(15% 0.017 266.4)",
+          "oklch(26% 0.017 266.4)",
+          "oklch(38% 0.017 266.4)",
+          "oklch(50% 0.017 266.4)",
+          "oklch(62% 0.017 266.4)",
+          "oklch(74% 0.017 266.4)",
+          "oklch(85% 0.017 266.4)",
+          "oklch(95% 0.017 266.4)"
+        ]
+      },
+      "ink-dark": {
+        "role": "neutral",
+        "displayName": "Ink (dark)",
+        "purpose": "Primary text, dark.",
+        "canonical": "#eceef2",
+        "tonalRamp": [
+          "oklch(15% 0.006 264.5)",
+          "oklch(26% 0.006 264.5)",
+          "oklch(38% 0.006 264.5)",
+          "oklch(50% 0.006 264.5)",
+          "oklch(62% 0.006 264.5)",
+          "oklch(74% 0.006 264.5)",
+          "oklch(85% 0.006 264.5)",
+          "oklch(95% 0.006 264.5)"
+        ]
+      },
+      "ink-2-dark": {
+        "role": "neutral",
+        "displayName": "Ink Soft (dark)",
+        "purpose": "Secondary text, dark.",
+        "canonical": "#c8ccd4",
+        "tonalRamp": [
+          "oklch(15% 0.012 264.5)",
+          "oklch(26% 0.012 264.5)",
+          "oklch(38% 0.012 264.5)",
+          "oklch(50% 0.012 264.5)",
+          "oklch(62% 0.012 264.5)",
+          "oklch(74% 0.012 264.5)",
+          "oklch(85% 0.012 264.5)",
+          "oklch(95% 0.012 264.5)"
+        ]
+      },
+      "graphite-dark": {
+        "role": "neutral",
+        "displayName": "Graphite (dark)",
+        "purpose": "Quiet text, dark.",
+        "canonical": "#9aa1ad",
+        "tonalRamp": [
+          "oklch(15% 0.019 261.3)",
+          "oklch(26% 0.019 261.3)",
+          "oklch(38% 0.019 261.3)",
+          "oklch(50% 0.019 261.3)",
+          "oklch(62% 0.019 261.3)",
+          "oklch(74% 0.019 261.3)",
+          "oklch(85% 0.019 261.3)",
+          "oklch(95% 0.019 261.3)"
+        ]
+      },
+      "rule-dark": {
+        "role": "neutral",
+        "displayName": "Light Rule (dark)",
+        "purpose": "Between rows, dark.",
+        "canonical": "rgba(236, 238, 242, 0.09)",
+        "tonalRamp": [
+          "oklch(15% 0.006 264.5)",
+          "oklch(26% 0.006 264.5)",
+          "oklch(38% 0.006 264.5)",
+          "oklch(50% 0.006 264.5)",
+          "oklch(62% 0.006 264.5)",
+          "oklch(74% 0.006 264.5)",
+          "oklch(85% 0.006 264.5)",
+          "oklch(95% 0.006 264.5)"
+        ]
+      },
+      "rule-2-dark": {
+        "role": "neutral",
+        "displayName": "Middle Rule (dark)",
+        "purpose": "Borders, dark.",
+        "canonical": "rgba(236, 238, 242, 0.19)",
+        "tonalRamp": [
+          "oklch(15% 0.006 264.5)",
+          "oklch(26% 0.006 264.5)",
+          "oklch(38% 0.006 264.5)",
+          "oklch(50% 0.006 264.5)",
+          "oklch(62% 0.006 264.5)",
+          "oklch(74% 0.006 264.5)",
+          "oklch(85% 0.006 264.5)",
+          "oklch(95% 0.006 264.5)"
+        ]
+      },
+      "rule-3-dark": {
+        "role": "neutral",
+        "displayName": "Heavy Rule (dark)",
+        "purpose": "Page frame, dark.",
+        "canonical": "rgba(236, 238, 242, 0.5)",
+        "tonalRamp": [
+          "oklch(15% 0.006 264.5)",
+          "oklch(26% 0.006 264.5)",
+          "oklch(38% 0.006 264.5)",
+          "oklch(50% 0.006 264.5)",
+          "oklch(62% 0.006 264.5)",
+          "oklch(74% 0.006 264.5)",
+          "oklch(85% 0.006 264.5)",
+          "oklch(95% 0.006 264.5)"
+        ]
+      },
+      "stage": {
+        "role": "neutral",
+        "displayName": "Stage Black",
+        "purpose": "The stage in both themes; empty snapshot ground.",
+        "canonical": "#0b0c0e",
+        "tonalRamp": [
+          "oklch(15% 0.005 264.4)",
+          "oklch(26% 0.005 264.4)",
+          "oklch(38% 0.005 264.4)",
+          "oklch(50% 0.005 264.4)",
+          "oklch(62% 0.005 264.4)",
+          "oklch(74% 0.005 264.4)",
+          "oklch(85% 0.005 264.4)",
+          "oklch(95% 0.005 264.4)"
+        ]
+      },
+      "stage-text": {
+        "role": "neutral",
+        "displayName": "Stage Text",
+        "purpose": "Messages on the stage.",
+        "canonical": "#b9bec8",
+        "tonalRamp": [
+          "oklch(15% 0.015 264.5)",
+          "oklch(26% 0.015 264.5)",
+          "oklch(38% 0.015 264.5)",
+          "oklch(50% 0.015 264.5)",
+          "oklch(62% 0.015 264.5)",
+          "oklch(74% 0.015 264.5)",
+          "oklch(85% 0.015 264.5)",
+          "oklch(95% 0.015 264.5)"
+        ]
+      },
+      "ok": {
+        "role": "status",
+        "displayName": "OK",
+        "purpose": "Resolved state, agent fix line.",
+        "canonical": "#1d7a47",
+        "tonalRamp": [
+          "oklch(15% 0.117 154.1)",
+          "oklch(26% 0.117 154.1)",
+          "oklch(38% 0.117 154.1)",
+          "oklch(50% 0.117 154.1)",
+          "oklch(62% 0.117 154.1)",
+          "oklch(74% 0.117 154.1)",
+          "oklch(85% 0.117 154.1)",
+          "oklch(95% 0.117 154.1)"
+        ]
+      },
+      "warn": {
+        "role": "status",
+        "displayName": "Warn",
+        "purpose": "Seeking indicator.",
+        "canonical": "#9a5800",
+        "tonalRamp": [
+          "oklch(15% 0.120 62.7)",
+          "oklch(26% 0.120 62.7)",
+          "oklch(38% 0.120 62.7)",
+          "oklch(50% 0.120 62.7)",
+          "oklch(62% 0.120 62.7)",
+          "oklch(74% 0.120 62.7)",
+          "oklch(85% 0.120 62.7)",
+          "oklch(95% 0.120 62.7)"
+        ]
+      },
+      "bad": {
+        "role": "status",
+        "displayName": "Bad",
+        "purpose": "Armed delete, errors.",
+        "canonical": "#bf2d2d",
+        "tonalRamp": [
+          "oklch(15% 0.183 26.1)",
+          "oklch(26% 0.183 26.1)",
+          "oklch(38% 0.183 26.1)",
+          "oklch(50% 0.183 26.1)",
+          "oklch(62% 0.183 26.1)",
+          "oklch(74% 0.183 26.1)",
+          "oklch(85% 0.183 26.1)",
+          "oklch(95% 0.183 26.1)"
+        ]
+      },
+      "ok-dark": {
+        "role": "status",
+        "displayName": "OK (dark)",
+        "purpose": "Resolved state, dark.",
+        "canonical": "#62d293",
+        "tonalRamp": [
+          "oklch(15% 0.138 156.4)",
+          "oklch(26% 0.138 156.4)",
+          "oklch(38% 0.138 156.4)",
+          "oklch(50% 0.138 156.4)",
+          "oklch(62% 0.138 156.4)",
+          "oklch(74% 0.138 156.4)",
+          "oklch(85% 0.138 156.4)",
+          "oklch(95% 0.138 156.4)"
+        ]
+      },
+      "warn-dark": {
+        "role": "status",
+        "displayName": "Warn (dark)",
+        "purpose": "Seeking indicator, dark.",
+        "canonical": "#f2b94d",
+        "tonalRamp": [
+          "oklch(15% 0.139 80.4)",
+          "oklch(26% 0.139 80.4)",
+          "oklch(38% 0.139 80.4)",
+          "oklch(50% 0.139 80.4)",
+          "oklch(62% 0.139 80.4)",
+          "oklch(74% 0.139 80.4)",
+          "oklch(85% 0.139 80.4)",
+          "oklch(95% 0.139 80.4)"
+        ]
+      },
+      "bad-dark": {
+        "role": "status",
+        "displayName": "Bad (dark)",
+        "purpose": "Armed delete and errors, dark.",
+        "canonical": "#ff8079",
+        "tonalRamp": [
+          "oklch(15% 0.156 24.8)",
+          "oklch(26% 0.156 24.8)",
+          "oklch(38% 0.156 24.8)",
+          "oklch(50% 0.156 24.8)",
+          "oklch(62% 0.156 24.8)",
+          "oklch(74% 0.156 24.8)",
+          "oklch(85% 0.156 24.8)",
+          "oklch(95% 0.156 24.8)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "readout": {
+        "displayName": "Readout",
+        "purpose": "Current frame in the transport; 21px below 760px."
+      },
+      "frame-numeral": {
+        "displayName": "Frame Numeral",
+        "purpose": "Frame number in each note row and the playhead row."
+      },
+      "column-head": {
+        "displayName": "Column Head",
+        "purpose": "FRAME and NOTE over the sheet, uppercase; title block field keys use +0.09em."
+      },
+      "run-label": {
+        "displayName": "Run Label",
+        "purpose": "Frame range beside a run of empty frames; timeline second labels use the same face at line-height 1."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Video name and dialog titles."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Note text, composer, page default."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "The Add button."
+      },
+      "meta": {
+        "displayName": "Meta",
+        "purpose": "Timecodes, meta lines, hints."
+      },
+      "tooltip": {
+        "displayName": "Tooltip",
+        "purpose": "Control label and shortcut key."
+      },
+      "font-sheet": {
+        "displayName": "Sheet (Barlow Semi Condensed SemiBold)",
+        "purpose": "Embedded woff2 Latin subset, weight 600, SIL Open Font License 1.1, by Jeremy Tribby. Only for the sheet lettering."
+      }
+    },
+    "shadows": [
+      {
+        "name": "float",
+        "value": "0 6px 18px rgba(0, 0, 0, 0.18)",
+        "purpose": "The toast only."
+      },
+      {
+        "name": "handle",
+        "value": "0 1px 3px rgba(0, 0, 0, 0.4)",
+        "purpose": "The wipe divider grip on the stage."
+      }
+    ],
+    "motion": [
+      {
+        "name": "state",
+        "value": "120ms ease-out",
+        "purpose": "Background, colour, opacity and filter changes on controls; note actions fading in."
+      },
+      {
+        "name": "tooltip-delay",
+        "value": "350ms",
+        "purpose": "Delay before a tooltip shows; it rises 3px over 120ms."
+      },
+      {
+        "name": "toast",
+        "value": "160ms ease-out",
+        "purpose": "Toast fades and rises 8px."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "transition: none",
+        "purpose": "All transitions stop under prefers-reduced-motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sheet-full",
+        "value": "1180px",
+        "purpose": "At and above: 392px sheet."
+      },
+      {
+        "name": "sheet-mid",
+        "value": "max-width: 1179px",
+        "purpose": "312px sheet."
+      },
+      {
+        "name": "fields-trim",
+        "value": "max-width: 1023px",
+        "purpose": "Optional title block fields hide."
+      },
+      {
+        "name": "stacked",
+        "value": "max-width: 759px",
+        "purpose": "Sheet drops below the stage at min(70vh, 560px)."
+      },
+      {
+        "name": "chat-two-column",
+        "value": "600px to 759px (html.cav-mcp)",
+        "purpose": "Chat frame keeps two columns with a 264px sheet; set in internal/reviewmcp/reviewmcp.go AppPage."
+      },
+      {
+        "name": "narrow-sheet",
+        "value": "@container max-width: 340px",
+        "purpose": "72px frame column, 52px snapshot."
+      },
+      {
+        "name": "transport-wrap",
+        "value": "@container max-width: 640px",
+        "purpose": "Transport separators hide."
+      },
+      {
+        "name": "coarse-pointer",
+        "value": "pointer: coarse",
+        "purpose": "40px targets for controls."
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Tool Button",
+      "kind": "button",
+      "refersTo": "button-tool",
+      "description": "Flat icon button on the paper; ink fill when pressed or chosen.",
+      "html": "<div style=\"display:flex;gap:4px\"><button class=\"ds-btn\" aria-label=\"Back one frame\"><svg viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M10 4 6 8l4 4\"/></svg></button><button class=\"ds-btn\" aria-pressed=\"true\" aria-label=\"Pen\"><svg viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M10 4 6 8l4 4\"/></svg></button><button class=\"ds-btn\" disabled aria-label=\"Undo\"><svg viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M10 4 6 8l4 4\"/></svg></button></div>",
+      "css": ".ds-btn{display:inline-flex;align-items:center;justify-content:center;height:30px;min-width:30px;padding:0 7px;border:0;border-radius:4px;background:transparent;color:#353a45;cursor:pointer;transition:background-color 120ms ease-out,color 120ms ease-out}.ds-btn:hover:not(:disabled){background:rgba(22,24,31,.06);color:#16181f}.ds-btn:active:not(:disabled){background:rgba(22,24,31,.22)}.ds-btn[aria-pressed=true]{background:#16181f;color:#fff}.ds-btn:disabled{color:#5c6370;opacity:.55;cursor:default}.ds-btn:focus-visible{outline:2px solid #ff5a36;outline-offset:2px}"
+    },
+    {
+      "name": "Add",
+      "kind": "button",
+      "refersTo": "button-add",
+      "description": "The one orange button; it sits in the playhead row.",
+      "html": "<button class=\"ds-add\"><svg viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\"><path d=\"M8 3.5v9M3.5 8h9\"/></svg>Add</button>",
+      "css": ".ds-add{height:28px;padding:0 10px 0 8px;border:0;border-radius:4px;background:#ff5a36;color:#16181f;font:650 12px/1 ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;display:inline-flex;align-items:center;gap:5px;cursor:pointer;transition:filter 120ms ease-out}.ds-add:hover{filter:brightness(1.06)}.ds-add:focus-visible{outline:2px solid #ff5a36;outline-offset:2px}"
+    },
+    {
+      "name": "Send to agent",
+      "kind": "button",
+      "refersTo": "button-send",
+      "description": "Ink bar at the sheet foot.",
+      "html": "<button class=\"ds-send\">Send to agent</button>",
+      "css": ".ds-send{width:280px;height:36px;border:0;border-radius:4px;background:#16181f;color:#fff;font:650 13px/1 ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;cursor:pointer;transition:filter 120ms ease-out}.ds-send:hover{filter:brightness(1.15)}.ds-send:focus-visible{outline:2px solid #ff5a36;outline-offset:2px}"
+    },
+    {
+      "name": "Reply Input",
+      "kind": "input",
+      "refersTo": "input-reply",
+      "description": "Hairline field; focus turns the border orange.",
+      "html": "<input class=\"ds-input\" placeholder=\"Reply…\">",
+      "css": ".ds-input{height:28px;width:240px;padding:0 8px;border:1px solid rgba(22,24,31,.22);border-radius:4px;background:#fff;color:#16181f;font:13px ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;caret-color:#ff5a36}.ds-input:focus{outline:none;border-color:#ff5a36}"
+    },
+    {
+      "name": "Tooltip",
+      "kind": "custom",
+      "refersTo": "tooltip",
+      "description": "Label and shortcut key, in an ink pill.",
+      "html": "<span class=\"ds-tip\">Back one frame  ←</span>",
+      "css": ".ds-tip{display:inline-block;padding:4px 8px;border-radius:4px;background:#16181f;color:#f4f5f7;font:500 11.5px/1.3 ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;white-space:pre}"
+    },
+    {
+      "name": "Sheet Head",
+      "kind": "nav",
+      "refersTo": "column-head",
+      "description": "FRAME and NOTE over the heavy rule.",
+      "html": "<div class=\"ds-head\"><span>Frame</span><span>Note</span></div>",
+      "css": ".ds-head{display:grid;grid-template-columns:76px 1fr;align-items:center;height:46px;width:320px;border-bottom:1px solid rgba(22,24,31,.62);background:#fff}.ds-head span{padding-left:12px;font:600 12px/1 'Barlow Semi Condensed', ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;letter-spacing:.1em;text-transform:uppercase;color:#5c6370}"
+    },
+    {
+      "name": "Note Row",
+      "kind": "card",
+      "refersTo": "frame-cell",
+      "description": "A note written into its frame row: frame cell, snapshot, words, meta. No card.",
+      "html": "<div class=\"ds-row\"><span class=\"ds-fr\"><b>0142</b><i>00:00:02:22</i></span><div class=\"ds-body\"><span class=\"ds-snap\"></span><div><p>Ease the logo in later; it lands before the beat.</p><small>open · 2 shapes</small></div></div></div>",
+      "css": ".ds-row{display:grid;grid-template-columns:76px 1fr;width:320px;background:#fff;border-bottom:1px solid rgba(22,24,31,.11);cursor:pointer}.ds-row:hover{background:rgba(22,24,31,.045)}.ds-fr{padding:9px 8px 9px 12px;border-right:1px solid rgba(22,24,31,.22)}.ds-fr b{display:block;font:600 16px/1.1 'Barlow Semi Condensed', ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;font-variant-numeric:tabular-nums;letter-spacing:.01em;color:#16181f}.ds-fr i{display:block;margin-top:1px;font:normal 11px ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;font-variant-numeric:tabular-nums;color:#5c6370}.ds-body{display:grid;grid-template-columns:72px 1fr;gap:10px;padding:9px 10px 10px}.ds-snap{width:72px;aspect-ratio:16/9;border-radius:2px;background:#0b0c0e;box-shadow:0 0 0 1px rgba(22,24,31,.22)}.ds-body p{margin:0;font:13px/1.42 ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;color:#16181f}.ds-body small{display:block;margin-top:5px;font:11px ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;color:#5c6370}"
+    },
+    {
+      "name": "Playhead Row",
+      "kind": "custom",
+      "refersTo": "frame-cell-playhead",
+      "description": "The reading line and composer: orange rules, flag and numeral.",
+      "html": "<div class=\"ds-here\"><span class=\"ds-hfr\"><b>0143</b></span><div class=\"ds-write\"><span>Write a note for this frame…</span><button class=\"ds-hadd\">Add</button></div></div>",
+      "css": ".ds-here{display:grid;grid-template-columns:76px 1fr;width:320px;background:#fff;box-shadow:inset 0 1px #ff5a36,inset 0 -1px #ff5a36}.ds-hfr{position:relative;padding:9px 8px 9px 12px;border-right:1px solid #ff5a36}.ds-hfr::before{content:'';position:absolute;left:0;top:13px;border:5px solid transparent;border-left:6px solid #ff5a36;border-right:0}.ds-hfr b{font:600 16px/1.1 'Barlow Semi Condensed', ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;font-variant-numeric:tabular-nums;color:#c2360e}.ds-write{display:flex;align-items:center;justify-content:space-between;padding:8px 8px 8px 10px;font:13px ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;color:#5c6370}.ds-hadd{height:28px;padding:0 10px;border:0;border-radius:4px;background:#ff5a36;color:#16181f;font:650 12px ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif}"
+    },
+    {
+      "name": "Run of Empty Frames",
+      "kind": "custom",
+      "refersTo": "run-label",
+      "description": "Ruled paper sized 4 + 2.2·√frames px, capped at 160px; no seconds rules.",
+      "html": "<div class=\"ds-gap\"><span>0001–0141</span><span class=\"ds-paper\" style=\"height:30px\"></span></div>",
+      "css": ".ds-gap{display:grid;grid-template-columns:76px 1fr;width:320px;background:#fff;border-bottom:1px solid rgba(22,24,31,.11)}.ds-gap span:first-child{padding:3px 8px 3px 12px;border-right:1px solid rgba(22,24,31,.22);font:600 12px/1.2 'Barlow Semi Condensed', ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;font-variant-numeric:tabular-nums;color:#5c6370}.ds-paper{background:repeating-linear-gradient(to bottom,transparent 0 5px,rgba(22,24,31,.11) 5px 6px)}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Exposure Sheet",
+    "overview": "The review page is an animator's exposure sheet. Frames run down ruled rows. Each note is written into the row of the frame it is about. The sheet scrolls with the playhead, so the current frame stays at the reading line. The page refuses the dark editing-suite panel with a rail of rounded comment cards.\n\nThe material is printed sheet stock. In light it is white paper; in dark it is ink (#16181f) stock. Graphite hairlines rule the paper, in three weights. A condensed grotesk letters the sheet's heads and numerals, and every frame number and timecode uses tabular figures. One colour, cav orange, marks what is under the eye. The stage stays neutral black in both themes, so the surround never changes a colour judgement.\n\nThe page is dense and quiet. Chrome is flat and thin, and it serves the frame. Light is the base. Dark applies when the system asks for it, unless the person chose light, or when the person chose dark.",
+    "keyCharacteristics": [
+      "Ruled rows, not cards. Depth comes from rule weight, not shadow.",
+      "One reserved accent (cav orange) for the playhead and what sits on it.",
+      "A neutral black stage (#0b0c0e) in both themes.",
+      "An embedded condensed face for the sheet's lettering; the system sans for everything else.",
+      "Tabular figures for every frame number and timecode.",
+      "Drawn line icons in one 1.5px stroke."
+    ],
+    "rules": [
+      {
+        "name": "The Under-the-Eye Rule",
+        "body": "Cav orange marks only what is under the eye: the playhead, the playhead row, the live note's frame number, the selection, and the controls that act on them. Nothing else is orange, at any size. Drawing strokes are not orange: the person draws in a swatch colour (yellow #ffd23f by default, then red, cyan, white).",
+        "section": "colors"
+      },
+      {
+        "name": "The Neutral Stage Rule",
+        "body": "The stage is neutral black (#0b0c0e) in both themes. Never tint it, and never let the theme change it.",
+        "section": "colors"
+      },
+      {
+        "name": "The Graphite Recedes Rule",
+        "body": "A resolved note turns graphite: its words, its frame numeral, and its snapshot (85% greyscale at 70% opacity). Its timeline mark drops to graphite at 45% opacity.",
+        "section": "colors"
+      },
+      {
+        "name": "The Lettering Rule",
+        "body": "The Sheet face sets only the sheet's lettering: column heads, field keys, frame numerals, run labels and timeline labels. Everything else, including buttons, notes, tooltips and dialogs, uses the system sans. Never set a sentence in the Sheet face.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tabular Rule",
+        "body": "Every frame number and timecode uses tabular figures (`font-variant-numeric: tabular-nums`), so the numbers hold still while the playhead moves.",
+        "section": "typography"
+      },
+      {
+        "name": "The Square-Root Paper Rule",
+        "body": "A run of frames with no note is a strip of ruled paper. Its height is 4 + 2.2·√frames px, capped at 160px. Hairlines rule the strip every 6px. The sheet draws no seconds rules.",
+        "section": "layout"
+      },
+      {
+        "name": "The Linear Timeline Rule",
+        "body": "The timeline under the stage carries time on a linear scale. It draws a tick every second and a heavier, taller tick every 5 seconds. It adds quarter-second ticks when a second gets more than 60px. It labels every 1, 5 or 10 seconds, depending on the room per second (more than 44px, more than 12px, or less).",
+        "section": "layout"
+      },
+      {
+        "name": "The Flat Sheet Rule",
+        "body": "Content never casts a shadow. Rows, notes, bars and the composer are flat on the paper. Only things that float over the page (the toast) or sit on the video (the wipe handle) may cast one.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do write each note into the row of its frame, and keep the playhead row at the reading line.",
+      "Do keep cav orange for the playhead, the playhead row, the live note's frame number, the selection and the controls that act on them.",
+      "Do keep the stage neutral black (#0b0c0e) in both themes.",
+      "Do set column heads, field keys, frame numerals, run labels and timeline labels in the Sheet face, and every other word in the system sans.",
+      "Do use tabular figures for every frame number and timecode.",
+      "Do separate things with the three rule weights: light between rows, middle for the frame column and control borders, heavy for the page's frame.",
+      "Do put the label and the shortcut key in each control's tooltip.",
+      "Do give every control a 40px target under a coarse pointer.",
+      "Do draw icons as 16px line icons in one 1.5px stroke with round caps."
+    ],
+    "donts": [
+      "Don't wrap notes in cards, rounded panels or a comment rail.",
+      "Don't cast shadows on content. Only the toast and the wipe handle may cast one.",
+      "Don't use decorative or tonal gradients. The hard-stop hairlines of the ruled paper are rules, not a gradient effect.",
+      "Don't use orange for status, decoration, headings or the person's drawing strokes.",
+      "Don't draw seconds rules into the sheet. Its runs of frames are on a square-root scale; time in seconds belongs to the timeline.",
+      "Don't set sentences, buttons or tooltips in the Sheet face.",
+      "Don't tint or theme the stage."
+    ]
+  }
+}
