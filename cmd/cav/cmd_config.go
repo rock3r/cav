@@ -28,7 +28,9 @@ Each job has an order; cav uses the first service it can use now, so everything 
 no keys (greybox frames, Openverse, Wikimedia) and gets better as you add keys.
 
   cav config                        show the order per job and where each key lives
-  cav config check [service...]     make one free call per service and report what works
+  cav config check [service...] [--live [--yes]]
+                                    one free call per service; --live adds one small paid
+                                    call (an image, a short sound) to prove the job works
   cav config set-key <service> <source>
         source is where the key lives, never the key itself:
           env:NAME                  an environment variable
@@ -63,7 +65,21 @@ func cmdConfig(a *app, args []string) error {
 	case "show":
 		return configShow(a, c)
 	case "check":
-		st := checkServices(c, args)
+		fs := flag.NewFlagSet("config check", flag.ContinueOnError)
+		live := fs.Bool("live", false, "also make one small paid call per service with a key (asks first)")
+		yes := fs.Bool("yes", false, "with --live: do not ask")
+		names, err := parseFlags(fs, args)
+		if err != nil {
+			return err
+		}
+		st := checkServices(c, names)
+		if *live {
+			ls, err := runLiveChecks(a, c, st, *yes)
+			if err != nil {
+				return err
+			}
+			st = append(st, ls...)
+		}
 		a.emit(map[string]any{"services": st}, func() { printServiceStatus(st) })
 		for _, s := range st {
 			if s.State == "fail" {

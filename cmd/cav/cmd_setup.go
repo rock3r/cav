@@ -46,7 +46,9 @@ After setup, start the bridge once per Cavalry session: Scripts menu > cav-bridg
 Exit code 0 when cav is ready, 2 when only the bridge is not running, 1 for any other
 problem. Each FAIL line is followed by the fix.
 --services also checks the image, music and sound services (see cav config): one free
-call each. A service without a key is skipped, not failed; a key that is refused fails.`
+call each. A service without a key is skipped, not failed; a key that is refused fails.
+--live adds one small paid call per service with a key (an image, a half-second sound),
+after showing the rough cost and asking; --yes skips the question.`
 }
 
 type check struct {
@@ -62,6 +64,8 @@ func cmdCheck(a *app, args []string, fix bool) error {
 	fs := flag.NewFlagSet("setup", flag.ContinueOnError)
 	noDocs := fs.Bool("no-docs", false, "do not build the docs index")
 	withServices := fs.Bool("services", false, "also check the image, music and sound services")
+	live := fs.Bool("live", false, "with --services: one small paid call per service with a key")
+	yes := fs.Bool("yes", false, "with --live: do not ask")
 	if _, err := parseFlags(fs, args); err != nil {
 		return err
 	}
@@ -140,6 +144,13 @@ func cmdCheck(a *app, args []string, fix bool) error {
 			checks = append(checks, check{Name: "services", Detail: err.Error(), Fix: "fix or delete " + services.Path()})
 		} else {
 			svc = checkServices(sc, nil)
+			if *live {
+				ls, err := runLiveChecks(a, sc, svc, *yes)
+				if err != nil {
+					return err
+				}
+				svc = append(svc, ls...)
+			}
 		}
 	}
 
