@@ -387,17 +387,14 @@ shots.forEach(function (s) {
 	}
 	var o = { in: s.in, out: s.out }
 	if (s.scale > 0) o.scale = s.scale
-	var l
-	if (assets[s.path]) {
-		api.select([])
-		l = api.addAssetToComp(asset(s.path))
-		if (Array.isArray(l)) l = l[0]
-		api.select([])
-		api.rename(l, s.id)
-		cav.set(l, o)
-	} else {
-		l = cav.image(s.path, s.id, o)
-	}
+	// Like cav.image, but through the cache, so shots that share a frame share one asset.
+	if (!api.filePathExists(s.path)) throw new Error(s.id + ': frame not found: ' + s.path)
+	api.select([])
+	var l = api.addAssetToComp(asset(s.path))
+	if (Array.isArray(l)) l = l[0]
+	api.select([])
+	api.rename(l, s.id)
+	cav.set(l, o)
 	placed.push({ id: s.id, layer: l, replaced: false, scaled: true })
 })
 return { placed: placed, skipped: skipped, end: api.get(api.getActiveComp(), 'endFrame') }`
