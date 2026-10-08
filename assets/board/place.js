@@ -7,10 +7,14 @@
 // shotFrames is the first and last visible frame of a shot. Beat 0 lands on the
 // composition's start frame. The last frame is one before the frame where the shot ends,
 // so shots that touch hand off with no overlap or gap. api.setOutFrame takes it inclusive.
+// A shot that ends before beat 0 (a negative offset) returns null; one that starts before
+// it is cut to start at beat 0.
 function shotFrames(start, end, fps, first) {
-	var a = Math.max(0, Math.round(start * fps))
-	var b = Math.max(a, Math.round(end * fps) - 1)
-	return [first + a, first + b]
+	var a = Math.round(start * fps),
+		b = Math.round(end * fps) - 1
+	if (b < 0) return null
+	a = Math.max(0, a)
+	return [first + a, first + Math.max(a, b)]
 }
 
 // fitScale fits a w x h image inside the composition, letterboxed like the animatic.
@@ -53,9 +57,15 @@ function shaderOf(footage) {
 }
 
 var placed = [],
-	skipped = []
+	skipped = [],
+	last = null // the last frame any shot needs, placed or not
 shots.forEach(function (s) {
 	var f = shotFrames(s.start, s.end, info.fps, info.start)
+	if (!f) {
+		skipped.push({ id: s.id, reason: 'before' })
+		return
+	}
+	last = Math.max(last === null ? f[1] : last, f[1])
 	var old = null,
 		built = null
 	// false lists nested layers too, so a placeholder or built shot inside a group counts.
@@ -66,7 +76,7 @@ shots.forEach(function (s) {
 	})
 	// Another kind of layer with the shot's name is the built shot replacing its placeholder.
 	if (built) {
-		skipped.push({ id: s.id, layer: built, type: api.getLayerType(built) })
+		skipped.push({ id: s.id, reason: 'built', layer: built, type: api.getLayerType(built) })
 		return
 	}
 	// An existing placeholder is updated in place: it gets the new frame and timing, and
@@ -91,4 +101,4 @@ shots.forEach(function (s) {
 	api.setOutFrame(l, f[1])
 	placed.push({ id: s.id, layer: l, in: f[0], out: f[1], scale: scale, updated: false })
 })
-return { comp: info, placed: placed, skipped: skipped }
+return { comp: info, placed: placed, skipped: skipped, last: last }

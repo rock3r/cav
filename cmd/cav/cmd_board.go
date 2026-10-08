@@ -546,10 +546,12 @@ func boardPlace(a *app, args []string) error {
 			row
 		} `json:"placed"`
 		Skipped []struct {
-			ID    string `json:"id"`
-			Layer string `json:"layer"`
-			Type  string `json:"type"`
+			ID     string `json:"id"`
+			Reason string `json:"reason"` // "built" or "before"
+			Layer  string `json:"layer,omitempty"`
+			Type   string `json:"type,omitempty"`
 		} `json:"skipped"`
+		Last int `json:"last"` // the last frame any shot needs, placed or skipped
 	}
 	if err := json.Unmarshal(o.result.Value, &r); err != nil {
 		return err
@@ -561,14 +563,12 @@ func boardPlace(a *app, args []string) error {
 		}
 	}
 	rows := []row{}
-	last := 0
 	for _, p := range r.Placed {
 		x := p.row
 		x.Shot, x.Scale = p.ID, math.Round(x.Scale*1000)/1000
 		rows = append(rows, x)
-		last = max(last, x.Out)
 	}
-	if last > r.Comp.End {
+	if last := r.Last; last > r.Comp.End {
 		// --range keeps the start frame; --seconds would move it back to 0 under the placed layers.
 		notes = append(notes, fmt.Sprintf("the composition ends at frame %d but the last shot runs to frame %d: extend it with cav scene comp --range %d-%d", r.Comp.End, last, r.Comp.Start, last))
 	}
@@ -583,7 +583,11 @@ func boardPlace(a *app, args []string) error {
 			fmt.Printf("%-4s %-16s frames %d-%d  %s  (%s)\n", x.Shot, x.Layer, x.In, x.Out, scale, state)
 		}
 		for _, s := range r.Skipped {
-			fmt.Printf("%-4s kept %s (a %s already uses the name)\n", s.ID, s.Layer, s.Type)
+			if s.Reason == "before" {
+				fmt.Printf("%-4s skipped: it ends before beat 0\n", s.ID)
+			} else {
+				fmt.Printf("%-4s kept %s (a %s already uses the name)\n", s.ID, s.Layer, s.Type)
+			}
 		}
 		for _, n := range notes {
 			fmt.Fprintln(os.Stderr, "note: "+n)

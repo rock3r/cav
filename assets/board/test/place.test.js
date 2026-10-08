@@ -77,7 +77,20 @@ test('an existing placeholder is updated in place and keeps its transforms', () 
 test('a built layer with the shot name is kept and the shot skipped', () => {
 	const cv = fakeCavalry(comp, [{ id: 'group#1', type: 'group', name: 's2' }])
 	const r = run(cv, [shot('s2', 0, 1)])
-	assert.deepEqual(r.skipped, [{ id: 's2', layer: 'group#1', type: 'group' }])
+	assert.deepEqual(r.skipped, [{ id: 's2', reason: 'built', layer: 'group#1', type: 'group' }])
 	assert.equal(r.placed.length, 0)
 	assert.equal(cv.calls.added.length, 0)
+})
+
+test('a shot before beat 0 is skipped, and one that starts before it is cut', () => {
+	// A negative offset moves s1 before the composition and s2 across its start.
+	const r = run(fakeCavalry(comp), [shot('s1', -2, -0.5), shot('s2', -0.5, 1), shot('s3', 1, 2)])
+	assert.deepEqual(r.skipped, [{ id: 's1', reason: 'before' }])
+	assert.deepEqual(r.placed.map(p => [p.id, p.in, p.out]), [['s2', 0, 59], ['s3', 60, 119]])
+})
+
+test('the last frame counts skipped built shots too', () => {
+	const cv = fakeCavalry(comp, [{ id: 'group#1', type: 'group', name: 's2' }])
+	const r = run(cv, [shot('s1', 0, 1), shot('s2', 1, 20)])
+	assert.equal(r.last, 1199)
 })
