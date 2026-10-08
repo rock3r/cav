@@ -117,12 +117,18 @@
     get() { return this.dataset.cavSrc ? new URL(this.dataset.cavSrc, 'http://cav').href : desc.get.call(this); },
     set(v) {
       v = String(v);
-      if (!v.startsWith('/')) { delete this.dataset.cavSrc; desc.set.call(this, v); return; }
+      if (!v.startsWith('/')) { delete this.dataset.cavSrc; delete this.dataset.cavLoaded; desc.set.call(this, v); return; }
       this.dataset.cavSrc = v;
-      dataURL(v).then(u => { if (this.dataset.cavSrc === v) desc.set.call(this, u); })
+      dataURL(v).then(u => { if (this.dataset.cavSrc === v) { this.dataset.cavLoaded = v; desc.set.call(this, u); } })
         .catch(e => { if (this.dataset.cavSrc === v) showError(this, e.message); }); // not if a newer path replaced it
     },
   });
+  // A render the page has already replaced can still finish decoding while the new one is
+  // fetched. Hide its loadeddata, so the page does not take notes on frames it no longer names.
+  document.addEventListener('loadeddata', e => {
+    const el = e.target;
+    if (el instanceof HTMLMediaElement && el.dataset.cavSrc && el.dataset.cavLoaded !== el.dataset.cavSrc) e.stopImmediatePropagation();
+  }, true);
   // A media request that fails (for example a preview too large for the chat) is shown in
   // the page: on the stage for the render itself, as a toast for the rest. A video also
   // drops the source it had, so the stage does not keep showing an earlier render that the

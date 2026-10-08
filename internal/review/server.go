@@ -179,7 +179,7 @@ func (s *Server) Handler() http.Handler {
 		s.mu.RLock()
 		preparing, lastErr := s.preparing, s.lastError
 		s.mu.RUnlock()
-		writeJSON(w, map[string]any{"source": src, "version": s.version(), "author": s.Author, "doc": d,
+		writeJSON(w, map[string]any{"source": src, "version": shortSHA(src.SHA256), "author": s.Author, "doc": d,
 			"name": filepath.Base(s.Store.Video), "preparing": preparing, "renderError": lastErr})
 	})
 	mux.HandleFunc("GET /api/snapshot/{id}", func(w http.ResponseWriter, r *http.Request) {
