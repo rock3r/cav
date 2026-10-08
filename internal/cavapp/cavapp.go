@@ -25,6 +25,10 @@ const (
 // Probe reports whether the Cavalry app process runs. Tests replace it.
 var Probe = probe
 
+// exeName is the Cavalry executable name without ".exe". Tests replace it so that a
+// real Cavalry on the test machine does not change the result.
+var exeName = "Cavalry"
+
 // CrashDir is where macOS writes crash reports. Tests replace it.
 var CrashDir = defaultCrashDir()
 
@@ -44,10 +48,10 @@ func probe() Status {
 	case "darwin":
 		// The executable is Cavalry.app/Contents/MacOS/Cavalry. Match the name exactly:
 		// `pgrep -f cavalry` also matches unrelated tools such as the cavalry-mcp server.
-		err := exec.Command("pgrep", "-x", "Cavalry").Run()
+		err := exec.Command("pgrep", "-x", exeName).Run()
 		return pgrepStatus(err)
 	case "windows":
-		out, err := exec.Command("tasklist", "/FI", "IMAGENAME eq Cavalry.exe", "/FO", "CSV", "/NH").Output()
+		out, err := exec.Command("tasklist", "/FI", "IMAGENAME eq "+exeName+".exe", "/FO", "CSV", "/NH").Output()
 		if err != nil {
 			return Unknown
 		}
@@ -71,8 +75,9 @@ func pgrepStatus(err error) Status {
 // tasklistStatus reads `tasklist /FO CSV /NH` output. With no match, tasklist prints an
 // "INFO: No tasks" line instead of a CSV row.
 func tasklistStatus(out string) Status {
+	row := strings.ToLower(`"` + exeName + `.exe"`)
 	for _, line := range strings.Split(out, "\n") {
-		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(line)), `"cavalry.exe"`) {
+		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(line)), row) {
 			return Running
 		}
 	}
