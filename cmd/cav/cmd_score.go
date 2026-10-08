@@ -140,22 +140,9 @@ func reaperBinary() string {
 // and Windows when none is set yet, as answering REAPER's first-run question would. Without it,
 // -renderproject stops on that question and waits for a click. It returns the file it
 // changed, or "" when it changed nothing.
-func pickReaperAudioDevice() (string, error) {
-	var ini string
-	switch runtime.GOOS {
-	case "darwin":
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", err
-		}
-		ini = filepath.Join(home, "Library", "Application Support", "REAPER", "reaper.ini")
-	case "windows":
-		dir, err := os.UserConfigDir() // %AppData%
-		if err != nil {
-			return "", err
-		}
-		ini = filepath.Join(dir, "REAPER", "reaper.ini")
-	default:
+func pickReaperAudioDevice(bin string) (string, error) {
+	ini := reaperINI(bin, runtime.GOOS)
+	if ini == "" {
 		return "", nil
 	}
 	b, err := os.ReadFile(ini)
@@ -172,6 +159,39 @@ func pickReaperAudioDevice() (string, error) {
 	return ini, os.WriteFile(ini, []byte(text), 0o644)
 }
 
+// reaperINI is the reaper.ini that the REAPER binary bin reads. A portable install keeps
+// its reaper.ini beside the program: next to reaper.exe on Windows, next to REAPER.app on
+// macOS. Otherwise REAPER uses the per-user file. It returns "" on other systems.
+func reaperINI(bin, goos string) string {
+	if p, err := filepath.EvalSymlinks(bin); err == nil {
+		bin = p
+	}
+	dir := filepath.Dir(bin)
+	if goos == "darwin" {
+		// .../REAPER.app/Contents/MacOS/REAPER: the folder that holds REAPER.app.
+		dir = filepath.Dir(filepath.Dir(filepath.Dir(dir)))
+	}
+	portable := filepath.Join(dir, "reaper.ini")
+	if _, err := os.Stat(portable); err == nil && (goos == "darwin" || goos == "windows") {
+		return portable
+	}
+	switch goos {
+	case "darwin":
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return ""
+		}
+		return filepath.Join(home, "Library", "Application Support", "REAPER", "reaper.ini")
+	case "windows":
+		dir, err := os.UserConfigDir() // %AppData%
+		if err != nil {
+			return ""
+		}
+		return filepath.Join(dir, "REAPER", "reaper.ini")
+	}
+	return ""
+}
+
 func scoreRender(a *app, args []string) error {
 	pos, err := parseFlags(flag.NewFlagSet("score render", flag.ContinueOnError), args)
 	if err != nil {
@@ -185,7 +205,7 @@ func scoreRender(a *app, args []string) error {
 		return fail(exitError, "REAPER is not installed", "install it from https://www.reaper.fm, or render from REAPER's File > Render")
 	}
 	rpp, _ := filepath.Abs(pos[0])
-	picked, err := pickReaperAudioDevice()
+	picked, err := pickReaperAudioDevice(bin)
 	if err != nil {
 		return fail(exitError, "cannot set REAPER's audio device: "+err.Error(), "open REAPER once and pick a device in Preferences > Audio > Device")
 	}
