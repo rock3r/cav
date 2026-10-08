@@ -51,8 +51,9 @@ timed in beats (like the plan table cav guide asks for).
         by its shot id, visible from its start beat to its end beat and scaled to fit.
         Beat 0 lands on the composition's start frame.
         Run it again to update the placeholders: it points image layers with those names at
-        the current frames and timing, keeping their parent and transforms, and leaves alone
-        a shot whose name a built layer (a group, a shape) already uses.
+        the current frames and timing, keeping their parent and transforms (delete one to
+        have it fitted again), and leaves alone a shot whose name a built layer (a group, a
+        shape) already uses.
   cav board mood [moodboard/] [-o renders/moodboard.png]
         lays a folder of references out as one picture, each with its source and licence
         from the manifest (cav ref get fills the folder).
@@ -495,6 +496,7 @@ func boardAnimatic(a *app, args []string) error {
 // position stay as they are. A shot whose name another kind of layer uses is skipped:
 // that is the built shot replacing its placeholder.
 const boardPlaceJS = `
+if (api.getSceneFilePath() !== scene) throw new Error('the open scene changed while cav board place was reading the frames; run it again')
 var assets = {}
 api.getAssetWindowLayers(false).forEach(function (a) {
 	if (api.isFileAsset(a)) assets[api.getAssetFilePath(a)] = a
@@ -532,10 +534,8 @@ shots.forEach(function (s) {
 		api.connect(asset(s.path), 'id', sh, 'image', true)
 		api.setInFrame(old, s.in)
 		api.setOutFrame(old, s.out)
-		// The fit scale is in composition space, so it only applies at the top level.
-		var top = !api.getParent(old)
-		if (s.scale > 0 && top) cav.set(old, { scale: s.scale })
-		placed.push({ id: s.id, layer: old, replaced: true, scaled: top })
+		// Transforms are left alone: the user may have moved or scaled the placeholder.
+		placed.push({ id: s.id, layer: old, replaced: true, scaled: false })
 		return
 	}
 	var o = { in: s.in, out: s.out }
@@ -569,16 +569,18 @@ func boardPlace(a *app, args []string) error {
 	a.compSelector = *comp
 	var c struct {
 		ID     string  `json:"id"`
+		Scene  string  `json:"scene"`
 		FPS    float64 `json:"fps"`
 		Width  int     `json:"width"`
 		Height int     `json:"height"`
 		Start  int     `json:"start"`
 	}
 	if err := a.jsCall(`var id = api.getActiveComp(), r = api.get(id, 'resolution');
-return { id: id, fps: api.get(id, 'fps'), width: r.x, height: r.y, start: api.get(id, 'startFrame') }`, *timeout, &c); err != nil {
+return { id: id, scene: api.getSceneFilePath(), fps: api.get(id, 'fps'), width: r.x, height: r.y, start: api.get(id, 'startFrame') }`, *timeout, &c); err != nil {
 		return err
 	}
-	// Place into the composition just measured, even if the user switches to another one.
+	// Place into the composition just measured, even if the user switches to another one;
+	// the placement job also checks that the same scene is still open.
 	a.compSelector = c.ID
 	want := map[string]bool{}
 	for _, id := range splitList(*only) {
@@ -594,7 +596,7 @@ return { id: id, fps: api.get(id, 'fps'), width: r.x, height: r.y, start: api.ge
 	if err != nil {
 		return err
 	}
-	o, err := a.execJS("var shots = "+string(shots)+";\n"+boardPlaceJS, execOpts{helpers: true, timeout: *timeout, source: "cav board place"})
+	o, err := a.execJS("var shots = "+string(shots)+", scene = "+jsString(c.Scene)+";\n"+boardPlaceJS, execOpts{helpers: true, timeout: *timeout, source: "cav board place"})
 	if err != nil {
 		return err
 	}
@@ -639,7 +641,7 @@ return { id: id, fps: api.get(id, 'fps'), width: r.x, height: r.y, start: api.ge
 		Layer    string  `json:"layer"`
 		In       int     `json:"in"`
 		Out      int     `json:"out"`
-		Scale    float64 `json:"scale,omitempty"` // left out when a nested layer keeps its own scale
+		Scale    float64 `json:"scale,omitempty"` // left out when an existing layer keeps its scale
 		Replaced bool    `json:"replaced,omitempty"`
 	}
 	rows := []row{}
@@ -659,7 +661,7 @@ return { id: id, fps: api.get(id, 'fps'), width: r.x, height: r.y, start: api.ge
 			}
 			scale := fmt.Sprintf("scale %g", x.Scale)
 			if x.Scale == 0 {
-				scale = "scale kept (in a group)"
+				scale = "scale kept"
 			}
 			fmt.Printf("%-4s %-16s frames %d-%d  %s  (%s)\n", x.Shot, x.Layer, x.In, x.Out, scale, state)
 		}
