@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add `cav mcp`: a small MCP server (stdio) that shows the `cav review` page inside the
+  chat as an MCP App, in Claude Code, Codex and other hosts that draw MCP Apps. The page
+  plays a 640-pixel preview sent inline, and its notes go to the same review file. Register
+  it with `claude mcp add cav -- cav mcp` or `codex mcp add cav -- cav mcp`.
 - Read `keychain:service/account` keys from Windows Credential Manager on Windows. The
   target name is the service and the user name is the account. A missing entry and a
   refused read are reported the same way as on macOS, where a refused read is now told

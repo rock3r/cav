@@ -21,6 +21,14 @@ enforces as much of it as it can (`cav check`, clear errors, "still running" ins
 clean evaluation, the CLI alone did as well as the CLI with the old, longer skill, so the
 guidance now lives in the CLI, where every agent can reach it.
 
+There is one small MCP server, `cav mcp`, and it does not drive Cavalry. It shows the
+`cav review` page inside the chat as an MCP App (`internal/reviewmcp`). The chat draws the
+page in a sandboxed frame without network access. A script added to the page
+(`assets/review/mcp-app.js`) sends each of the page's requests through the host to an
+app-only tool, `review_request`. That tool runs the request through the same handler as
+`cav review` and returns the answer inline: JSON as text, and the video and snapshots as
+`data:` URLs. Only videos that the agent opened with `show_review` are reachable.
+
 Main limits today:
 
 - The bridge runs on Cavalry's single JavaScript thread. One slow script blocks every
@@ -334,6 +342,10 @@ never talk to the bridge. They are plain Go around ffmpeg, HTTPS and uv:
   re-read and written atomically on every change, so the server and `cav review resolve`
   can both edit it. The server answers only `127.0.0.1`/`localhost` hosts and same-origin
   JSON writes.
+- `internal/reviewmcp` is `cav mcp`, built on the official Go MCP SDK. It serves the same
+  page with `assets/review/mcp-app.js` added, and answers the page's requests in-process
+  through the `internal/review` handler. It makes its own smaller proxy (640 pixels wide,
+  in `~/.cav/cache/review-preview`), because the chat receives the whole file inline.
 - `internal/sources` and `internal/library` search media libraries, download, and keep the
   manifest; licence terms are normalised to SPDX-like ids with commercial, share-alike and
   no-derivatives flags.

@@ -204,3 +204,30 @@ func TestVersionsAndPeaks(t *testing.T) {
 		t.Fatalf("peak %v, want about 0.0625", peaks[50])
 	}
 }
+
+func TestPreviewProxyIsSmallAndKeepsEveryFrame(t *testing.T) {
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skip("ffmpeg not installed")
+	}
+	dir := t.TempDir()
+	video := filepath.Join(dir, "wide.mp4")
+	if err := exec.Command("ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc=size=1920x1080:rate=25:duration=1",
+		"-pix_fmt", "yuv420p", video).Run(); err != nil {
+		t.Skipf("ffmpeg cannot make a test video: %v", err)
+	}
+	ctx := context.Background()
+	p, err := PreviewProxy(ctx, video, "abc", filepath.Join(dir, "cache"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filepath.Base(p) != "abc.mp4" {
+		t.Errorf("preview at %s, want <sha>.mp4 so earlier versions resolve", p)
+	}
+	src, err := Probe(ctx, p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if src.Width != PreviewWidth || src.Height != 360 || src.Frames != 25 {
+		t.Errorf("preview is %dx%d with %d frames, want %dx360 with 25", src.Width, src.Height, src.Frames, PreviewWidth)
+	}
+}
