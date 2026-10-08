@@ -904,7 +904,7 @@
   let browsing = false, browsedAt = 0, ownScroll = 0, followed = -1;
   const browse = () => { browsing = true; browsedAt = Date.now(); };
   for (const ev of ['wheel', 'touchstart', 'pointerdown']) sheet.addEventListener(ev, browse, { passive: true });
-  sheet.addEventListener('keydown', e => { if (['PageUp', 'PageDown', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key) && e.target === sheet) browse(); });
+  sheet.addEventListener('keydown', e => { if (['PageUp', 'PageDown', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key) && !/^(INPUT|TEXTAREA)$/.test(e.target.tagName)) browse(); });
   sheet.addEventListener('scroll', () => { if (Date.now() - ownScroll > 700) browse(); }, { passive: true });
   function layoutSheet(rebuilt) {
     if (!meta) return;
@@ -963,7 +963,8 @@
         const btn = e.target.closest('[data-act="delete"]');
         const label = on => { btn.classList.toggle('armed', on); btn.ariaLabel = btn.dataset.tip = on ? 'Click again to delete' : 'Delete'; };
         if (armed !== id) {
-          sheet.querySelector('.btn.armed')?.classList.remove('armed');
+          const prev = sheet.querySelector('.btn.armed');
+          if (prev) { prev.classList.remove('armed'); prev.ariaLabel = prev.dataset.tip = 'Delete'; }
           armed = id; label(true); clearTimeout(sheet.armT);
           // A refresh may have rebuilt the row meanwhile: disarm whichever button is there now.
           sheet.armT = setTimeout(() => {
