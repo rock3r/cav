@@ -213,6 +213,8 @@ func boardFrames(a *app, args []string) error {
 		Frame  string `json:"frame"`
 		Source string `json:"source"`
 		Kept   bool   `json:"kept,omitempty"`
+		// DroppedClip is the clip made from the old frame, no longer used by the animatic.
+		DroppedClip string `json:"droppedClip,omitempty"`
 	}
 	var done []made
 	for i := range sb.Shots {
@@ -222,7 +224,7 @@ func boardFrames(a *app, args []string) error {
 		}
 		if s.Frame != "" && !*force {
 			if _, err := os.Stat(sb.Path(s.Frame)); err == nil {
-				done = append(done, made{s.ID, s.Frame, s.Source, true})
+				done = append(done, made{Shot: s.ID, Frame: s.Frame, Source: s.Source, Kept: true})
 				continue
 			}
 		}
@@ -255,6 +257,9 @@ func boardFrames(a *app, args []string) error {
 			return err
 		}
 		s.Frame, s.Source = rel, im.Provider
+		// A clip starts from the frame it was made from: a new frame makes it stale.
+		dropped := s.Clip
+		s.Clip = ""
 		if im.Provider != "greybox" {
 			sum, _ := fileSHA(out)
 			m.Put(root, library.Entry{Path: out, Kind: "image", Title: "storyboard " + s.ID, Source: im.Provider,
@@ -268,7 +273,7 @@ func boardFrames(a *app, args []string) error {
 		if err := m.Save(root); err != nil {
 			return err
 		}
-		done = append(done, made{s.ID, rel, im.Provider, false})
+		done = append(done, made{Shot: s.ID, Frame: rel, Source: im.Provider, DroppedClip: dropped})
 	}
 	a.emit(map[string]any{"storyboard": path, "service": ch.Service, "skipped": ch.Skipped, "frames": done}, func() {
 		for _, s := range ch.Skipped {
@@ -276,6 +281,9 @@ func boardFrames(a *app, args []string) error {
 		}
 		for _, d := range done {
 			state := "made with " + d.Source
+			if d.DroppedClip != "" {
+				state += "; its old clip " + d.DroppedClip + " is no longer used: cav board motion --only " + d.Shot
+			}
 			if d.Kept {
 				state = "kept"
 			}
