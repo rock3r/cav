@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -148,8 +149,8 @@ func TestConfigRoundTrip(t *testing.T) {
 	if err := c.Save(); err != nil {
 		t.Fatal(err)
 	}
-	info, _ := os.Stat(Path())
-	if info.Mode().Perm() != 0o600 {
+	// Windows has no Unix permission bits; elsewhere the file must be owner-only.
+	if info, _ := os.Stat(Path()); runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
 		t.Fatalf("config permissions %v", info.Mode().Perm())
 	}
 	c2, _ := Load()

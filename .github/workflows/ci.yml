@@ -34,9 +34,15 @@ jobs:
           go-version-file: go.mod
       - name: Build
         run: go build ./cmd/cav
+      - name: go vet
+        run: go vet ./...
       - name: Go tests
-        # packaging/ drives the POSIX shell release scripts and runs on Linux and macOS.
-        run: go test ./cmd/... ./internal/... ./assets/...
+        # Most cmd/cav tests stub ffmpeg, Cavalry's bridge and pipes with POSIX shell scripts,
+        # and packaging/ drives the POSIX release scripts: those run on Linux and macOS.
+        run: |
+          go test ./internal/...
+          go test ./cmd/cav -run 'TestReviewHook'
+
   fixtures:
     name: Fixtures (${{ matrix.os }})
     strategy:
