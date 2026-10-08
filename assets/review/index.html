@@ -925,7 +925,11 @@
       const c = doc.comments.find(x => x.id === el.dataset.id);
       el.classList.toggle('live', !!c && onScreen(c));
     }
-    layoutSheet(false);
+    // While the video plays, every decoded frame lands here: lay the sheet out at most every
+    // 120ms then, so the stage never waits on it. Stepping and seeking lay it out at once.
+    const playing = !video.paused || shuttleTimer;
+    if (!playing) { clearTimeout(renderHere.t); renderHere.t = 0; layoutSheet(false); }
+    else if (!renderHere.t) renderHere.t = setTimeout(() => { renderHere.t = 0; layoutSheet(false); }, 120);
   }
   sheet.addEventListener('click', async e => {
     const row = e.target.closest('.note'); if (!row) return;
