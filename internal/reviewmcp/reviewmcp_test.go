@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/rock3r/cav/internal/review"
@@ -522,5 +523,38 @@ func TestReviewNotesReceivesTheSendWithSnapshots(t *testing.T) {
 	call(t, cs, "review_notes", map[string]any{"video": video}, &out)
 	if out.Send != 0 || len(out.Notes) != 2 || out.Notes[0].ID != "c_01" {
 		t.Errorf("without a send it should list the open notes: %+v", out)
+	}
+}
+
+func TestReviewNotesRefusesASymlinkedSnapshotFolderAndCapsText(t *testing.T) {
+	cs, video, _ := connect(t)
+	call(t, cs, "show_review", map[string]any{"video": video}, nil)
+	store := review.Open(video)
+	// review/final is a symlink to a folder outside the project holding a matching file.
+	elsewhere := t.TempDir()
+	os.WriteFile(filepath.Join(elsewhere, "c_01_f0.png"), []byte("\x89PNGsecret"), 0o644)
+	os.MkdirAll(filepath.Dir(store.SnapDir), 0o755)
+	if err := os.Symlink(elsewhere, store.SnapDir); err != nil {
+		t.Skipf("cannot make a symlink here: %v", err)
+	}
+	store.Update(func(d *review.Doc) error {
+		d.Comments = append(d.Comments, review.Comment{ID: "c_01", Status: "open", Text: strings.Repeat("é", maxNoteText),
+			Snapshot: "c_01_f0.png", Replies: make([]review.Reply, maxReplies+5)})
+		return nil
+	})
+	var out notesOut
+	res := call(t, cs, "review_notes", map[string]any{"video": video}, &out)
+	if res.IsError || len(out.Notes) != 1 {
+		t.Fatalf("got %v %+v", res.Content, out)
+	}
+	n := out.Notes[0]
+	if n.Snapshot != "" {
+		t.Errorf("a snapshot through a symlinked folder must not be read: %q", n.Snapshot)
+	}
+	if len(n.Text) > maxNoteText+len(" […]") || !strings.HasSuffix(n.Text, "[…]") || !utf8.ValidString(n.Text) {
+		t.Errorf("note text not capped on a rune boundary: %d bytes", len(n.Text))
+	}
+	if len(n.Replies) != maxReplies {
+		t.Errorf("replies not capped: %d", len(n.Replies))
 	}
 }

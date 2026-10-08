@@ -22,6 +22,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/rock3r/cav/internal/review"
@@ -370,6 +371,26 @@ const (
 	maxSnapshotBytes = 12 << 20
 )
 
+// The page accepts long notes and replies, so their text is capped too: with at most
+// maxNotes notes, the text stays well under the host's message limit.
+const (
+	maxNotes     = 200
+	maxNoteText  = 8000
+	maxReplies   = 20
+	maxReplyText = 2000
+)
+
+// clip shortens s to at most n bytes, on a rune boundary, and marks the cut.
+func clip(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	for n > 0 && !utf8.RuneStart(s[n]) {
+		n--
+	}
+	return s[:n] + " […]"
+}
+
 // notes is review_notes: `cav review wait` without the wait, for chats without a shell. It
 // receives the pending send, or lists the open notes when there is none, and returns each
 // note's snapshot as an image so that the agent sees what the reviewer drew.
@@ -410,9 +431,19 @@ func (h *handler) notes(ctx context.Context, req *mcp.CallToolRequest, in notesI
 		}
 	}
 	for _, c := range d.Comments {
+		if len(out.Notes) == maxNotes {
+			break
+		}
 		if (out.Send > 0 && want[c.ID]) || (out.Send == 0 && c.Status == "open") {
 			n := noteFull{ID: c.ID, Status: c.Status, Frame: c.Frame, FrameEnd: c.FrameEnd, Timecode: c.Timecode,
-				Text: c.Text, Fragment: c.Fragment, Replies: c.Replies, OnOlderRender: cur != "" && c.Version != cur}
+				Text: clip(c.Text, maxNoteText), Fragment: c.Fragment, OnOlderRender: cur != "" && c.Version != cur}
+			for i, r := range c.Replies {
+				if i == maxReplies {
+					break
+				}
+				r.Text = clip(r.Text, maxReplyText)
+				n.Replies = append(n.Replies, r)
+			}
 			for _, sh := range c.Shapes {
 				n.Shapes = append(n.Shapes, sh.Type)
 			}
@@ -508,8 +539,15 @@ func snapshotPath(store *review.Store, p string) string {
 	if p == "" || name == "." || name == ".." || !strings.HasSuffix(name, ".png") {
 		return ""
 	}
+	// The folder must be review/<video name> beside the video, as a real folder: neither
+	// "review" nor the folder in it may be a symlink to elsewhere. Folders above the video
+	// may be symlinks (macOS keeps /tmp under /private/tmp).
 	dir, err := filepath.EvalSymlinks(store.SnapDir)
 	if err != nil {
+		return ""
+	}
+	videoDir, err := filepath.EvalSymlinks(filepath.Dir(store.Video))
+	if err != nil || dir != filepath.Join(videoDir, "review", filepath.Base(store.SnapDir)) {
 		return ""
 	}
 	abs, err := filepath.Abs(filepath.Join(dir, name))
