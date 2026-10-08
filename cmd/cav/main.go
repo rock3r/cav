@@ -17,7 +17,7 @@ import (
 )
 
 // Set by the release build with -ldflags "-X main.version=...".
-var version = "1.1.2-dev"
+var version = "1.2.0-dev"
 
 // Exit codes. Agents can branch on them without parsing text.
 const (
@@ -273,7 +273,7 @@ New to cav? Run "cav guide" first: it explains the workflow from plan to render.
 `)
 }
 
-var helpOrder = []string{"setup", "doctor", "config", "status", "run", "job", "operation", "scene", "tree", "layer", "frame", "sheet", "onion", "check", "render", "review", "board", "gen", "sfx", "ref", "credits", "beats", "spectrogram", "sync", "listen", "music", "score", "api", "docs", "helpers", "guide", "relay", "version", "update"}
+var helpOrder = []string{"setup", "doctor", "config", "status", "run", "job", "operation", "scene", "tree", "layer", "frame", "sheet", "onion", "check", "render", "review", "mcp", "board", "gen", "sfx", "ref", "credits", "beats", "spectrogram", "sync", "listen", "music", "score", "api", "docs", "helpers", "guide", "relay", "version", "update"}
 
 func order(name string) int {
 	for i, n := range helpOrder {

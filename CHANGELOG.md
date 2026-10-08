@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add `cav mcp`: a small MCP server (stdio) that shows the `cav review` page inside the
+  chat as an MCP App, in Claude Code, Codex and other hosts that draw MCP Apps. The page
+  plays a 640-pixel preview sent inline, and its notes go to the same review file. The
+  cavalry plugin starts it in Claude Code and Codex; without the plugin, register it with
+  `claude mcp add cav -- cav mcp` or `codex mcp add cav -- cav mcp`.
 - When cav cannot reach cav-bridge, `cav doctor` and the errors of every other command
   now say whether Cavalry itself is running. "Cavalry is not running (it may have
   crashed)" names the newest Cavalry crash report on macOS, if there is one. "Cavalry is

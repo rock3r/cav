@@ -16,6 +16,15 @@ This project builds on ideas and code from other projects.
    assets/apiref/api.json contains function names and type signatures taken
    from its type definitions. Documentation text is not copied.
 
+3. Go modules built into the cav binary for `cav mcp`:
+   - MCP Go SDK — https://github.com/modelcontextprotocol/go-sdk
+     Copyright the Go MCP SDK authors. MIT licence, with new contributions under
+     Apache-2.0.
+   - jsonschema-go (Google, MIT), segmentio/asm and segmentio/encoding (MIT),
+     yosida95/uritemplate (BSD 3-Clause), and golang.org/x/oauth2, x/sync, x/sys and
+     x/time (BSD 3-Clause).
+   Their licence texts are in each module's source.
+
 Cavalry is a product of Scene Group Limited (now part of Canva). This project
 is not affiliated with or endorsed by Scene Group or Canva. The Cavalry
 documentation is not redistributed: `cav docs update` downloads it to the

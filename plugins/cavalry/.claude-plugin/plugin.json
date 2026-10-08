@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "cavalry",
   "displayName": "Cav",
-  "version": "1.1.2",
+  "version": "1.2.0",
   "description": "Build professional, beat-synced motion graphics in Cavalry from the shell with the cav CLI. Cav is a community plugin and is not affiliated with Cavalry, Scene Group, or Canva.",
   "author": {
     "name": "Sebastiano Poggi"

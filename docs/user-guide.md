@@ -259,6 +259,52 @@ and add notes. "Send to agent" hands the open notes to an agent waiting in
 frame and the drawing. A re-render to the same file reloads the page; W compares it with
 the earlier render (wipe, difference) or shows an onion skin.
 
+### Review in the chat
+
+`cav mcp` is a small MCP server that shows the same review page inside the chat, as an
+[MCP App](https://modelcontextprotocol.io/extensions/apps). It runs over stdin and stdout,
+so the agent starts it. The `cavalry` plugin registers it in Claude Code and Codex, so with
+the plugin installed there is nothing to do. It needs cav 1.2 or newer: with an older CLI
+the server fails to start, and the rest of the plugin works as before.
+
+Without the plugin, register it once. Do not do both, or the agent sees the tools twice.
+
+In Claude Code:
+
+```bash
+claude mcp add cav -- cav mcp
+```
+
+In Codex:
+
+```bash
+codex mcp add cav -- cav mcp
+```
+
+This writes the following to `~/.codex/config.toml`, which you can also add by hand:
+
+```toml
+[mcp_servers.cav]
+command = "cav"
+args = ["mcp"]
+```
+
+Then ask the agent to show the review of a render. It calls the `show_review` tool, and the
+chat draws the page. You can play the render, step frames, draw, add notes and press
+"Send to agent", as in the browser. The notes go to the same `<video>.review.json`, so
+`cav review wait`, `export`, `resolve` and the review hook work the same. When the chat
+supports it, "Send to agent" also posts a message that tells the agent to read the notes.
+
+The chat frame is small and has no network access. So the page plays a preview copy: at
+most 640 pixels wide, at a lower quality, cached in `~/.cav/cache/review-preview`. The
+server sends it inline, up to 24 MB. A longer render does not fit: review it in the
+browser. Use the chat for a quick look and a few notes, and `cav review` for
+frame-by-frame review. The A/B compare works only with earlier renders that were also
+shown in the chat.
+
+Chats that cannot draw MCP Apps still get the list of open notes as text. The server
+resolves a relative video path against the folder the agent started it in.
+
 ## Using cav with a coding agent
 
 `cav guide` prints the workflow, the traps, and recipes for motion design (entrances,

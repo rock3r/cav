@@ -11,8 +11,10 @@ for common mistakes, and renders the video, with music if you want.
 | cav-bridge | A small Cavalry script that `cav` talks to. `cav setup` installs it. |
 | `cavalry` skill | A short entry point for coding agents. It checks the setup and sends the agent to `cav guide`. Packaged as a Claude Code plugin and a Codex plugin. |
 
-There is no MCP server. Cavalry always runs on a desktop, so a shell is always there, and a
-command-line tool costs an agent no context until it asks for help.
+Cav drives Cavalry through the CLI, not an MCP server. Cavalry always runs on a desktop, so
+a shell is always there, and a command-line tool costs an agent no context until it asks for
+help. The one MCP server, `cav mcp`, only shows the review page inside the chat (see
+[Review in the chat](docs/user-guide.md#review-in-the-chat)).
 
 ## Requirements
 
@@ -105,6 +107,7 @@ troubleshooting.
 | `cav spectrogram <audio>` | Draw the track: spectrogram, loudness, beats, sections and accents on one time axis |
 | `cav sync <video.mp4>` | Measure the cuts and hits of a render against the beats |
 | `cav review [video.mp4]` | A review page: step frames, draw, comment, then send the notes to the agent (`wait`, `export`, `resolve`) |
+| `cav mcp` | An MCP server (stdio) that shows the review page inside the chat, as an MCP App |
 | `cav board init\|frames\|sheet\|animatic\|mood` | Storyboard timed in beats, frames per shot, a board image, an animatic on the music, mood boards |
 | `cav gen image\|vector` | Generate stills, transparent PNGs and SVG; trace a PNG to SVG |
 | `cav ref` / `cav sfx search\|get\|gen\|index` | Find reference images, sounds and music under free licences; generate sound effects |
