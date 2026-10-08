@@ -430,33 +430,51 @@ func (h *handler) notes(ctx context.Context, req *mcp.CallToolRequest, in notesI
 			want[id] = true
 		}
 	}
+	truncated := 0
 	for _, c := range d.Comments {
+		if !((out.Send > 0 && want[c.ID]) || (out.Send == 0 && c.Status == "open")) {
+			continue
+		}
 		if len(out.Notes) == maxNotes {
-			break
+			truncated++
+			continue
 		}
-		if (out.Send > 0 && want[c.ID]) || (out.Send == 0 && c.Status == "open") {
-			n := noteFull{ID: c.ID, Status: c.Status, Frame: c.Frame, FrameEnd: c.FrameEnd, Timecode: c.Timecode,
-				Text: clip(c.Text, maxNoteText), Fragment: c.Fragment, OnOlderRender: cur != "" && c.Version != cur}
-			for i, r := range c.Replies {
-				if i == maxReplies {
-					break
-				}
-				r.Text = clip(r.Text, maxReplyText)
-				n.Replies = append(n.Replies, r)
+		n := noteFull{ID: c.ID, Status: c.Status, Frame: c.Frame, FrameEnd: c.FrameEnd, Timecode: c.Timecode,
+			Text: clip(c.Text, maxNoteText), Fragment: clip(c.Fragment, 80), OnOlderRender: cur != "" && c.Version != cur}
+		for i, r := range c.Replies {
+			if i == maxReplies {
+				break
 			}
-			for _, sh := range c.Shapes {
-				n.Shapes = append(n.Shapes, sh.Type)
-			}
-			n.Snapshot = snapshotPath(store, c.Snapshot)
-			out.Notes = append(out.Notes, n)
+			r.Text = clip(r.Text, maxReplyText)
+			r.Author = clip(r.Author, 80)
+			n.Replies = append(n.Replies, r)
 		}
+		// The kinds of drawing, once each: a note can hold any number of shapes.
+		seen := map[string]bool{}
+		for _, sh := range c.Shapes {
+			if t := clip(sh.Type, 16); !seen[t] && len(n.Shapes) < 8 {
+				seen[t] = true
+				n.Shapes = append(n.Shapes, t)
+			}
+		}
+		n.Snapshot = snapshotPath(store, c.Snapshot)
+		out.Notes = append(out.Notes, n)
 	}
 
+	// A send cut short stays pending, so nothing in it is lost.
+	claim := out.Send > 0 && truncated == 0
 	var b strings.Builder
-	if out.Send > 0 {
+	switch {
+	case out.Send > 0 && !claim:
+		fmt.Fprintf(&b, "Send #%d on %s has %d notes; here are the first %d. The send stays pending: read all of it with `cav review export` in a shell.\n",
+			out.Send, abs, len(out.Notes)+truncated, len(out.Notes))
+	case out.Send > 0:
 		fmt.Fprintf(&b, "Send #%d on %s: %d note(s). It is now marked received.\n", out.Send, abs, len(out.Notes))
-	} else {
+	default:
 		fmt.Fprintf(&b, "Nothing was sent from the review of %s. Its open notes: %d.\n", abs, len(out.Notes))
+		if truncated > 0 {
+			fmt.Fprintf(&b, "Only the first %d are listed; %d more are open.\n", len(out.Notes), truncated)
+		}
 	}
 	content := []mcp.Content{nil} // the text goes first, once it is complete
 	images, budget := 0, maxSnapshotBytes
@@ -501,22 +519,32 @@ func (h *handler) notes(ctx context.Context, req *mcp.CallToolRequest, in notesI
 	fmt.Fprintf(&b, "\n%s", out.Next)
 	content[0] = &mcp.TextContent{Text: b.String()}
 
-	if out.Send > 0 {
+	if claim {
+		// Claim the send in one update, and only while it is still pending: when another
+		// call took it in the meantime, this one must not hand it out a second time.
 		_, err := store.Update(func(d *review.Doc) error {
 			for i := range d.Sends {
-				if d.Sends[i].N == out.Send && d.Sends[i].DeliveredAt == nil {
+				if d.Sends[i].N == out.Send {
+					if d.Sends[i].DeliveredAt != nil {
+						return errAlreadyReceived
+					}
 					now := time.Now().UTC()
 					d.Sends[i].DeliveredAt = &now
 				}
 			}
 			return nil
 		})
+		if errors.Is(err, errAlreadyReceived) {
+			return nil, notesOut{}, fmt.Errorf("send #%d was received by another call in the meantime; call review_notes again for the open notes", out.Send)
+		}
 		if err != nil {
 			return nil, notesOut{}, err
 		}
 	}
 	return &mcp.CallToolResult{Content: content}, out, nil
 }
+
+var errAlreadyReceived = errors.New("send already received")
 
 // store returns the review store of a video, shared with its open session when there is
 // one: a Store serializes its read-modify-write with its own lock, so two stores on the same

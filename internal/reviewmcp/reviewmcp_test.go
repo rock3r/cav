@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -556,5 +557,36 @@ func TestReviewNotesRefusesASymlinkedSnapshotFolderAndCapsText(t *testing.T) {
 	}
 	if len(n.Replies) != maxReplies {
 		t.Errorf("replies not capped: %d", len(n.Replies))
+	}
+}
+
+func TestReviewNotesLeavesALongSendPendingAndCapsShapes(t *testing.T) {
+	cs, video, _ := connect(t)
+	call(t, cs, "show_review", map[string]any{"video": video}, nil)
+	store := review.Open(video)
+	var ids []string
+	store.Update(func(d *review.Doc) error {
+		for i := 0; i < maxNotes+3; i++ {
+			id := fmt.Sprintf("c_%03d", i+1)
+			ids = append(ids, id)
+			d.Comments = append(d.Comments, review.Comment{ID: id, Frame: i, Status: "open", Text: "n",
+				Shapes: make([]review.Shape, 500)})
+		}
+		d.Sends = append(d.Sends, review.Send{N: 1, At: time.Now(), Comments: ids})
+		return nil
+	})
+	var out notesOut
+	res := call(t, cs, "review_notes", map[string]any{"video": video}, &out)
+	if res.IsError || out.Send != 1 || len(out.Notes) != maxNotes {
+		t.Fatalf("got %d notes, send %d: %v", len(out.Notes), out.Send, res.IsError)
+	}
+	if text := res.Content[0].(*mcp.TextContent).Text; !strings.Contains(text, "stays pending") {
+		t.Errorf("a send cut short must say it stays pending:\n%.300s", text)
+	}
+	if d, _ := store.Load(); d.Sends[0].DeliveredAt != nil {
+		t.Error("a send cut short must stay pending")
+	}
+	if len(out.Notes[0].Shapes) != 1 {
+		t.Errorf("500 shapes of one kind should list that kind once, got %d", len(out.Notes[0].Shapes))
 	}
 }
