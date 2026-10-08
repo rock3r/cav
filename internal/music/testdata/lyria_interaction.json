@@ -1,0 +1,11 @@
+{
+  "id": "int_abc123",
+  "model": "lyria-3.5",
+  "steps": [
+    {"type": "user_input", "content": [{"type": "text", "text": "warm synthwave"}]},
+    {"type": "model_output", "content": [
+      {"type": "text", "text": "{\"structure\": [\"intro\", \"drop\"]}"},
+      {"type": "audio", "mime_type": "audio/wav", "data": "UklGRgAAAABXQVZF"}
+    ]}
+  ]
+}

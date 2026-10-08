@@ -33,6 +33,7 @@ var liveChecks = map[string]liveCheck{
 	"openai":     {"about $0.01-0.05 (one image)", imageLive},
 	"openrouter": {"about $0.04 (one image)", imageLive},
 	"recraft":    {"about $0.01-0.04 (one image)", imageLive},
+	"fal":        {"about $0.01-0.03 (one image)", imageLive},
 	"elevenlabs": {"a few credits (a half-second sound effect)", func(ctx context.Context, c *services.Config, ch *services.Choice) (string, error) {
 		tr, err := music.SoundEffect(ctx, ch.Key, "a short soft click", 0.5, false)
 		if err != nil {
