@@ -472,6 +472,12 @@ func TestReviewNotesReceivesTheSendWithSnapshots(t *testing.T) {
 	os.WriteFile(filepath.Join(store.SnapDir, "c_01_f12.png"), png, 0o644)
 	outside := filepath.Join(t.TempDir(), "c_02_f30.png")
 	os.WriteFile(outside, png, 0o644)
+	// A symlink with the right name in the right folder, pointing at a file elsewhere.
+	secret := filepath.Join(t.TempDir(), "secret.png")
+	os.WriteFile(secret, []byte("\x89PNGsecret"), 0o644)
+	if err := os.Symlink(secret, filepath.Join(store.SnapDir, "c_02_f30.png")); err != nil {
+		t.Skipf("cannot make a symlink here: %v", err)
+	}
 	store.Update(func(d *review.Doc) error {
 		d.Comments = append(d.Comments,
 			review.Comment{ID: "c_01", Frame: 12, Timecode: "00:00:00:12", Status: "open", Text: "logo lands late",
@@ -487,12 +493,14 @@ func TestReviewNotesReceivesTheSendWithSnapshots(t *testing.T) {
 	if res.IsError || out.Send != 1 || len(out.Notes) != 2 {
 		t.Fatalf("got %v %+v", res.Content, out)
 	}
-	if out.Notes[0].Snapshot != filepath.Join(store.SnapDir, "c_01_f12.png") || out.Notes[0].Shapes[0] != "arrow" || out.Notes[0].OnOlderRender {
+	snapDir, _ := filepath.EvalSymlinks(store.SnapDir)
+	if out.Notes[0].Snapshot != filepath.Join(snapDir, "c_01_f12.png") || out.Notes[0].Shapes[0] != "arrow" || out.Notes[0].OnOlderRender {
 		t.Errorf("note c_01: %+v", out.Notes[0])
 	}
-	// c_02's file has the right name but sits outside the review's folder: not read.
+	// c_02's recorded file sits outside the review's folder, and the file with its name in
+	// the folder is a symlink to elsewhere: neither is read.
 	if out.Notes[1].Snapshot != "" {
-		t.Errorf("a snapshot outside the review's folder must not be read: %q", out.Notes[1].Snapshot)
+		t.Errorf("a snapshot outside the review's folder, or a symlink, must not be read: %q", out.Notes[1].Snapshot)
 	}
 	images := 0
 	for _, c := range res.Content {

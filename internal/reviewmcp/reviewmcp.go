@@ -362,8 +362,13 @@ type noteFull struct {
 	OnOlderRender bool `json:"onOlderRender,omitempty"`
 }
 
-// maxSnapshots caps the images one review_notes call returns, to keep the answer small.
-const maxSnapshots = 8
+// maxSnapshots and maxSnapshotBytes cap the images one review_notes call returns. Hosts
+// pass the whole answer through their message channel (see MaxInline), and a browser review
+// can hold full-size snapshots.
+const (
+	maxSnapshots     = 8
+	maxSnapshotBytes = 12 << 20
+)
 
 // notes is review_notes: `cav review wait` without the wait, for chats without a shell. It
 // receives the pending send, or lists the open notes when there is none, and returns each
@@ -381,47 +386,39 @@ func (h *handler) notes(ctx context.Context, req *mcp.CallToolRequest, in notesI
 	if err != nil {
 		return nil, notesOut{}, err
 	}
-	store := review.Open(abs)
+	store := h.store(abs)
 	if !fileExists(store.DocPath) {
 		return nil, notesOut{}, fmt.Errorf("%s has no review yet: show it with show_review first", video)
 	}
-	out := notesOut{Video: abs, Notes: []noteFull{}}
-	var picked []review.Comment
-	_, err = store.Update(func(d *review.Doc) error {
-		cur := d.Source.SHA256
-		if len(cur) > 12 {
-			cur = cur[:12]
-		}
-		want := map[string]bool{}
-		if s := review.Pending(d); s != nil {
-			now := time.Now().UTC()
-			s.DeliveredAt = &now
-			out.Send = s.N
-			for _, id := range s.Comments {
-				want[id] = true
-			}
-		}
-		for _, c := range d.Comments {
-			if (out.Send > 0 && want[c.ID]) || (out.Send == 0 && c.Status == "open") {
-				picked = append(picked, c)
-				n := noteFull{ID: c.ID, Status: c.Status, Frame: c.Frame, FrameEnd: c.FrameEnd, Timecode: c.Timecode,
-					Text: c.Text, Fragment: c.Fragment, Replies: c.Replies, OnOlderRender: cur != "" && c.Version != cur}
-				for _, sh := range c.Shapes {
-					n.Shapes = append(n.Shapes, sh.Type)
-				}
-				if p := snapshotPath(store, c.Snapshot); p != "" {
-					n.Snapshot = p
-				}
-				out.Notes = append(out.Notes, n)
-			}
-		}
-		if out.Send == 0 {
-			return errNothingSent // nothing to record
-		}
-		return nil
-	})
-	if err != nil && !errors.Is(err, errNothingSent) {
+
+	// Read first, and mark the send received only once the answer is built: an answer that
+	// fails on the way must not leave the send looking delivered.
+	d, err := store.Load()
+	if err != nil {
 		return nil, notesOut{}, err
+	}
+	out := notesOut{Video: abs, Notes: []noteFull{}}
+	cur := d.Source.SHA256
+	if len(cur) > 12 {
+		cur = cur[:12]
+	}
+	want := map[string]bool{}
+	if s := review.Pending(d); s != nil {
+		out.Send = s.N
+		for _, id := range s.Comments {
+			want[id] = true
+		}
+	}
+	for _, c := range d.Comments {
+		if (out.Send > 0 && want[c.ID]) || (out.Send == 0 && c.Status == "open") {
+			n := noteFull{ID: c.ID, Status: c.Status, Frame: c.Frame, FrameEnd: c.FrameEnd, Timecode: c.Timecode,
+				Text: c.Text, Fragment: c.Fragment, Replies: c.Replies, OnOlderRender: cur != "" && c.Version != cur}
+			for _, sh := range c.Shapes {
+				n.Shapes = append(n.Shapes, sh.Type)
+			}
+			n.Snapshot = snapshotPath(store, c.Snapshot)
+			out.Notes = append(out.Notes, n)
+		}
 	}
 
 	var b strings.Builder
@@ -431,7 +428,7 @@ func (h *handler) notes(ctx context.Context, req *mcp.CallToolRequest, in notesI
 		fmt.Fprintf(&b, "Nothing was sent from the review of %s. Its open notes: %d.\n", abs, len(out.Notes))
 	}
 	content := []mcp.Content{nil} // the text goes first, once it is complete
-	images := 0
+	images, budget := 0, maxSnapshotBytes
 	for _, n := range out.Notes {
 		where := fmt.Sprintf("frame %d (%s)", n.Frame, n.Timecode)
 		if n.FrameEnd != nil {
@@ -451,11 +448,20 @@ func (h *handler) notes(ctx context.Context, req *mcp.CallToolRequest, in notesI
 		for _, r := range n.Replies {
 			fmt.Fprintf(&b, "  reply from %s: %s\n", r.Author, r.Text)
 		}
-		if n.Snapshot != "" && images < maxSnapshots {
-			if png, err := os.ReadFile(n.Snapshot); err == nil {
+		if n.Snapshot == "" {
+			continue
+		}
+		info, err := os.Lstat(n.Snapshot)
+		switch {
+		case err != nil:
+		case images >= maxSnapshots || info.Size() > int64(budget):
+			fmt.Fprintf(&b, "  snapshot: %s (not attached: the answer is at its size limit)\n", n.Snapshot)
+		default:
+			if png, err := os.ReadFile(n.Snapshot); err == nil && len(png) <= budget {
 				fmt.Fprintf(&b, "  snapshot: image %d below\n", images+1)
 				content = append(content, &mcp.ImageContent{Data: png, MIMEType: "image/png"})
 				images++
+				budget -= len(png)
 			}
 		}
 	}
@@ -463,21 +469,55 @@ func (h *handler) notes(ctx context.Context, req *mcp.CallToolRequest, in notesI
 		"(`cav review resolve <id> --note ...` with a shell, or Resolve in the review page)."
 	fmt.Fprintf(&b, "\n%s", out.Next)
 	content[0] = &mcp.TextContent{Text: b.String()}
+
+	if out.Send > 0 {
+		_, err := store.Update(func(d *review.Doc) error {
+			for i := range d.Sends {
+				if d.Sends[i].N == out.Send && d.Sends[i].DeliveredAt == nil {
+					now := time.Now().UTC()
+					d.Sends[i].DeliveredAt = &now
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, notesOut{}, err
+		}
+	}
 	return &mcp.CallToolResult{Content: content}, out, nil
 }
 
-var errNothingSent = errors.New("nothing sent")
+// store returns the review store of a video, shared with its open session when there is
+// one: a Store serializes its read-modify-write with its own lock, so two stores on the same
+// file in one process could each overwrite the other's change.
+func (h *handler) store(abs string) *review.Store {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if s := h.open[abs]; s != nil {
+		return s.srv.Store
+	}
+	return review.Open(abs)
+}
 
 // snapshotPath finds a note's snapshot by its file name in the review's own snapshot folder.
 // The recorded path may be relative to wherever `cav review` ran, and the review file sits
-// in the project, so a path it names elsewhere is never read.
+// in the project, so a path it names elsewhere is never read. Nor is a symlink, or a file
+// whose real location is outside that folder: a checkout could carry either.
 func snapshotPath(store *review.Store, p string) string {
 	name := filepath.Base(filepath.FromSlash(p))
 	if p == "" || name == "." || name == ".." || !strings.HasSuffix(name, ".png") {
 		return ""
 	}
-	abs, err := filepath.Abs(filepath.Join(store.SnapDir, name))
-	if err != nil || !fileExists(abs) {
+	dir, err := filepath.EvalSymlinks(store.SnapDir)
+	if err != nil {
+		return ""
+	}
+	abs, err := filepath.Abs(filepath.Join(dir, name))
+	if err != nil {
+		return ""
+	}
+	info, err := os.Lstat(abs)
+	if err != nil || !info.Mode().IsRegular() {
 		return ""
 	}
 	return abs
