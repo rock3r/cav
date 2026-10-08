@@ -205,6 +205,18 @@ type showOut struct {
 	Height     int     `json:"height"`
 	Open       int     `json:"open"`
 	Resolved   int     `json:"resolved"`
+	// OpenNotes and Next repeat the text result. Some hosts give the model only the
+	// structured result, and then this is all it learns from the call.
+	OpenNotes []noteSummary `json:"openNotes"`
+	Next      string        `json:"next"`
+}
+
+type noteSummary struct {
+	ID    string `json:"id"`
+	Frame int    `json:"frame"`
+	// FrameEnd is set for a note on a range of frames.
+	FrameEnd *int   `json:"frameEnd,omitempty"`
+	Text     string `json:"text"`
 }
 
 func (h *handler) show(ctx context.Context, req *mcp.CallToolRequest, in showIn) (*mcp.CallToolResult, showOut, error) {
@@ -228,7 +240,8 @@ func (h *handler) show(ctx context.Context, req *mcp.CallToolRequest, in showIn)
 		return nil, showOut{}, err
 	}
 	src := s.srv.Source
-	out := showOut{Video: s.srv.Store.Video, ReviewFile: s.srv.Store.DocPath, Frames: src.Frames, FPS: src.FPS, Width: src.Width, Height: src.Height}
+	out := showOut{Video: s.srv.Store.Video, ReviewFile: s.srv.Store.DocPath, Frames: src.Frames, FPS: src.FPS, Width: src.Width, Height: src.Height,
+		OpenNotes: []noteSummary{}}
 	var b strings.Builder
 	for _, c := range d.Comments {
 		if c.Status == "open" {
@@ -238,13 +251,18 @@ func (h *handler) show(ctx context.Context, req *mcp.CallToolRequest, in showIn)
 				where = fmt.Sprintf("frames %d-%d", c.Frame, *c.FrameEnd)
 			}
 			fmt.Fprintf(&b, "\n  %s %s: %s", c.ID, where, firstLine(c.Text))
+			out.OpenNotes = append(out.OpenNotes, noteSummary{ID: c.ID, Frame: c.Frame, FrameEnd: c.FrameEnd, Text: firstLine(c.Text)})
 		} else {
 			out.Resolved++
 		}
 	}
-	text := fmt.Sprintf("Showing the review page of %s (%d frames at %g fps) in the chat. Notes: %d open, %d resolved.%s\n"+
-		"The page plays a small preview. When the person presses Send to agent, read the notes with: cav review wait %s",
-		out.Video, src.Frames, src.FPS, out.Open, out.Resolved, b.String(), out.Video)
+	// The path is named as data, never pasted into a command: no one quoting is safe in
+	// every shell the agent may use.
+	out.Next = "Hosts that draw MCP Apps show the page in the chat; others show only this result. " +
+		"When the person presses Send to agent, run `cav review wait` with the video path as its argument, quoted for your shell. " +
+		"For full review in a browser, run `cav review` with the same path."
+	text := fmt.Sprintf("Showing the review page of this video (%d frames at %g fps). Notes: %d open, %d resolved.%s\nVideo path: %s\n%s",
+		src.Frames, src.FPS, out.Open, out.Resolved, b.String(), out.Video, out.Next)
 	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: text}}}, out, nil
 }
 

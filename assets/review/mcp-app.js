@@ -90,7 +90,8 @@
     if (!send || !send.comments) return;
     const n = send.comments.length;
     const block = { type: 'text',
-      text: `I sent ${n} review note${n > 1 ? 's' : ''} on ${video}. Read the notes with \`cav review wait "${video}"\`, fix them, then resolve each one.` };
+      // The path is named as data, not pasted into a command: the agent quotes it for its shell.
+      text: `I sent ${n} review note${n > 1 ? 's' : ''} on this video: ${video}\nRead the notes with \`cav review wait\` and that path as its argument, fix them, then resolve each one.` };
     request('ui/message', { role: 'user', content: block })
       .catch(() => request('ui/message', { role: 'user', content: [block] }))
       .catch(() => {});

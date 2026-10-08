@@ -230,6 +230,7 @@ cav review export renders/final.mp4         # every note
 - In Claude Code, the optional cav-review plugin also shows the open notes above the prompt,
   links to the page, and can start a turn when notes arrive.
 - When `cav mcp` runs (the cavalry plugin starts it; see `cav help mcp`), the `show_review`
-  tool shows the page inside the chat instead, with a small preview of the render. Use it
-  for a quick look; the notes go to the same review file, so `cav review wait` reads them
+  tool shows the page inside the chat instead, with a small preview of the render, in hosts
+  that draw MCP Apps. Other hosts show only the result: then give the user the browser page
+  with `cav review`. The notes go to the same review file, so `cav review wait` reads them
   as usual.
