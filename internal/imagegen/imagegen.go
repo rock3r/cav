@@ -1,5 +1,6 @@
 // Package imagegen makes stills (storyboard frames, assets with transparency, SVG) with
-// whichever service the config picks: Gemini, OpenAI, OpenRouter, Recraft, or local tools.
+// whichever service the config picks: Gemini, OpenAI, OpenRouter, fal.ai, Recraft, or local
+// tools.
 //
 // Request shapes follow each vendor's documentation as read on 2026-10-08. They are tested
 // against recorded shapes, not against the live services (no keys were available).
@@ -56,6 +57,7 @@ var DefaultModels = map[string]string{
 	"gemini":     "gemini-3.1-flash-image",
 	"openai":     "gpt-image-2.5-flare",
 	"openrouter": "google/gemini-2.5-flash-image",
+	"fal":        "fal-ai/flux-2",
 	"recraft":    "recraftv4_1",
 	"mflux":      "flux2-klein-4b",
 }
@@ -85,6 +87,8 @@ func Generate(ctx context.Context, c *services.Config, ch *services.Choice, r Re
 		im, err = openai(ctx, ch.Key, m, r)
 	case "openrouter":
 		im, err = openrouter(ctx, ch.Key, m, r)
+	case "fal":
+		im, err = fal(ctx, ch.Key, m, r)
 	case "recraft":
 		if r.Vector && !strings.HasSuffix(m, "_vector") {
 			m = "recraftv3_vector"

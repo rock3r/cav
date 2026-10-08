@@ -27,18 +27,31 @@ ComfyUI and ACE-Step are servers the user runs:
 `cav config endpoint acestep http://127.0.0.1:8001` for ACE-Step 1.5 (`uv run acestep-api`
 in its repository; MIT licence, so its music can be used commercially).
 
+Veo (video) and Lyria (music) use the Gemini key, so `cav config set-key gemini ...` sets
+all three. Give one of them its own key with `cav config set-key veo <source>`.
+
+fal.ai is one key for many image models. cav uses FLUX.2 (`fal-ai/flux-2`) unless you pick
+another fal model id: `cav config model fal fal-ai/flux-2-pro`, `fal-ai/ideogram/v3`
+(good with text in the image), `fal-ai/bytedance/seedream/v4.5/text-to-image` or
+`xai/grok-imagine-image`. With reference images, cav sends them to the model's edit
+endpoint (Ideogram takes them as style references). References go inline as data URIs, so
+keep them small (a few hundred KB each). Models take a limited number: Grok Imagine 3,
+FLUX.2 4, Seedream 10, Ideogram 10 MB in total. cav sends the first ones that fit and says
+which it left out.
+
 A key source says where the key lives; cav never prints or stores the key. If 1Password is
 locked, only the services that read it fail, with a fix line. Never ask the user to paste a
 key into the chat: ask them to run `cav config set-key` themselves.
 
 | Job | Free | With a key |
 |---|---|---|
-| `image` (frames, stills) | greybox cards; mflux (Apple silicon), comfyui (your server) | gemini, openai, openrouter |
+| `image` (frames, stills) | greybox cards; mflux (Apple silicon), comfyui (your server) | gemini, openai, openrouter, fal |
 | `image.alpha` (transparent PNG) | none | openai, recraft |
 | `image.vector` (SVG) | vtracer, potrace (if installed) | recraft |
+| `video` (moving animatic shots) | none (the animatic holds each frame) | veo |
 | `ref` (reference images) | openverse, wikimedia | pexels, unsplash |
 | `sfx` (sound search) | openverse, indexed folders | freesound |
-| `music` | `cav music render` (a written score); acestep (your server); search with `cav sfx` | elevenlabs, stability |
+| `music` | `cav music render` (a written score); acestep (your server); search with `cav sfx` | elevenlabs, stability, lyria |
 | `ears` (critique of a track) | none | gemini, qwen-omni (your server) |
 
 ## 2. Licences come first
@@ -66,6 +79,7 @@ cav board init --bpm 120 --seconds 16 --shots 6
 # edit storyboard.json: "what" per shot, "style" (prompt, refs, palette)
 cav board frames                            # one frame per shot into board/
 cav board sheet                             # renders/board.png: look at it
+cav board motion --only s2,s5               # optional: moving clips for chosen shots (Veo)
 cav board animatic --audio music.wav        # renders/animatic.mp4, cut on the beat
 cav review renders/animatic.mp4             # get the user's notes before building
 cav board place                             # the frames as placeholder layers in Cavalry
@@ -75,6 +89,13 @@ cav board place                             # the frames as placeholder layers i
   (multiples of 4 in 4/4). With real music, set `"grid": "build/grid.json"` from
   `cav beats music.wav --json -o build/grid.json` so beats follow the track.
 - Generated frames share `style.refs`, so the look stays consistent across shots.
+- `cav board motion` starts each clip from the shot's frame, so make and approve the frames
+  first. It uses Veo 3.1 Lite by default (`cav config model veo veo-3.1-fast-generate-preview`
+  for Fast). Veo makes 4, 6 or 8 seconds at 24 fps: cav picks the shortest length that
+  covers the shot, the animatic cuts the clip to the shot, and a longer shot holds the
+  clip's last frame. Veo adds its own sound; the animatic drops it and plays only the
+  music. Each clip costs money, so animate only the shots where movement changes the
+  decision, and name them with `--only` (or pass `--all`).
 - Greybox cards are text placeholders. For a greybox made of real shapes, build it in
   Cavalry, render it with `cav frame <n> -o board/s3.png`, and set that shot's `"frame"`.
   `cav board frames` keeps frames that exist (`--force` remakes them).
@@ -108,8 +129,14 @@ cav sfx get freesound:<id>                  # into sfx/, with credit
 cav sfx index ~/Sounds/Sonniss-GDC-2026     # add a library you downloaded
 cav sfx gen "glassy riser into a hit" --seconds 2       # generated (ElevenLabs key)
 cav music gen "warm synthwave, builds to a drop" --board storyboard.json --takes 2
+cav music gen "warm synthwave" --board storyboard.json --service lyria   # Gemini key
 cav listen music/<take>.mp3 --board storyboard.json --brief "builds to a drop on s4"
 ```
+
+Lyria (`lyria-3.5`) has no length or section fields. cav writes them into the prompt: the
+total length, "instrumental only", and one `[m:ss - m:ss]` line per shot. Lyria follows
+them loosely, so check the cuts with `cav listen --board`. cav asks for WAV.
+`cav config model lyria lyria-3-clip-preview` makes a 30-second MP3 clip instead.
 
 ### Write the music
 
@@ -123,7 +150,8 @@ The score puts notes and hits on a beat grid:
   {"name": "bass", "instrument": "bass", "notes": [[0, 0.5, 45, 0.8]], "duck": true},
   {"name": "pad", "instrument": "pad", "notes": [[0, 4, 57, 0.5]], "reverb": 0.3, "gain": -8},
   {"name": "hit", "instrument": "sample:/abs/sfx/impact.wav", "hits": [16]},
-  {"name": "lead", "instrument": "vst3:/Library/Audio/Plug-Ins/VST3/Surge XT.vst3", "notes": []}],
+  {"name": "lead", "instrument": "vst3:/Library/Audio/Plug-Ins/VST3/Surge XT.vst3", "notes": [],
+   "preset": "/abs/presets/lead.vstpreset", "params": {"cutoff": 0.4}}],
  "master": {"lufs": -14}}
 ```
 
@@ -132,8 +160,14 @@ The score puts notes and hits on a beat grid:
   `snare`, `hat`, `openhat`, `clap`; `sample:<path>`; `vst3:<path>` or `au:<path>`.
 - Per track: `gain` (dB), `pan` (-1 to 1), `reverb` and `delay` (0-1), and `duck` to dip
   under the kick. `humanize` sets timing and velocity drift.
-- `master.lufs` sets the loudness; the limiter keeps the true peak under -1 dBFS.
-  `master.reference` matches the mix to a reference track (Matchering).
+- A plugin track plays its default sound unless you give it a `preset`: a `.vstpreset`
+  (VST3), or a file with the bytes of pedalboard's `plugin.raw_state` (VST3 or AU). `params`
+  sets parameters by their pedalboard names; an unknown name lists the real ones. macOS loads
+  an AU only from `/Library/Audio/Plug-Ins/Components` or `~/Library/Audio/Plug-Ins/Components`.
+- `master.lufs` sets the loudness; the limiter keeps the true peak under -1 dBTP.
+  `master.reference` matches the tone to a reference track (Matchering); the loudness and
+  peak targets still apply after it. A very sparse mix (a lone kick) cannot reach -14 LUFS
+  under that peak: the result has a `warning`. Fill the mix out, or set `master.lufs` lower.
 - Write the score from the storyboard: shots start on beats, so cuts land on the music.
 
 ### Judge the music

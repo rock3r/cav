@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Read `keychain:service/account` keys from Windows Credential Manager on Windows. The
+  target name is the service and the user name is the account. A missing entry and a
+  refused read are reported the same way as on macOS, where a refused read is now told
+  apart from a missing entry.
 - Add `cav review`: a local review page for a render. It steps exact frames, shuttles with
   J/K/L, sets ranges, and draws arrows, boxes, ellipses and freehand. Notes go to
   `<video>.review.json` with a snapshot of the frame and drawing. "Send to agent" releases a
@@ -21,6 +25,10 @@
   audio model's critique of a track. Add `cav music gen` (ElevenLabs Music, Stable Audio).
 - Add `cav music render`: play a written score (notes and hits on a beat grid) with
   built-in synths and drums, samples, or VST3/AU instruments, mixed and mastered locally.
+  Plugin tracks take a `preset` and `params`. The limiter measures true (inter-sample)
+  peaks and limits a hit at 0 s. `master.reference` (Matchering) now keeps the loudness
+  target, the true peak and 48 kHz. The command names missing score files up front, and
+  warns when a mix is too sparse to reach its loudness target.
 - Add local services: mflux (open image models on Apple silicon), ComfyUI (a workflow you
   choose), and ACE-Step 1.5 (an open music model on a server you run).
 - `cav listen --score` rates takes with local models (Audiobox Aesthetics, CLAP), and several
@@ -52,6 +60,12 @@
   beat grid, and list strong musical moments that no visual hit answers.
 - Add the `cav.sound` helper: drive an attribute from Cavalry's Sound behaviour.
 - `cav check` reports text layers whose font is not installed.
+- Add fal.ai as an image service: one key (`FAL_KEY`) for FLUX.2, Seedream, Ideogram, Grok
+  Imagine and any other fal model id you set with `cav config model fal`.
+- Add a `video` job and `cav board motion`: Veo 3.1 (Lite by default) turns chosen shots'
+  frames into moving clips, and `cav board animatic` plays them, cut to each shot.
+- Add Lyria (`lyria-3.5`) as a music service. Veo and Lyria use the Gemini key unless they
+  have their own.
 - Add `cav onion`: blend a few frames into one image that shows a motion path, the spacing
   of its easing and any overshoot, and report holds and jumps between neighbouring frames.
 

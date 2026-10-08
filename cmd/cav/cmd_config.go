@@ -23,7 +23,8 @@ func init() {
 	})
 	longHelp["config"] = `
 cav picks one service per job. Jobs: image, image.alpha (transparent PNG), image.vector
-(SVG), music, sfx (sound search), ref (reference images), ears (critique of a track).
+(SVG), video (moving animatic shots), music, sfx (sound search), ref (reference images),
+ears (critique of a track).
 Each job has an order; cav uses the first service it can use now, so everything works with
 no keys (greybox frames, Openverse, Wikimedia) and gets better as you add keys.
 
@@ -34,13 +35,15 @@ no keys (greybox frames, Openverse, Wikimedia) and gets better as you add keys.
   cav config set-key <service> <source>
         source is where the key lives, never the key itself:
           env:NAME                  an environment variable
-          keychain:service/account  the macOS keychain
+          keychain:service/account  the macOS keychain, or Windows Credential Manager
           op://vault/item/field     1Password (read with "op read" when a command needs it)
           oauth                     a login made with "cav config login <service>"
+        veo and lyria use the gemini key unless they have their own.
   cav config unset-key <service>    go back to the default variable
   cav config order <job> a,b,c      try a, then b, then c for that job
   cav config model gemini gemini-3-pro-image
-                                    the model a service uses (no id: cav's default)
+                                    the model a service uses (no id: cav's default);
+                                    for fal, any fal model id, e.g. fal-ai/ideogram/v3
   cav config endpoint qwen-omni <base-url> [model]
                                     an OpenAI-compatible server you run or rent
   cav config endpoint comfyui http://127.0.0.1:8188 <workflow-api.json>
