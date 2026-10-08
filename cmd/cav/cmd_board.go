@@ -570,7 +570,12 @@ func boardPlace(a *app, args []string) error {
 	}
 	if last := r.Last; last > r.Comp.End {
 		// --range keeps the start frame; --seconds would move it back to 0 under the placed layers.
-		notes = append(notes, fmt.Sprintf("the composition ends at frame %d but the last shot runs to frame %d: extend it with cav scene comp --range %d-%d", r.Comp.End, last, r.Comp.Start, last))
+		fix := fmt.Sprintf("extend it with cav scene comp --range %d-%d", r.Comp.Start, last)
+		if *comp != "" {
+			// cav scene comp changes only the active composition.
+			fix = fmt.Sprintf("make %s the active composition in Cavalry, then %s", *comp, fix)
+		}
+		notes = append(notes, fmt.Sprintf("the composition ends at frame %d but the last shot runs to frame %d: %s", r.Comp.End, last, fix))
 	}
 	a.emit(map[string]any{"storyboard": path, "fps": r.Comp.FPS, "placed": rows, "skipped": r.Skipped, "notes": notes}, func() {
 		for _, x := range rows {
