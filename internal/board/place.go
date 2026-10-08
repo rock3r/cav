@@ -7,7 +7,6 @@ import (
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
-	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,39 +14,29 @@ import (
 	"strings"
 )
 
-// Placement is one shot's frame as an image layer in a Cavalry composition.
+// Placement is one shot's frame, to become an image layer in a Cavalry composition. The
+// frame numbers and the fit scale depend on the composition, so the native job works them
+// out (assets/board/place.js).
 type Placement struct {
-	ID    string  `json:"id"`
-	Path  string  `json:"path"`  // absolute path of the frame image
-	In    int     `json:"in"`    // first visible frame
-	Out   int     `json:"out"`   // last visible frame; api.setOutFrame takes it inclusive
-	Scale float64 `json:"scale"` // fits the image inside the comp; 0 when the image size is unknown
+	ID     string  `json:"id"`
+	Path   string  `json:"path"`   // absolute path of the frame image
+	Start  float64 `json:"start"`  // seconds from beat 0
+	End    float64 `json:"end"`    // seconds from beat 0
+	Width  int     `json:"width"`  // image size in pixels; 0 when unknown
+	Height int     `json:"height"` // image size in pixels; 0 when unknown
 }
 
-// ShotFrames returns the first and last visible frame of a shot at fps. The last frame is
-// one before the frame where the shot's end beat falls, so a shot that ends where the next
-// starts hands off without overlap or gap.
-func (sb *Board) ShotFrames(s Shot, fps float64) (in, out int) {
-	in = max(0, int(math.Round(sb.Time(s.Beats[0])*fps)))
-	out = max(in, int(math.Round(sb.Time(s.Beats[1])*fps))-1)
-	return in, out
-}
-
-// FitScale is the uniform scale that fits an iw x ih image inside a cw x ch comp,
-// letterboxed like the animatic.
-func FitScale(iw, ih, cw, ch int) float64 {
-	if iw <= 0 || ih <= 0 || cw <= 0 || ch <= 0 {
-		return 0
+// Placements lists the frames to place. With only set, it keeps just those shot ids.
+// Every listed shot needs a frame image on disk.
+func (sb *Board) Placements(ctx context.Context, only map[string]bool) ([]Placement, error) {
+	ids := map[string]bool{}
+	for _, s := range sb.Shots {
+		ids[s.ID] = true
 	}
-	return math.Min(float64(cw)/float64(iw), float64(ch)/float64(ih))
-}
-
-// Placements lists the frames to place in a cw x ch comp at fps whose first frame is
-// start; beat 0 lands on start. With only set, it keeps just those shot ids. Every listed
-// shot needs a frame image on disk.
-func (sb *Board) Placements(ctx context.Context, fps float64, start, cw, ch int, only map[string]bool) ([]Placement, error) {
-	if fps <= 0 {
-		return nil, fmt.Errorf("the composition frame rate must be positive (got %g)", fps)
+	for id := range only {
+		if !ids[id] {
+			return nil, fmt.Errorf("no shot called %s", id)
+		}
 	}
 	var out []Placement
 	for _, s := range sb.Shots {
@@ -64,18 +53,8 @@ func (sb *Board) Placements(ctx context.Context, fps float64, start, cw, ch int,
 		if _, err := os.Stat(p); err != nil {
 			return nil, fmt.Errorf("%s: frame %s is missing: run cav board frames", s.ID, s.Frame)
 		}
-		iw, ih := imageSize(ctx, p)
-		in, last := sb.ShotFrames(s, fps)
-		out = append(out, Placement{ID: s.ID, Path: p, In: start + in, Out: start + last, Scale: FitScale(iw, ih, cw, ch)})
-	}
-	for id := range only {
-		found := false
-		for _, s := range sb.Shots {
-			found = found || s.ID == id
-		}
-		if !found {
-			return nil, fmt.Errorf("no shot called %s", id)
-		}
+		w, h := imageSize(ctx, p)
+		out = append(out, Placement{ID: s.ID, Path: p, Start: sb.Time(s.Beats[0]), End: sb.Time(s.Beats[1]), Width: w, Height: h})
 	}
 	return out, nil
 }

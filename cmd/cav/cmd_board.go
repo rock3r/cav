@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rock3r/cav/assets"
 	"github.com/rock3r/cav/internal/board"
 	"github.com/rock3r/cav/internal/imagegen"
 	"github.com/rock3r/cav/internal/library"
@@ -489,75 +490,6 @@ func boardAnimatic(a *app, args []string) error {
 	return nil
 }
 
-// boardPlaceJS adds the frames in `shots` to the active comp. It reuses an asset already
-// loaded from the same file (reloading it, in case the frame was remade). An image layer
-// already named by a shot id is updated in place: its image shader is pointed at the new
-// frame and its in and out frames are reset, so its parent, transforms, masks and stack
-// position stay as they are. A shot whose name another kind of layer uses is skipped:
-// that is the built shot replacing its placeholder.
-const boardPlaceJS = `
-// The frames were timed and sized from "measured". Refuse if the scene or the composition
-// changed since: an untitled scene has no path, so the settings themselves are compared.
-var cid = api.getActiveComp(), res = api.get(cid, 'resolution'),
-	now = { scene: api.getSceneFilePath(), fps: api.get(cid, 'fps'), width: res.x, height: res.y, start: api.get(cid, 'startFrame') }
-for (var k in now) {
-	if (now[k] !== measured[k]) throw new Error('the scene or composition changed while cav board place was reading the frames (' + k + '): run it again')
-}
-var assets = {}
-api.getAssetWindowLayers(false).forEach(function (a) {
-	if (api.isFileAsset(a)) assets[api.getAssetFilePath(a)] = a
-})
-function asset(path) {
-	if (assets[path]) api.reloadAsset(assets[path])
-	else assets[path] = api.loadAsset(path, false)
-	return assets[path]
-}
-// shaderOf finds the image shader that draws a footage layer.
-function shaderOf(footage) {
-	var all = api.getCompLayers(false)
-	for (var i = 0; i < all.length; i++) {
-		if (api.getLayerType(all[i]) !== 'imageShader') continue
-		var outs = api.getOutConnections(all[i], 'id')
-		for (var j = 0; j < outs.length; j++) if (outs[j].split('.')[0] === footage) return all[i]
-	}
-	return null
-}
-var placed = [], skipped = []
-shots.forEach(function (s) {
-	var old = null, built = null
-	// false lists nested layers too, so a placeholder or built shot inside a group counts.
-	api.getCompLayers(false).forEach(function (l) {
-		if (api.getNiceName(l) !== s.id) return
-		if (api.getLayerType(l) === 'footageShape') old = old || l
-		else built = built || l
-	})
-	if (built) {
-		skipped.push({ id: s.id, layer: built, type: api.getLayerType(built) })
-		return
-	}
-	var sh = old && shaderOf(old)
-	if (sh) {
-		api.connect(asset(s.path), 'id', sh, 'image', true)
-		api.setInFrame(old, s.in)
-		api.setOutFrame(old, s.out)
-		// Transforms are left alone: the user may have moved or scaled the placeholder.
-		placed.push({ id: s.id, layer: old, replaced: true, scaled: false })
-		return
-	}
-	var o = { in: s.in, out: s.out }
-	if (s.scale > 0) o.scale = s.scale
-	// Like cav.image, but through the cache, so shots that share a frame share one asset.
-	if (!api.filePathExists(s.path)) throw new Error(s.id + ': frame not found: ' + s.path)
-	api.select([])
-	var l = api.addAssetToComp(asset(s.path))
-	if (Array.isArray(l)) l = l[0]
-	api.select([])
-	api.rename(l, s.id)
-	cav.set(l, o)
-	placed.push({ id: s.id, layer: l, replaced: false, scaled: true })
-})
-return { placed: placed, skipped: skipped, end: api.get(api.getActiveComp(), 'endFrame') }`
-
 func boardPlace(a *app, args []string) error {
 	fs := flag.NewFlagSet("board place", flag.ContinueOnError)
 	only := fs.String("only", "", "comma-separated shot ids")
@@ -572,32 +504,13 @@ func boardPlace(a *app, args []string) error {
 	if err != nil {
 		return fail(exitError, err.Error(), "cav board init writes a starting storyboard")
 	}
-	a.compSelector = *comp
-	type compInfo struct {
-		Scene  string  `json:"scene"`
-		FPS    float64 `json:"fps"`
-		Width  int     `json:"width"`
-		Height int     `json:"height"`
-		Start  int     `json:"start"`
-	}
-	var c struct {
-		ID string `json:"id"`
-		compInfo
-	}
-	if err := a.jsCall(`var id = api.getActiveComp(), r = api.get(id, 'resolution');
-return { id: id, scene: api.getSceneFilePath(), fps: api.get(id, 'fps'), width: r.x, height: r.y, start: api.get(id, 'startFrame') }`, *timeout, &c); err != nil {
-		return err
-	}
-	// Place into the composition just measured, even if the user switches to another one;
-	// the placement job also checks that the scene and the composition settings are unchanged.
-	a.compSelector = c.ID
 	want := map[string]bool{}
 	for _, id := range splitList(*only) {
 		want[id] = true
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), *timeout)
 	defer cancel()
-	ps, err := sb.Placements(ctx, c.FPS, c.Start, c.Width, c.Height, want)
+	ps, err := sb.Placements(ctx, want)
 	if err != nil {
 		return fail(exitError, err.Error(), "")
 	}
@@ -605,76 +518,67 @@ return { id: id, scene: api.getSceneFilePath(), fps: api.get(id, 'fps'), width: 
 	if err != nil {
 		return err
 	}
-	measured, err := json.Marshal(c.compInfo)
-	if err != nil {
-		return err
-	}
-	o, err := a.execJS("var shots = "+string(shots)+", measured = "+string(measured)+";\n"+boardPlaceJS, execOpts{helpers: true, timeout: *timeout, source: "cav board place"})
+	// One job reads the composition and places the frames, so nothing can change in between.
+	a.compSelector = *comp
+	o, err := a.execJS("var shots = "+string(shots)+";\n"+assets.BoardPlace, execOpts{helpers: true, timeout: *timeout, source: "cav board place"})
 	if err != nil {
 		return err
 	}
 	if !o.result.OK {
 		return scriptErr(o)
 	}
+	type row struct {
+		Shot    string  `json:"shot"`
+		Layer   string  `json:"layer"`
+		In      int     `json:"in"`
+		Out     int     `json:"out"`
+		Scale   float64 `json:"scale,omitempty"` // left out when an existing layer keeps its scale
+		Updated bool    `json:"updated,omitempty"`
+	}
 	var r struct {
+		Comp struct {
+			FPS   float64 `json:"fps"`
+			Start int     `json:"start"`
+			End   int     `json:"end"`
+		} `json:"comp"`
 		Placed []struct {
-			ID       string `json:"id"`
-			Layer    string `json:"layer"`
-			Replaced bool   `json:"replaced"`
-			Scaled   bool   `json:"scaled"`
+			ID string `json:"id"`
+			row
 		} `json:"placed"`
 		Skipped []struct {
 			ID    string `json:"id"`
 			Layer string `json:"layer"`
 			Type  string `json:"type"`
 		} `json:"skipped"`
-		End int `json:"end"`
 	}
 	if err := json.Unmarshal(o.result.Value, &r); err != nil {
 		return err
 	}
-	byID := map[string]board.Placement{}
-	last := 0
-	for _, p := range ps {
-		byID[p.ID] = p
-		last = max(last, p.Out)
-	}
 	notes := []string{}
 	for _, p := range ps {
-		if p.Scale == 0 {
+		if p.Width == 0 {
 			notes = append(notes, p.ID+": unknown image size, placed at its native size")
 		}
 	}
-	if last > r.End {
-		// --range keeps the start frame; --seconds would move it back to 0 under the placed layers.
-		notes = append(notes, fmt.Sprintf("the composition ends at frame %d but the last shot runs to frame %d: extend it with cav scene comp --range %d-%d", r.End, last, c.Start, last))
-	}
-	type row struct {
-		Shot     string  `json:"shot"`
-		Layer    string  `json:"layer"`
-		In       int     `json:"in"`
-		Out      int     `json:"out"`
-		Scale    float64 `json:"scale,omitempty"` // left out when an existing layer keeps its scale
-		Replaced bool    `json:"replaced,omitempty"`
-	}
 	rows := []row{}
+	last := 0
 	for _, p := range r.Placed {
-		pl := byID[p.ID]
-		scale := 0.0
-		if p.Scaled {
-			scale = math.Round(pl.Scale*1000) / 1000
-		}
-		rows = append(rows, row{p.ID, p.Layer, pl.In, pl.Out, scale, p.Replaced})
+		x := p.row
+		x.Shot, x.Scale = p.ID, math.Round(x.Scale*1000)/1000
+		rows = append(rows, x)
+		last = max(last, x.Out)
 	}
-	a.emit(map[string]any{"storyboard": path, "fps": c.FPS, "placed": rows, "skipped": r.Skipped, "notes": notes}, func() {
+	if last > r.Comp.End {
+		// --range keeps the start frame; --seconds would move it back to 0 under the placed layers.
+		notes = append(notes, fmt.Sprintf("the composition ends at frame %d but the last shot runs to frame %d: extend it with cav scene comp --range %d-%d", r.Comp.End, last, r.Comp.Start, last))
+	}
+	a.emit(map[string]any{"storyboard": path, "fps": r.Comp.FPS, "placed": rows, "skipped": r.Skipped, "notes": notes}, func() {
 		for _, x := range rows {
-			state := "added"
-			if x.Replaced {
-				state = "updated"
-			}
-			scale := fmt.Sprintf("scale %g", x.Scale)
-			if x.Scale == 0 {
-				scale = "scale kept"
+			state, scale := "added", fmt.Sprintf("scale %g", x.Scale)
+			if x.Updated {
+				state, scale = "updated", "scale kept"
+			} else if x.Scale == 0 {
+				scale = "native size"
 			}
 			fmt.Printf("%-4s %-16s frames %d-%d  %s  (%s)\n", x.Shot, x.Layer, x.In, x.Out, scale, state)
 		}
