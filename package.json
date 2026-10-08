@@ -5,6 +5,7 @@
   "scripts": {
     "test:helpers": "node --test assets/helpers/test/*.test.js",
     "test:bridge": "node --test assets/bridge/test/*.test.js",
-    "test:diagnostics": "node --test assets/diagnostics/test/*.test.js"
+    "test:diagnostics": "node --test assets/diagnostics/test/*.test.js",
+    "test:board": "node --test assets/board/test/*.test.js"
   }
 }
