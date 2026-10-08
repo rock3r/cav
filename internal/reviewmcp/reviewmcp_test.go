@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/rock3r/cav/internal/review"
@@ -454,5 +456,137 @@ func TestAppPageWithoutHead(t *testing.T) {
 	got := string(AppPage([]byte("<p>hi</p>"), []byte("/* shim */")))
 	if !strings.HasPrefix(got, "<style>") || !strings.HasSuffix(got, "<p>hi</p>") || !strings.Contains(got, "/* shim */") {
 		t.Errorf("got %q", got)
+	}
+}
+
+func TestReviewNotesReceivesTheSendWithSnapshots(t *testing.T) {
+	cs, video, _ := connect(t)
+	if res := call(t, cs, "review_notes", map[string]any{"video": video}, nil); !res.IsError {
+		t.Fatal("a video without a review must be refused")
+	}
+	call(t, cs, "show_review", map[string]any{"video": video}, nil)
+
+	// One note with a snapshot in the review's own folder, one whose recorded snapshot path
+	// points outside it, and a send of both.
+	store := review.Open(video)
+	png := []byte("\x89PNG\r\n\x1a\nfake")
+	os.MkdirAll(store.SnapDir, 0o755)
+	os.WriteFile(filepath.Join(store.SnapDir, "c_01_f12.png"), png, 0o644)
+	outside := filepath.Join(t.TempDir(), "c_02_f30.png")
+	os.WriteFile(outside, png, 0o644)
+	// A symlink with the right name in the right folder, pointing at a file elsewhere.
+	secret := filepath.Join(t.TempDir(), "secret.png")
+	os.WriteFile(secret, []byte("\x89PNGsecret"), 0o644)
+	if err := os.Symlink(secret, filepath.Join(store.SnapDir, "c_02_f30.png")); err != nil {
+		t.Skipf("cannot make a symlink here: %v", err)
+	}
+	store.Update(func(d *review.Doc) error {
+		d.Comments = append(d.Comments,
+			review.Comment{ID: "c_01", Frame: 12, Timecode: "00:00:00:12", Status: "open", Text: "logo lands late",
+				Shapes: []review.Shape{{Type: "arrow"}}, Snapshot: "elsewhere/c_01_f12.png", Version: d.Source.SHA256[:12]},
+			review.Comment{ID: "c_02", Frame: 30, Status: "open", Text: "too fast", Snapshot: outside},
+			review.Comment{ID: "c_03", Frame: 40, Status: "resolved", Text: "done"})
+		d.Sends = append(d.Sends, review.Send{N: 1, At: time.Now(), Comments: []string{"c_01", "c_02"}})
+		return nil
+	})
+
+	var out notesOut
+	res := call(t, cs, "review_notes", map[string]any{"video": video}, &out)
+	if res.IsError || out.Send != 1 || len(out.Notes) != 2 {
+		t.Fatalf("got %v %+v", res.Content, out)
+	}
+	snapDir, _ := filepath.EvalSymlinks(store.SnapDir)
+	if out.Notes[0].Snapshot != filepath.Join(snapDir, "c_01_f12.png") || out.Notes[0].Shapes[0] != "arrow" || out.Notes[0].OnOlderRender {
+		t.Errorf("note c_01: %+v", out.Notes[0])
+	}
+	// c_02's recorded file sits outside the review's folder, and the file with its name in
+	// the folder is a symlink to elsewhere: neither is read.
+	if out.Notes[1].Snapshot != "" {
+		t.Errorf("a snapshot outside the review's folder, or a symlink, must not be read: %q", out.Notes[1].Snapshot)
+	}
+	images := 0
+	for _, c := range res.Content {
+		if img, ok := c.(*mcp.ImageContent); ok && img.MIMEType == "image/png" && string(img.Data) == string(png) {
+			images++
+		}
+	}
+	text := res.Content[0].(*mcp.TextContent).Text
+	if images != 1 || !strings.Contains(text, "Send #1") || !strings.Contains(text, "logo lands late") {
+		t.Errorf("want the text first and c_01's snapshot as the one image, got %d image(s):\n%s", images, text)
+	}
+	d, _ := store.Load()
+	if d.Sends[0].DeliveredAt == nil {
+		t.Error("the send must be marked received, as cav review wait does")
+	}
+
+	// Nothing pending now: the open notes come back, and nothing is marked.
+	out = notesOut{}
+	call(t, cs, "review_notes", map[string]any{"video": video}, &out)
+	if out.Send != 0 || len(out.Notes) != 2 || out.Notes[0].ID != "c_01" {
+		t.Errorf("without a send it should list the open notes: %+v", out)
+	}
+}
+
+func TestReviewNotesRefusesASymlinkedSnapshotFolderAndCapsText(t *testing.T) {
+	cs, video, _ := connect(t)
+	call(t, cs, "show_review", map[string]any{"video": video}, nil)
+	store := review.Open(video)
+	// review/final is a symlink to a folder outside the project holding a matching file.
+	elsewhere := t.TempDir()
+	os.WriteFile(filepath.Join(elsewhere, "c_01_f0.png"), []byte("\x89PNGsecret"), 0o644)
+	os.MkdirAll(filepath.Dir(store.SnapDir), 0o755)
+	if err := os.Symlink(elsewhere, store.SnapDir); err != nil {
+		t.Skipf("cannot make a symlink here: %v", err)
+	}
+	store.Update(func(d *review.Doc) error {
+		d.Comments = append(d.Comments, review.Comment{ID: "c_01", Status: "open", Text: strings.Repeat("é", maxNoteText),
+			Snapshot: "c_01_f0.png", Replies: make([]review.Reply, maxReplies+5)})
+		return nil
+	})
+	var out notesOut
+	res := call(t, cs, "review_notes", map[string]any{"video": video}, &out)
+	if res.IsError || len(out.Notes) != 1 {
+		t.Fatalf("got %v %+v", res.Content, out)
+	}
+	n := out.Notes[0]
+	if n.Snapshot != "" {
+		t.Errorf("a snapshot through a symlinked folder must not be read: %q", n.Snapshot)
+	}
+	if len(n.Text) > maxNoteText+len(" […]") || !strings.HasSuffix(n.Text, "[…]") || !utf8.ValidString(n.Text) {
+		t.Errorf("note text not capped on a rune boundary: %d bytes", len(n.Text))
+	}
+	if len(n.Replies) != maxReplies {
+		t.Errorf("replies not capped: %d", len(n.Replies))
+	}
+}
+
+func TestReviewNotesLeavesALongSendPendingAndCapsShapes(t *testing.T) {
+	cs, video, _ := connect(t)
+	call(t, cs, "show_review", map[string]any{"video": video}, nil)
+	store := review.Open(video)
+	var ids []string
+	store.Update(func(d *review.Doc) error {
+		for i := 0; i < maxNotes+3; i++ {
+			id := fmt.Sprintf("c_%03d", i+1)
+			ids = append(ids, id)
+			d.Comments = append(d.Comments, review.Comment{ID: id, Frame: i, Status: "open", Text: "n",
+				Shapes: make([]review.Shape, 500)})
+		}
+		d.Sends = append(d.Sends, review.Send{N: 1, At: time.Now(), Comments: ids})
+		return nil
+	})
+	var out notesOut
+	res := call(t, cs, "review_notes", map[string]any{"video": video}, &out)
+	if res.IsError || out.Send != 1 || len(out.Notes) != maxNotes {
+		t.Fatalf("got %d notes, send %d: %v", len(out.Notes), out.Send, res.IsError)
+	}
+	if text := res.Content[0].(*mcp.TextContent).Text; !strings.Contains(text, "stays pending") {
+		t.Errorf("a send cut short must say it stays pending:\n%.300s", text)
+	}
+	if d, _ := store.Load(); d.Sends[0].DeliveredAt != nil {
+		t.Error("a send cut short must stay pending")
+	}
+	if len(out.Notes[0].Shapes) != 1 {
+		t.Errorf("500 shapes of one kind should list that kind once, got %d", len(out.Notes[0].Shapes))
 	}
 }
