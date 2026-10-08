@@ -263,7 +263,11 @@ the earlier render (wipe, difference) or shows an onion skin.
 
 `cav mcp` is a small MCP server that shows the same review page inside the chat, as an
 [MCP App](https://modelcontextprotocol.io/extensions/apps). It runs over stdin and stdout,
-so the agent starts it. Register it once.
+so the agent starts it. The `cavalry` plugin registers it in Claude Code and Codex, so with
+the plugin installed there is nothing to do. It needs cav 1.2 or newer: with an older CLI
+the server fails to start, and the rest of the plugin works as before.
+
+Without the plugin, register it once. Do not do both, or the agent sees the tools twice.
 
 In Claude Code:
 

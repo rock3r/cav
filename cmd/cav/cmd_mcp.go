@@ -21,7 +21,8 @@ func init() {
 		run:     cmdMCP,
 	})
 	longHelp["mcp"] = `
-cav mcp runs an MCP server on stdin and stdout. Register it with your agent, not by hand:
+cav mcp runs an MCP server on stdin and stdout. The cavalry plugin for Claude Code and Codex
+starts it for you. Without the plugin, register it with your agent:
   Claude Code:  claude mcp add cav -- cav mcp
   Codex:        codex mcp add cav -- cav mcp
 It has one tool for the agent, show_review [video], which shows the cav review page of a

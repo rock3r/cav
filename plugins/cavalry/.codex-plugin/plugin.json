@@ -16,6 +16,7 @@
     "video"
   ],
   "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "Cav",
     "shortDescription": "Motion graphics in Cavalry",

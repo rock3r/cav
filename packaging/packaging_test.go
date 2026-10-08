@@ -71,6 +71,25 @@ func TestManifestsAgree(t *testing.T) {
 	}
 }
 
+// The plugin starts `cav mcp` in Claude Code (which reads .mcp.json at the plugin root) and in
+// Codex (which reads the file its manifest names).
+func TestPluginMCPServer(t *testing.T) {
+	r := root(t)
+	m := readJSON(t, filepath.Join(r, "plugins/cavalry/.mcp.json"))
+	servers, _ := m["mcpServers"].(map[string]any)
+	cav, _ := servers["cav"].(map[string]any)
+	if cav["command"] != "cav" {
+		t.Errorf(".mcp.json must start the cav CLI, got %v", m)
+	}
+	if args, _ := cav["args"].([]any); len(args) != 1 || args[0] != "mcp" {
+		t.Errorf(".mcp.json args = %v, want [mcp]", cav["args"])
+	}
+	cx := readJSON(t, filepath.Join(r, "plugins/cavalry/.codex-plugin/plugin.json"))
+	if cx["mcpServers"] != "./.mcp.json" {
+		t.Errorf(`.codex-plugin/plugin.json needs "mcpServers": "./.mcp.json", got %v`, cx["mcpServers"])
+	}
+}
+
 func TestSkillFrontmatter(t *testing.T) {
 	b, err := os.ReadFile(filepath.Join(root(t), "plugins/cavalry/skills/cavalry/SKILL.md"))
 	if err != nil {
