@@ -256,11 +256,13 @@ func (h *handler) show(ctx context.Context, req *mcp.CallToolRequest, in showIn)
 			out.Resolved++
 		}
 	}
-	out.Next = fmt.Sprintf("Hosts that draw MCP Apps show the page in the chat; others show only this result. "+
-		"When the person presses Send to agent, read the notes with: cav review wait %q. "+
-		"For full review in a browser, run: cav review %q", out.Video, out.Video)
-	text := fmt.Sprintf("Showing the review page of %s (%d frames at %g fps). Notes: %d open, %d resolved.%s\n%s",
-		out.Video, src.Frames, src.FPS, out.Open, out.Resolved, b.String(), out.Next)
+	// The path is named as data, never pasted into a command: no one quoting is safe in
+	// every shell the agent may use.
+	out.Next = "Hosts that draw MCP Apps show the page in the chat; others show only this result. " +
+		"When the person presses Send to agent, run `cav review wait` with the video path as its argument, quoted for your shell. " +
+		"For full review in a browser, run `cav review` with the same path."
+	text := fmt.Sprintf("Showing the review page of this video (%d frames at %g fps). Notes: %d open, %d resolved.%s\nVideo path: %s\n%s",
+		src.Frames, src.FPS, out.Open, out.Resolved, b.String(), out.Video, out.Next)
 	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: text}}}, out, nil
 }
 
