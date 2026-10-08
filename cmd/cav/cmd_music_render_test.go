@@ -16,7 +16,8 @@ func TestMusicRenderNamesMissingFilesBeforeRunningPython(t *testing.T) {
 	  {"name": "kick", "instrument": "sample:`+present+`", "hits": [0]},
 	  {"name": "fx", "instrument": "sample:/nope/whoosh.wav", "hits": [1]},
 	  {"name": "lead", "instrument": "vst3:/nope/Synth.vst3", "preset": "/nope/lead.vstpreset", "notes": []},
-	  {"name": "bass", "instrument": "bass", "notes": []}],
+	  {"name": "bass", "instrument": "bass", "preset": "/nope/ignored.vstpreset", "notes": []},
+	  {"name": "hit", "instrument": "sample:`+present+`", "preset": "/nope/ignored.vstpreset", "hits": [2]}],
 	 "master": {"reference": "/nope/ref.wav"}}`), 0o644)
 	t.Setenv("PATH", t.TempDir()) // no uv: the check must fail first
 	err := cmdMusicRender(&app{}, []string{"-o", filepath.Join(dir, "out.wav"), score})
@@ -29,7 +30,9 @@ func TestMusicRenderNamesMissingFilesBeforeRunningPython(t *testing.T) {
 			t.Errorf("error %q does not name %q", err, want)
 		}
 	}
-	if strings.Contains(err.Error(), present) {
-		t.Errorf("error names a file that exists: %q", err)
+	for _, unwanted := range []string{present, "ignored.vstpreset"} {
+		if strings.Contains(err.Error(), unwanted) {
+			t.Errorf("error names %q, which the renderer does not read or which exists: %q", unwanted, err)
+		}
 	}
 }

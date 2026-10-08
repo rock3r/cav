@@ -68,10 +68,12 @@ func cmdMusicRender(a *app, args []string) error {
 		}
 	}
 	for _, t := range probe.Tracks {
-		if kind, p, ok := strings.Cut(t.Instrument, ":"); ok && (kind == "sample" || kind == "vst3" || kind == "au") {
-			need("track "+t.Name+": "+kind, p)
+		kind, p, ok := strings.Cut(t.Instrument, ":")
+		if !ok || (kind != "sample" && kind != "vst3" && kind != "au") {
+			continue
 		}
-		if t.Preset != "" {
+		need("track "+t.Name+": "+kind, p)
+		if t.Preset != "" && kind != "sample" { // the renderer reads presets for plugins only
 			need("track "+t.Name+": preset", t.Preset)
 		}
 	}
