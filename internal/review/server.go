@@ -28,6 +28,11 @@ type Server struct {
 	Changed  func() // called after every change (for logging); may be nil
 	// Prepare probes a new render and makes its proxy; Watch calls it when the file changes.
 	Prepare func(ctx context.Context) (Source, string, error)
+	// CacheDir holds the proxies of every version, named <sha256>.mp4.
+	CacheDir string
+
+	waveMu sync.Mutex
+	waves  map[string][]byte
 
 	mu        sync.RWMutex
 	preparing bool
@@ -91,7 +96,7 @@ func (s *Server) Watch(ctx context.Context, every time.Duration) {
 		}
 		s.mu.Unlock()
 		if err == nil {
-			s.Store.Update(func(d *Doc) error { d.Source = src; return nil })
+			s.Store.Update(func(d *Doc) error { d.Source = src; AddVersion(d, src); return nil })
 			s.changed()
 		}
 		lastMod, lastSize, pendingSize = info.ModTime(), info.Size(), -1
@@ -115,6 +120,30 @@ func (s *Server) Handler() http.Handler {
 		w.Header().Set("Cache-Control", "no-store")
 		_, proxy := s.current()
 		http.ServeFile(w, r, proxy)
+	})
+	// An earlier version's proxy, for comparing; only versions this review recorded.
+	mux.HandleFunc("GET /video/{sha}", func(w http.ResponseWriter, r *http.Request) {
+		p, ok := s.versionProxy(r.PathValue("sha"))
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Cache-Control", "no-store")
+		http.ServeFile(w, r, p)
+	})
+	mux.HandleFunc("GET /api/waveform/{sha}", func(w http.ResponseWriter, r *http.Request) {
+		p, ok := s.versionProxy(r.PathValue("sha"))
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		b, err := s.waveform(r.Context(), r.PathValue("sha"), p)
+		if err != nil {
+			httpErr(w, 500, err)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(b)
 	})
 	mux.HandleFunc("GET /api/state", func(w http.ResponseWriter, r *http.Request) {
 		d, err := s.Store.Load()
@@ -389,4 +418,47 @@ func httpErr(w http.ResponseWriter, code int, err error) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+}
+
+// versionProxy finds the proxy of a version this review recorded (by full sha256).
+func (s *Server) versionProxy(sha string) (string, bool) {
+	src, proxy := s.current()
+	if sha == src.SHA256 {
+		return proxy, true
+	}
+	if s.CacheDir == "" || len(sha) != 64 || strings.Trim(sha, "0123456789abcdef") != "" {
+		return "", false
+	}
+	d, err := s.Store.Load()
+	if err != nil {
+		return "", false
+	}
+	for _, v := range d.Versions {
+		if v.SHA256 == sha {
+			p := filepath.Join(s.CacheDir, sha+".mp4")
+			if _, err := os.Stat(p); err == nil {
+				return p, true
+			}
+		}
+	}
+	return "", false
+}
+
+// waveform returns the audio's peaks as JSON, cached per version.
+func (s *Server) waveform(ctx context.Context, sha, proxy string) ([]byte, error) {
+	s.waveMu.Lock()
+	defer s.waveMu.Unlock()
+	if b, ok := s.waves[sha]; ok {
+		return b, nil
+	}
+	peaks, secs, err := Peaks(ctx, proxy, 1600)
+	if err != nil {
+		return nil, err
+	}
+	b, _ := json.Marshal(map[string]any{"peaks": peaks, "seconds": secs})
+	if s.waves == nil {
+		s.waves = map[string][]byte{}
+	}
+	s.waves[sha] = b
+	return b, nil
 }

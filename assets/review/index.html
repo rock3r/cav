@@ -37,6 +37,20 @@
   .stage { position: relative; max-width: 100%; max-height: 100%; }
   .stage video { display: block; width: 100%; height: 100%; }
   .stage svg { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
+  .stage video.layer { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; display: none; }
+  .stage.cmp-wipe #videoB, .stage.cmp-diff #videoB, .stage.cmp-onion .ghost { display: block; }
+  .stage.cmp-diff #videoB { mix-blend-mode: difference; }
+  .stage .ghost { opacity: 0.38; }
+  #ghostPrev { filter: sepia(1) saturate(4) hue-rotate(-30deg); }
+  #ghostNext { filter: sepia(1) saturate(4) hue-rotate(150deg); }
+  .divider { position: absolute; top: 0; bottom: 0; width: 3px; margin-left: -1px; background: var(--accent); cursor: ew-resize; display: none; z-index: 3; touch-action: none; }
+  .divider::after { content: ''; position: absolute; top: 50%; left: -7px; width: 17px; height: 17px; margin-top: -8px; border-radius: 50%; background: var(--accent); }
+  .stage.cmp-wipe .divider { display: block; }
+  .cmp-label { position: absolute; top: 6px; font: 11px var(--mono); background: rgba(0,0,0,0.6); color: #fff; padding: 1px 6px; border-radius: 3px; display: none; z-index: 3; }
+  .stage.cmp-wipe .cmp-label, .stage.cmp-diff .cmp-label { display: block; }
+  .compare { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 12px; color: var(--ink-soft); }
+  select { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; min-height: 30px; }
+  .timeline .wave { position: absolute; inset: 0; width: 100%; height: 100%; }
   .stage.drawing svg { cursor: crosshair; }
 
   .transport { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
@@ -102,7 +116,13 @@
     <div class="stage-wrap" id="stageWrap">
       <div class="stage" id="stage">
         <video id="video" src="/video" preload="auto" playsinline></video>
+        <video id="videoB" class="layer" preload="auto" muted playsinline></video>
+        <video id="ghostPrev" class="layer ghost" preload="auto" muted playsinline></video>
+        <video id="ghostNext" class="layer ghost" preload="auto" muted playsinline></video>
         <svg id="overlay" aria-label="Drawing layer"></svg>
+        <div class="divider" id="divider" title="Drag to move the wipe"></div>
+        <span class="cmp-label" id="labelA" style="left:6px">A: this render</span>
+        <span class="cmp-label" id="labelB" style="right:6px">B: earlier</span>
       </div>
     </div>
 
@@ -129,9 +149,23 @@
         <button class="swatch" data-color="#ffffff" style="background:#ffffff" aria-label="White"></button>
         <button id="bUndo" title="Undo the last stroke (Ctrl/Cmd+Z)">Undo</button>
       </div>
+      <div class="compare">
+        <label for="cmpMode">Compare</label>
+        <select id="cmpMode" title="Compare with an earlier render, or show the frames around this one (W)">
+          <option value="off">off</option>
+          <option value="wipe">A/B wipe</option>
+          <option value="diff">difference</option>
+          <option value="onion">onion skin</option>
+        </select>
+        <select id="cmpVersion" title="The earlier render to compare with"></select>
+        <select id="onionStep" title="Frames between the ghosts and this frame">
+          <option value="1">±1 frame</option><option value="2" selected>±2 frames</option><option value="4">±4 frames</option><option value="8">±8 frames</option>
+        </select>
+      </div>
     </div>
 
     <div class="timeline" id="timeline" aria-label="Timeline: click or drag to seek">
+      <svg class="wave" id="wave" viewBox="0 0 1000 44" preserveAspectRatio="none" aria-hidden="true"></svg>
       <svg class="ticks" id="ticks" preserveAspectRatio="none"></svg>
       <div class="range" id="range" hidden></div>
       <div id="marks"></div>
@@ -171,6 +205,7 @@
     <tr><td><kbd>Ctrl/Cmd+Z</kbd></td><td>undo the last stroke</td></tr>
     <tr><td><kbd>C</kbd></td><td>write a note; <kbd>Cmd/Ctrl+Enter</kbd> adds it</td></tr>
     <tr><td><kbd>N</kbd> <kbd>Shift+N</kbd></td><td>next / previous note</td></tr>
+    <tr><td><kbd>W</kbd></td><td>cycle compare: off, A/B wipe, difference, onion skin</td></tr>
     <tr><td><kbd>Esc</kbd></td><td>leave the note field, drop the drawing</td></tr>
   </table>
   <form method="dialog" style="margin-top:12px;text-align:right"><button>Close</button></form>
@@ -219,7 +254,7 @@
   // ---------- frames ----------
   function onFrame(f, isExact) {
     frame = Math.max(0, Math.min(last(), f)); exact = isExact;
-    renderReadout(); renderHead(); renderOverlay(); renderWhere();
+    renderReadout(); renderHead(); renderOverlay(); renderWhere(); syncLayers();
   }
   // While a seek is in flight, `pending` is the frame asked for. A frame callback from an
   // earlier seek must not move the playhead back, or quick key presses lose steps.
@@ -251,7 +286,7 @@
     // Aim for the middle of the frame so rounding never lands on its neighbour.
     pending = f;
     video.currentTime = (f + 0.5) / meta.fps;
-    frame = f; exact = false; renderReadout(); renderHead(); renderOverlay(); renderWhere();
+    frame = f; exact = false; renderReadout(); renderHead(); renderOverlay(); renderWhere(); syncLayers();
   }
   const seekDone = () => new Promise(res => { if (!video.seeking) return res(); video.addEventListener('seeked', () => res(), { once: true }); });
 
@@ -286,6 +321,74 @@
   function renderPlay() {
     const playing = !video.paused || shuttleTimer;
     $('bPlay').textContent = playing ? (shuttle && shuttle !== 1 ? `Pause (${shuttle > 0 ? '' : '−'}${Math.abs(shuttle)}×)` : 'Pause') : 'Play';
+  }
+
+  // ---------- compare: an earlier render (wipe, difference) or neighbour frames (onion) ----------
+  const videoB = $('videoB'), ghostPrev = $('ghostPrev'), ghostNext = $('ghostNext');
+  let cmp = 'off', versionB = null, divX = 50;
+  const cmpVersions = () => (doc.versions || []).filter(v => v.sha256 !== meta.sha256).slice().reverse();
+  function renderVersions() {
+    const vs = cmpVersions(), sel = $('cmpVersion');
+    const keep = versionB && vs.find(v => v.sha256 === versionB.sha256) ? versionB.sha256 : (vs[0] && vs[0].sha256);
+    sel.innerHTML = vs.length ? vs.map((v, i) => `<option value="${v.sha256}">B: ${i === 0 ? 'previous' : 'earlier'} render, ${new Date(v.at).toLocaleString()} (${v.frames} f)</option>`).join('') : '<option value="">no earlier render yet</option>';
+    sel.value = keep || '';
+    versionB = vs.find(v => v.sha256 === keep) || null;
+    sel.disabled = !vs.length;
+    $('cmpVersion').hidden = cmp === 'onion' || cmp === 'off';
+    $('onionStep').hidden = cmp !== 'onion';
+  }
+  function setCompare(mode) {
+    if ((mode === 'wipe' || mode === 'diff') && !versionB) { toast('No earlier render to compare with yet: re-render to the same file first'); mode = 'off'; }
+    cmp = mode; $('cmpMode').value = mode;
+    stage.classList.remove('cmp-wipe', 'cmp-diff', 'cmp-onion');
+    if (mode !== 'off') stage.classList.add('cmp-' + mode);
+    if (mode === 'wipe' || mode === 'diff') {
+      const src = '/video/' + versionB.sha256;
+      if (!videoB.src.endsWith(src)) videoB.src = src;
+    }
+    if (mode === 'onion') { for (const g of [ghostPrev, ghostNext]) if (!g.src.endsWith('/video/' + meta.sha256)) g.src = '/video/' + meta.sha256; }
+    applyWipe(); renderVersions(); syncLayers();
+  }
+  function applyWipe() {
+    videoB.style.clipPath = cmp === 'wipe' ? `inset(0 0 0 ${divX}%)` : '';
+    $('divider').style.left = divX + '%';
+  }
+  const seekLayer = (v, f, fps) => { const t = (f + 0.5) / fps; if (Math.abs(v.currentTime - t) > 0.4 / fps) v.currentTime = t; };
+  function syncLayers() {
+    if (cmp === 'wipe' || cmp === 'diff') { if (versionB) seekLayer(videoB, Math.min(frame, versionB.frames - 1), versionB.fps || meta.fps); }
+    else if (cmp === 'onion') {
+      const step = +$('onionStep').value;
+      seekLayer(ghostPrev, Math.max(0, frame - step), meta.fps);
+      seekLayer(ghostNext, Math.min(last(), frame + step), meta.fps);
+    }
+  }
+  $('cmpMode').addEventListener('change', e => setCompare(e.target.value));
+  $('cmpVersion').addEventListener('change', e => { versionB = cmpVersions().find(v => v.sha256 === e.target.value) || null; setCompare(cmp); });
+  $('onionStep').addEventListener('change', syncLayers);
+  const divider = $('divider');
+  divider.addEventListener('pointerdown', e => { divider.setPointerCapture(e.pointerId); e.stopPropagation(); });
+  divider.addEventListener('pointermove', e => {
+    if (!e.buttons) return;
+    const r = stage.getBoundingClientRect();
+    divX = Math.max(0, Math.min(100, (e.clientX - r.left) / r.width * 100)); applyWipe();
+  });
+
+  // ---------- waveform ----------
+  let waveFor = '';
+  async function renderWave() {
+    if (!meta || waveFor === meta.sha256) return;
+    waveFor = meta.sha256;
+    try {
+      const w = await api('GET', '/api/waveform/' + meta.sha256);
+      if (!w.peaks || !w.peaks.length) { $('wave').innerHTML = ''; return; }
+      const n = w.peaks.length, videoSecs = meta.frames / meta.fps, span = Math.min(1, (w.seconds || videoSecs) / videoSecs);
+      // Scale to the loudest peak, so a quiet track still shows its shape.
+      const top = Math.max(0.001, ...w.peaks);
+      let d = 'M0 22';
+      w.peaks.forEach((p, i) => { d += ` L${(i / n * 1000 * span).toFixed(1)} ${(22 - p / top * 19).toFixed(1)}`; });
+      for (let i = n - 1; i >= 0; i--) d += ` L${(i / n * 1000 * span).toFixed(1)} ${(22 + w.peaks[i] / top * 19).toFixed(1)}`;
+      $('wave').innerHTML = `<path d="${d} Z" fill="#8fa4ff" opacity="0.28"/>`;
+    } catch (e) { waveFor = ''; }
   }
 
   // ---------- readout, head, range, marks ----------
@@ -508,6 +611,7 @@
       x: () => { inF = outF = null; renderRange(); renderWhere(); },
       v: () => setTool('none'), p: () => setTool('pen'), a: () => setTool('arrow'), b: () => setTool('rect'), e: () => setTool('ellipse'),
       c: () => $('text').focus(), n: () => stepNote(1), N: () => stepNote(-1),
+      w: () => { const order = ['off', 'wipe', 'diff', 'onion']; setCompare(order[(order.indexOf(cmp) + 1) % order.length]); },
       '?': () => $('keys').showModal(),
       Escape: () => { draft = []; drawing = null; renderOverlay(); renderWhere(); },
     };
@@ -539,6 +643,8 @@
       toast('New render loaded; notes on the old one are marked');
     }
     meta = s.source; doc = s.doc; version = s.version; author = s.author;
+    renderVersions(); renderWave();
+    if (cmp === 'onion') setCompare('onion');
     if (first) {
       $('name').textContent = s.name;
       document.title = s.name + ' · cav review';

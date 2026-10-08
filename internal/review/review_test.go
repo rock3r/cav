@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -162,5 +163,44 @@ func TestWatchReloadsAChangedRender(t *testing.T) {
 	d, _ := s.Store.Load()
 	if s.version() != "ffff00001111" || calls != 1 || d.Source.Frames != 240 {
 		t.Fatalf("version %s, %d prepares, review file %+v", s.version(), calls, d.Source)
+	}
+}
+
+func TestVersionsAndPeaks(t *testing.T) {
+	s, h := newTestServer(t)
+	s.CacheDir = t.TempDir()
+	old := strings.Repeat("a", 64)
+	os.WriteFile(filepath.Join(s.CacheDir, old+".mp4"), []byte("old proxy"), 0o644)
+	s.Store.Update(func(d *Doc) error {
+		AddVersion(d, Source{SHA256: old, Frames: 10, FPS: 30})
+		AddVersion(d, Source{SHA256: old, Frames: 10, FPS: 30})
+		return nil
+	})
+	d, _ := s.Store.Load()
+	if len(d.Versions) != 1 {
+		t.Fatalf("a version is recorded once: %d", len(d.Versions))
+	}
+	if w := do(t, h, "GET", "/video/"+old, nil, nil); w.Code != 200 || w.Body.String() != "old proxy" {
+		t.Fatalf("recorded version: %d %q", w.Code, w.Body.String())
+	}
+	for _, bad := range []string{strings.Repeat("b", 64), "..%2F..%2Fetc", "abc"} {
+		if w := do(t, h, "GET", "/video/"+bad, nil, nil); w.Code != 404 {
+			t.Fatalf("%s: got %d, want 404", bad, w.Code)
+		}
+	}
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skip("ffmpeg not installed")
+	}
+	wav := filepath.Join(t.TempDir(), "tone.wav")
+	if err := exec.Command("ffmpeg", "-v", "error", "-f", "lavfi", "-i", "sine=frequency=440:duration=1", "-af", "volume=0.5", wav).Run(); err != nil {
+		t.Fatal(err)
+	}
+	peaks, secs, err := Peaks(context.Background(), wav, 100)
+	if err != nil || len(peaks) != 100 || secs < 0.99 || secs > 1.01 {
+		t.Fatalf("peaks %d, %.2fs, %v", len(peaks), secs, err)
+	}
+	// ffmpeg's sine source plays at 1/8 of full scale; at half volume it peaks at 0.0625.
+	if peaks[50] < 0.055 || peaks[50] > 0.07 {
+		t.Fatalf("peak %v, want about 0.0625", peaks[50])
 	}
 }

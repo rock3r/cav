@@ -29,6 +29,28 @@ type Doc struct {
 	// Server is the running review page, while `cav review` serves it; tools such as the
 	// Claude Code plugin read it to link to the page.
 	Server *ServerInfo `json:"server,omitempty"`
+	// Versions lists every render of this file the review has seen, oldest first, so the
+	// page can compare the current render with an earlier one.
+	Versions []Version `json:"versions,omitempty"`
+}
+
+type Version struct {
+	SHA256 string    `json:"sha256"`
+	Frames int       `json:"frames"`
+	FPS    float64   `json:"fps"`
+	Width  int       `json:"width"`
+	Height int       `json:"height"`
+	At     time.Time `json:"at"`
+}
+
+// AddVersion records a render once, by content.
+func AddVersion(d *Doc, src Source) {
+	for _, v := range d.Versions {
+		if v.SHA256 == src.SHA256 {
+			return
+		}
+	}
+	d.Versions = append(d.Versions, Version{SHA256: src.SHA256, Frames: src.Frames, FPS: src.FPS, Width: src.Width, Height: src.Height, At: time.Now().UTC()})
 }
 
 type ServerInfo struct {

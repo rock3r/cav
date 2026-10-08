@@ -63,3 +63,34 @@ func Proxy(ctx context.Context, video, sha, cacheDir string) (string, error) {
 	}
 	return out, os.Rename(tmp, out)
 }
+
+// Peaks decodes the audio to 8 kHz mono and returns the loudest sample (0..1) in each of n
+// equal slices, for drawing a waveform. A video without sound gives no peaks.
+func Peaks(ctx context.Context, path string, n int) ([]float64, float64, error) {
+	cmd := exec.CommandContext(ctx, "ffmpeg", "-v", "error", "-i", path, "-vn", "-ac", "1", "-ar", "8000", "-f", "s16le", "-")
+	out, err := cmd.Output()
+	if err != nil {
+		// No audio stream is not an error for the page.
+		return []float64{}, 0, nil
+	}
+	samples := len(out) / 2
+	if samples == 0 || n <= 0 {
+		return []float64{}, 0, nil
+	}
+	peaks := make([]float64, n)
+	for i := 0; i < samples; i++ {
+		v := int16(uint16(out[2*i]) | uint16(out[2*i+1])<<8)
+		a := float64(v) / 32768
+		if a < 0 {
+			a = -a
+		}
+		b := i * n / samples
+		if a > peaks[b] {
+			peaks[b] = a
+		}
+	}
+	for i := range peaks {
+		peaks[i] = float64(int(peaks[i]*1000)) / 1000
+	}
+	return peaks, float64(samples) / 8000, nil
+}

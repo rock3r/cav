@@ -166,10 +166,11 @@ func reviewServe(a *app, args []string) error {
 	}
 	store := review.Open(video)
 	// Record the render in the review file, so `wait` and `export` know what it was.
-	if _, err := store.Update(func(d *review.Doc) error { d.Source = src; return nil }); err != nil {
+	if _, err := store.Update(func(d *review.Doc) error { d.Source = src; review.AddVersion(d, src); return nil }); err != nil {
 		return err
 	}
-	srv := &review.Server{Store: store, Source: src, Proxy: proxy, Page: assets.ReviewPage, PagePath: os.Getenv("CAV_REVIEW_PAGE"), Author: *author, Prepare: prepare}
+	srv := &review.Server{Store: store, Source: src, Proxy: proxy, Page: assets.ReviewPage, PagePath: os.Getenv("CAV_REVIEW_PAGE"), Author: *author, Prepare: prepare,
+		CacheDir: filepath.Join(config.CacheDir(), "review")}
 	go srv.Watch(ctx, time.Second)
 	ln, err := listenFrom(*port)
 	if err != nil {
