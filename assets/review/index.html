@@ -368,8 +368,16 @@
     }, 1000 / Math.min(meta.fps, 30));
     renderPlay();
   }
-  video.addEventListener('loadeddata', () => { $('stageNote').hidden = true; });
+  // Notes are about the frames on screen, so they wait until a render has loaded: after a
+  // re-render the old frames stay up until the new ones arrive, and in the chat a preview
+  // that cannot load leaves the stage empty.
+  let videoReady = false;
+  const setVideoReady = ok => { videoReady = ok; $('bAdd').disabled = !ok; };
+  setVideoReady(video.readyState >= 2);
+  video.addEventListener('loadeddata', () => { $('stageNote').hidden = true; setVideoReady(true); });
+  video.addEventListener('emptied', () => setVideoReady(false));
   video.addEventListener('error', () => {
+    setVideoReady(false);
     const n = $('stageNote'); n.hidden = false; n.classList.add('bad');
     n.textContent = 'The browser could not play this render. Check that cav review is still running, then reload.';
   });
@@ -591,16 +599,17 @@
   async function addNote() {
     const text = $('text').value.trim();
     if (!text && !draft.length) { toast('Write a note or draw something first'); return; }
+    if (!videoReady) { toast('Wait until the render has loaded'); return; }
     video.pause(); stopShuttle();
     const [a, b] = rangeNow();
     $('bAdd').disabled = true;
     try {
       const snap = await snapshot(a);
-      const c = await api('POST', '/api/comments', { frame: a, frameEnd: b, text, shapes: draft, snapshot: snap });
+      const c = await api('POST', '/api/comments', { frame: a, frameEnd: b, text, shapes: draft, snapshot: snap, version });
       draft = []; $('text').value = ''; inF = outF = null; renderRange(); renderWhere();
       selected = c.id; await refresh(); toast(`Added ${c.id} at frame ${c.frame}`);
     } catch (e) { toast('Could not add the note: ' + e.message); }
-    finally { $('bAdd').disabled = false; }
+    finally { $('bAdd').disabled = !videoReady; }
   }
   $('bAdd').addEventListener('click', addNote);
 
@@ -704,6 +713,7 @@
     if (!first && s.version !== version) {
       // The agent re-rendered to the same file: load it, stay on the same frame.
       const keep = frame;
+      setVideoReady(false);
       video.src = '/video?v=' + s.version;
       video.addEventListener('loadedmetadata', () => seek(Math.min(keep, s.source.frames - 1)), { once: true });
       refresh.told = false;

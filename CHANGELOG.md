@@ -7,6 +7,13 @@
   plays a 640-pixel preview sent inline, and its notes go to the same review file. The
   cavalry plugin starts it in Claude Code and Codex; without the plugin, register it with
   `claude mcp add cav -- cav mcp` or `codex mcp add cav -- cav mcp`.
+- In `cav review` and `cav mcp`, a note now stays on the render the page showed when you
+  made it, also when a re-render goes live at the same moment. The page sends the version
+  it shows with each note. In the chat, a re-render goes live only when the page asks for
+  the review state.
+- In the chat review, a re-render whose preview cannot load (for example over 24 MB) no
+  longer leaves the earlier render on the stage. The page stops adding notes until a
+  render has loaded.
 - When cav cannot reach cav-bridge, `cav doctor` and the errors of every other command
   now say whether Cavalry itself is running. "Cavalry is not running (it may have
   crashed)" names the newest Cavalry crash report on macOS, if there is one. "Cavalry is

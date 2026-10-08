@@ -231,3 +231,36 @@ func TestPreviewProxyIsSmallAndKeepsEveryFrame(t *testing.T) {
 		t.Errorf("preview is %dx%d with %d frames, want %dx360 with 25", src.Width, src.Height, src.Frames, PreviewWidth)
 	}
 }
+
+// A note is recorded against the render the page showed, even when a re-render went live
+// between the page's last look at /api/state and the note (issue #26).
+func TestNoteKeepsTheVersionThePageShowed(t *testing.T) {
+	s, h := newTestServer(t)
+	s.Store.Update(func(d *Doc) error { AddVersion(d, s.Source); return nil })
+	newer := Source{Render: s.Store.Video, SHA256: "ffff00001111222233", FPS: 25, Frames: 50, Width: 64, Height: 36}
+	s.mu.Lock()
+	s.Source = newer
+	s.mu.Unlock()
+	s.Store.Update(func(d *Doc) error { AddVersion(d, newer); return nil })
+
+	// Frame 100 is past the end of the new render, but inside the 120 frames the page showed.
+	w := do(t, h, "POST", "/api/comments", map[string]any{"frame": 100, "text": "on the old one", "version": "abcdef012345"}, nil)
+	if w.Code != 200 {
+		t.Fatalf("add on the shown render: %d %s", w.Code, w.Body)
+	}
+	var c Comment
+	json.Unmarshal(w.Body.Bytes(), &c)
+	if c.Version != "abcdef012345" || c.Timecode != "00:00:03:10" {
+		t.Errorf("the note should be on the shown render at 30 fps: %+v", c)
+	}
+
+	w = do(t, h, "POST", "/api/comments", map[string]any{"frame": 10, "text": "no version"}, nil)
+	json.Unmarshal(w.Body.Bytes(), &c)
+	if w.Code != 200 || c.Version != "ffff00001111" {
+		t.Errorf("a note without a version should be on the current render: %d %+v", w.Code, c)
+	}
+
+	if w := do(t, h, "POST", "/api/comments", map[string]any{"frame": 1, "text": "x", "version": "000000000000"}, nil); w.Code != 409 {
+		t.Errorf("a version the review never saw: %d, want 409", w.Code)
+	}
+}

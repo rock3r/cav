@@ -124,9 +124,16 @@
     },
   });
   // A media request that fails (for example a preview too large for the chat) is shown in
-  // the page: on the stage for the render itself, as a toast for the rest.
+  // the page: on the stage for the render itself, as a toast for the rest. A video also
+  // drops the source it had, so the stage does not keep showing an earlier render that the
+  // page no longer takes notes on; the page sees 'emptied' and stops adding notes.
   function showError(el, msg) {
     const note = document.getElementById('stageNote'), toast = document.getElementById('toast');
+    if (el instanceof HTMLMediaElement && desc.get.call(el)) {
+      el.pause();
+      el.removeAttribute('src');
+      el.load();
+    }
     if (el.id === 'video' && note) {
       note.textContent = 'Could not load the render: ' + msg;
       note.hidden = false; note.classList.add('bad');

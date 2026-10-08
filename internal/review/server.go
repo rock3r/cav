@@ -55,10 +55,15 @@ func (s *Server) current() (Source, string) {
 
 func (s *Server) version() string {
 	src, _ := s.current()
-	if len(src.SHA256) >= 12 {
-		return src.SHA256[:12]
+	return shortSHA(src.SHA256)
+}
+
+// shortSHA is the version name of a render: its sha256, first 12 hex digits.
+func shortSHA(sha string) string {
+	if len(sha) >= 12 {
+		return sha[:12]
 	}
-	return src.SHA256
+	return sha
 }
 
 // Watch reloads the render when its file changes (an agent re-rendered to the same path).
@@ -261,6 +266,26 @@ type commentInput struct {
 	Text     string  `json:"text"`
 	Shapes   []Shape `json:"shapes"`
 	Snapshot string  `json:"snapshot"` // data:image/png;base64,...
+	// Version is the render the page showed when the note was made. The render can change
+	// between the page's last look at /api/state and this request, and the note belongs to
+	// the frames the reviewer saw. Empty means the current render.
+	Version string `json:"version"`
+}
+
+var errOtherVersion = errors.New("the render changed and the page shows one this review does not know: reload the page")
+
+// noteTarget finds the render a new note is about: the current one, or an earlier one
+// that the review recorded.
+func noteTarget(d *Doc, cur Source, want string) (version string, fps float64, frames int, err error) {
+	if want == "" || want == shortSHA(cur.SHA256) {
+		return shortSHA(cur.SHA256), cur.FPS, cur.Frames, nil
+	}
+	for _, v := range d.Versions {
+		if shortSHA(v.SHA256) == want {
+			return want, v.FPS, v.Frames, nil
+		}
+	}
+	return "", 0, 0, errOtherVersion
 }
 
 func (s *Server) addComment(w http.ResponseWriter, r *http.Request) {
@@ -274,8 +299,19 @@ func (s *Server) addComment(w http.ResponseWriter, r *http.Request) {
 		httpErr(w, 400, errors.New("write a note or draw something"))
 		return
 	}
-	if cur, _ := s.current(); in.Frame < 0 || (cur.Frames > 0 && in.Frame >= cur.Frames) {
-		httpErr(w, 400, fmt.Errorf("frame %d is outside the video (0-%d)", in.Frame, cur.Frames-1))
+	src, _ := s.current()
+	d, err := s.Store.Load()
+	if err != nil {
+		httpErr(w, 500, err)
+		return
+	}
+	version, fps, frames, err := noteTarget(d, src, in.Version)
+	if err != nil {
+		httpErr(w, 409, err)
+		return
+	}
+	if in.Frame < 0 || (frames > 0 && in.Frame >= frames) {
+		httpErr(w, 400, fmt.Errorf("frame %d is outside the video (0-%d)", in.Frame, frames-1))
 		return
 	}
 	if in.FrameEnd != nil && *in.FrameEnd <= in.Frame {
@@ -287,12 +323,11 @@ func (s *Server) addComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var made Comment
-	src, _ := s.current()
 	_, err = s.Store.Update(func(d *Doc) error {
 		d.Source = src
 		c := Comment{
-			ID: NextID(d), Version: s.version(), Frame: in.Frame, FrameEnd: in.FrameEnd,
-			Timecode: Timecode(in.Frame, src.FPS), Fragment: Fragment(in.Frame, in.FrameEnd, src.FPS, in.Shapes),
+			ID: NextID(d), Version: version, Frame: in.Frame, FrameEnd: in.FrameEnd,
+			Timecode: Timecode(in.Frame, fps), Fragment: Fragment(in.Frame, in.FrameEnd, fps, in.Shapes),
 			Author: s.Author, CreatedAt: time.Now().UTC(), Status: "open", Text: in.Text, Shapes: in.Shapes,
 		}
 		if png != nil {
