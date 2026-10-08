@@ -120,7 +120,7 @@
       if (!v.startsWith('/')) { delete this.dataset.cavSrc; desc.set.call(this, v); return; }
       this.dataset.cavSrc = v;
       dataURL(v).then(u => { if (this.dataset.cavSrc === v) desc.set.call(this, u); })
-        .catch(e => showError(this, e.message));
+        .catch(e => { if (this.dataset.cavSrc === v) showError(this, e.message); }); // not if a newer path replaced it
     },
   });
   // A media request that fails (for example a preview too large for the chat) is shown in
