@@ -140,6 +140,29 @@ func TestGrokAspectUsesTheNearestAcceptedRatio(t *testing.T) {
 	}
 }
 
+func TestFalCapsReferencesPerModel(t *testing.T) {
+	bodies := falServer(t, "fal_status_completed.json")
+	var notes []string
+	old := Warn
+	Warn = func(m string) { notes = append(notes, m) }
+	t.Cleanup(func() { Warn = old })
+	refs := []string{refFile(t), refFile(t), refFile(t), refFile(t), refFile(t)}
+	for _, model := range []string{"xai/grok-imagine-image", "fal-ai/flux-2", "fal-ai/bytedance/seedream/v4.5/text-to-image"} {
+		c := &services.Config{Models: map[string]string{"fal": model}}
+		if _, err := Generate(context.Background(), c, &services.Choice{Service: "fal", Key: "fal-key"}, Request{Prompt: "x", Refs: refs}); err != nil {
+			t.Fatalf("%s: %v", model, err)
+		}
+	}
+	for endpoint, want := range map[string]int{"xai/grok-imagine-image/edit": 3, "fal-ai/flux-2/edit": 4, "fal-ai/bytedance/seedream/v4.5/edit": 5} {
+		if got := len(bodies[endpoint]["image_urls"].([]any)); got != want {
+			t.Errorf("%s: sent %d references, want %d", endpoint, got, want)
+		}
+	}
+	if len(notes) != 2 || !strings.Contains(notes[0], "takes 3 reference images") || !strings.Contains(notes[1], "takes 4") {
+		t.Fatalf("notes: %q", notes)
+	}
+}
+
 func keys(m map[string]map[string]any) []string {
 	var k []string
 	for x := range m {

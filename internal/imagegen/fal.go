@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -30,6 +31,23 @@ var falEditModel = map[string]string{
 	// Ideogram 3 takes image_urls on the same endpoint, as style references.
 	"fal-ai/ideogram/v3": "fal-ai/ideogram/v3",
 }
+
+// falRefLimit is how many reference images each edit model takes (model pages read
+// 2026-10-08). Grok Imagine refuses more; FLUX.2 and Seedream drop the extras silently.
+var falRefLimit = map[string]int{
+	"xai/grok-imagine-image/edit":         3,
+	"fal-ai/flux-2/edit":                  4,
+	"fal-ai/bytedance/seedream/v4.5/edit": 10,
+}
+
+// falRefBytes is the total size of reference images a model takes: Ideogram 3 allows 10 MB
+// of style references.
+var falRefBytes = map[string]int{
+	"fal-ai/ideogram/v3": 10 << 20,
+}
+
+// Warn reports something the user should know about a request that still goes ahead.
+var Warn = func(msg string) { fmt.Fprintln(os.Stderr, "note: "+msg) }
 
 // falSizeEnum maps an aspect ratio to the image_size names FLUX.2 and Ideogram accept.
 var falSizeEnum = map[string]string{
@@ -108,12 +126,25 @@ func fal(ctx context.Context, key, model string, r Request) (*Image, error) {
 			endpoint = e
 		}
 		var urls []string
-		for _, p := range r.Refs {
+		size := 0
+		for i, p := range r.Refs {
+			if n := falRefLimit[endpoint]; n > 0 && i >= n {
+				Warn(fmt.Sprintf("%s takes %d reference images; left out %s", endpoint, n, strings.Join(r.Refs[i:], ", ")))
+				break
+			}
 			data, mime, err := readRef(p)
 			if err != nil {
 				return nil, err
 			}
+			if n := falRefBytes[endpoint]; n > 0 && size+len(data) > n {
+				Warn(fmt.Sprintf("%s takes %d MB of reference images; left out %s", endpoint, n>>20, strings.Join(r.Refs[i:], ", ")))
+				break
+			}
+			size += len(data)
 			urls = append(urls, "data:"+mime+";base64,"+base64.StdEncoding.EncodeToString(data))
+		}
+		if len(urls) == 0 {
+			return nil, fmt.Errorf("%s: the first reference image is larger than the model takes", endpoint)
 		}
 		body["image_urls"] = urls
 	}

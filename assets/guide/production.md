@@ -34,7 +34,9 @@ another fal model id: `cav config model fal fal-ai/flux-2-pro`, `fal-ai/ideogram
 (good with text in the image), `fal-ai/bytedance/seedream/v4.5/text-to-image` or
 `xai/grok-imagine-image`. With reference images, cav sends them to the model's edit
 endpoint (Ideogram takes them as style references). References go inline as data URIs, so
-keep them small (a few hundred KB each).
+keep them small (a few hundred KB each). Models take a limited number: Grok Imagine 3,
+FLUX.2 4, Seedream 10, Ideogram 10 MB in total. cav sends the first ones that fit and says
+which it left out.
 
 A key source says where the key lives; cav never prints or stores the key. If 1Password is
 locked, only the services that read it fail, with a fix line. Never ask the user to paste a
