@@ -2,7 +2,8 @@
 // (image generation, music, sound search, listening) and finds the API key for it.
 //
 // The config file holds where a key lives, never the key itself. A key comes from an
-// environment variable, the OS keychain or a 1Password reference, and is read only when a
+// environment variable, the OS keychain (macOS keychain or Windows Credential Manager), a
+// 1Password reference or an OAuth login, and is read only when a
 // command needs it.
 package services
 

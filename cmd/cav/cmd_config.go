@@ -34,7 +34,7 @@ no keys (greybox frames, Openverse, Wikimedia) and gets better as you add keys.
   cav config set-key <service> <source>
         source is where the key lives, never the key itself:
           env:NAME                  an environment variable
-          keychain:service/account  the macOS keychain
+          keychain:service/account  the macOS keychain, or Windows Credential Manager
           op://vault/item/field     1Password (read with "op read" when a command needs it)
           oauth                     a login made with "cav config login <service>"
   cav config unset-key <service>    go back to the default variable
