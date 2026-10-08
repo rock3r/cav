@@ -2,9 +2,16 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"os/exec"
+	"sort"
+
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/rock3r/cav/assets"
+	"github.com/rock3r/cav/internal/config"
+	"github.com/rock3r/cav/internal/pyrun"
 	"math"
 	"os"
 	"path/filepath"
@@ -22,7 +29,7 @@ import (
 func init() {
 	register(command{
 		name:    "listen",
-		args:    "<track> [--brief file|text] [--board storyboard.json] [--seconds N] [--fps 60] [--bpm hint] [--ears S | --no-ears] [-o picture.png]",
+		args:    "<track>... [--brief file|text] [--board storyboard.json] [--score] [--seconds N] [--fps 60] [--bpm hint] [--ears S | --no-ears] [-o picture.png]",
 		summary: "Judge a track without ears: loudness, structure, cuts against the beat, a picture, and an audio model's critique.",
 		run:     cmdListen,
 	})
@@ -39,6 +46,11 @@ reports, for one track:
   - a written critique from an audio model (the "ears" job in cav config: Gemini, or
     Qwen3-Omni on a server you set). --brief is what the music should do. --no-ears skips
     it; without a key it is skipped and the rest still runs.
+--score adds scores from local models, run through uv (no key; the first run downloads
+about 2 GB): Meta's Audiobox Aesthetics (production quality, enjoyment, usefulness,
+complexity, 0-10) and, with --brief, how well the audio matches it in LAION CLAP's space.
+Give several takes (cav listen a.mp3 b.mp3 c.mp3 --score --board storyboard.json) to put
+them side by side, ranked by production quality.
 Use it to compare takes from cav music gen and to check a track before cav render --audio.
 The numbers and the picture are measurements; the critique is a model's opinion.`
 	register(command{
@@ -86,12 +98,16 @@ func cmdListen(a *app, args []string) error {
 	ears := fs.String("ears", "", "audio model to ask (default: the ears order in cav config)")
 	noEars := fs.Bool("no-ears", false, "skip the audio model")
 	out := fs.String("o", "", "picture (default: renders/listen-<track>.png)")
+	scoreIt := fs.Bool("score", false, "score the take with local models (Audiobox Aesthetics, CLAP) through uv")
 	pos, err := parseFlags(fs, args)
 	if err != nil {
 		return err
 	}
-	if len(pos) != 1 {
+	if len(pos) == 0 {
 		return usageErr("usage: cav listen <track> [--brief ...] [--board storyboard.json]")
+	}
+	if len(pos) > 1 {
+		return listenCompare(a, pos, readBrief(*brief), *boardFile, *bpm, *scoreIt)
 	}
 	track := pos[0]
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
@@ -180,6 +196,15 @@ func cmdListen(a *app, args []string) error {
 		}
 		facts += "\nThe picture cuts to: " + strings.Join(sh, "; ")
 	}
+	var scores *takeScore
+	var scoreNote string
+	if *scoreIt {
+		if ts, err := scoreTakes(ctx, readBrief(*brief), []string{track}); err != nil {
+			scoreNote = err.Error()
+		} else if len(ts) == 1 {
+			scores = &ts[0]
+		}
+	}
 	critique, earsBy, earsNote := "", "", ""
 	if !*noEars {
 		critique, earsBy, earsNote = askEars(ctx, track, *ears, listen.Prompt(readBrief(*brief), facts))
@@ -192,6 +217,11 @@ func cmdListen(a *app, args []string) error {
 		data["loudness"] = loud
 	} else {
 		data["loudnessError"] = lerr.Error()
+	}
+	if scores != nil {
+		data["scores"] = scores
+	} else if scoreNote != "" {
+		data["scoresSkipped"] = scoreNote
 	}
 	if critique != "" {
 		data["critique"] = map[string]string{"by": earsBy, "text": critique}
@@ -216,6 +246,15 @@ func cmdListen(a *app, args []string) error {
 			fmt.Println("note: " + adv)
 		}
 		fmt.Printf("picture: %s (look at it)\n", abs)
+		if scores != nil {
+			fmt.Printf("scores (local models, 0-10): enjoyment %.1f, usefulness %.1f, production quality %.1f, complexity %.1f", scores.Aesthetics["CE"], scores.Aesthetics["CU"], scores.Aesthetics["PQ"], scores.Aesthetics["PC"])
+			if scores.Clap != nil {
+				fmt.Printf("; match to the brief %.3f", *scores.Clap)
+			}
+			fmt.Println()
+		} else if scoreNote != "" {
+			fmt.Println("scores: skipped (" + scoreNote + ")")
+		}
 		if critique != "" {
 			fmt.Printf("\ncritique from %s (a model's opinion, not a measurement):\n%s\n", earsBy, critique)
 		} else if earsNote != "" {
@@ -369,6 +408,139 @@ func cmdMusic(a *app, args []string) error {
 			board = " --board " + *boardFile
 		}
 		fmt.Printf("Compare them: cav listen <take>%s --brief \"...\"\n", board)
+	})
+	return nil
+}
+
+type takeScore struct {
+	Path       string             `json:"path"`
+	Aesthetics map[string]float64 `json:"aesthetics"`
+	Clap       *float64           `json:"clap,omitempty"`
+}
+
+// scoreTakes runs Audiobox Aesthetics (and CLAP against the prompt, when there is one) on
+// the takes, locally through uv. The first run downloads the models (about 2 GB).
+func scoreTakes(ctx context.Context, prompt string, tracks []string) ([]takeScore, error) {
+	script, err := assets.Python.ReadFile("python/score_takes.py")
+	if err != nil {
+		return nil, err
+	}
+	tmp, err := os.MkdirTemp("", "cav-score")
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(tmp)
+	var wavs []string
+	for i, t := range tracks {
+		w := filepath.Join(tmp, fmt.Sprintf("take%d.wav", i))
+		if b, err := exec.CommandContext(ctx, "ffmpeg", "-v", "error", "-y", "-i", t, "-vn", "-ac", "1", "-ar", "48000", "-c:a", "pcm_s16le", w).CombinedOutput(); err != nil {
+			return nil, fmt.Errorf("ffmpeg %s: %v: %s", t, err, strings.TrimSpace(string(b)))
+		}
+		wavs = append(wavs, w)
+	}
+	fmt.Fprintln(os.Stderr, "scoring with local models (the first run downloads them)…")
+	out, err := pyrun.Run(ctx, filepath.Join(config.CacheDir(), "python"), "score_takes.py", script,
+		// audiobox_aesthetics imports requests without declaring it.
+		[]string{"audiobox_aesthetics", "requests", "transformers", "torch", "numpy"}, append([]string{prompt}, wavs...), nil)
+	if err != nil {
+		return nil, err
+	}
+	var r struct {
+		Takes []takeScore `json:"takes"`
+	}
+	if err := json.Unmarshal(out, &r); err != nil {
+		return nil, fmt.Errorf("unexpected scorer output: %w", err)
+	}
+	for i := range r.Takes {
+		r.Takes[i].Path = tracks[i]
+	}
+	return r.Takes, nil
+}
+
+// listenCompare puts several takes side by side: length, tempo, loudness, cuts off the
+// downbeat, and the local scores, ranked by production quality.
+func listenCompare(a *app, tracks []string, brief, boardFile string, bpm float64, withScores bool) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+	var sb *board.Board
+	if boardFile != "" {
+		var err error
+		if sb, err = board.Load(boardFile); err != nil {
+			return fail(exitError, err.Error(), "")
+		}
+		if bpm == 0 {
+			bpm = sb.BPM
+		}
+	}
+	type row struct {
+		Track    string           `json:"track"`
+		Seconds  float64          `json:"seconds"`
+		BPM      float64          `json:"bpm"`
+		Loudness *listen.Loudness `json:"loudness,omitempty"`
+		OffBeat  int              `json:"cutsOffDownbeat"`
+		Score    *takeScore       `json:"scores,omitempty"`
+	}
+	var rows []row
+	for _, t := range tracks {
+		samples, err := beats.Decode(t)
+		if err != nil {
+			return fail(exitError, t+": "+err.Error(), ffmpegFix())
+		}
+		r := beats.Analyze(samples, bpm)
+		rw := row{Track: t, Seconds: float64(len(samples)) / beats.SampleRate, BPM: r.BPM}
+		if l, err := listen.Measure(ctx, t); err == nil {
+			rw.Loudness = &l
+		}
+		if sb != nil && len(r.Downbeats) > 0 {
+			for _, s := range sb.Shots {
+				ts := sb.Time(s.Beats[0])
+				best := r.Downbeats[0]
+				for _, d := range r.Downbeats {
+					if math.Abs(d-ts) < math.Abs(best-ts) {
+						best = d
+					}
+				}
+				if math.Abs(best-ts) > 0.035 {
+					rw.OffBeat++
+				}
+			}
+		}
+		rows = append(rows, rw)
+	}
+	note := ""
+	if withScores {
+		if ts, err := scoreTakes(ctx, brief, tracks); err != nil {
+			note = err.Error()
+		} else {
+			for i := range rows {
+				rows[i].Score = &ts[i]
+			}
+			sort.SliceStable(rows, func(i, j int) bool { return rows[i].Score.Aesthetics["PQ"] > rows[j].Score.Aesthetics["PQ"] })
+		}
+	}
+	a.emit(map[string]any{"takes": rows, "scoresSkipped": note}, func() {
+		for _, r := range rows {
+			fmt.Printf("%s\n  %.2f s, %.1f BPM", r.Track, r.Seconds, r.BPM)
+			if r.Loudness != nil {
+				fmt.Printf(", %.1f LUFS, peak %.1f dBTP", r.Loudness.Integrated, r.Loudness.TruePeak)
+			}
+			if sb != nil {
+				fmt.Printf(", %d of %d cuts off the downbeat", r.OffBeat, len(sb.Shots))
+			}
+			fmt.Println()
+			if r.Score != nil {
+				fmt.Printf("  quality %.1f, enjoyment %.1f", r.Score.Aesthetics["PQ"], r.Score.Aesthetics["CE"])
+				if r.Score.Clap != nil {
+					fmt.Printf(", match to the brief %.3f", *r.Score.Clap)
+				}
+				fmt.Println()
+			}
+		}
+		if note != "" {
+			fmt.Println("scores: skipped (" + note + ")")
+		} else if withScores {
+			fmt.Println("Ranked by production quality (local model). Listen to the top two before choosing.")
+		}
 	})
 	return nil
 }
