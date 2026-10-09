@@ -166,6 +166,14 @@ func (s *Store) save(d *Doc) error {
 func (s *Store) Update(fn func(d *Doc) error) (*Doc, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// The mutex orders the writers in this process; the lock file orders them across
+	// processes (the CLI, and the chat's server processes), so that none saves an old copy
+	// of the review over another's change.
+	unlock, err := s.lockFile()
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
 	d, err := s.Load()
 	if err != nil {
 		return nil, err
@@ -174,6 +182,24 @@ func (s *Store) Update(fn func(d *Doc) error) (*Doc, error) {
 		return nil, err
 	}
 	return d, s.save(d)
+}
+
+// lockPath is the file that Update locks: a hidden file beside the review file, which is
+// itself replaced on every save and so cannot hold a lock.
+func (s *Store) lockPath() string {
+	return filepath.Join(filepath.Dir(s.DocPath), "."+filepath.Base(s.DocPath)+".lock")
+}
+
+func (s *Store) lockFile() (unlock func(), err error) {
+	f, err := os.OpenFile(s.lockPath(), os.O_RDWR|os.O_CREATE, 0o644)
+	if err != nil {
+		return nil, err
+	}
+	if err := lockFile(f); err != nil {
+		f.Close()
+		return nil, fmt.Errorf("lock %s: %w", s.lockPath(), err)
+	}
+	return func() { unlockFile(f); f.Close() }, nil
 }
 
 // NextID returns c_01, c_02, ... after the highest existing id.
