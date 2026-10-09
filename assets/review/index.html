@@ -868,9 +868,14 @@
       // Rebuild every row but the playhead row, which keeps the note being written.
       // A rebuild must not lose what the person is doing in a row: the focused control and
       // a reply being written are put back afterwards.
-      const ae = document.activeElement, keep = ae && ae !== $('text') && sheet.contains(ae) ? {
-        id: ae.closest('.note')?.dataset.id, act: ae.dataset.act, reply: ae.closest('.replyform') ? ae.value : null,
-        sel: ae.closest('.replyform') ? [ae.selectionStart, ae.selectionEnd] : null } : null;
+      // The reply text is kept whether or not its input has focus: the person may have
+      // tabbed to Send or clicked elsewhere when the poll rebuilds the rows.
+      const form = sheet.querySelector('.replyform');
+      const reply = form ? { id: form.dataset.reply, value: form.querySelector('input').value } : null;
+      const ae = document.activeElement, inForm = ae && ae.closest('.replyform');
+      const keep = ae && ae !== $('text') && sheet.contains(ae) ? {
+        id: ae.closest('.note')?.dataset.id, act: ae.dataset.act, part: inForm ? ae.tagName.toLowerCase() : null,
+        sel: inForm && ae.tagName === 'INPUT' ? [ae.selectionStart, ae.selectionEnd] : null } : null;
       for (const el of [...sheet.children]) if (el !== here) el.remove();
       let html = items.map(noteRow).join('');
       if (!items.length) html += doc.comments.length
@@ -879,12 +884,16 @@
       sheet.insertAdjacentHTML('beforeend', html);
       layoutSheet(true);
       const input = sheet.querySelector('.replyform input');
-      if (keep && keep.reply != null && input && input.closest('.note')?.dataset.id === keep.id) {
-        input.value = keep.reply; input.focus(); input.setSelectionRange(...keep.sel);
+      const sameForm = input && reply && input.closest('.replyform').dataset.reply === reply.id;
+      if (sameForm) input.value = reply.value;
+      if (input && !sameForm) input.focus();
+      else if (keep && keep.part && sameForm) {
+        if (keep.sel) { input.focus(); input.setSelectionRange(...keep.sel); }
+        else input.closest('.replyform').querySelector(keep.part)?.focus();
       } else if (keep && keep.id) {
         const row = sheet.querySelector(`.note[data-id="${keep.id}"]`);
         (row && (keep.act ? row.querySelector(`[data-act="${keep.act}"]`) : row))?.focus();
-      } else if (input) input.focus();
+      }
     }
     const unsent = doc.comments.filter(c => c.status === 'open' && !c.sent).length;
     $('bSend').disabled = !unsent;
