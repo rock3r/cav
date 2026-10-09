@@ -617,8 +617,9 @@ func TestReviewNotesCapsEveryFieldOfAHandEditedFile(t *testing.T) {
 }
 
 func TestReviewNotesHandsASendOutOnce(t *testing.T) {
+	// No show_review first: a fresh server process reading an existing review file has no
+	// session, and its calls must still share one store.
 	cs, video, _ := connect(t)
-	call(t, cs, "show_review", map[string]any{"video": video}, nil)
 	review.Open(video).Update(func(d *review.Doc) error {
 		d.Comments = append(d.Comments, review.Comment{ID: "c_01", Status: "open", Text: "n"})
 		d.Sends = append(d.Sends, review.Send{N: 1, At: time.Now(), Comments: []string{"c_01"}})

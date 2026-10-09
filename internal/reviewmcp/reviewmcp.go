@@ -60,7 +60,7 @@ func New(o Options) *mcp.Server {
 	if o.Prepare == nil {
 		o.Prepare = Prepare
 	}
-	h := &handler{o: o, open: map[string]*session{}}
+	h := &handler{o: o, open: map[string]*session{}, stores: map[string]*review.Store{}}
 	s := mcp.NewServer(&mcp.Implementation{Name: "cav", Title: "cav review", Version: o.Version}, &mcp.ServerOptions{
 		Instructions: "show_review shows a render's cav review page in the chat, where the person can play it, draw and leave notes. " +
 			"It is for a quick look: for frame-by-frame review run `cav review` in a shell. " +
@@ -146,6 +146,10 @@ type handler struct {
 	o    Options
 	mu   sync.Mutex
 	open map[string]*session // by absolute video path
+	// stores holds one review store per video, by absolute path, for the life of the
+	// process. A Store serializes its read-modify-write with its own lock, so every
+	// request on a video must go through the same one, with or without a session.
+	stores map[string]*review.Store
 }
 
 // session is one video opened with show_review. It is prepared again when the file changes,
@@ -214,7 +218,7 @@ func (h *handler) session(ctx context.Context, video string, create, activate bo
 		}
 		return nil, err
 	}
-	store := review.Open(abs)
+	store := h.storeLocked(abs)
 	if _, err := store.Update(func(d *review.Doc) error { d.Source = src; review.AddVersion(d, src); return nil }); err != nil {
 		return nil, err
 	}
@@ -230,7 +234,7 @@ func (h *handler) session(ctx context.Context, video string, create, activate bo
 // as a process that already had the session does. It returns nil when there is no usable
 // earlier preview.
 func (h *handler) earlier(abs string, info os.FileInfo, prepErr error) *session {
-	store := review.Open(abs)
+	store := h.storeLocked(abs)
 	if !fileExists(store.DocPath) {
 		return nil
 	}
@@ -547,16 +551,23 @@ func answer(store *review.Store, d *review.Doc, abs string) (out notesOut, conte
 	return out, content, claim
 }
 
-// store returns the review store of a video, shared with its open session when there is
-// one: a Store serializes its read-modify-write with its own lock, so two stores on the same
-// file in one process could each overwrite the other's change.
+// store returns the review store of a video. The same Store serves every call on that
+// video, whether or not show_review opened it in this process: two stores on one file could
+// each overwrite the other's change, or both hand out the same send.
 func (h *handler) store(abs string) *review.Store {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if s := h.open[abs]; s != nil {
-		return s.srv.Store
+	return h.storeLocked(abs)
+}
+
+// storeLocked is store for a caller that holds h.mu.
+func (h *handler) storeLocked(abs string) *review.Store {
+	if st := h.stores[abs]; st != nil {
+		return st
 	}
-	return review.Open(abs)
+	st := review.Open(abs)
+	h.stores[abs] = st
+	return st
 }
 
 // snapshotPath finds a note's snapshot; see review.Store.SnapshotFile.
