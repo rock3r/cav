@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 	"unicode/utf8"
@@ -588,5 +589,65 @@ func TestReviewNotesLeavesALongSendPendingAndCapsShapes(t *testing.T) {
 	}
 	if len(out.Notes[0].Shapes) != 1 {
 		t.Errorf("500 shapes of one kind should list that kind once, got %d", len(out.Notes[0].Shapes))
+	}
+}
+
+func TestReviewNotesCapsEveryFieldOfAHandEditedFile(t *testing.T) {
+	cs, video, _ := connect(t)
+	call(t, cs, "show_review", map[string]any{"video": video}, nil)
+	store := review.Open(video)
+	huge := strings.Repeat("x", 1<<20)
+	id := "c_" + huge
+	store.Update(func(d *review.Doc) error {
+		d.Comments = append(d.Comments, review.Comment{ID: id, Status: "open" + huge, Timecode: huge, Text: "n"})
+		d.Sends = append(d.Sends, review.Send{N: 1, At: time.Now(), Comments: []string{id}})
+		return nil
+	})
+	var out notesOut
+	res := call(t, cs, "review_notes", map[string]any{"video": video}, &out)
+	if res.IsError || out.Send != 1 || len(out.Notes) != 1 {
+		t.Fatalf("got %v %+v", res.IsError, out.Send)
+	}
+	if n := out.Notes[0]; len(n.ID) > 100 || len(n.Status) > 100 || len(n.Timecode) > 100 {
+		t.Errorf("fields not capped: id %d, status %d, timecode %d bytes", len(n.ID), len(n.Status), len(n.Timecode))
+	}
+	if text := res.Content[0].(*mcp.TextContent).Text; len(text) > 10000 {
+		t.Errorf("the text answer holds %d bytes", len(text))
+	}
+}
+
+func TestReviewNotesHandsASendOutOnce(t *testing.T) {
+	cs, video, _ := connect(t)
+	call(t, cs, "show_review", map[string]any{"video": video}, nil)
+	review.Open(video).Update(func(d *review.Doc) error {
+		d.Comments = append(d.Comments, review.Comment{ID: "c_01", Status: "open", Text: "n"})
+		d.Sends = append(d.Sends, review.Send{N: 1, At: time.Now(), Comments: []string{"c_01"}})
+		return nil
+	})
+	const calls = 8
+	sends := make(chan int, calls)
+	var wg sync.WaitGroup
+	for i := 0; i < calls; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			// Not call: t.Fatal must not run outside the test's goroutine.
+			res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: "review_notes", Arguments: map[string]any{"video": video}})
+			var out notesOut
+			if err == nil && !res.IsError {
+				b, _ := json.Marshal(res.StructuredContent)
+				json.Unmarshal(b, &out)
+			}
+			sends <- out.Send
+		}()
+	}
+	wg.Wait()
+	close(sends)
+	got := 0
+	for s := range sends {
+		got += s
+	}
+	if got != 1 {
+		t.Errorf("send #1 handed out %d times", got)
 	}
 }

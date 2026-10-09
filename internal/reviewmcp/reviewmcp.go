@@ -413,13 +413,35 @@ func (h *handler) notes(ctx context.Context, req *mcp.CallToolRequest, in notesI
 		return nil, notesOut{}, fmt.Errorf("%s has no review yet: show it with show_review first", video)
 	}
 
-	// Read first, and mark the send received only once the answer is built: an answer that
-	// fails on the way must not leave the send looking delivered.
-	d, err := store.Load()
-	if err != nil {
+	// Build the answer and claim the send in one update, under the store's lock: a note the
+	// reviewer edits, replies to, resolves or deletes meanwhile then cannot reach the agent in
+	// an earlier version while the send is marked received. The send is marked only once the
+	// answer is complete, so an answer that fails on the way leaves it pending.
+	var out notesOut
+	var content []mcp.Content
+	_, err = store.Update(func(d *review.Doc) error {
+		var claim bool
+		out, content, claim = answer(store, d, abs)
+		if !claim {
+			return errNoClaim
+		}
+		now := time.Now().UTC()
+		review.Pending(d).DeliveredAt = &now
+		return nil
+	})
+	if err != nil && !errors.Is(err, errNoClaim) {
 		return nil, notesOut{}, err
 	}
-	out := notesOut{Video: abs, Notes: []noteFull{}}
+	return &mcp.CallToolResult{Content: content}, out, nil
+}
+
+// errNoClaim stops the update in notes without saving when there is no send to claim.
+var errNoClaim = errors.New("nothing to claim")
+
+// answer builds the review_notes answer from d: the pending send, or the open notes when
+// there is none. claim reports whether the whole send fits, so that it may be marked received.
+func answer(store *review.Store, d *review.Doc, abs string) (out notesOut, content []mcp.Content, claim bool) {
+	out = notesOut{Video: abs, Notes: []noteFull{}}
 	cur := d.Source.SHA256
 	if len(cur) > 12 {
 		cur = cur[:12]
@@ -440,8 +462,11 @@ func (h *handler) notes(ctx context.Context, req *mcp.CallToolRequest, in notesI
 			truncated++
 			continue
 		}
-		n := noteFull{ID: c.ID, Status: c.Status, Frame: c.Frame, FrameEnd: c.FrameEnd, Timecode: c.Timecode,
-			Text: clip(c.Text, maxNoteText), Fragment: clip(c.Fragment, 80), OnOlderRender: cur != "" && c.Version != cur}
+		// Every string comes from the review file, which can be edited by hand, so each is
+		// capped: otherwise one field could push the answer past MaxInline.
+		n := noteFull{ID: clip(c.ID, 64), Status: clip(c.Status, 16), Frame: c.Frame, FrameEnd: c.FrameEnd,
+			Timecode: clip(c.Timecode, 32), Text: clip(c.Text, maxNoteText), Fragment: clip(c.Fragment, 80),
+			OnOlderRender: cur != "" && c.Version != cur}
 		for i, r := range c.Replies {
 			if i == maxReplies {
 				break
@@ -463,7 +488,7 @@ func (h *handler) notes(ctx context.Context, req *mcp.CallToolRequest, in notesI
 	}
 
 	// A send cut short stays pending, so nothing in it is lost.
-	claim := out.Send > 0 && truncated == 0
+	claim = out.Send > 0 && truncated == 0
 	var b strings.Builder
 	switch {
 	case out.Send > 0 && !claim:
@@ -477,7 +502,7 @@ func (h *handler) notes(ctx context.Context, req *mcp.CallToolRequest, in notesI
 			fmt.Fprintf(&b, "Only the first %d are listed; %d more are open.\n", len(out.Notes), truncated)
 		}
 	}
-	content := []mcp.Content{nil} // the text goes first, once it is complete
+	content = []mcp.Content{nil} // the text goes first, once it is complete
 	images, budget := 0, maxSnapshotBytes
 	for _, n := range out.Notes {
 		where := fmt.Sprintf("frame %d (%s)", n.Frame, n.Timecode)
@@ -519,33 +544,8 @@ func (h *handler) notes(ctx context.Context, req *mcp.CallToolRequest, in notesI
 		"(`cav review resolve <id> --note ...` with a shell, or Resolve in the review page)."
 	fmt.Fprintf(&b, "\n%s", out.Next)
 	content[0] = &mcp.TextContent{Text: b.String()}
-
-	if claim {
-		// Claim the send in one update, and only while it is still pending: when another
-		// call took it in the meantime, this one must not hand it out a second time.
-		_, err := store.Update(func(d *review.Doc) error {
-			for i := range d.Sends {
-				if d.Sends[i].N == out.Send {
-					if d.Sends[i].DeliveredAt != nil {
-						return errAlreadyReceived
-					}
-					now := time.Now().UTC()
-					d.Sends[i].DeliveredAt = &now
-				}
-			}
-			return nil
-		})
-		if errors.Is(err, errAlreadyReceived) {
-			return nil, notesOut{}, fmt.Errorf("send #%d was received by another call in the meantime; call review_notes again for the open notes", out.Send)
-		}
-		if err != nil {
-			return nil, notesOut{}, err
-		}
-	}
-	return &mcp.CallToolResult{Content: content}, out, nil
+	return out, content, claim
 }
-
-var errAlreadyReceived = errors.New("send already received")
 
 // store returns the review store of a video, shared with its open session when there is
 // one: a Store serializes its read-modify-write with its own lock, so two stores on the same
