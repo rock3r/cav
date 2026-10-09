@@ -75,7 +75,7 @@ its method and results.
 | `~/.cav/sound-libraries.json` | `cav sfx index` | Local sound folders and their licence. |
 | `~/.cav/cache/review/<sha256>.mp4` | `cav review` | The all-intra proxy of a render, one per content hash. |
 | `.cav/project.json`, `.cav/manifest.json` | `cav credits`, `sfx`, `ref`, `gen`, `board`, `music` | Per project: the accepted licence, and every imported or generated asset with its licence, credit and origin. |
-| `<video>.review.json`, `review/<video>/*.png` | `cav review` | Review notes, sends, and one snapshot per note. |
+| `<video>.review.json`, `review/<video>/*.png`, `.<video>.review.json.lock` | `cav review` | Review notes, sends, and one snapshot per note. Every change to the review file holds the lock file, so the CLI and the chat's server processes do not save over each other. |
 | `<Cavalry Scripts>/cav-bridge.js` | `cav setup` | The bridge script. macOS: `~/Library/Application Support/Cavalry/Scripts`. Windows: `%APPDATA%\Cavalry\Scripts`. |
 
 `CAV_HOME` moves `~/.cav`. `CAV_SCRIPTS_DIR`, `CAV_BRIDGE_HOST` and `CAV_BRIDGE_PORT` override

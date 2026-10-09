@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -294,5 +295,31 @@ func TestSnapshotIsFoundByNameInTheReviewFolder(t *testing.T) {
 	}
 	if w := do(t, h, "GET", "/api/snapshot/c_02", nil, nil); w.Code != 404 {
 		t.Errorf("a snapshot outside the review folder must not be served: %d", w.Code)
+	}
+}
+
+// Two stores on one file stand in for two processes: each has its own mutex, so only the
+// lock file keeps them from saving over each other's change.
+func TestUpdateLosesNoChangeAcrossStores(t *testing.T) {
+	video := filepath.Join(t.TempDir(), "final.mp4")
+	stores := []*Store{Open(video), Open(video)}
+	const each = 50
+	var wg sync.WaitGroup
+	for _, st := range stores {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < each; i++ {
+				st.Update(func(d *Doc) error {
+					d.Sends = append(d.Sends, Send{N: len(d.Sends) + 1})
+					return nil
+				})
+			}
+		}()
+	}
+	wg.Wait()
+	d, err := stores[0].Load()
+	if err != nil || len(d.Sends) != 2*each {
+		t.Fatalf("got %d sends, want %d (%v)", len(d.Sends), 2*each, err)
 	}
 }

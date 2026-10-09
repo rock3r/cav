@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -60,7 +61,7 @@ func New(o Options) *mcp.Server {
 	if o.Prepare == nil {
 		o.Prepare = Prepare
 	}
-	h := &handler{o: o, open: map[string]*session{}}
+	h := &handler{o: o, open: map[string]*session{}, stores: map[string]*review.Store{}}
 	s := mcp.NewServer(&mcp.Implementation{Name: "cav", Title: "cav review", Version: o.Version}, &mcp.ServerOptions{
 		Instructions: "show_review shows a render's cav review page in the chat, where the person can play it, draw and leave notes. " +
 			"It is for a quick look: for frame-by-frame review run `cav review` in a shell. " +
@@ -146,6 +147,10 @@ type handler struct {
 	o    Options
 	mu   sync.Mutex
 	open map[string]*session // by absolute video path
+	// stores holds one review store per video, by absolute path, for the life of the
+	// process. A Store serializes its read-modify-write with its own lock, so every
+	// request on a video must go through the same one, with or without a session.
+	stores map[string]*review.Store
 }
 
 // session is one video opened with show_review. It is prepared again when the file changes,
@@ -214,7 +219,7 @@ func (h *handler) session(ctx context.Context, video string, create, activate bo
 		}
 		return nil, err
 	}
-	store := review.Open(abs)
+	store := h.storeLocked(abs)
 	if _, err := store.Update(func(d *review.Doc) error { d.Source = src; review.AddVersion(d, src); return nil }); err != nil {
 		return nil, err
 	}
@@ -230,7 +235,7 @@ func (h *handler) session(ctx context.Context, video string, create, activate bo
 // as a process that already had the session does. It returns nil when there is no usable
 // earlier preview.
 func (h *handler) earlier(abs string, info os.FileInfo, prepErr error) *session {
-	store := review.Open(abs)
+	store := h.storeLocked(abs)
 	if !fileExists(store.DocPath) {
 		return nil
 	}
@@ -413,13 +418,76 @@ func (h *handler) notes(ctx context.Context, req *mcp.CallToolRequest, in notesI
 		return nil, notesOut{}, fmt.Errorf("%s has no review yet: show it with show_review first", video)
 	}
 
-	// Read first, and mark the send received only once the answer is built: an answer that
-	// fails on the way must not leave the send looking delivered.
-	d, err := store.Load()
-	if err != nil {
-		return nil, notesOut{}, err
+	// Build the answer from one read, then claim the send in a short update that first checks
+	// the send and its notes are unchanged. Building takes a while (it reads the snapshots),
+	// and the review page may be served by another process with its own lock, so the answer
+	// is not built inside the update: that update would save its old copy of the review over
+	// an edit made meanwhile. When the check fails, a note was edited, replied to, resolved
+	// or deleted, or another call took the send: build the answer again. The send is marked
+	// only once the answer is complete, so an answer that fails on the way leaves it pending.
+	for attempt := 1; ; attempt++ {
+		d, err := store.Load()
+		if err != nil {
+			return nil, notesOut{}, err
+		}
+		out, content, claim := answer(store, d, abs)
+		if !claim {
+			return &mcp.CallToolResult{Content: content}, out, nil
+		}
+		read := sendState(d, out.Send)
+		_, err = store.Update(func(d *review.Doc) error {
+			if sendState(d, out.Send) != read {
+				return errChanged
+			}
+			now := time.Now().UTC()
+			review.Pending(d).DeliveredAt = &now
+			return nil
+		})
+		switch {
+		case errors.Is(err, errChanged) && attempt < 3:
+			continue
+		case errors.Is(err, errChanged):
+			return nil, notesOut{}, fmt.Errorf("the review of %s kept changing while it was read; call review_notes again", video)
+		case err != nil:
+			return nil, notesOut{}, err
+		}
+		return &mcp.CallToolResult{Content: content}, out, nil
 	}
-	out := notesOut{Video: abs, Notes: []noteFull{}}
+}
+
+// errChanged stops the claim in notes when the send changed after the answer was built.
+var errChanged = errors.New("the send changed")
+
+// sendState is what a review_notes answer for send n depends on: that n is still the
+// pending send, the render (for OnOlderRender) and the send's notes as they are stored.
+// Two equal results give the same answer.
+func sendState(d *review.Doc, n int) string {
+	p := review.Pending(d)
+	if p == nil || p.N != n {
+		return ""
+	}
+	want := map[string]bool{}
+	for _, id := range p.Comments {
+		want[id] = true
+	}
+	var notes []review.Comment
+	for _, c := range d.Comments {
+		if want[c.ID] {
+			notes = append(notes, c)
+		}
+	}
+	b, _ := json.Marshal(struct {
+		Send   review.Send
+		Render string
+		Notes  []review.Comment
+	}{*p, d.Source.SHA256, notes})
+	return string(b)
+}
+
+// answer builds the review_notes answer from d: the pending send, or the open notes when
+// there is none. claim reports whether the whole send fits, so that it may be marked received.
+func answer(store *review.Store, d *review.Doc, abs string) (out notesOut, content []mcp.Content, claim bool) {
+	out = notesOut{Video: abs, Notes: []noteFull{}}
 	cur := d.Source.SHA256
 	if len(cur) > 12 {
 		cur = cur[:12]
@@ -440,8 +508,11 @@ func (h *handler) notes(ctx context.Context, req *mcp.CallToolRequest, in notesI
 			truncated++
 			continue
 		}
-		n := noteFull{ID: c.ID, Status: c.Status, Frame: c.Frame, FrameEnd: c.FrameEnd, Timecode: c.Timecode,
-			Text: clip(c.Text, maxNoteText), Fragment: clip(c.Fragment, 80), OnOlderRender: cur != "" && c.Version != cur}
+		// Every string comes from the review file, which can be edited by hand, so each is
+		// capped: otherwise one field could push the answer past MaxInline.
+		n := noteFull{ID: clip(c.ID, 64), Status: clip(c.Status, 16), Frame: c.Frame, FrameEnd: c.FrameEnd,
+			Timecode: clip(c.Timecode, 32), Text: clip(c.Text, maxNoteText), Fragment: clip(c.Fragment, 80),
+			OnOlderRender: cur != "" && c.Version != cur}
 		for i, r := range c.Replies {
 			if i == maxReplies {
 				break
@@ -463,7 +534,7 @@ func (h *handler) notes(ctx context.Context, req *mcp.CallToolRequest, in notesI
 	}
 
 	// A send cut short stays pending, so nothing in it is lost.
-	claim := out.Send > 0 && truncated == 0
+	claim = out.Send > 0 && truncated == 0
 	var b strings.Builder
 	switch {
 	case out.Send > 0 && !claim:
@@ -477,7 +548,7 @@ func (h *handler) notes(ctx context.Context, req *mcp.CallToolRequest, in notesI
 			fmt.Fprintf(&b, "Only the first %d are listed; %d more are open.\n", len(out.Notes), truncated)
 		}
 	}
-	content := []mcp.Content{nil} // the text goes first, once it is complete
+	content = []mcp.Content{nil} // the text goes first, once it is complete
 	images, budget := 0, maxSnapshotBytes
 	for _, n := range out.Notes {
 		where := fmt.Sprintf("frame %d (%s)", n.Frame, n.Timecode)
@@ -519,44 +590,26 @@ func (h *handler) notes(ctx context.Context, req *mcp.CallToolRequest, in notesI
 		"(`cav review resolve <id> --note ...` with a shell, or Resolve in the review page)."
 	fmt.Fprintf(&b, "\n%s", out.Next)
 	content[0] = &mcp.TextContent{Text: b.String()}
-
-	if claim {
-		// Claim the send in one update, and only while it is still pending: when another
-		// call took it in the meantime, this one must not hand it out a second time.
-		_, err := store.Update(func(d *review.Doc) error {
-			for i := range d.Sends {
-				if d.Sends[i].N == out.Send {
-					if d.Sends[i].DeliveredAt != nil {
-						return errAlreadyReceived
-					}
-					now := time.Now().UTC()
-					d.Sends[i].DeliveredAt = &now
-				}
-			}
-			return nil
-		})
-		if errors.Is(err, errAlreadyReceived) {
-			return nil, notesOut{}, fmt.Errorf("send #%d was received by another call in the meantime; call review_notes again for the open notes", out.Send)
-		}
-		if err != nil {
-			return nil, notesOut{}, err
-		}
-	}
-	return &mcp.CallToolResult{Content: content}, out, nil
+	return out, content, claim
 }
 
-var errAlreadyReceived = errors.New("send already received")
-
-// store returns the review store of a video, shared with its open session when there is
-// one: a Store serializes its read-modify-write with its own lock, so two stores on the same
-// file in one process could each overwrite the other's change.
+// store returns the review store of a video. The same Store serves every call on that
+// video, whether or not show_review opened it in this process: two stores on one file could
+// each overwrite the other's change, or both hand out the same send.
 func (h *handler) store(abs string) *review.Store {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if s := h.open[abs]; s != nil {
-		return s.srv.Store
+	return h.storeLocked(abs)
+}
+
+// storeLocked is store for a caller that holds h.mu.
+func (h *handler) storeLocked(abs string) *review.Store {
+	if st := h.stores[abs]; st != nil {
+		return st
 	}
-	return review.Open(abs)
+	st := review.Open(abs)
+	h.stores[abs] = st
+	return st
 }
 
 // snapshotPath finds a note's snapshot; see review.Store.SnapshotFile.
