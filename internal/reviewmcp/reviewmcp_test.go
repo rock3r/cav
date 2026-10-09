@@ -652,3 +652,30 @@ func TestReviewNotesHandsASendOutOnce(t *testing.T) {
 		t.Errorf("send #1 handed out %d times", got)
 	}
 }
+
+func TestSendStateSeesEveryChangeToTheSend(t *testing.T) {
+	doc := func() *review.Doc {
+		return &review.Doc{Comments: []review.Comment{{ID: "c_01", Status: "open", Text: "a"}, {ID: "c_02", Status: "open", Text: "b"}},
+			Sends: []review.Send{{N: 1, Comments: []string{"c_01"}}}}
+	}
+	read := sendState(doc(), 1)
+	same := doc()
+	same.Comments[1].Text = "edited" // not in the send
+	if sendState(same, 1) != read {
+		t.Error("an edit to a note outside the send must not count")
+	}
+	for name, edit := range map[string]func(d *review.Doc){
+		"edit":    func(d *review.Doc) { d.Comments[0].Text = "edited" },
+		"reply":   func(d *review.Doc) { d.Comments[0].Replies = []review.Reply{{Text: "r"}} },
+		"resolve": func(d *review.Doc) { d.Comments[0].Status = "resolved" },
+		"delete":  func(d *review.Doc) { d.Comments = d.Comments[1:] },
+		"taken":   func(d *review.Doc) { now := time.Now(); d.Sends[0].DeliveredAt = &now },
+		"render":  func(d *review.Doc) { d.Source.SHA256 = "new" },
+	} {
+		d := doc()
+		edit(d)
+		if sendState(d, 1) == read {
+			t.Errorf("%s: the change was not seen", name)
+		}
+	}
+}

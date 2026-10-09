@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -417,30 +418,71 @@ func (h *handler) notes(ctx context.Context, req *mcp.CallToolRequest, in notesI
 		return nil, notesOut{}, fmt.Errorf("%s has no review yet: show it with show_review first", video)
 	}
 
-	// Build the answer and claim the send in one update, under the store's lock: a note the
-	// reviewer edits, replies to, resolves or deletes meanwhile then cannot reach the agent in
-	// an earlier version while the send is marked received. The send is marked only once the
-	// answer is complete, so an answer that fails on the way leaves it pending.
-	var out notesOut
-	var content []mcp.Content
-	_, err = store.Update(func(d *review.Doc) error {
-		var claim bool
-		out, content, claim = answer(store, d, abs)
-		if !claim {
-			return errNoClaim
+	// Build the answer from one read, then claim the send in a short update that first checks
+	// the send and its notes are unchanged. Building takes a while (it reads the snapshots),
+	// and the review page may be served by another process with its own lock, so the answer
+	// is not built inside the update: that update would save its old copy of the review over
+	// an edit made meanwhile. When the check fails, a note was edited, replied to, resolved
+	// or deleted, or another call took the send: build the answer again. The send is marked
+	// only once the answer is complete, so an answer that fails on the way leaves it pending.
+	for attempt := 1; ; attempt++ {
+		d, err := store.Load()
+		if err != nil {
+			return nil, notesOut{}, err
 		}
-		now := time.Now().UTC()
-		review.Pending(d).DeliveredAt = &now
-		return nil
-	})
-	if err != nil && !errors.Is(err, errNoClaim) {
-		return nil, notesOut{}, err
+		out, content, claim := answer(store, d, abs)
+		if !claim {
+			return &mcp.CallToolResult{Content: content}, out, nil
+		}
+		read := sendState(d, out.Send)
+		_, err = store.Update(func(d *review.Doc) error {
+			if sendState(d, out.Send) != read {
+				return errChanged
+			}
+			now := time.Now().UTC()
+			review.Pending(d).DeliveredAt = &now
+			return nil
+		})
+		switch {
+		case errors.Is(err, errChanged) && attempt < 3:
+			continue
+		case errors.Is(err, errChanged):
+			return nil, notesOut{}, fmt.Errorf("the review of %s kept changing while it was read; call review_notes again", video)
+		case err != nil:
+			return nil, notesOut{}, err
+		}
+		return &mcp.CallToolResult{Content: content}, out, nil
 	}
-	return &mcp.CallToolResult{Content: content}, out, nil
 }
 
-// errNoClaim stops the update in notes without saving when there is no send to claim.
-var errNoClaim = errors.New("nothing to claim")
+// errChanged stops the claim in notes when the send changed after the answer was built.
+var errChanged = errors.New("the send changed")
+
+// sendState is what a review_notes answer for send n depends on: that n is still the
+// pending send, the render (for OnOlderRender) and the send's notes as they are stored.
+// Two equal results give the same answer.
+func sendState(d *review.Doc, n int) string {
+	p := review.Pending(d)
+	if p == nil || p.N != n {
+		return ""
+	}
+	want := map[string]bool{}
+	for _, id := range p.Comments {
+		want[id] = true
+	}
+	var notes []review.Comment
+	for _, c := range d.Comments {
+		if want[c.ID] {
+			notes = append(notes, c)
+		}
+	}
+	b, _ := json.Marshal(struct {
+		Send   review.Send
+		Render string
+		Notes  []review.Comment
+	}{*p, d.Source.SHA256, notes})
+	return string(b)
+}
 
 // answer builds the review_notes answer from d: the pending send, or the open notes when
 // there is none. claim reports whether the whole send fits, so that it may be marked received.
