@@ -343,9 +343,8 @@ func (s *Server) addComment(w http.ResponseWriter, r *http.Request) {
 	}
 	var made Comment
 	_, err = s.Store.Update(func(d *Doc) error {
-		// The render can change while the snapshot decodes: keep the review file on the
-		// current one, whichever render the note is about.
-		d.Source, _ = s.current()
+		// Leave d.Source alone: whatever changes the render writes it. This server can be
+		// one a re-render has already replaced, and its render would undo that (issue #31).
 		c := Comment{
 			ID: NextID(d), Version: version, Frame: in.Frame, FrameEnd: in.FrameEnd,
 			Timecode: Timecode(in.Frame, fps), Fragment: Fragment(in.Frame, in.FrameEnd, fps, in.Shapes),

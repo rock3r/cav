@@ -276,6 +276,28 @@ func TestNoteKeepsTheVersionThePageShowed(t *testing.T) {
 	}
 }
 
+// A note taken by a server that a re-render has replaced leaves the review file on the
+// newer render (issue #31).
+func TestNoteOnASupersededServerKeepsTheNewerSource(t *testing.T) {
+	s, h := newTestServer(t)
+	newer := Source{Render: s.Store.Video, SHA256: "ffff00001111222233", FPS: 25, Frames: 50, Width: 64, Height: 36}
+	s.Store.Update(func(d *Doc) error {
+		AddVersion(d, s.Source)
+		d.Source = newer
+		AddVersion(d, newer)
+		return nil
+	})
+
+	w := do(t, h, "POST", "/api/comments", map[string]any{"frame": 10, "text": "late", "version": "abcdef012345"}, nil)
+	if w.Code != 200 {
+		t.Fatalf("add: %d %s", w.Code, w.Body)
+	}
+	d, _ := s.Store.Load()
+	if d.Source.SHA256 != newer.SHA256 {
+		t.Errorf("the review file names render %s, want the newer %s", d.Source.SHA256, newer.SHA256)
+	}
+}
+
 func TestSnapshotIsFoundByNameInTheReviewFolder(t *testing.T) {
 	s, h := newTestServer(t)
 	os.MkdirAll(s.Store.SnapDir, 0o755)
