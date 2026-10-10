@@ -151,7 +151,13 @@ var Catalog = map[string]*Def{
 			if err := Do(ctx, "GET", "https://api.elevenlabs.io/v1/user", map[string]string{"xi-api-key": key}, nil, &r); err != nil {
 				return "", err
 			}
-			return fmt.Sprintf("plan %s, %d of %d credits used", r.Subscription.Tier, r.Subscription.Used, r.Subscription.UsedLimit), nil
+			s := fmt.Sprintf("plan %s, %d of %d credits used", r.Subscription.Tier, r.Subscription.Used, r.Subscription.UsedLimit)
+			if r.Subscription.Tier == "free" {
+				// The free plan makes sound effects, but the music API answers HTTP 402
+				// (seen on 2026-10-09).
+				s += "; music needs a paid plan, sound effects work"
+			}
+			return s, nil
 		}},
 	"stability": {Title: "Stability AI (Stable Audio)", Kind: KindKey,
 		Jobs: []string{"music"}, EnvVars: []string{"STABILITY_API_KEY"},
