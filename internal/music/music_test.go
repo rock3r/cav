@@ -3,10 +3,12 @@ package music
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -59,7 +61,7 @@ func TestElevenLabsPlanAndStableAudio(t *testing.T) {
 		t.Fatalf("elevenlabs: %v", err)
 	}
 	secs, _ := plan["sections"].([]any)
-	if len(secs) != 2 || secs[1].(map[string]any)["duration_ms"].(float64) != 12000 {
+	if len(secs) != 2 || secs[1].(map[string]any)["duration_ms"].(float64) != 12000 || secs[1].(map[string]any)["section_name"] != "s2" {
 		t.Fatalf("plan sections: %v", plan)
 	}
 	if _, err := Generate(context.Background(), &services.Config{}, &services.Choice{Service: "stability", Key: "st"}, Request{Prompt: "x", Seconds: 16.2}); err != nil {
@@ -152,7 +154,7 @@ func TestLyriaRequestAndAnswer(t *testing.T) {
 		t.Fatalf("got %+v", tr)
 	}
 	rf, _ := body["response_format"].(map[string]any)
-	if body["model"] != "lyria-3.5" || rf["type"] != "audio" {
+	if body["model"] != "lyria-3.5" || rf["type"] != "audio" || rf["mime_type"] != "audio/wav" {
 		t.Fatalf("body: %v", body)
 	}
 	in, _ := body["input"].(string)
@@ -181,5 +183,75 @@ func TestLyriaClipModelSendsNoResponseFormat(t *testing.T) {
 	}
 	if _, ok := body["response_format"]; ok || body["model"] != "lyria-3-clip-preview" {
 		t.Fatalf("clip body: %v", body)
+	}
+}
+
+func TestReferenceTrackGoesUpAsAudio(t *testing.T) {
+	ref := filepath.Join(t.TempDir(), "pixel-pop-a.mp3")
+	os.WriteFile(ref, []byte("ID3ref"), 0o644)
+	upload := func(r *http.Request, field string) string {
+		if err := r.ParseMultipartForm(1 << 20); err != nil {
+			t.Fatal(err)
+		}
+		f, h, err := r.FormFile(field)
+		if err != nil {
+			t.Fatalf("no %s file: %v", field, err)
+		}
+		defer f.Close()
+		b, _ := io.ReadAll(f)
+		return h.Filename + ":" + string(b)
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v2beta/audio/stable-audio-2/audio-to-audio":
+			if got := upload(r, "audio"); got != "pixel-pop-a.mp3:ID3ref" {
+				t.Errorf("stability audio %q", got)
+			}
+			if r.FormValue("strength") != "0.70" || r.FormValue("duration") != "20" || r.FormValue("prompt") == "" {
+				t.Errorf("stability form: strength %q duration %q", r.FormValue("strength"), r.FormValue("duration"))
+			}
+			w.Header().Set("Content-Type", "audio/mpeg")
+			w.Write([]byte("ID3var"))
+		case "/release_task":
+			if got := upload(r, "reference_audio"); got != "pixel-pop-a.mp3:ID3ref" {
+				t.Errorf("acestep reference %q", got)
+			}
+			if r.FormValue("thinking") != "true" || r.FormValue("audio_duration") != "20" || r.FormValue("lyrics") != "[Instrumental]" {
+				t.Errorf("acestep form: %v", r.MultipartForm.Value)
+			}
+			w.Write([]byte(`{"data":{"task_id":"t1"},"code":200,"error":null}`))
+		case "/query_result":
+			w.Write([]byte(`{"data":[{"task_id":"t1","status":1,"result":"[{\"file\":\"/v1/audio?path=a.wav\"}]"}],"code":200}`))
+		case "/v1/audio":
+			w.Write([]byte("RIFFvar"))
+		default:
+			t.Errorf("unexpected %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+	u, _ := url.Parse(srv.URL)
+	old := services.HTTPClient
+	services.HTTPClient = &http.Client{Transport: redirect{u}}
+	defer func() { services.HTTPClient = old }()
+
+	req := Request{Prompt: "toy piano pop", Seconds: 20, Ref: ref, Keep: 0.3}
+	if tr, err := Generate(context.Background(), &services.Config{}, &services.Choice{Service: "stability", Key: "st"}, req); err != nil || string(tr.Data) != "ID3var" {
+		t.Fatalf("stability: %+v %v", tr, err)
+	}
+	c := &services.Config{Endpoints: map[string]services.Endpoint{"acestep": {BaseURL: srv.URL}}}
+	if tr, err := Generate(context.Background(), c, &services.Choice{Service: "acestep"}, req); err != nil || string(tr.Data) != "RIFFvar" {
+		t.Fatalf("acestep: %+v %v", tr, err)
+	}
+}
+
+func TestReferenceTrackRefusedWhereAudioCannotGo(t *testing.T) {
+	for _, s := range []string{"lyria", "elevenlabs"} {
+		if SendsAudio(s) {
+			t.Errorf("%s does not take audio", s)
+		}
+		_, err := Generate(context.Background(), &services.Config{}, &services.Choice{Service: s, Key: "k"}, Request{Prompt: "x", Seconds: 10, Ref: "a.mp3"})
+		if err == nil || !strings.Contains(err.Error(), "cannot take a reference track") {
+			t.Errorf("%s: %v", s, err)
+		}
 	}
 }

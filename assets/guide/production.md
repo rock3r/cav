@@ -133,6 +133,7 @@ cav sfx index ~/Sounds/Sonniss-GDC-2026     # add a library you downloaded
 cav sfx gen "glassy riser into a hit" --seconds 2       # generated (ElevenLabs key)
 cav music gen "warm synthwave, builds to a drop" --board storyboard.json --takes 2
 cav music gen "warm synthwave" --board storyboard.json --service lyria   # Gemini key
+cav music gen "toy piano pop, more playful" --ref music/pixel-pop-a.mp3 --takes 2 # variations
 cav listen music/<take>.mp3 --board storyboard.json --brief "builds to a drop on s4"
 ```
 
@@ -140,6 +141,46 @@ Lyria (`lyria-3.5`) has no length or section fields. cav writes them into the pr
 total length, "instrumental only", and one `[m:ss - m:ss]` line per shot. Lyria follows
 them loosely, so check the cuts with `cav listen --board`. cav asks for WAV.
 `cav config model lyria lyria-3-clip-preview` makes a 30-second MP3 clip instead.
+
+`--ref <track>` (repeatable) makes variations of a track you have, `--takes` takes for each
+reference. Where the reference goes depends on the service:
+
+| Service | What it gets | Result |
+|---|---|---|
+| Stable Audio | the audio (audio-to-audio) | a variation that keeps the reference's structure; `--keep` (0-1, default 0.4) sets how much |
+| ACE-Step | the audio, as a style reference | a new track with the reference's sound |
+| Lyria, ElevenLabs | a description of the audio, written by the audio model ("ears" job) | a new track written from words: a similar style, not a variation |
+
+cav says on stderr (and in `refs` with `--json`) which way each reference went. For a real
+variation, pick Stable Audio or ACE-Step with `--service`.
+
+Every service sent takes with true peaks above 0 dBFS in tests. cav lowers the level of
+such a take to about -1.5 dBTP (gain only, no limiter) and says by how much; `--raw-level`
+keeps the level the service sent. Then set the loudness in your mix or with
+`cav render --audio`.
+
+### Music services
+
+What each service did in tests on 2026-10-09, one or two takes each. Treat these as
+observations, not guarantees.
+
+| Service | Length | Storyboard plan | Reference track | Watch out for |
+|---|---|---|---|---|
+| Stable Audio | exact (matched the storyboard) | sections go into the prompt; with `--ref`, the reference's arc wins over the plan | sent as audio: MP3 or WAV, 6-190 s (cav converts and cuts) | follows the reference's arc, not the storyboard's: a reference with a quiet intro gives a take with no early hit |
+| Lyria | a prompt hint only (3 s too long) | one `[m:ss - m:ss]` line per shot; the drop landed on its cut | described in words | sends MP3 unless asked for WAV; cav asks, and the WAV came as 24-bit 48 kHz |
+| ElevenLabs | not kept (7 s too long with music_v1) | composition plan; section names are the shot ids only | described in words | music needs a paid plan (HTTP 402 on free); an API key can have its own credit cap below the plan's (HTTP 401 "exceeds your API key quota"); moderation refuses a plan or prompt that names a brand, product or artist |
+| ACE-Step | `audio_duration` | sections go into the prompt | sent as audio, as a style reference; `--keep` does nothing | a server you run |
+
+How `--keep` behaved on one 74 s reference (one take each): 0.2 drifted to its own tempo
+and structure; 0.4 kept the reference's tempo and its groove, breakdown and re-drop
+within a fraction of a second, with new parts on top; 0.6 stayed closest, down to the
+same loudness range. Start at 0.4, and go lower for a looser take.
+
+A description written by the audio model changes from run to run: the same reference was
+described once as "F major electropop" and once as "A minor 1980s synthwave". Read the
+description cav prints, and if it is off, write the style into the prompt yourself.
+Keep brand and product names out of prompts and the storyboard's music `prompt` fields:
+ElevenLabs refuses them, and they do not help any music model.
 
 ### Write the music
 

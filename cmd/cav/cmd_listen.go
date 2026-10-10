@@ -55,7 +55,7 @@ Use it to compare takes from cav music gen and to check a track before cav rende
 The numbers and the picture are measurements; the critique is a model's opinion.`
 	register(command{
 		name:    "music",
-		args:    "gen \"<prompt>\" [--seconds 30 | --board storyboard.json] [--takes 2] [--service S] [--model M] [-o music/] | render score.json [-o out.wav] [--stems]",
+		args:    "gen \"<prompt>\" [--seconds 30 | --board storyboard.json] [--ref track.mp3]... [--keep 0.4] [--raw-level] [--takes 2] [--service S] [--model M] [-o music/] | render score.json [-o out.wav] [--stems]",
 		summary: "Generate instrumental music with an API, or render a written score locally.",
 		run:     cmdMusic,
 	})
@@ -66,6 +66,18 @@ cav music gen "warm synthwave, confident, builds to a drop" --board storyboard.j
     timed "[m:ss - m:ss]" line per shot; Stable Audio gets the structure in its prompt),
     so changes in the music fall on the shot cuts. Without
     --board, --seconds sets the length.
+--ref (repeatable) makes variations of a reference track: --takes takes for each one.
+    Stable Audio and ACE-Step get the track itself. Stable Audio keeps its structure
+    (--keep, 0-1, how much of it to keep; default 0.4); ACE-Step uses it as a style
+    reference. Lyria and ElevenLabs cannot take it, so the audio model (the "ears" job)
+    describes its style in words and cav adds that to the prompt: a new track in a similar
+    style, not a variation of the track. cav says which way each reference went.
+    Stable Audio takes a reference of 6 to 190 s in MP3 or WAV; cav converts other
+    formats and sends the first 190 s of a longer track.
+A take whose true peak is above -1 dBTP comes down in level (gain only) so it does not
+clip; --raw-level keeps what the service sent.
+What each service does differently (lengths, plans, moderation, credits): cav guide
+production, "Music services".
 Then compare the takes: cav listen music/<take>.mp3 --board storyboard.json --brief "...".
 Needs a key for the "music" job (cav config). Check the service's terms for your use:
 ElevenLabs self-serve plans, for example, exclude film, TV and games.
@@ -319,12 +331,24 @@ func cmdMusic(a *app, args []string) error {
 	service := fs.String("service", "", "music service")
 	model := fs.String("model", "", "model")
 	outDirFlag := fs.String("o", "music", "folder for the takes")
+	var refs stringList
+	fs.Var(&refs, "ref", "reference track to make variations of (repeatable)")
+	keep := fs.Float64("keep", 0.4, "how much of the reference to keep, 0-1 (Stable Audio)")
+	rawLevel := fs.Bool("raw-level", false, "keep the level the service sent, even if it clips")
 	pos, err := parseFlags(fs, args[1:])
 	if err != nil {
 		return err
 	}
 	if len(pos) == 0 {
 		return usageErr("give a prompt: genre, instruments, mood, tempo")
+	}
+	if *keep < 0 || *keep > 1 {
+		return usageErr("--keep is between 0 and 1")
+	}
+	for _, r := range refs {
+		if _, err := os.Stat(r); err != nil {
+			return fail(exitError, "reference track: "+err.Error(), "")
+		}
 	}
 	prompt := strings.Join(pos, " ")
 	req := music.Request{Prompt: prompt, Seconds: *seconds, Model: *model}
@@ -371,44 +395,100 @@ func cmdMusic(a *app, args []string) error {
 	if err != nil {
 		return fail(exitError, err.Error(), "add an ElevenLabs, Stability or Gemini (Lyria) key (cav config); or use cav sfx search to find music")
 	}
+	// One job per reference track, or one with no reference.
+	type refJob struct {
+		Path        string `json:"path"`
+		Mode        string `json:"mode"` // "sent" (as audio) or "described" (in words)
+		Note        string `json:"note,omitempty"`
+		Description string `json:"description,omitempty"`
+		req         music.Request
+	}
+	tmp, err := os.MkdirTemp("", "cav-music")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tmp)
+	jobs := []refJob{{req: req}}
+	if len(refs) > 0 {
+		jobs = nil
+		for _, r := range refs {
+			j := refJob{Path: r, req: req}
+			if music.SendsAudio(ch.Service) {
+				send, note, err := prepareRef(ctx, ch.Service, r, tmp)
+				if err != nil {
+					return fail(exitError, err.Error(), "")
+				}
+				j.Mode, j.Note = "sent", note
+				j.req.Ref, j.req.Keep = send, *keep
+			} else {
+				fmt.Fprintf(os.Stderr, "%s cannot take a reference track as audio; describing %s with the audio model…\n", ch.Service, r)
+				desc, _, note := askEars(ctx, r, "", listen.StylePrompt)
+				if desc == "" {
+					return fail(exitError, "cannot describe "+r+": "+note,
+						"use a service that takes audio (--service stability or acestep), or describe the reference in the prompt yourself")
+				}
+				j.Mode, j.Description = "described", desc
+				j.req.Prompt = strings.TrimRight(req.Prompt, ". ") + ". In the style of this reference: " + desc
+			}
+			jobs = append(jobs, j)
+		}
+	}
 	root := library.Root()
 	var made []string
 	var errs []error
-	for i := 1; i <= *takes; i++ {
-		fmt.Fprintf(os.Stderr, "take %d of %d with %s…\n", i, *takes, ch.Service)
-		tr, err := music.Generate(ctx, c, ch, req)
-		if err != nil {
-			errs = append(errs, err)
-			break
+	levels := map[string]string{} // take -> what cav did to its level
+	for _, j := range jobs {
+		for i := 1; i <= *takes; i++ {
+			what := fmt.Sprintf("take %d of %d", i, *takes)
+			if j.Path != "" {
+				what += " from " + j.Path
+			}
+			fmt.Fprintf(os.Stderr, "%s with %s…\n", what, ch.Service)
+			tr, err := music.Generate(ctx, c, ch, j.req)
+			if err != nil {
+				errs = append(errs, err)
+				break
+			}
+			name := safeSlug(prompt)
+			if len(jobs) > 1 {
+				name += "-" + safeSlug(strings.TrimSuffix(filepath.Base(j.Path), filepath.Ext(j.Path)))
+			}
+			if *takes > 1 {
+				name += fmt.Sprintf("-take%d", i)
+			}
+			path, note, err := saveTake(ctx, root, *outDirFlag, name, tr, j.req.Prompt, j.Path, !*rawLevel)
+			if err != nil {
+				return err
+			}
+			if note != "" {
+				levels[path] = note
+			}
+			made = append(made, path)
 		}
-		name := safeSlug(prompt)
-		if *takes > 1 {
-			name += fmt.Sprintf("-take%d", i)
-		}
-		path := filepath.Join(*outDirFlag, name+tr.Ext)
-		if err := os.MkdirAll(*outDirFlag, 0o755); err != nil {
-			return err
-		}
-		if err := os.WriteFile(path, tr.Data, 0o644); err != nil {
-			return err
-		}
-		m, err := library.Load(root)
-		if err != nil {
-			return err
-		}
-		sum, _ := fileSHA(path)
-		m.Put(root, library.Entry{Path: path, Kind: "audio", Source: tr.Provider, Licence: "generated", CommercialOK: true,
-			RetrievedAt: time.Now().UTC(), SHA256: sum, Generated: &library.Generated{Provider: tr.Provider, Model: tr.Model, Prompt: req.Prompt}})
-		if err := m.Save(root); err != nil {
-			return err
-		}
-		made = append(made, path)
 	}
 	if len(made) == 0 {
 		return fail(exitError, errors.Join(errs...).Error(), "")
 	}
-	a.emit(map[string]any{"takes": made, "service": ch.Service, "sections": len(req.Sections)}, func() {
+	out := map[string]any{"takes": made, "service": ch.Service, "sections": len(req.Sections), "levels": levels}
+	if len(refs) > 0 {
+		out["refs"] = jobs
+	}
+	a.emit(out, func() {
+		for _, j := range jobs {
+			switch j.Mode {
+			case "sent":
+				fmt.Fprintf(os.Stderr, "note: sent %s to %s as audio\n", j.Path, ch.Service)
+				if j.Note != "" {
+					fmt.Fprintf(os.Stderr, "note: %s: %s\n", j.Path, j.Note)
+				}
+			case "described":
+				fmt.Fprintf(os.Stderr, "note: %s cannot take audio, so %s went in as words: %s\n", ch.Service, j.Path, j.Description)
+			}
+		}
 		for _, p := range made {
+			if n := levels[p]; n != "" {
+				fmt.Fprintf(os.Stderr, "note: %s: %s\n", p, n)
+			}
 			fmt.Println(p)
 		}
 		for _, e := range errs {
@@ -421,6 +501,40 @@ func cmdMusic(a *app, args []string) error {
 		fmt.Printf("Compare them: cav listen <take>%s --brief \"...\"\n", board)
 	})
 	return nil
+}
+
+// saveTake writes one take into dir, lowers its level when it would clip (level), and
+// records it in the manifest. The note says what cav did to the level.
+func saveTake(ctx context.Context, root, dir, name string, tr *music.Track, prompt, ref string, level bool) (string, string, error) {
+	path := filepath.Join(dir, name+tr.Ext)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", "", err
+	}
+	if err := os.WriteFile(path, tr.Data, 0o644); err != nil {
+		return "", "", err
+	}
+	note := ""
+	if level {
+		gain, err := addHeadroom(ctx, path)
+		switch {
+		case err != nil:
+			note = "level not checked (" + err.Error() + ")"
+		case gain != 0:
+			note = fmt.Sprintf("the true peak was above %g dBTP, so cav lowered the level by %.1f dB (--raw-level keeps it)", headroomPeak, -gain)
+		}
+	}
+	m, err := library.Load(root)
+	if err != nil {
+		return "", "", err
+	}
+	sum, _ := fileSHA(path)
+	var refs []string
+	if ref != "" {
+		refs = []string{ref}
+	}
+	m.Put(root, library.Entry{Path: path, Kind: "audio", Source: tr.Provider, Licence: "generated", CommercialOK: true,
+		RetrievedAt: time.Now().UTC(), SHA256: sum, Generated: &library.Generated{Provider: tr.Provider, Model: tr.Model, Prompt: prompt, Refs: refs}})
+	return path, note, m.Save(root)
 }
 
 type takeScore struct {
