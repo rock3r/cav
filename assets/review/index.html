@@ -1029,7 +1029,14 @@
     if (!c) { editing = null; renderList(true); return; }
     if (t === (c.text || '')) { editing = null; renderList(true); return; }
     if (!t && !(c.shapes && c.shapes.length)) { toast('A note needs words or a drawing. Delete it instead.'); return; }
-    try { await api('POST', `/api/comments/${id}`, { text: t }); editing = null; await refresh(true); sheet.querySelector(`.note[data-id="${id}"]`)?.focus({ preventScroll: true }); }
+    try {
+      await api('POST', `/api/comments/${id}`, { text: t });
+      // The person may have started editing another note while this one saved: keep that edit.
+      const mine = editing === id;
+      if (mine) editing = null;
+      await refresh(true);
+      if (mine) sheet.querySelector(`.note[data-id="${id}"]`)?.focus({ preventScroll: true });
+    }
     catch (err) { toast(err.message); }
   }
   sheet.addEventListener('submit', async e => {
