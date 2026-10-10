@@ -45,17 +45,129 @@
   };
   handlers['ui/notifications/host-context-changed'] = applyHost;
 
+  // In the chat, the page's "follow the system" follows the host. A theme the person picked
+  // that differs from the host's gets the page's own opaque paper (cav-own-theme), since the
+  // conversation behind a transparent page would be the wrong shade for its ink.
+  let hostTheme = null;
+
+  // The page's tokens drawn from the host's style variables: [page token, value, host
+  // tokens it needs]. Set inline on <html>, they outrank the page's :root rules.
+  const hostVars = new Set();
+  const v = n => `var(${n})`;
+  const mix = (pct, a, b) => `color-mix(in srgb, ${v(a)} ${pct}%, ${b ? v(b) : 'transparent'})`;
+  const HOST_TOKENS = [
+    ['--paper', v('--color-background-primary'), '--color-background-primary'],
+    ['--paper-2', v('--color-background-secondary'), '--color-background-secondary'],
+    ['--paper-3', mix(10, '--color-text-primary', '--color-background-primary'), '--color-text-primary', '--color-background-primary'],
+    ['--ink', v('--color-text-primary'), '--color-text-primary'],
+    ['--ink-2', v('--color-text-secondary'), '--color-text-secondary'],
+    ['--graphite', v('--color-text-tertiary'), '--color-text-tertiary'],
+    ['--rule', v('--color-border-tertiary'), '--color-border-tertiary'],
+    ['--rule-2', v('--color-border-secondary'), '--color-border-secondary'],
+    ['--rule-3', v('--color-border-primary'), '--color-border-primary'],
+    ['--sel', mix(4.5, '--color-text-primary'), '--color-text-primary'],
+    ['--hover', mix(6, '--color-text-primary'), '--color-text-primary'],
+    ['--ok', v('--color-text-success'), '--color-text-success'],
+    ['--warn', v('--color-text-warning'), '--color-text-warning'],
+    ['--bad', v('--color-text-danger'), '--color-text-danger'],
+    ['--on-bad', v('--color-text-inverse'), '--color-text-inverse'],
+    ['--tip', v('--color-background-inverse'), '--color-background-inverse'],
+    ['--on-tip', v('--color-text-inverse'), '--color-text-inverse'],
+    ['--sans', v('--font-sans'), '--font-sans'],
+  ];
+  // Hosts may send any subset: a page token follows the host only when every host token it
+  // uses was sent, and keeps the page's own value otherwise. A theme picked in the page that
+  // differs from the host's keeps the page's own colours, since host values need not adapt
+  // to the page's color-scheme; the host font stays.
+  function applyTokens() {
+    const root = document.documentElement, own = root.classList.contains('cav-own-theme');
+    for (const [token, value, ...needs] of HOST_TOKENS) {
+      if (needs.every(n => hostVars.has(n)) && (!own || token === '--sans')) root.style.setProperty(token, value);
+      else root.style.removeProperty(token);
+    }
+  }
+  function syncTheme() {
+    const root = document.documentElement;
+    if (!root.dataset.theme && hostTheme) { root.dataset.theme = hostTheme; return; } // the observer runs again
+    // Without a host theme, a data-theme can only be the person's own pick.
+    root.classList.toggle('cav-own-theme', !!root.dataset.theme && root.dataset.theme !== hostTheme);
+    applyTokens();
+  }
+  new MutationObserver(syncTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
   function applyHost(ctx) {
     if (!ctx) return;
     // Follow the host's theme unless the person picked one in the page.
     let choice = null;
     try { choice = localStorage.getItem('cav-review-theme'); } catch {}
-    if ((!choice || choice === 'system') && (ctx.theme === 'light' || ctx.theme === 'dark')) document.documentElement.dataset.theme = ctx.theme;
+    if (ctx.theme === 'light' || ctx.theme === 'dark') hostTheme = ctx.theme;
+    if ((!choice || choice === 'system') && hostTheme) document.documentElement.dataset.theme = hostTheme;
+    syncTheme();
+    // The host's style variables and fonts.
+    const st = ctx.styles;
+    if (st && st.variables) {
+      const root = document.documentElement.style;
+      for (const [k, v] of Object.entries(st.variables)) if (k.startsWith('--') && v != null) { root.setProperty(k, String(v)); hostVars.add(k); }
+      applyTokens();
+    }
+    if (st && st.css && st.css.fonts && !document.getElementById('cav-host-fonts')) {
+      const el = document.createElement('style');
+      el.id = 'cav-host-fonts';
+      el.textContent = st.css.fonts;
+      document.head.appendChild(el);
+    }
+    if (Array.isArray(ctx.availableDisplayModes)) hostModes = ctx.availableDisplayModes;
+    if (ctx.displayMode) setMode(ctx.displayMode);
+    else showFullBtn();
+    // The composer can sit over the bottom of a full screen app: keep the page clear of it.
+    const s = ctx.safeAreaInsets;
+    if (s) for (const k of ['top', 'right', 'bottom', 'left']) document.documentElement.style.setProperty('--cav-safe-' + k, (s[k] || 0) + 'px');
     // host-context-changed carries only the fields that changed: keep the height without one.
+    // Full screen fills the window by CSS: keep the inline height for the way back, since the
+    // host may leave full screen without sending the dimensions again.
     const d = ctx.containerDimensions;
-    if (!d) return;
+    if (!d || mode === 'fullscreen') return;
     const h = d.height || Math.min(d.maxHeight || 640, 640);
     document.documentElement.style.setProperty('--cav-app-h', h + 'px');
+  }
+
+  // ---------- full screen: a button in the title block, when the host offers it ----------
+  // Inline, the host caps the frame at about 600 pixels, which leaves the stage small. Full
+  // screen gives the stage and the sheet the whole window; the host draws its own close button.
+  let hostModes = [], mode = 'inline', fullBtn = null;
+  const ICON_EXPAND = 'M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10';
+  const ICON_SHRINK = 'M6 2.5V6H2.5M13.5 6H10V2.5M10 13.5V10h3.5M2.5 10H6v3.5';
+  function setMode(m) {
+    if (m !== 'inline' && m !== 'fullscreen' && m !== 'pip') return;
+    mode = m;
+    document.documentElement.classList.toggle('cav-full', m === 'fullscreen');
+    showFullBtn();
+  }
+  function showFullBtn() {
+    if (!fullBtn) return;
+    const full = mode === 'fullscreen';
+    fullBtn.hidden = !hostModes.includes('fullscreen');
+    const label = full ? 'Exit full screen' : 'Full screen';
+    fullBtn.setAttribute('aria-label', label);
+    fullBtn.dataset.tip = label;
+    fullBtn.querySelector('path').setAttribute('d', full ? ICON_SHRINK : ICON_EXPAND);
+  }
+  function addFullBtn() {
+    const end = document.querySelector('.titleblock .end');
+    if (!end) return;
+    fullBtn = document.createElement('button');
+    fullBtn.className = 'btn';
+    fullBtn.id = 'fullscreen';
+    fullBtn.dataset.tipPos = 'below';
+    fullBtn.innerHTML = '<svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path/></svg>';
+    fullBtn.addEventListener('click', () => {
+      const want = mode === 'fullscreen' ? 'inline' : 'fullscreen';
+      request('ui/request-display-mode', { mode: want })
+        .then(r => setMode((r && r.mode) || want))
+        .catch(e => console.warn('cav: ui/request-display-mode failed', e.message));
+    });
+    end.insertBefore(fullBtn, document.getElementById('help'));
+    showFullBtn();
   }
 
   // ---------- requests through the review_request tool ----------
@@ -180,11 +292,12 @@
     if (h !== lastH) { lastH = h; notify('ui/notifications/size-changed', { width: Math.ceil(r.width), height: h }); }
   };
   addEventListener('DOMContentLoaded', () => {
+    addFullBtn();
     document.querySelectorAll('img[src], video[src]').forEach(adopt);
     new ResizeObserver(report).observe(document.documentElement);
   });
 
-  request('ui/initialize', { appInfo: { name: 'cav review', version: '1' }, appCapabilities: {}, protocolVersion: PROTOCOL })
+  request('ui/initialize', { appInfo: { name: 'cav review', version: '1' }, appCapabilities: { availableDisplayModes: ['inline', 'fullscreen'] }, protocolVersion: PROTOCOL })
     .then(r => { applyHost(r && r.hostContext); notify('ui/notifications/initialized', {}); })
     .catch(e => console.warn('cav: ui/initialize failed', e.message));
 })();

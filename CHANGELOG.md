@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- The chat review page opens inline and has a full screen button when the host offers
+  full screen. In full screen the stage and the note sheet fill the window, and the page
+  keeps clear of the chat composer. The page also takes the host's theme: it has no
+  border or background of its own, and it uses the host's colours and font for its chrome.
+  The stage stays black and the playhead stays orange. If you pick a theme in the page
+  that differs from the chat's, the page paints its own background.
 - `cav music gen --ref <track>` (repeatable) makes variations of a reference track, with
   `--takes` takes for each one. Stable Audio gets the track through audio-to-audio, and
   `--keep` (0-1) sets how much of it stays. ACE-Step gets it as a style reference. Lyria
