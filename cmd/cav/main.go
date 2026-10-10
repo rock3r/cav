@@ -17,7 +17,7 @@ import (
 )
 
 // Set by the release build with -ldflags "-X main.version=...".
-var version = "1.2.0-dev"
+var version = "1.3.0-dev"
 
 // Exit codes. Agents can branch on them without parsing text.
 const (
