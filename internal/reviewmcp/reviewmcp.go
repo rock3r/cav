@@ -69,10 +69,18 @@ func New(o Options) *mcp.Server {
 	})
 	// Borderless, so the page blends into the conversation; the CSP lets the page load the
 	// host's own font files, which Claude serves from assets.claude.ai.
-	pageMeta := mcp.Meta{"ui": map[string]any{
-		"prefersBorder": false,
-		"csp":           map[string]any{"resourceDomains": []string{"https://assets.claude.ai"}},
-	}}
+	// ChatGPT and Codex read the display modes from openai/ui before the page starts, and
+	// open a review full screen, as OpenAI advises for interactive apps. Other hosts ignore it.
+	pageMeta := mcp.Meta{
+		"ui": map[string]any{
+			"prefersBorder": false,
+			"csp":           map[string]any{"resourceDomains": []string{"https://assets.claude.ai"}},
+		},
+		"openai/ui": map[string]any{
+			"availableDisplayModes": []string{"inline", "fullscreen"},
+			"preferredDisplayMode":  "fullscreen",
+		},
+	}
 	s.AddResource(&mcp.Resource{URI: PageURI, Name: "cav review", MIMEType: AppMIME, Meta: pageMeta,
 		Description: "The cav review page: play a render, step frames, draw and leave notes for the agent."},
 		func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
