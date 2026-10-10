@@ -993,7 +993,7 @@
       if (act === 'resolve' || act === 'open') { await api('POST', `/api/comments/${id}`, { status: act === 'resolve' ? 'resolved' : 'open' }); await refresh(true); return; }
       if (act === 'reply') { replying = replying === id ? null : id; renderList(true); return; }
       if (act === 'edit') { if (editing !== id) { editing = id; editText = c.text || ''; } else editing = null; renderList(true); return; }
-      if (act === 'cancel') { editing = null; renderList(true); row.focus(); return; }
+      if (act === 'cancel') { editing = null; renderList(true); sheet.querySelector(`.note[data-id="${id}"]`)?.focus({ preventScroll: true }); return; }
       if (act === 'delete') {
         // Two clicks instead of a confirm box, which a chat frame may not allow.
         // Armed in place, so the button keeps focus and a second Enter confirms.
