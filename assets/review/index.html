@@ -870,6 +870,8 @@
   }
   let sheetSig = '';
   function renderList(force) {
+    // A deleted note's ID can come back on the next new note: drop an edit whose note is gone.
+    if (editing && !doc.comments.some(c => c.id === editing)) editing = null;
     const items = visible();
     const open = doc.comments.filter(c => c.status === 'open').length, done = doc.comments.length - open;
     // A narrow sheet cuts the count short: the full count stays in its tooltip.
