@@ -425,7 +425,7 @@
       <div class="here" id="here">
         <div class="fr"><b id="hereFrame">0</b><span class="tc" id="hereTc"></span></div>
         <div class="write">
-          <textarea id="text" rows="1" maxlength="65536" aria-label="Note on this frame" placeholder="Note on this frame…"></textarea>
+          <textarea id="text" rows="1" aria-label="Note on this frame" placeholder="Note on this frame…"></textarea>
           <div class="bar">
             <span class="where" id="where"></span>
             <button class="add" id="bAdd" data-tip="Add note  ⌘↵" data-tip-pos="end"><svg class="i"><use href="#i-plus"/></svg>Add</button>
@@ -474,9 +474,9 @@
   const icon = (name, cls) => `<svg class="i${cls ? ' ' + cls : ''}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
 
   const toast = msg => { const t = $('toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('on'), 2400); };
-  // The server caps a note at this many characters (maxNoteChars in server.go). The composer
-  // also has it as maxlength. The edit box does not: an older note can be longer, and the
-  // person must still be able to shorten it and save.
+  // The server caps a note at this many characters (maxNoteChars in server.go), counted in
+  // code points. Neither text box has a maxlength: it counts UTF-16 units, so it would stop an
+  // emoji-heavy note at half the cap, and an older, longer note must still be shortened and saved.
   const MAX_NOTE = 65536;
   const tooLong = t => t.length > MAX_NOTE && [...t].length > MAX_NOTE;
   const api = async (method, url, body) => {
