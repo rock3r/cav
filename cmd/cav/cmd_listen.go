@@ -401,6 +401,7 @@ func cmdMusic(a *app, args []string) error {
 		Mode        string `json:"mode"` // "sent" (as audio) or "described" (in words)
 		Note        string `json:"note,omitempty"`
 		Description string `json:"description,omitempty"`
+		name        string // distinct among the references, for the take's file name
 		req         music.Request
 	}
 	tmp, err := os.MkdirTemp("", "cav-music")
@@ -411,8 +412,9 @@ func cmdMusic(a *app, args []string) error {
 	jobs := []refJob{{req: req}}
 	if len(refs) > 0 {
 		jobs = nil
-		for _, r := range refs {
-			j := refJob{Path: r, req: req}
+		names := refNames(refs)
+		for i, r := range refs {
+			j := refJob{Path: r, name: names[i], req: req}
 			if music.SendsAudio(ch.Service) {
 				send, note, err := prepareRef(ctx, ch.Service, r, tmp)
 				if err != nil {
@@ -451,7 +453,7 @@ func cmdMusic(a *app, args []string) error {
 			}
 			name := safeSlug(prompt)
 			if len(jobs) > 1 {
-				name += "-" + safeSlug(strings.TrimSuffix(filepath.Base(j.Path), filepath.Ext(j.Path)))
+				name += "-" + j.name
 			}
 			if *takes > 1 {
 				name += fmt.Sprintf("-take%d", i)

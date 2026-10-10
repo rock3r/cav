@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -82,5 +83,32 @@ func TestAddHeadroomLowersOnlyHotTakes(t *testing.T) {
 		if err != nil || l.TruePeak > headroomPeak {
 			t.Fatalf("%s: true peak after: %.2f %v", name, l.TruePeak, err)
 		}
+	}
+}
+
+func TestRefNamesAreDistinct(t *testing.T) {
+	got := refNames([]string{"a/pixel.wav", "b/pixel.mp3", "c/Pixel!.wav", "bell.wav"})
+	want := []string{"pixel", "pixel-2", "pixel-3", "bell"}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("got %v, want %v", got, want)
+		}
+	}
+}
+
+func TestPrepareRefKeepsSameNamedReferencesApart(t *testing.T) {
+	needFFmpeg(t)
+	ctx, dir := context.Background(), t.TempDir()
+	a, b := filepath.Join(dir, "a", "pixel.m4a"), filepath.Join(dir, "b", "pixel.m4a")
+	for _, p := range []string{a, b} {
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		tone(t, p, 7, "-6dB")
+	}
+	ga, _, err1 := prepareRef(ctx, "stability", a, dir)
+	gb, _, err2 := prepareRef(ctx, "stability", b, dir)
+	if err1 != nil || err2 != nil || ga == gb {
+		t.Fatalf("two references with one name must not share a file: %q %q %v %v", ga, gb, err1, err2)
 	}
 }

@@ -35,7 +35,12 @@ func prepareRef(ctx context.Context, service, path, tmp string) (string, string,
 	if dur <= stabilityRefMax && (ext == ".mp3" || ext == ".wav") {
 		return path, "", nil
 	}
-	out := filepath.Join(tmp, strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))+".wav")
+	// A folder of its own, so two references with the same name do not share a file.
+	dir, err := os.MkdirTemp(tmp, "ref")
+	if err != nil {
+		return "", "", err
+	}
+	out := filepath.Join(dir, strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))+".wav")
 	args := []string{"-v", "error", "-y", "-i", path, "-vn"}
 	note := "converted to WAV for Stable Audio"
 	if dur > stabilityRefMax {
@@ -46,6 +51,23 @@ func prepareRef(ctx context.Context, service, path, tmp string) (string, string,
 		return "", "", fmt.Errorf("converting %s: %v: %s", path, err, strings.TrimSpace(string(b)))
 	}
 	return out, note, nil
+}
+
+// refNames gives each reference track a distinct name for its takes: the slug of its file
+// name, with -2, -3... when two references would get the same one.
+func refNames(paths []string) []string {
+	used := map[string]bool{}
+	names := make([]string, len(paths))
+	for i, p := range paths {
+		base := safeSlug(strings.TrimSuffix(filepath.Base(p), filepath.Ext(p)))
+		name := base
+		for n := 2; used[name]; n++ {
+			name = fmt.Sprintf("%s-%d", base, n)
+		}
+		used[name] = true
+		names[i] = name
+	}
+	return names
 }
 
 func audioSeconds(ctx context.Context, path string) (float64, error) {
