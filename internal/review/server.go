@@ -393,7 +393,21 @@ func (s *Server) editComment(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if in.Text != nil {
-			c.Text = strings.TrimSpace(*in.Text)
+			t := strings.TrimSpace(*in.Text)
+			if t == "" && len(c.Shapes) == 0 {
+				return errors.New("a note needs words or a drawing")
+			}
+			// The agent already has the old words once their send is delivered: the
+			// changed note goes out again with the next send. A send still waiting for
+			// the agent carries the new words, because it is read from the doc.
+			if t != c.Text && c.Sent != 0 {
+				for _, s := range d.Sends {
+					if s.N == c.Sent && s.DeliveredAt != nil {
+						c.Sent = 0
+					}
+				}
+			}
+			c.Text = t
 		}
 		if t := strings.TrimSpace(in.Reply); t != "" {
 			c.Replies = append(c.Replies, Reply{Author: s.Author, At: time.Now().UTC(), Text: t})

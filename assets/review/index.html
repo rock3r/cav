@@ -175,10 +175,12 @@
   .compare { display: flex; align-items: center; gap: 4px; }
 
   /* ---------- the sheet ---------- */
-  .sheet-head { display: grid; grid-template-columns: var(--fcol) minmax(0, 1fr) auto; align-items: center; height: 46px; padding-right: 6px; border-bottom: 1px solid var(--rule-3); }
+  .sheet-head { display: grid; grid-template-columns: var(--fcol) auto minmax(0, 1fr); column-gap: 10px; align-items: center; height: 46px; padding-right: 6px; border-bottom: 1px solid var(--rule-3); }
   .colhead { font: 600 12px/1 var(--sheet); letter-spacing: 0.1em; text-transform: uppercase; color: var(--graphite); padding-left: 12px; }
-  .sheet-head .count { display: flex; align-items: center; gap: 2px; color: var(--graphite); font-size: 12px; font-variant-numeric: tabular-nums; }
-  .sheet { position: relative; flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+  .sheet-head .count { display: flex; align-items: center; justify-content: flex-end; gap: 2px; min-width: 0; color: var(--graphite); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .sheet-head .count .num { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* The sheet places its own scroll after a rebuild, so the browser must not shift it. */
+  .sheet { position: relative; flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; overflow-anchor: none; }
   /* A narrow sheet keeps its columns: a slimmer frame column and a smaller snapshot. */
   .side { container-type: inline-size; }
   @container (max-width: 340px) {
@@ -226,6 +228,12 @@
   .replyform { display: flex; gap: 4px; margin-top: 6px; }
   .replyform input { flex: 1; min-width: 0; height: 28px; padding: 0 8px; border: 1px solid var(--rule-2); border-radius: 4px; background: var(--paper); }
   .replyform input:focus { outline: none; border-color: var(--mark); }
+  .editform { display: flex; flex-direction: column; gap: 4px; }
+  .editform textarea { width: 100%; min-height: 40px; max-height: 200px; resize: none; padding: 4px 6px; border: 1px solid var(--rule-2); border-radius: 4px; background: var(--paper); line-height: 1.42; font-size: 13px; overflow: auto; field-sizing: content; }
+  .editform textarea:focus { outline: none; border-color: var(--mark); }
+  .editform .bar { display: flex; justify-content: flex-end; gap: 4px; }
+  .editform .bar .btn { height: 26px; font-size: 12px; }
+  .editform .bar .save { background: var(--mark); color: var(--on-mark); font-weight: 650; }
 
   /* Frames with no note: the sheet's ruled paper, taller for longer runs. */
   .gap { display: grid; grid-template-columns: var(--fcol) minmax(0, 1fr); border-bottom: 1px solid var(--rule); }
@@ -274,7 +282,7 @@
     .theme .btn { height: 36px; min-width: 38px; }
     .note .acts { margin: 0 -4px 0 auto; }
     .note .acts .btn { height: 40px; min-width: 40px; }
-    .add, .replyform input { height: 40px; }
+    .add, .replyform input, .editform .bar .btn { height: 40px; }
     select { height: 40px; }
   }
   /* On a phone the readout shares the playback row: frame number and timecode only. */
@@ -313,6 +321,7 @@
   <symbol id="i-check" viewBox="0 0 16 16"><path d="M3.5 8.5 6.5 11.5 12.5 4.5"/></symbol>
   <symbol id="i-reopen" viewBox="0 0 16 16"><path d="M3 8a5 5 0 1 0 1.5-3.6M3 2.5v2.5h2.5"/></symbol>
   <symbol id="i-reply" viewBox="0 0 16 16"><path d="M6.5 4 3 7.5 6.5 11M3 7.5h6a4 4 0 0 1 4 4v1"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 16 16"><path d="M10.5 3 13 5.5 6 12.5H3.5V10zM9 4.5 11.5 7"/></symbol>
   <symbol id="i-trash" viewBox="0 0 16 16"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5"/></symbol>
   <symbol id="i-send" viewBox="0 0 16 16"><path d="M14 2 2 7.2l4.6 1.7L14 2zM14 2l-5.2 12-1.6-4.6"/></symbol>
   <symbol id="i-plus" viewBox="0 0 16 16"><path d="M8 3.5v9M3.5 8h9"/></symbol>
@@ -459,7 +468,7 @@
   let frame = 0, exact = false, inF = null, outF = null;
   let tool = 'arrow', color = '#ffd23f', draft = [], drawing = null;
   let selected = null, showResolved = false, shuttle = 0, shuttleTimer = null;
-  let replying = null, armed = null;
+  let replying = null, armed = null, editing = null, editText = '', savingEdit = new Set();
   const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   const icon = (name, cls) => `<svg class="i${cls ? ' ' + cls : ''}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
@@ -844,6 +853,7 @@
     const del = armed === c.id;
     const acts = `<span class="acts">
         ${done ? `<button class="btn" data-act="open" aria-label="Reopen" data-tip="Reopen">${icon('reopen')}</button>` : `<button class="btn" data-act="resolve" aria-label="Resolve" data-tip="Resolve">${icon('check')}</button>`}
+        <button class="btn" data-act="edit" aria-label="Edit" data-tip="Edit">${icon('edit')}</button>
         <button class="btn" data-act="reply" aria-label="Reply" data-tip="Reply">${icon('reply')}</button>
         <button class="btn${del ? ' armed' : ''}" data-act="delete" aria-label="${del ? 'Click again to delete' : 'Delete'}" data-tip="${del ? 'Click again to delete' : 'Delete'}" data-tip-pos="end">${icon('trash')}</button>
       </span>`;
@@ -852,7 +862,9 @@
       <div class="body${c.snapshot ? '' : ' bare'}">
         ${c.snapshot ? `<img class="snap" loading="lazy" src="/api/snapshot/${c.id}?v=${c.createdAt}" alt="Frame ${c.frame} with the drawing">` : ''}
         <div>
-          <p class="txt${c.text ? '' : ' quiet'}">${esc(c.text || 'Drawing only')}</p>
+          ${editing === c.id
+            ? `<form class="editform" data-edit="${c.id}"><textarea aria-label="Edit ${c.id}"${savingEdit.has(c.id) ? ' readonly' : ''}>${esc(editText)}</textarea><div class="bar"><button type="button" class="btn" data-act="cancel"${savingEdit.has(c.id) ? ' disabled' : ''}>Cancel</button><button class="btn save" data-tip="Save  ⌘↵" data-tip-pos="end"${savingEdit.has(c.id) ? ' disabled' : ''}>Save</button></div></form>`
+            : `<p class="txt${c.text ? '' : ' quiet'}">${esc(c.text || 'Drawing only')}</p>`}
           <div class="meta"><span>${c.id}</span>${c.author && c.author !== author ? `<span>${esc(c.author)}</span>` : ''}${state}${older}${acts}</div>
           ${thread ? `<div class="thread">${thread}</div>` : ''}
         </div>
@@ -861,11 +873,14 @@
   }
   let sheetSig = '';
   function renderList(force) {
+    // A deleted note's ID can come back on the next new note: drop an edit whose note is gone.
+    if (editing && !doc.comments.some(c => c.id === editing)) editing = null;
     const items = visible();
     const open = doc.comments.filter(c => c.status === 'open').length, done = doc.comments.length - open;
-    $('count').textContent = doc.comments.length ? `${open} open${done ? ` · ${done} resolved` : ''}` : '';
+    // A narrow sheet cuts the count short: the full count stays in its tooltip.
+    $('count').textContent = $('count').title = doc.comments.length ? `${open} open${done ? ` · ${done} resolved` : ''}` : '';
     $('bFilter').hidden = !done;
-    const sig = JSON.stringify([items, selected, version, replying, meta && meta.frames]);
+    const sig = JSON.stringify([items, selected, version, replying, editing, meta && meta.frames]);
     if (force || sig !== sheetSig) {
       sheetSig = sig;
       // Rebuild every row but the playhead row, which keeps the note being written.
@@ -878,7 +893,11 @@
       const ae = document.activeElement, inForm = ae && ae.closest('.replyform');
       const keep = ae && ae !== $('text') && sheet.contains(ae) ? {
         id: ae.closest('.note')?.dataset.id, act: ae.dataset.act, part: inForm ? ae.tagName.toLowerCase() : null,
-        sel: inForm && ae.tagName === 'INPUT' ? [ae.selectionStart, ae.selectionEnd] : null } : null;
+        sel: inForm && ae.tagName === 'INPUT' ? [ae.selectionStart, ae.selectionEnd] : null,
+        edit: ae.closest('.editform') && ae.tagName === 'TEXTAREA' ? [ae.selectionStart, ae.selectionEnd] : null } : null;
+      // Removing the rows empties the sheet for a moment, which can clamp its scroll toward
+      // the top: put the scroll back once the rows are in again.
+      const scrolled = sheet.scrollTop;
       for (const el of [...sheet.children]) if (el !== here) el.remove();
       let html = items.map(noteRow).join('');
       if (!items.length) html += doc.comments.length
@@ -886,10 +905,18 @@
         : '<p class="hint">Step to a frame, draw on it if that helps, and write what should change. Each note lands on its frame here.</p>';
       sheet.insertAdjacentHTML('beforeend', html);
       layoutSheet(true);
+      // Only once the gap rows are back is the sheet as tall as before. Unless the sheet
+      // follows the playhead, which layoutSheet has just done, it stays where it was.
+      if (browsing && sheet.scrollTop !== scrolled) { ownScroll = Date.now(); sheet.scrollTop = scrolled; }
       const input = sheet.querySelector('.replyform input');
       const sameForm = input && reply && input.closest('.replyform').dataset.reply === reply.id;
       if (sameForm) input.value = reply.value;
-      if (input && !sameForm) input.focus();
+      const area = sheet.querySelector('.editform textarea');
+      if (area && (editing !== renderList.edited || keep?.edit)) {
+        // A new edit starts with the cursor at the end; a rebuilt one keeps its selection.
+        const at = keep?.edit || [area.value.length, area.value.length];
+        area.focus({ preventScroll: true }); area.setSelectionRange(...at);
+      } else if (input && !sameForm) input.focus();
       else if (keep && keep.part && sameForm) {
         if (keep.sel) { input.focus(); input.setSelectionRange(...keep.sel); }
         else input.closest('.replyform').querySelector(keep.part)?.focus();
@@ -897,6 +924,7 @@
         const row = sheet.querySelector(`.note[data-id="${keep.id}"]`);
         (row && (keep.act ? row.querySelector(`[data-act="${keep.act}"]`) : row))?.focus();
       }
+      renderList.edited = editing;
     }
     const unsent = doc.comments.filter(c => c.status === 'open' && !c.sent).length;
     $('bSend').disabled = !unsent;
@@ -964,11 +992,13 @@
   }
   sheet.addEventListener('click', async e => {
     const row = e.target.closest('.note'); if (!row) return;
-    if (e.target.closest('.replyform')) return;
+    if (e.target.closest('.replyform') || (e.target.closest('.editform') && !e.target.closest('[data-act]'))) return;
     const id = row.dataset.id, c = doc.comments.find(x => x.id === id), act = e.target.closest('[data-act]')?.dataset.act;
     try {
       if (act === 'resolve' || act === 'open') { await api('POST', `/api/comments/${id}`, { status: act === 'resolve' ? 'resolved' : 'open' }); await refresh(true); return; }
       if (act === 'reply') { replying = replying === id ? null : id; renderList(true); return; }
+      if (act === 'edit') { if (editing !== id) { editing = id; editText = c.text || ''; } else editing = null; renderList(true); return; }
+      if (act === 'cancel') { editing = null; renderList(true); sheet.querySelector(`.note[data-id="${id}"]`)?.focus({ preventScroll: true }); return; }
       if (act === 'delete') {
         // Two clicks instead of a confirm box, which a chat frame may not allow.
         // Armed in place, so the button keeps focus and a second Enter confirms.
@@ -996,7 +1026,37 @@
     const row = e.target.classList && e.target.classList.contains('note') ? e.target : null;
     if (row && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); e.stopPropagation(); row.click(); }
   });
+  // The edit text lives outside the row, so a rebuild while the person types keeps it.
+  sheet.addEventListener('input', e => { if (e.target.closest('.editform')) editText = e.target.value; });
+  async function saveEdit(form) {
+    const id = form.dataset.edit, c = doc.comments.find(x => x.id === id);
+    const t = form.querySelector('textarea').value.trim();
+    if (!c) { editing = null; renderList(true); return; }
+    if (t === (c.text || '')) { editing = null; renderList(true); return; }
+    if (!t && !(c.shapes && c.shapes.length)) { toast('A note needs words or a drawing. Delete it instead.'); return; }
+    // One save at a time per note: its form is locked until the server answers, so a second save
+    // cannot reach the server first and be overwritten by the older text.
+    if (savingEdit.has(id)) return;
+    const lock = on => {
+      const f = sheet.querySelector(`.editform[data-edit="${id}"]`); if (!f) return;
+      f.querySelector('textarea').readOnly = on;
+      f.querySelectorAll('button').forEach(b => { b.disabled = on; });
+    };
+    savingEdit.add(id); lock(true);
+    try {
+      await api('POST', `/api/comments/${id}`, { text: t });
+      savingEdit.delete(id);
+      // The person may have started editing another note while this one saved: keep that edit.
+      const mine = editing === id;
+      if (mine) editing = null;
+      await refresh(true);
+      if (mine) sheet.querySelector(`.note[data-id="${id}"]`)?.focus({ preventScroll: true });
+    }
+    catch (err) { savingEdit.delete(id); lock(false); toast(err.message); }
+  }
   sheet.addEventListener('submit', async e => {
+    const edit = e.target.closest('.editform');
+    if (edit) { e.preventDefault(); await saveEdit(edit); return; }
     const form = e.target.closest('.replyform'); if (!form) return;
     e.preventDefault();
     const t = form.querySelector('input').value.trim(), id = form.dataset.reply;
@@ -1026,6 +1086,9 @@
     const typing = e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT';
     if (typing) {
       if (e.target.id === 'text' && e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); addNote(); }
+      const edit = e.target.closest('.editform');
+      if (edit && e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); saveEdit(edit); return; }
+      if (edit && e.key === 'Escape') { const id = editing; editing = null; renderList(true); sheet.querySelector(`.note[data-id="${id}"]`)?.focus({ preventScroll: true }); return; }
       if (e.key === 'Escape') { if (replying) { replying = null; renderList(true); } e.target.blur(); }
       return;
     }

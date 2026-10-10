@@ -111,6 +111,49 @@ func TestCommentSendDeliverLoop(t *testing.T) {
 	if d.Comments[0].Sent != 0 || d.Comments[0].Status != "open" {
 		t.Fatalf("reopen did not clear the send: %+v", d.Comments[0])
 	}
+	if w := do(t, h, "POST", "/api/comments/c_01", map[string]any{"text": "  fade much too slow \n"}, nil); w.Code != 200 {
+		t.Fatalf("edit text: %d %s", w.Code, w.Body)
+	}
+	d, _ = s.Store.Load()
+	if d.Comments[0].Text != "fade much too slow" {
+		t.Fatalf("edited text %q", d.Comments[0].Text)
+	}
+	// Editing a note whose send is still waiting keeps it in that send; once the send is
+	// delivered, an edit puts the note back in line for the next send.
+	if w := do(t, h, "POST", "/api/send", map[string]any{}, nil); w.Code != 200 {
+		t.Fatalf("send after reopen: %d %s", w.Code, w.Body)
+	}
+	if w := do(t, h, "POST", "/api/comments/c_01", map[string]any{"text": "fade slower still"}, nil); w.Code != 200 {
+		t.Fatalf("edit pending: %d", w.Code)
+	}
+	d, _ = s.Store.Load()
+	if d.Comments[0].Sent != 2 {
+		t.Fatalf("edit took a note out of its pending send: %+v", d.Comments[0])
+	}
+	s.Store.Update(func(d *Doc) error {
+		now := time.Now()
+		for p := Pending(d); p != nil; p = Pending(d) {
+			p.DeliveredAt = &now
+		}
+		return nil
+	})
+	if w := do(t, h, "POST", "/api/comments/c_01", map[string]any{"text": "fade much too slow"}, nil); w.Code != 200 {
+		t.Fatalf("edit delivered: %d", w.Code)
+	}
+	d, _ = s.Store.Load()
+	if d.Comments[0].Sent != 0 {
+		t.Fatalf("edited delivered note not requeued: %+v", d.Comments[0])
+	}
+	// A note with a drawing may lose its words; one without a drawing may not.
+	if w := do(t, h, "POST", "/api/comments/c_01", map[string]any{"text": ""}, nil); w.Code != 200 {
+		t.Fatalf("clear text on a drawn note: %d %s", w.Code, w.Body)
+	}
+	if w := do(t, h, "POST", "/api/comments", map[string]any{"frame": 10, "text": "words only"}, nil); w.Code != 200 {
+		t.Fatalf("add words-only note: %d %s", w.Code, w.Body)
+	}
+	if w := do(t, h, "POST", "/api/comments/c_02", map[string]any{"text": " "}, nil); w.Code != 400 {
+		t.Fatalf("emptied a note with no drawing: %d", w.Code)
+	}
 	if w := do(t, h, "DELETE", "/api/comments/c_01", nil, nil); w.Code != 200 {
 		t.Fatalf("delete: %d", w.Code)
 	}
