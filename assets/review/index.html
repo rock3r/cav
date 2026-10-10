@@ -474,6 +474,11 @@
   const icon = (name, cls) => `<svg class="i${cls ? ' ' + cls : ''}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
 
   const toast = msg => { const t = $('toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('on'), 2400); };
+  // The server caps a note at this many characters (maxNoteChars in server.go), counted in
+  // code points. Neither text box has a maxlength: it counts UTF-16 units, so it would stop an
+  // emoji-heavy note at half the cap, and an older, longer note must still be shortened and saved.
+  const MAX_NOTE = 65536;
+  const tooLong = t => t.length > MAX_NOTE && [...t].length > MAX_NOTE;
   const api = async (method, url, body) => {
     // Every write sends JSON: the server refuses other content types, so another site
     // cannot post here with a plain form.
@@ -812,6 +817,7 @@
   async function addNote() {
     const text = $('text').value.trim();
     if (!text && !draft.length) { toast('Write a note or draw on the frame first'); $('text').focus(); return; }
+    if (tooLong(text)) { toast(`A note can be at most ${MAX_NOTE} characters`); $('text').focus(); return; }
     if (!videoReady) { toast('Wait until the render has loaded'); return; }
     video.pause(); stopShuttle();
     // A state refresh can switch the render while the snapshot is drawn: the note belongs
@@ -1034,6 +1040,7 @@
     if (!c) { editing = null; renderList(true); return; }
     if (t === (c.text || '')) { editing = null; renderList(true); return; }
     if (!t && !(c.shapes && c.shapes.length)) { toast('A note needs words or a drawing. Delete it instead.'); return; }
+    if (tooLong(t)) { toast(`A note can be at most ${MAX_NOTE} characters. Shorten it to save.`); return; }
     // One save at a time per note: its form is locked until the server answers, so a second save
     // cannot reach the server first and be overwritten by the older text.
     if (savingEdit.has(id)) return;
