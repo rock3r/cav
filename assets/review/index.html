@@ -890,8 +890,8 @@
         id: ae.closest('.note')?.dataset.id, act: ae.dataset.act, part: inForm ? ae.tagName.toLowerCase() : null,
         sel: inForm && ae.tagName === 'INPUT' ? [ae.selectionStart, ae.selectionEnd] : null,
         edit: ae.closest('.editform') && ae.tagName === 'TEXTAREA' ? [ae.selectionStart, ae.selectionEnd] : null } : null;
-      // Removing the rows empties the sheet for a moment, which would reset its scroll to the
-      // top: put the scroll back once the rows are in again.
+      // Removing the rows empties the sheet for a moment, which can clamp its scroll toward
+      // the top: put the scroll back once the rows are in again.
       const scrolled = sheet.scrollTop;
       for (const el of [...sheet.children]) if (el !== here) el.remove();
       let html = items.map(noteRow).join('');
@@ -899,8 +899,10 @@
         ? '<p class="hint">Every note is resolved.</p>'
         : '<p class="hint">Step to a frame, draw on it if that helps, and write what should change. Each note lands on its frame here.</p>';
       sheet.insertAdjacentHTML('beforeend', html);
-      if (sheet.scrollTop !== scrolled) { ownScroll = Date.now(); sheet.scrollTop = scrolled; }
       layoutSheet(true);
+      // Only once the gap rows are back is the sheet as tall as before. Unless the sheet
+      // follows the playhead, which layoutSheet has just done, it stays where it was.
+      if (browsing && sheet.scrollTop !== scrolled) { ownScroll = Date.now(); sheet.scrollTop = scrolled; }
       const input = sheet.querySelector('.replyform input');
       const sameForm = input && reply && input.closest('.replyform').dataset.reply === reply.id;
       if (sameForm) input.value = reply.value;
