@@ -13,12 +13,16 @@ import (
 )
 
 // Stable Audio's audio-to-audio takes MP3 or WAV, 6 to 190 seconds long (Stability's
-// OpenAPI spec, read on 2026-10-09).
-const stabilityRefMin, stabilityRefMax = 6.0, 190.0
+// OpenAPI spec, read on 2026-10-09), in a request of at most 50 MB (its API reference).
+// cav converts a bigger file to 16-bit 44.1 kHz WAV: 190 s of that is about 34 MB.
+const (
+	stabilityRefMin, stabilityRefMax = 6.0, 190.0
+	stabilityRefBytes                = 45 << 20 // leaves room for the rest of the form
+)
 
 // prepareRef makes a reference track fit the service. For Stable Audio, cav converts other
-// formats (m4a, flac, aiff...) to WAV and keeps the first 190 seconds of a longer track; a
-// track shorter than 6 seconds is an error. Other services get the file as it is. It
+// formats (m4a, flac, aiff...) and files too big for one request to WAV, and keeps the
+// first 190 seconds of a longer track; a track shorter than 6 seconds is an error. Other services get the file as it is. It
 // returns the file to send and a note when cav changed it.
 func prepareRef(ctx context.Context, service, path, tmp string) (string, string, error) {
 	if service != "stability" {
@@ -32,7 +36,11 @@ func prepareRef(ctx context.Context, service, path, tmp string) (string, string,
 		return "", "", fmt.Errorf("%s is %.1f s long; Stable Audio needs a reference of %g to %g s", path, dur, stabilityRefMin, stabilityRefMax)
 	}
 	ext := strings.ToLower(filepath.Ext(path))
-	if dur <= stabilityRefMax && (ext == ".mp3" || ext == ".wav") {
+	st, err := os.Stat(path)
+	if err != nil {
+		return "", "", err
+	}
+	if dur <= stabilityRefMax && (ext == ".mp3" || ext == ".wav") && st.Size() <= stabilityRefBytes {
 		return path, "", nil
 	}
 	// A folder of its own, so two references with the same name do not share a file.
@@ -43,11 +51,14 @@ func prepareRef(ctx context.Context, service, path, tmp string) (string, string,
 	out := filepath.Join(dir, strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))+".wav")
 	args := []string{"-v", "error", "-y", "-i", path, "-vn"}
 	note := "converted to WAV for Stable Audio"
+	if ext == ".mp3" || ext == ".wav" {
+		note = "converted to 16-bit 44.1 kHz WAV to fit Stable Audio's 50 MB request limit"
+	}
 	if dur > stabilityRefMax {
 		args = append(args, "-t", strconv.FormatFloat(stabilityRefMax, 'f', 0, 64))
 		note = fmt.Sprintf("Stable Audio takes at most %g s, so cav sent the first %g s", stabilityRefMax, stabilityRefMax)
 	}
-	if b, err := exec.CommandContext(ctx, "ffmpeg", append(args, "-c:a", "pcm_s16le", out)...).CombinedOutput(); err != nil {
+	if b, err := exec.CommandContext(ctx, "ffmpeg", append(args, "-ar", "44100", "-c:a", "pcm_s16le", out)...).CombinedOutput(); err != nil {
 		return "", "", fmt.Errorf("converting %s: %v: %s", path, err, strings.TrimSpace(string(b)))
 	}
 	return out, note, nil
