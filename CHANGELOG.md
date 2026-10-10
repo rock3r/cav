@@ -1,7 +1,13 @@
 # Changelog
 
-## Unreleased
+## 1.3.0
 
+- In `cav review` and the chat review, each note has an Edit action. You edit the text in
+  place and save with Cmd/Ctrl+Enter or Save. The server refuses to empty the text of a
+  note that has no drawing. Deleting a note keeps the sheet's scroll position, and a long
+  note count in a narrow sheet ends with an ellipsis.
+- A note's text can be at most 65536 characters, both when you create it and when you
+  edit it. Before, a long note could be created and then fail to save.
 - In the chat review page, the armed delete button uses the host's danger background
   (`--color-background-danger`) with its danger text colour (`--color-text-danger`) on
   top. Before, it used the danger text colour as the fill, so its label and icon could
