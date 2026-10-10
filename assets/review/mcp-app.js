@@ -89,7 +89,8 @@
   function syncTheme() {
     const root = document.documentElement;
     if (!root.dataset.theme && hostTheme) { root.dataset.theme = hostTheme; return; } // the observer runs again
-    root.classList.toggle('cav-own-theme', !!hostTheme && root.dataset.theme !== hostTheme);
+    // Without a host theme, a data-theme can only be the person's own pick.
+    root.classList.toggle('cav-own-theme', !!root.dataset.theme && root.dataset.theme !== hostTheme);
     applyTokens();
   }
   new MutationObserver(syncTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
