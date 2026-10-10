@@ -122,8 +122,10 @@
     const s = ctx.safeAreaInsets;
     if (s) for (const k of ['top', 'right', 'bottom', 'left']) document.documentElement.style.setProperty('--cav-safe-' + k, (s[k] || 0) + 'px');
     // host-context-changed carries only the fields that changed: keep the height without one.
+    // Full screen fills the window by CSS: keep the inline height for the way back, since the
+    // host may leave full screen without sending the dimensions again.
     const d = ctx.containerDimensions;
-    if (!d) return;
+    if (!d || mode === 'fullscreen') return;
     const h = d.height || Math.min(d.maxHeight || 640, 640);
     document.documentElement.style.setProperty('--cav-app-h', h + 'px');
   }
