@@ -75,10 +75,22 @@
     ['--on-tip', v('--color-text-inverse'), '--color-text-inverse'],
     ['--sans', v('--font-sans'), '--font-sans'],
   ];
+  // Hosts may send any subset: a page token follows the host only when every host token it
+  // uses was sent, and keeps the page's own value otherwise. A theme picked in the page that
+  // differs from the host's keeps the page's own colours, since host values need not adapt
+  // to the page's color-scheme; the host font stays.
+  function applyTokens() {
+    const root = document.documentElement, own = root.classList.contains('cav-own-theme');
+    for (const [token, value, ...needs] of HOST_TOKENS) {
+      if (needs.every(n => hostVars.has(n)) && (!own || token === '--sans')) root.style.setProperty(token, value);
+      else root.style.removeProperty(token);
+    }
+  }
   function syncTheme() {
     const root = document.documentElement;
     if (!root.dataset.theme && hostTheme) { root.dataset.theme = hostTheme; return; } // the observer runs again
     root.classList.toggle('cav-own-theme', !!hostTheme && root.dataset.theme !== hostTheme);
+    applyTokens();
   }
   new MutationObserver(syncTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
@@ -90,15 +102,12 @@
     if (ctx.theme === 'light' || ctx.theme === 'dark') hostTheme = ctx.theme;
     if ((!choice || choice === 'system') && hostTheme) document.documentElement.dataset.theme = hostTheme;
     syncTheme();
-    // The host's style variables and fonts. Its colour tokens use light-dark(), which the
-    // page's own color-scheme resolves, so a theme picked in the page still holds.
+    // The host's style variables and fonts.
     const st = ctx.styles;
     if (st && st.variables) {
       const root = document.documentElement.style;
       for (const [k, v] of Object.entries(st.variables)) if (k.startsWith('--') && v != null) { root.setProperty(k, String(v)); hostVars.add(k); }
-      // Hosts may send any subset: a page token follows the host only when every host
-      // token it uses was sent, and keeps the page's own value otherwise.
-      for (const [token, value, ...needs] of HOST_TOKENS) if (needs.every(n => hostVars.has(n))) root.setProperty(token, value);
+      applyTokens();
     }
     if (st && st.css && st.css.fonts && !document.getElementById('cav-host-fonts')) {
       const el = document.createElement('style');
