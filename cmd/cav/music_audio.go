@@ -14,7 +14,7 @@ import (
 
 // Stable Audio's audio-to-audio takes MP3 or WAV, 6 to 190 seconds long (Stability's
 // OpenAPI spec, read on 2026-10-09), in a request of at most 50 MB (its API reference).
-// cav converts a bigger file to 16-bit 44.1 kHz WAV: 190 s of that is about 34 MB.
+// cav converts a bigger file to 16-bit 44.1 kHz stereo WAV: 190 s of that is about 34 MB.
 const (
 	stabilityRefMin, stabilityRefMax = 6.0, 190.0
 	stabilityRefBytes                = 45 << 20 // leaves room for the rest of the form
@@ -52,13 +52,13 @@ func prepareRef(ctx context.Context, service, path, tmp string) (string, string,
 	args := []string{"-v", "error", "-y", "-i", path, "-vn"}
 	note := "converted to WAV for Stable Audio"
 	if ext == ".mp3" || ext == ".wav" {
-		note = "converted to 16-bit 44.1 kHz WAV to fit Stable Audio's 50 MB request limit"
+		note = "converted to 16-bit 44.1 kHz stereo WAV to fit Stable Audio's 50 MB request limit"
 	}
 	if dur > stabilityRefMax {
 		args = append(args, "-t", strconv.FormatFloat(stabilityRefMax, 'f', 0, 64))
 		note = fmt.Sprintf("Stable Audio takes at most %g s, so cav sent the first %g s", stabilityRefMax, stabilityRefMax)
 	}
-	if b, err := exec.CommandContext(ctx, "ffmpeg", append(args, "-ar", "44100", "-c:a", "pcm_s16le", out)...).CombinedOutput(); err != nil {
+	if b, err := exec.CommandContext(ctx, "ffmpeg", append(args, "-ac", "2", "-ar", "44100", "-c:a", "pcm_s16le", out)...).CombinedOutput(); err != nil {
 		return "", "", fmt.Errorf("converting %s: %v: %s", path, err, strings.TrimSpace(string(b)))
 	}
 	return out, note, nil

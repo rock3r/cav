@@ -53,9 +53,9 @@ func TestPrepareRefForStableAudio(t *testing.T) {
 	if err != nil || filepath.Ext(got) != ".wav" || !strings.Contains(note, "WAV") {
 		t.Fatalf("an m4a goes up as WAV: %q %q %v", got, note, err)
 	}
-	big := filepath.Join(dir, "big.wav") // 150 s of 96 kHz float stereo: about 115 MB
+	big := filepath.Join(dir, "big.wav") // 150 s of 96 kHz float 5.1: about 345 MB
 	if b, err := exec.Command("ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=96000:duration=150",
-		"-ac", "2", "-c:a", "pcm_f32le", big).CombinedOutput(); err != nil {
+		"-ac", "6", "-c:a", "pcm_f32le", big).CombinedOutput(); err != nil {
 		t.Fatalf("ffmpeg: %v: %s", err, b)
 	}
 	got, note, err = prepareRef(ctx, "stability", big, dir)
