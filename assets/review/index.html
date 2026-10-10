@@ -1033,8 +1033,9 @@
     if (!t && !(c.shapes && c.shapes.length)) { toast('A note needs words or a drawing. Delete it instead.'); return; }
     try {
       await api('POST', `/api/comments/${id}`, { text: t });
-      // The person may have started editing another note while this one saved: keep that edit.
-      const mine = editing === id;
+      // The person may have kept typing, or started editing another note, while this one
+      // saved: keep that edit.
+      const mine = editing === id && editText.trim() === t;
       if (mine) editing = null;
       await refresh(true);
       if (mine) sheet.querySelector(`.note[data-id="${id}"]`)?.focus({ preventScroll: true });
