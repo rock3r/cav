@@ -53,13 +53,22 @@ type Options struct {
 	// Prepare probes a video and makes its preview proxy. Tests replace it; nil uses
 	// ffprobe and ffmpeg.
 	Prepare func(ctx context.Context, video, cacheDir string) (review.Source, string, error)
+	// Settle is how long show_review waits to look at a changed file again before it
+	// decides whether the render has finished. Zero uses DefaultSettle.
+	Settle time.Duration
 }
+
+// DefaultSettle is the Settle of a server whose options leave it zero.
+const DefaultSettle = 500 * time.Millisecond
 
 // New builds the MCP server: the page resource, show_review for the model and
 // review_request for the page.
 func New(o Options) *mcp.Server {
 	if o.Prepare == nil {
 		o.Prepare = Prepare
+	}
+	if o.Settle <= 0 {
+		o.Settle = DefaultSettle
 	}
 	h := &handler{o: o, open: map[string]*session{}, stores: map[string]*review.Store{}}
 	s := mcp.NewServer(&mcp.Implementation{Name: "cav", Title: "cav review", Version: o.Version}, &mcp.ServerOptions{
@@ -259,6 +268,18 @@ func (h *handler) earlier(abs string, info os.FileInfo, prepErr error) *session 
 	return s
 }
 
+// changing reports whether the video of a session changed since it was prepared, with no
+// failed attempt to prepare the change.
+func (h *handler) changing(s *session) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	info, err := os.Stat(s.srv.Store.Video)
+	if err != nil || s.failed {
+		return false
+	}
+	return !info.ModTime().Equal(s.modTime) || info.Size() != s.size
+}
+
 func fileExists(p string) bool {
 	info, err := os.Stat(p)
 	return err == nil && info.Mode().IsRegular()
@@ -306,6 +327,21 @@ func (h *handler) show(ctx context.Context, req *mcp.CallToolRequest, in showIn)
 	s, err := h.session(ctx, video, true, true)
 	if err != nil {
 		return nil, showOut{}, err
+	}
+	if h.changing(s) {
+		// The file changed since this process last prepared it, and session saw the change
+		// for the first time, so it kept the earlier render in case the new one is still
+		// being written. An agent calls show_review after a render, so look again in a
+		// moment: a finished render is prepared now, instead of the result describing the
+		// earlier one.
+		select {
+		case <-ctx.Done():
+			return nil, showOut{}, ctx.Err()
+		case <-time.After(h.o.Settle):
+		}
+		if s, err = h.session(ctx, video, true, true); err != nil {
+			return nil, showOut{}, err
+		}
 	}
 	d, err := s.srv.Store.Load()
 	if err != nil {

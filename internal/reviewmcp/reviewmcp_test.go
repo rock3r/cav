@@ -40,6 +40,7 @@ func connectTo(t *testing.T, video string) (*mcp.ClientSession, *int) {
 	prepared := 0
 	srv := New(Options{
 		Version: "test", Page: []byte(page), Shim: []byte("/* shim */"), Author: "ann", CacheDir: filepath.Join(dir, "cache"),
+		Settle: 10 * time.Millisecond,
 		Resolve: func(v string) (string, error) {
 			if v == "" {
 				return video, nil
@@ -277,6 +278,27 @@ func TestReRenderPreparesAgain(t *testing.T) {
 	d, _ := review.Open(video).Load()
 	if len(d.Versions) != 2 {
 		t.Errorf("both renders should be recorded, got %d", len(d.Versions))
+	}
+}
+
+// show_review right after a finished re-render to the same path describes the new render,
+// not the one this process prepared before.
+func TestShowAfterReRenderShowsTheNewRender(t *testing.T) {
+	cs, video, prepared := connect(t)
+	call(t, cs, "show_review", map[string]any{"video": video}, nil)
+	later := time.Now().Add(time.Minute)
+	os.WriteFile(video, []byte("render v2, longer"), 0o644)
+	os.Chtimes(video, later, later)
+	var out showOut
+	call(t, cs, "show_review", map[string]any{"video": video}, &out)
+	if *prepared != 2 {
+		t.Fatalf("prepared %d times, want 2: show_review kept the earlier render", *prepared)
+	}
+	sha, _ := review.Digest(video)
+	var state requestOut
+	call(t, cs, "review_request", map[string]any{"video": video, "method": "GET", "path": "/api/state"}, &state)
+	if !strings.Contains(state.Body, sha) {
+		t.Errorf("the page state should name the new render %s: %s", sha, state.Body)
 	}
 }
 
