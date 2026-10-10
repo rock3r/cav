@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- In the chat review page, the armed delete button uses the host's danger background
+  (`--color-background-danger`) with its danger text colour (`--color-text-danger`) on
+  top. Before, it used the danger text colour as the fill, so its label and icon could
+  lose contrast. The button follows the host only when the host sends both colours. The
+  `cav review` page in the browser looks the same as before.
 - In ChatGPT and Codex, the chat review page opens full screen. Its resource names the
   display modes in `_meta["openai/ui"]`, so the host can choose one before the page
   starts. The page's own full screen button is hidden there, because those hosts have

@@ -70,7 +70,11 @@
     ['--ok', v('--color-text-success'), '--color-text-success'],
     ['--warn', v('--color-text-warning'), '--color-text-warning'],
     ['--bad', v('--color-text-danger'), '--color-text-danger'],
-    ['--on-bad', v('--color-text-inverse'), '--color-text-inverse'],
+    // --color-text-danger is a text colour for the host's surface, not a fill. A danger fill
+    // takes the host's danger background with its danger text on top, and both need both
+    // host tokens, so the label never sits on a fill from the other palette.
+    ['--bad-fill', v('--color-background-danger'), '--color-background-danger', '--color-text-danger'],
+    ['--on-bad-fill', v('--color-text-danger'), '--color-text-danger', '--color-background-danger'],
     ['--tip', v('--color-background-inverse'), '--color-background-inverse'],
     ['--on-tip', v('--color-text-inverse'), '--color-text-inverse'],
     ['--sans', v('--font-sans'), '--font-sans'],
