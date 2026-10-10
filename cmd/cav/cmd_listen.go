@@ -382,7 +382,7 @@ func cmdMusic(a *app, args []string) error {
 			if s.Prompt != "" {
 				styles = append(styles, s.Prompt)
 			}
-			req.Sections = append(req.Sections, music.Section{Name: name, Seconds: end - start, Styles: styles})
+			req.Sections = append(req.Sections, music.Section{ID: s.ID, Name: name, Seconds: end - start, Styles: styles})
 		}
 	}
 	c, err := services.Load()

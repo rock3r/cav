@@ -33,6 +33,7 @@ import (
 
 // Section is one part of a planned track.
 type Section struct {
+	ID       string   `json:"id,omitempty"` // the storyboard shot, when the section is one
 	Name     string   `json:"name"`
 	Styles   []string `json:"styles,omitempty"`
 	Seconds  float64  `json:"seconds"`
@@ -92,7 +93,7 @@ func elevenlabs(ctx context.Context, c *services.Config, key string, r Request) 
 			var secs []any
 			for _, s := range r.Sections {
 				secs = append(secs, map[string]any{
-					"section_name": shotID(s.Name), "positive_local_styles": nonNil(s.Styles), "negative_local_styles": nonNil(s.Negative),
+					"section_name": sectionLabel(s), "positive_local_styles": nonNil(s.Styles), "negative_local_styles": nonNil(s.Negative),
 					"duration_ms": clampMS(s.Seconds), "lines": []string{},
 				})
 			}
@@ -100,7 +101,7 @@ func elevenlabs(ctx context.Context, c *services.Config, key string, r Request) 
 		} else {
 			var chunks []any
 			for _, s := range r.Sections {
-				chunks = append(chunks, map[string]any{"text": "[" + shotID(s.Name) + "]", "duration_ms": clampMS(s.Seconds),
+				chunks = append(chunks, map[string]any{"text": "[" + sectionLabel(s) + "]", "duration_ms": clampMS(s.Seconds),
 					"positive_styles": append(append([]string{}, global...), s.Styles...), "negative_styles": append([]string{"vocals"}, s.Negative...)})
 			}
 			body["composition_plan"] = map[string]any{"chunks": chunks}
@@ -120,12 +121,14 @@ func elevenlabs(ctx context.Context, c *services.Config, key string, r Request) 
 	return &Track{Data: data, Ext: ".mp3", Provider: "elevenlabs", Model: model}, nil
 }
 
-// shotID keeps the shot id of a "s4a: what happens on screen" section name. ElevenLabs gets
-// only the id: its moderation refuses a plan that names a brand or product, and a shot's
-// screen description is not musical anyway. The shot's music prompt still goes in its styles.
-func shotID(name string) string {
-	id, _, _ := strings.Cut(name, ":")
-	return strings.TrimSpace(id)
+// sectionLabel names a section for ElevenLabs: the shot id when the section is a shot. Its
+// moderation refuses a plan that names a brand or product, and a shot's screen description
+// is not musical anyway. The shot's music prompt still goes in its styles.
+func sectionLabel(s Section) string {
+	if s.ID != "" {
+		return s.ID
+	}
+	return s.Name
 }
 
 func clampMS(sec float64) int { return int(math.Max(3000, math.Min(120000, sec*1000))) }
@@ -180,7 +183,8 @@ func stability(ctx context.Context, c *services.Config, key string, r Request) (
 	if r.Ref != "" {
 		// audio-to-audio: strength 0 gives the reference back, 1 ignores it.
 		endpoint = "audio-to-audio"
-		w.WriteField("strength", strconv.FormatFloat(1-math.Max(0, math.Min(1, r.Keep)), 'f', 2, 64))
+		// The reference gives stable-audio-2.5 a minimum strength of 0.01.
+		w.WriteField("strength", strconv.FormatFloat(math.Max(0.01, 1-math.Max(0, math.Min(1, r.Keep))), 'f', 2, 64))
 		if err := attach(w, "audio", r.Ref); err != nil {
 			return nil, err
 		}

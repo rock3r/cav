@@ -55,13 +55,13 @@ func TestElevenLabsPlanAndStableAudio(t *testing.T) {
 	services.HTTPClient = &http.Client{Transport: redirect{u}}
 	defer func() { services.HTTPClient = old }()
 
-	req := Request{Prompt: "synthwave", Seconds: 16, Sections: []Section{{Name: "s1: intro", Seconds: 4}, {Name: "s2: drop", Seconds: 12}}}
+	req := Request{Prompt: "synthwave", Seconds: 16, Sections: []Section{{ID: "act:1", Name: "act:1: intro", Seconds: 4}, {ID: "s2", Name: "s2: drop", Seconds: 12}}}
 	tr, err := Generate(context.Background(), &services.Config{}, &services.Choice{Service: "elevenlabs", Key: "el"}, req)
 	if err != nil || string(tr.Data) != "ID3fake" {
 		t.Fatalf("elevenlabs: %v", err)
 	}
 	secs, _ := plan["sections"].([]any)
-	if len(secs) != 2 || secs[1].(map[string]any)["duration_ms"].(float64) != 12000 || secs[1].(map[string]any)["section_name"] != "s2" {
+	if len(secs) != 2 || secs[1].(map[string]any)["duration_ms"].(float64) != 12000 || secs[0].(map[string]any)["section_name"] != "act:1" || secs[1].(map[string]any)["section_name"] != "s2" {
 		t.Fatalf("plan sections: %v", plan)
 	}
 	if _, err := Generate(context.Background(), &services.Config{}, &services.Choice{Service: "stability", Key: "st"}, Request{Prompt: "x", Seconds: 16.2}); err != nil {
@@ -253,5 +253,25 @@ func TestReferenceTrackRefusedWhereAudioCannotGo(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), "cannot take a reference track") {
 			t.Errorf("%s: %v", s, err)
 		}
+	}
+}
+
+func TestStableAudioStrengthStaysAboveTheMinimum(t *testing.T) {
+	ref := filepath.Join(t.TempDir(), "ref.mp3")
+	os.WriteFile(ref, []byte("ID3ref"), 0o644)
+	var strength string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.ParseMultipartForm(1 << 20)
+		strength = r.FormValue("strength")
+		w.Header().Set("Content-Type", "audio/mpeg")
+		w.Write([]byte("ID3"))
+	}))
+	defer srv.Close()
+	u, _ := url.Parse(srv.URL)
+	old := services.HTTPClient
+	services.HTTPClient = &http.Client{Transport: redirect{u}}
+	defer func() { services.HTTPClient = old }()
+	if _, err := Generate(context.Background(), &services.Config{}, &services.Choice{Service: "stability", Key: "k"}, Request{Prompt: "x", Seconds: 10, Ref: ref, Keep: 1}); err != nil || strength != "0.01" {
+		t.Fatalf("--keep 1 must send strength 0.01, sent %q (%v)", strength, err)
 	}
 }
