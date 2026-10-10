@@ -388,3 +388,34 @@ func TestUpdateLosesNoChangeAcrossStores(t *testing.T) {
 		t.Fatalf("got %d sends, want %d (%v)", len(d.Sends), 2*each, err)
 	}
 }
+
+func TestNoteLengthCap(t *testing.T) {
+	_, h := newTestServer(t)
+	over := strings.Repeat("é", maxNoteChars+1)
+	w := do(t, h, "POST", "/api/comments", map[string]any{"frame": 1, "text": over}, nil)
+	if w.Code != 400 || !strings.Contains(w.Body.String(), "at most 65536 characters") {
+		t.Fatalf("create over the cap: %d %s", w.Code, w.Body)
+	}
+	w = do(t, h, "POST", "/api/comments", map[string]any{"frame": 1, "text": "short"}, nil)
+	if w.Code != 200 {
+		t.Fatalf("add: %d %s", w.Code, w.Body)
+	}
+	if w := do(t, h, "POST", "/api/comments/c_01", map[string]any{"text": over}, nil); w.Code != 400 || !strings.Contains(w.Body.String(), "at most 65536 characters") {
+		t.Fatalf("edit over the cap: %d %s", w.Code, w.Body)
+	}
+	// Every character JSON-escaped (\uXXXX, a surrogate pair for an emoji) still fits the body limit.
+	atCap := strings.Repeat("<", maxNoteChars-1) + "😀"
+	w = do(t, h, "POST", "/api/comments/c_01", map[string]any{"text": atCap}, nil)
+	if w.Code != 200 {
+		t.Fatalf("edit at the cap: %d %.200s", w.Code, w.Body)
+	}
+	var c Comment
+	json.Unmarshal(w.Body.Bytes(), &c)
+	if c.Text != atCap {
+		t.Fatalf("edit at the cap saved %d characters", len([]rune(c.Text)))
+	}
+	w = do(t, h, "POST", "/api/comments", map[string]any{"frame": 1, "text": atCap}, nil)
+	if w.Code != 200 {
+		t.Fatalf("create at the cap: %d %.200s", w.Code, w.Body)
+	}
+}

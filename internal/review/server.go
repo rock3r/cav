@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 // Server serves the review page, the proxy video and the comment API for one render.
@@ -307,13 +308,34 @@ func noteTarget(d *Doc, cur Source, want string) (version string, fps float64, f
 	return "", 0, 0, errOtherVersion
 }
 
+// maxNoteChars caps the words of a note, counted in characters (Unicode code points).
+// Creating and editing a note share it, so a note that can be made can also be saved again.
+const maxNoteChars = 64 << 10
+
+// editBodyLimit is how much of an edit request the server reads. It holds a note at the
+// cap even when every character is JSON-escaped, so a long note gets the clear length
+// error below and not a parse error from a cut-off body.
+const editBodyLimit = 16*maxNoteChars + 64<<10
+
+func checkNoteLen(text string) error {
+	if utf8.RuneCountInString(text) > maxNoteChars {
+		return fmt.Errorf("a note can be at most %d characters", maxNoteChars)
+	}
+	return nil
+}
+
 func (s *Server) addComment(w http.ResponseWriter, r *http.Request) {
 	var in commentInput
+	// The body also carries the frame snapshot as a PNG data URL, so it can be large.
 	if err := json.NewDecoder(io.LimitReader(r.Body, 64<<20)).Decode(&in); err != nil {
 		httpErr(w, 400, err)
 		return
 	}
 	in.Text = strings.TrimSpace(in.Text)
+	if err := checkNoteLen(in.Text); err != nil {
+		httpErr(w, 400, err)
+		return
+	}
 	if in.Text == "" && len(in.Shapes) == 0 {
 		httpErr(w, 400, errors.New("write a note or draw something"))
 		return
@@ -377,9 +399,15 @@ func (s *Server) editComment(w http.ResponseWriter, r *http.Request) {
 		Text   *string `json:"text"`
 		Reply  string  `json:"reply"`
 	}
-	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&in); err != nil {
+	if err := json.NewDecoder(io.LimitReader(r.Body, editBodyLimit)).Decode(&in); err != nil {
 		httpErr(w, 400, err)
 		return
+	}
+	if in.Text != nil {
+		if err := checkNoteLen(strings.TrimSpace(*in.Text)); err != nil {
+			httpErr(w, 400, err)
+			return
+		}
 	}
 	var out Comment
 	_, err := s.Store.Update(func(d *Doc) error {
