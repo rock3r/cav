@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -135,6 +136,29 @@ func TestPageResourceIsTheReviewPageWithTheShim(t *testing.T) {
 	shim, head, pageScript := strings.Index(c.Text, "/* shim */"), strings.Index(c.Text, "</head>"), strings.Index(c.Text, "/* page */")
 	if shim < 0 || pageScript < 0 || !(shim < head && head < pageScript) {
 		t.Errorf("the shim must sit in <head>, before the page's script:\n%s", c.Text)
+	}
+}
+
+func TestPageResourceDeclaresDisplayModesForOpenAIHosts(t *testing.T) {
+	cs, _, _ := connect(t)
+	res, err := cs.ReadResource(context.Background(), &mcp.ReadResourceParams{URI: PageURI})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Read the meta as a client sees it on the wire.
+	b, err := json.Marshal(res.Contents[0].Meta["openai/ui"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ui struct {
+		Available []string `json:"availableDisplayModes"`
+		Preferred string   `json:"preferredDisplayMode"`
+	}
+	if err := json.Unmarshal(b, &ui); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(ui.Available, []string{"inline", "fullscreen"}) || ui.Preferred != "fullscreen" {
+		t.Errorf("openai/ui = %s, want inline and fullscreen, preferring fullscreen", b)
 	}
 }
 

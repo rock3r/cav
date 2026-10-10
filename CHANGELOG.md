@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- In ChatGPT and Codex, the chat review page opens full screen. Its resource names the
+  display modes in `_meta["openai/ui"]`, so the host can choose one before the page
+  starts. The page's own full screen button is hidden there, because those hosts have
+  their own control.
 - The chat review page opens inline and has a full screen button when the host offers
   full screen. In full screen the stage and the note sheet fill the window, and the page
   keeps clear of the chat composer. The page also takes the host's theme: it has no
