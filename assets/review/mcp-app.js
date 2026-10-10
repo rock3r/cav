@@ -45,17 +45,88 @@
   };
   handlers['ui/notifications/host-context-changed'] = applyHost;
 
+  // In the chat, the page's "follow the system" follows the host. A theme the person picked
+  // that differs from the host's gets the page's own opaque paper (cav-own-theme), since the
+  // conversation behind a transparent page would be the wrong shade for its ink.
+  let hostTheme = null;
+  function syncTheme() {
+    const root = document.documentElement;
+    if (!root.dataset.theme && hostTheme) { root.dataset.theme = hostTheme; return; } // the observer runs again
+    root.classList.toggle('cav-own-theme', !!hostTheme && root.dataset.theme !== hostTheme);
+  }
+  new MutationObserver(syncTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
   function applyHost(ctx) {
     if (!ctx) return;
     // Follow the host's theme unless the person picked one in the page.
     let choice = null;
     try { choice = localStorage.getItem('cav-review-theme'); } catch {}
-    if ((!choice || choice === 'system') && (ctx.theme === 'light' || ctx.theme === 'dark')) document.documentElement.dataset.theme = ctx.theme;
+    if (ctx.theme === 'light' || ctx.theme === 'dark') hostTheme = ctx.theme;
+    if ((!choice || choice === 'system') && hostTheme) document.documentElement.dataset.theme = hostTheme;
+    syncTheme();
+    // The host's style variables and fonts. Its colour tokens use light-dark(), which the
+    // page's own color-scheme resolves, so a theme picked in the page still holds.
+    const st = ctx.styles;
+    if (st && st.variables) {
+      for (const [k, v] of Object.entries(st.variables)) if (k.startsWith('--') && v != null) document.documentElement.style.setProperty(k, String(v));
+      document.documentElement.classList.add('cav-host');
+    }
+    if (st && st.css && st.css.fonts && !document.getElementById('cav-host-fonts')) {
+      const el = document.createElement('style');
+      el.id = 'cav-host-fonts';
+      el.textContent = st.css.fonts;
+      document.head.appendChild(el);
+    }
+    if (Array.isArray(ctx.availableDisplayModes)) hostModes = ctx.availableDisplayModes;
+    if (ctx.displayMode) setMode(ctx.displayMode);
+    else showFullBtn();
+    // The composer can sit over the bottom of a full screen app: keep the page clear of it.
+    const s = ctx.safeAreaInsets;
+    if (s) for (const k of ['top', 'right', 'bottom', 'left']) document.documentElement.style.setProperty('--cav-safe-' + k, (s[k] || 0) + 'px');
     // host-context-changed carries only the fields that changed: keep the height without one.
     const d = ctx.containerDimensions;
     if (!d) return;
     const h = d.height || Math.min(d.maxHeight || 640, 640);
     document.documentElement.style.setProperty('--cav-app-h', h + 'px');
+  }
+
+  // ---------- full screen: a button in the title block, when the host offers it ----------
+  // Inline, the host caps the frame at about 600 pixels, which leaves the stage small. Full
+  // screen gives the stage and the sheet the whole window; the host draws its own close button.
+  let hostModes = [], mode = 'inline', fullBtn = null;
+  const ICON_EXPAND = 'M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10';
+  const ICON_SHRINK = 'M6 2.5V6H2.5M13.5 6H10V2.5M10 13.5V10h3.5M2.5 10H6v3.5';
+  function setMode(m) {
+    if (m !== 'inline' && m !== 'fullscreen' && m !== 'pip') return;
+    mode = m;
+    document.documentElement.classList.toggle('cav-full', m === 'fullscreen');
+    showFullBtn();
+  }
+  function showFullBtn() {
+    if (!fullBtn) return;
+    const full = mode === 'fullscreen';
+    fullBtn.hidden = !hostModes.includes('fullscreen');
+    const label = full ? 'Exit full screen' : 'Full screen';
+    fullBtn.setAttribute('aria-label', label);
+    fullBtn.dataset.tip = label;
+    fullBtn.querySelector('path').setAttribute('d', full ? ICON_SHRINK : ICON_EXPAND);
+  }
+  function addFullBtn() {
+    const end = document.querySelector('.titleblock .end');
+    if (!end) return;
+    fullBtn = document.createElement('button');
+    fullBtn.className = 'btn';
+    fullBtn.id = 'fullscreen';
+    fullBtn.dataset.tipPos = 'below';
+    fullBtn.innerHTML = '<svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path/></svg>';
+    fullBtn.addEventListener('click', () => {
+      const want = mode === 'fullscreen' ? 'inline' : 'fullscreen';
+      request('ui/request-display-mode', { mode: want })
+        .then(r => setMode((r && r.mode) || want))
+        .catch(e => console.warn('cav: ui/request-display-mode failed', e.message));
+    });
+    end.insertBefore(fullBtn, document.getElementById('help'));
+    showFullBtn();
   }
 
   // ---------- requests through the review_request tool ----------
@@ -180,11 +251,12 @@
     if (h !== lastH) { lastH = h; notify('ui/notifications/size-changed', { width: Math.ceil(r.width), height: h }); }
   };
   addEventListener('DOMContentLoaded', () => {
+    addFullBtn();
     document.querySelectorAll('img[src], video[src]').forEach(adopt);
     new ResizeObserver(report).observe(document.documentElement);
   });
 
-  request('ui/initialize', { appInfo: { name: 'cav review', version: '1' }, appCapabilities: {}, protocolVersion: PROTOCOL })
+  request('ui/initialize', { appInfo: { name: 'cav review', version: '1' }, appCapabilities: { availableDisplayModes: ['inline', 'fullscreen'] }, protocolVersion: PROTOCOL })
     .then(r => { applyHost(r && r.hostContext); notify('ui/notifications/initialized', {}); })
     .catch(e => console.warn('cav: ui/initialize failed', e.message));
 })();

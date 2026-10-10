@@ -455,7 +455,7 @@ func TestDoServesAFileUpToTheLimit(t *testing.T) {
 
 func TestAppPageWithoutHead(t *testing.T) {
 	got := string(AppPage([]byte("<p>hi</p>"), []byte("/* shim */")))
-	if !strings.HasPrefix(got, "<style>") || !strings.HasSuffix(got, "<p>hi</p>") || !strings.Contains(got, "/* shim */") {
+	if !strings.HasPrefix(got, `<meta name="color-scheme"`) || !strings.HasSuffix(got, "<p>hi</p>") || !strings.Contains(got, "/* shim */") {
 		t.Errorf("got %q", got)
 	}
 }

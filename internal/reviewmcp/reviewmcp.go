@@ -67,7 +67,12 @@ func New(o Options) *mcp.Server {
 			"It is for a quick look: for frame-by-frame review run `cav review` in a shell. " +
 			"Read the notes with review_notes, or with `cav review wait` or `cav review export` when you have a shell.",
 	})
-	pageMeta := mcp.Meta{"ui": map[string]any{"prefersBorder": true}}
+	// Borderless, so the page blends into the conversation; the CSP lets the page load the
+	// host's own font files, which Claude serves from assets.claude.ai.
+	pageMeta := mcp.Meta{"ui": map[string]any{
+		"prefersBorder": false,
+		"csp":           map[string]any{"resourceDomains": []string{"https://assets.claude.ai"}},
+	}}
 	s.AddResource(&mcp.Resource{URI: PageURI, Name: "cav review", MIMEType: AppMIME, Meta: pageMeta,
 		Description: "The cav review page: play a render, step frames, draw and leave notes for the agent."},
 		func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
@@ -106,7 +111,25 @@ func AppPage(page, shim []byte) []byte {
 	// The page stacks the sheet under the stage below 760 pixels. Chat frames are often 600
 	// to 800 pixels wide and about 600 tall, so in the chat the two columns hold down to 600
 	// pixels, with a narrower sheet, and the whole page takes the frame's height.
-	head := "<style>html.cav-mcp, html.cav-mcp body { height: auto; }\n" +
+	head := "<meta name=\"color-scheme\" content=\"light dark\">\n" +
+		"<style>html.cav-mcp, html.cav-mcp body { height: auto; }\n" +
+		// Let the conversation show through, and draw the page in the host's colours and
+		// type when the host sends them (the shim adds cav-host then; the selector outranks
+		// the page's :root[data-theme] rules). The stage stays black and the playhead
+		// orange: they serve the review, not the chrome.
+		"html.cav-mcp:not(.cav-own-theme), html.cav-mcp:not(.cav-own-theme) body, html.cav-mcp:not(.cav-own-theme) .main, html.cav-mcp:not(.cav-own-theme) .side, html.cav-mcp:not(.cav-own-theme) .timeline { background: transparent; }\n" +
+		"html.cav-mcp.cav-host {\n" +
+		"  --paper: var(--color-background-primary); --paper-2: var(--color-background-secondary);\n" +
+		"  --paper-3: color-mix(in srgb, var(--color-text-primary) 10%, var(--color-background-primary));\n" +
+		"  --ink: var(--color-text-primary); --ink-2: var(--color-text-secondary); --graphite: var(--color-text-tertiary);\n" +
+		"  --rule: var(--color-border-tertiary); --rule-2: var(--color-border-secondary); --rule-3: var(--color-border-primary);\n" +
+		"  --sel: color-mix(in srgb, var(--color-text-primary) 4.5%, transparent); --hover: color-mix(in srgb, var(--color-text-primary) 6%, transparent);\n" +
+		"  --ok: var(--color-text-success); --warn: var(--color-text-warning); --bad: var(--color-text-danger); --on-bad: var(--color-text-inverse);\n" +
+		"  --tip: var(--color-background-inverse); --on-tip: var(--color-text-inverse);\n" +
+		"  --sans: var(--font-sans, ui-sans-serif, -apple-system, sans-serif);\n" +
+		"}\n" +
+		// Keep the page clear of the composer and any other host bar the insets name.
+		"html.cav-mcp .app { padding: var(--cav-safe-top, 0px) var(--cav-safe-right, 0px) var(--cav-safe-bottom, 0px) var(--cav-safe-left, 0px); }\n" +
 		"@media (min-width: 600px) { html.cav-mcp .app { height: var(--cav-app-h, 600px); } }\n" +
 		"@media (min-width: 600px) and (max-width: 759px) {\n" +
 		"  html.cav-mcp .app { grid-template-columns: minmax(0, 1fr) 264px; grid-template-rows: auto minmax(0, 1fr); }\n" +
@@ -114,6 +137,9 @@ func AppPage(page, shim []byte) []byte {
 		// The page sizes the stage from its width when stacked; here it fills the column.
 		"  html.cav-mcp .stage-wrap { height: auto !important; }\n" +
 		"}\n" +
+		// In full screen the frame is the window: fill it.
+		"html.cav-mcp.cav-full .app { height: 100vh; height: 100dvh; }\n" +
+		"@media (max-width: 599px) { html.cav-mcp.cav-full .app { height: auto; min-height: 100dvh; } }\n" +
 		"</style>\n" +
 		"<script>\n" + string(shim) + "\n</script>\n"
 	i := bytes.Index(page, []byte("</head>"))

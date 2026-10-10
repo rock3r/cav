@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- The chat review page opens inline and has a full screen button when the host offers
+  full screen. In full screen the stage and the note sheet fill the window, and the page
+  keeps clear of the chat composer. The page also takes the host's theme: it has no
+  border or background of its own, and it uses the host's colours and font for its chrome.
+  The stage stays black and the playhead stays orange. If you pick a theme in the page
+  that differs from the chat's, the page paints its own background.
 - Redesign the review page as an animator's exposure sheet. Notes sit in rows by frame,
   beside the stage, with snapshots at one scale. Frames with no note show as ruled paper
   whose height grows with the run. You write a note in the orange playhead row, which
