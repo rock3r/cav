@@ -134,11 +134,11 @@
   // ---------- full screen: a button in the title block, when the host offers it ----------
   // Inline, the host caps the frame at about 600 pixels, which leaves the stage small. Full
   // screen gives the stage and the sheet the whole window; the host draws its own close button.
-  // ChatGPT and Codex draw their own display mode controls and ask apps not to add one; they
-  // name their extensions openai/* in the host capabilities.
+  // ChatGPT and Codex draw their own display mode controls and ask apps not to add one. No
+  // capability says so, so the page goes by the host's name; a host it does not recognise
+  // keeps the button, which at worst repeats a control.
   let hostModes = [], mode = 'inline', fullBtn = null, hostHasModeControls = false;
-  const openaiHost = caps => !!caps && ['experimental', 'extensions'].some(k =>
-    caps[k] && Object.keys(caps[k]).some(n => n.startsWith('openai/')));
+  const openaiHost = info => !!info && typeof info.name === 'string' && /chatgpt|codex|openai/i.test(info.name);
   const ICON_EXPAND = 'M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10';
   const ICON_SHRINK = 'M6 2.5V6H2.5M13.5 6H10V2.5M10 13.5V10h3.5M2.5 10H6v3.5';
   function setMode(m) {
@@ -302,6 +302,6 @@
   });
 
   request('ui/initialize', { appInfo: { name: 'cav review', version: '1' }, appCapabilities: { availableDisplayModes: ['inline', 'fullscreen'] }, protocolVersion: PROTOCOL })
-    .then(r => { hostHasModeControls = openaiHost(r && r.hostCapabilities); applyHost(r && r.hostContext); notify('ui/notifications/initialized', {}); })
+    .then(r => { hostHasModeControls = openaiHost(r && r.hostInfo); applyHost(r && r.hostContext); notify('ui/notifications/initialized', {}); })
     .catch(e => console.warn('cav: ui/initialize failed', e.message));
 })();
