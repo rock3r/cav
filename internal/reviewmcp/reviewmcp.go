@@ -113,21 +113,10 @@ func AppPage(page, shim []byte) []byte {
 	// pixels, with a narrower sheet, and the whole page takes the frame's height.
 	head := "<meta name=\"color-scheme\" content=\"light dark\">\n" +
 		"<style>html.cav-mcp, html.cav-mcp body { height: auto; }\n" +
-		// Let the conversation show through, and draw the page in the host's colours and
-		// type when the host sends them (the shim adds cav-host then; the selector outranks
-		// the page's :root[data-theme] rules). The stage stays black and the playhead
-		// orange: they serve the review, not the chrome.
+		// Let the conversation show through. The shim maps the page's colours and font to
+		// the host's style variables, one by one, for the ones the host sends. The stage
+		// stays black and the playhead orange: they serve the review, not the chrome.
 		"html.cav-mcp:not(.cav-own-theme), html.cav-mcp:not(.cav-own-theme) body, html.cav-mcp:not(.cav-own-theme) .main, html.cav-mcp:not(.cav-own-theme) .side, html.cav-mcp:not(.cav-own-theme) .timeline { background: transparent; }\n" +
-		"html.cav-mcp.cav-host {\n" +
-		"  --paper: var(--color-background-primary); --paper-2: var(--color-background-secondary);\n" +
-		"  --paper-3: color-mix(in srgb, var(--color-text-primary) 10%, var(--color-background-primary));\n" +
-		"  --ink: var(--color-text-primary); --ink-2: var(--color-text-secondary); --graphite: var(--color-text-tertiary);\n" +
-		"  --rule: var(--color-border-tertiary); --rule-2: var(--color-border-secondary); --rule-3: var(--color-border-primary);\n" +
-		"  --sel: color-mix(in srgb, var(--color-text-primary) 4.5%, transparent); --hover: color-mix(in srgb, var(--color-text-primary) 6%, transparent);\n" +
-		"  --ok: var(--color-text-success); --warn: var(--color-text-warning); --bad: var(--color-text-danger); --on-bad: var(--color-text-inverse);\n" +
-		"  --tip: var(--color-background-inverse); --on-tip: var(--color-text-inverse);\n" +
-		"  --sans: var(--font-sans, ui-sans-serif, -apple-system, sans-serif);\n" +
-		"}\n" +
 		// Keep the page clear of the composer and any other host bar the insets name.
 		"html.cav-mcp .app { padding: var(--cav-safe-top, 0px) var(--cav-safe-right, 0px) var(--cav-safe-bottom, 0px) var(--cav-safe-left, 0px); }\n" +
 		"@media (min-width: 600px) { html.cav-mcp .app { height: var(--cav-app-h, 600px); } }\n" +

@@ -49,6 +49,32 @@
   // that differs from the host's gets the page's own opaque paper (cav-own-theme), since the
   // conversation behind a transparent page would be the wrong shade for its ink.
   let hostTheme = null;
+
+  // The page's tokens drawn from the host's style variables: [page token, value, host
+  // tokens it needs]. Set inline on <html>, they outrank the page's :root rules.
+  const hostVars = new Set();
+  const v = n => `var(${n})`;
+  const mix = (pct, a, b) => `color-mix(in srgb, ${v(a)} ${pct}%, ${b ? v(b) : 'transparent'})`;
+  const HOST_TOKENS = [
+    ['--paper', v('--color-background-primary'), '--color-background-primary'],
+    ['--paper-2', v('--color-background-secondary'), '--color-background-secondary'],
+    ['--paper-3', mix(10, '--color-text-primary', '--color-background-primary'), '--color-text-primary', '--color-background-primary'],
+    ['--ink', v('--color-text-primary'), '--color-text-primary'],
+    ['--ink-2', v('--color-text-secondary'), '--color-text-secondary'],
+    ['--graphite', v('--color-text-tertiary'), '--color-text-tertiary'],
+    ['--rule', v('--color-border-tertiary'), '--color-border-tertiary'],
+    ['--rule-2', v('--color-border-secondary'), '--color-border-secondary'],
+    ['--rule-3', v('--color-border-primary'), '--color-border-primary'],
+    ['--sel', mix(4.5, '--color-text-primary'), '--color-text-primary'],
+    ['--hover', mix(6, '--color-text-primary'), '--color-text-primary'],
+    ['--ok', v('--color-text-success'), '--color-text-success'],
+    ['--warn', v('--color-text-warning'), '--color-text-warning'],
+    ['--bad', v('--color-text-danger'), '--color-text-danger'],
+    ['--on-bad', v('--color-text-inverse'), '--color-text-inverse'],
+    ['--tip', v('--color-background-inverse'), '--color-background-inverse'],
+    ['--on-tip', v('--color-text-inverse'), '--color-text-inverse'],
+    ['--sans', v('--font-sans'), '--font-sans'],
+  ];
   function syncTheme() {
     const root = document.documentElement;
     if (!root.dataset.theme && hostTheme) { root.dataset.theme = hostTheme; return; } // the observer runs again
@@ -68,8 +94,11 @@
     // page's own color-scheme resolves, so a theme picked in the page still holds.
     const st = ctx.styles;
     if (st && st.variables) {
-      for (const [k, v] of Object.entries(st.variables)) if (k.startsWith('--') && v != null) document.documentElement.style.setProperty(k, String(v));
-      document.documentElement.classList.add('cav-host');
+      const root = document.documentElement.style;
+      for (const [k, v] of Object.entries(st.variables)) if (k.startsWith('--') && v != null) { root.setProperty(k, String(v)); hostVars.add(k); }
+      // Hosts may send any subset: a page token follows the host only when every host
+      // token it uses was sent, and keeps the page's own value otherwise.
+      for (const [token, value, ...needs] of HOST_TOKENS) if (needs.every(n => hostVars.has(n))) root.setProperty(token, value);
     }
     if (st && st.css && st.css.fonts && !document.getElementById('cav-host-fonts')) {
       const el = document.createElement('style');
