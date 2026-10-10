@@ -279,7 +279,7 @@
     .theme .btn { height: 36px; min-width: 38px; }
     .note .acts { margin: 0 -4px 0 auto; }
     .note .acts .btn { height: 40px; min-width: 40px; }
-    .add, .replyform input { height: 40px; }
+    .add, .replyform input, .editform .bar .btn { height: 40px; }
     select { height: 40px; }
   }
   /* On a phone the readout shares the playback row: frame number and timecode only. */
@@ -465,7 +465,7 @@
   let frame = 0, exact = false, inF = null, outF = null;
   let tool = 'arrow', color = '#ffd23f', draft = [], drawing = null;
   let selected = null, showResolved = false, shuttle = 0, shuttleTimer = null;
-  let replying = null, armed = null, editing = null, editText = '';
+  let replying = null, armed = null, editing = null, editText = '', savingEdit = new Set();
   const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   const icon = (name, cls) => `<svg class="i${cls ? ' ' + cls : ''}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
@@ -860,7 +860,7 @@
         ${c.snapshot ? `<img class="snap" loading="lazy" src="/api/snapshot/${c.id}?v=${c.createdAt}" alt="Frame ${c.frame} with the drawing">` : ''}
         <div>
           ${editing === c.id
-            ? `<form class="editform" data-edit="${c.id}"><textarea aria-label="Edit ${c.id}">${esc(editText)}</textarea><div class="bar"><button type="button" class="btn" data-act="cancel">Cancel</button><button class="btn save" data-tip="Save  ⌘↵" data-tip-pos="end">Save</button></div></form>`
+            ? `<form class="editform" data-edit="${c.id}"><textarea aria-label="Edit ${c.id}"${savingEdit.has(c.id) ? ' readonly' : ''}>${esc(editText)}</textarea><div class="bar"><button type="button" class="btn" data-act="cancel"${savingEdit.has(c.id) ? ' disabled' : ''}>Cancel</button><button class="btn save" data-tip="Save  ⌘↵" data-tip-pos="end"${savingEdit.has(c.id) ? ' disabled' : ''}>Save</button></div></form>`
             : `<p class="txt${c.text ? '' : ' quiet'}">${esc(c.text || 'Drawing only')}</p>`}
           <div class="meta"><span>${c.id}</span>${c.author && c.author !== author ? `<span>${esc(c.author)}</span>` : ''}${state}${older}${acts}</div>
           ${thread ? `<div class="thread">${thread}</div>` : ''}
@@ -1031,16 +1031,25 @@
     if (!c) { editing = null; renderList(true); return; }
     if (t === (c.text || '')) { editing = null; renderList(true); return; }
     if (!t && !(c.shapes && c.shapes.length)) { toast('A note needs words or a drawing. Delete it instead.'); return; }
+    // One save at a time per note: its form is locked until the server answers, so a second save
+    // cannot reach the server first and be overwritten by the older text.
+    if (savingEdit.has(id)) return;
+    const lock = on => {
+      const f = sheet.querySelector(`.editform[data-edit="${id}"]`); if (!f) return;
+      f.querySelector('textarea').readOnly = on;
+      f.querySelectorAll('button').forEach(b => { b.disabled = on; });
+    };
+    savingEdit.add(id); lock(true);
     try {
       await api('POST', `/api/comments/${id}`, { text: t });
-      // The person may have kept typing, or started editing another note, while this one
-      // saved: keep that edit.
-      const mine = editing === id && editText.trim() === t;
+      savingEdit.delete(id);
+      // The person may have started editing another note while this one saved: keep that edit.
+      const mine = editing === id;
       if (mine) editing = null;
       await refresh(true);
       if (mine) sheet.querySelector(`.note[data-id="${id}"]`)?.focus({ preventScroll: true });
     }
-    catch (err) { toast(err.message); }
+    catch (err) { savingEdit.delete(id); lock(false); toast(err.message); }
   }
   sheet.addEventListener('submit', async e => {
     const edit = e.target.closest('.editform');
