@@ -247,7 +247,8 @@ runs a workflow you choose (`cav config endpoint comfyui`).
 one with its credit, `cav sfx index <folder>` adds a library you own (for example a Sonniss
 GDC bundle), and `cav sfx gen "<prompt>"` generates one. With a key, `cav music gen` makes
 takes whose sections follow the storyboard's shots; an ACE-Step 1.5 server you run does the
-same without a key. `cav music render score.json` plays a score written as notes on a beat
+same without a key. `--ref <track>` makes variations of a track you already have: Stable
+Audio and ACE-Step get the audio, while Lyria and ElevenLabs get a description of it in words. `cav music render score.json` plays a score written as notes on a beat
 grid, with built-in synths and drums, samples or VST3/AU instruments, and masters it.
 `cav listen <track> --board storyboard.json` reports length, tempo, loudness, the cuts
 against the downbeats, a picture and, with a Gemini key, a written critique. `--score` adds

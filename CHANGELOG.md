@@ -8,6 +8,22 @@
   border or background of its own, and it uses the host's colours and font for its chrome.
   The stage stays black and the playhead stays orange. If you pick a theme in the page
   that differs from the chat's, the page paints its own background.
+- `cav music gen --ref <track>` (repeatable) makes variations of a reference track, with
+  `--takes` takes for each one. Stable Audio gets the track through audio-to-audio, and
+  `--keep` (0-1) sets how much of it stays. ACE-Step gets it as a style reference. Lyria
+  and ElevenLabs cannot take audio, so the audio model describes the track in words and
+  cav adds that to the prompt. cav reports which way each reference went, and the
+  manifest records the reference with each take. For Stable Audio, cav converts a
+  reference that is not MP3 or WAV and sends at most its first 190 seconds.
+- `cav music gen` lowers the level of a take whose true peak is above -1 dBTP, so it does
+  not clip (gain only). `--raw-level` keeps the level the service sent.
+- `cav music gen` with ElevenLabs sends only the shot ids as section names. The shot
+  descriptions named products, and ElevenLabs refused the whole plan for that.
+- Lyria takes now come as WAV: cav asks for `audio/wav` in the response format. Before,
+  Lyria sent MP3.
+- `cav config check` says when an ElevenLabs key is on the free plan, which cannot make
+  music through the API.
+- `cav guide production` has a table of what each music service does differently.
 - Redesign the review page as an animator's exposure sheet. Notes sit in rows by frame,
   beside the stage, with snapshots at one scale. Frames with no note show as ruled paper
   whose height grows with the run. You write a note in the orange playhead row, which

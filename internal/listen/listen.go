@@ -117,6 +117,14 @@ Keep it under 350 words. Do not invent timestamps you cannot hear.`)
 	return b.String()
 }
 
+// StylePrompt asks the audio model to describe a reference track so that a text-to-music
+// model can write a new track in the same style. It is for music services that cannot take
+// the track as audio (cav music gen --ref with Lyria or ElevenLabs).
+const StylePrompt = `Describe this music so that a text-to-music model can write a new, original track in the same style.
+Cover: genre and era; tempo in BPM; meter and groove (swing, syncopation, half-time); key and mode if you can hear them; the instruments and how they are played; sound design and production tricks (for example tape stops, sidechain pumping, lo-fi saturation); the character of the mix; how the energy moves.
+Do not name artists or songs. Do not describe the melody note by note. Do not give timestamps.
+Answer with one paragraph of comma-separated descriptive phrases, under 90 words, and nothing else.`
+
 var flashName = regexp.MustCompile(`^models/gemini-([0-9]+(?:\.[0-9]+)?)-flash$`)
 
 // newestFlash picks the newest general Gemini Flash model the key can use (they all take
