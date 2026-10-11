@@ -3,6 +3,7 @@ package music
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -365,8 +366,8 @@ func TestYuE2FailedJob(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "planned an empty or truncated score") {
 		t.Fatalf("err %v", err)
 	}
-	if SendsAudio("yue2") {
-		t.Fatal("yue2 takes a reference track in words for now")
+	if !SendsAudio("yue2") {
+		t.Fatal("yue2 takes a reference track as audio, for a cover")
 	}
 	if _, err := yue2Generate(t, c, Request{Prompt: "x", Model: "other"}); err == nil || !strings.Contains(err.Error(), "server chooses the model") {
 		t.Fatalf("--model: %v", err)
@@ -387,6 +388,92 @@ func TestYuE2StopsWhenTheServerCouldNotLoad(t *testing.T) {
 	_, err := yue2Generate(t, c, Request{Prompt: "x", Seconds: 30})
 	if err == nil || !strings.Contains(err.Error(), "could not load YuE2: FileNotFoundError") {
 		t.Fatalf("err %v", err)
+	}
+}
+
+// The covers route follows YuE2-Turbo's POST /v1/covers (README and src/yue2/service.py,
+// read on 2026-10-11): a multipart form with the track in "audio".
+func TestYuE2CoverUploadsTheTrack(t *testing.T) {
+	ref := filepath.Join(t.TempDir(), "theme.mp3")
+	os.WriteFile(ref, []byte("ID3reference"), 0o644)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == "POST" && r.URL.Path == "/v1/covers":
+			if r.Header.Get("Idempotency-Key") == "" || r.Header.Get("Authorization") != "Bearer secret" {
+				t.Errorf("headers: %v", r.Header)
+			}
+			if err := r.ParseMultipartForm(1 << 20); err != nil {
+				t.Fatal(err)
+			}
+			f, h, err := r.FormFile("audio")
+			if err != nil {
+				t.Fatal(err)
+			}
+			data, _ := io.ReadAll(f)
+			if string(data) != "ID3reference" || h.Filename != "theme.mp3" {
+				t.Errorf("audio %q %q", data, h.Filename)
+			}
+			v := r.MultipartForm.Value
+			if v["style"][0] != "solo cello" || v["lyrics"][0] != yue2Sections || v["instrumental"][0] != "true" || v["seed"][0] == "" || v["seconds"] != nil {
+				t.Errorf("form: %v", v)
+			}
+			w.WriteHeader(202)
+			w.Write([]byte(`{"id":"c1","status":"queued"}`))
+		case r.URL.Path == "/v1/jobs/c1":
+			w.Write([]byte(`{"id":"c1","status":"succeeded","result":{"audio_seconds":62,"timing":{"job_seconds":300},
+				"instrumental":{"nominal_seconds":61,"planned_seconds":61,"bpm":96},
+				"cover":{"device":"mps","transcription_seconds":41,"score_seconds":61,"bpm":96,"warnings":["no downbeats"]}}}`))
+		case r.URL.Path == "/v1/jobs/c1/audio":
+			w.Write([]byte("fLaCcover"))
+		default:
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+	c := &services.Config{Endpoints: map[string]services.Endpoint{"yue2": {BaseURL: srv.URL}}}
+	tr, err := yue2Generate(t, c, Request{Prompt: "solo cello", Ref: ref})
+	if err != nil || string(tr.Data) != "fLaCcover" || !tr.Cover {
+		t.Fatalf("got %+v, %v", tr, err)
+	}
+	all := strings.Join(tr.Notes, "\n")
+	if !strings.Contains(all, "a cover of "+ref+": SheetSage2 transcribed its melody on mps in 41 s (a 61.0 s score at 96 BPM)") ||
+		!strings.Contains(all, "SheetSage2: no downbeats") {
+		t.Fatalf("notes: %q", tr.Notes)
+	}
+}
+
+func TestYuE2CoverFallsBackWhenTheServerCannot(t *testing.T) {
+	ref := filepath.Join(t.TempDir(), "theme.mp3")
+	os.WriteFile(ref, []byte("ID3reference"), 0o644)
+	for name, handler := range map[string]http.HandlerFunc{
+		"covers off": func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/health/ready" {
+				w.Write([]byte(`{"status":"ready","extensions":["instrumental"]}`))
+				return
+			}
+			w.WriteHeader(503)
+			w.Write([]byte(`{"detail":"covers are off: start the server with a SheetSage2 environment"}`))
+		},
+		"cav 1.3 wrapper": func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(501)
+			w.Write([]byte(`{"detail":"covers need YuE2-Turbo"}`))
+		},
+		"transcription failed": func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == "POST" {
+				w.WriteHeader(202)
+				w.Write([]byte(`{"id":"c2","status":"queued"}`))
+				return
+			}
+			w.Write([]byte(`{"id":"c2","status":"failed","error":{"code":"transcription_failed","message":"SheetSage2 could not transcribe the recording: MPS out of memory"}}`))
+		},
+	} {
+		srv := httptest.NewServer(handler)
+		c := &services.Config{Endpoints: map[string]services.Endpoint{"yue2": {BaseURL: srv.URL}}}
+		_, err := yue2Generate(t, c, Request{Prompt: "x", Ref: ref, Seconds: 30})
+		srv.Close()
+		if !errors.Is(err, ErrNoCover) {
+			t.Errorf("%s: %v", name, err)
+		}
 	}
 }
 

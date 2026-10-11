@@ -10,9 +10,10 @@
 // A reference track (Request.Ref) goes to the services that take audio: Stable Audio
 // (audio-to-audio) and ACE-Step (its reference_audio style input). Lyria takes only text and
 // images, and ElevenLabs takes audio only through an upload endpoint, so for those the
-// caller describes the reference in words instead (see SendsAudio). YuE2 takes audio only
-// through SheetSage2 transcription (a cover), which cav does not use yet, so it also gets
-// words.
+// caller describes the reference in words instead (see SendsAudio). YuE2 makes a cover of
+// it: SheetSage2 on the YuE2 server transcribes its melody, and YuE2 plays that melody in the
+// requested style. When the server cannot do that, Generate returns ErrNoCover and the
+// caller describes the track in words.
 package music
 
 import (
@@ -53,7 +54,9 @@ type Request struct {
 }
 
 // SendsAudio reports whether the service takes a reference track as audio.
-func SendsAudio(service string) bool { return service == "stability" || service == "acestep" }
+func SendsAudio(service string) bool {
+	return service == "stability" || service == "acestep" || service == "yue2"
+}
 
 // Track is the result.
 type Track struct {
@@ -65,6 +68,9 @@ type Track struct {
 	// Notes are what the caller should tell the user about the take: a length far from
 	// the request, or a part the service cut short.
 	Notes []string
+	// Cover is true when the take plays the melody of Request.Ref (YuE2 through SheetSage2):
+	// the song still belongs to whoever wrote it.
+	Cover bool
 }
 
 func Generate(ctx context.Context, c *services.Config, ch *services.Choice, r Request) (*Track, error) {

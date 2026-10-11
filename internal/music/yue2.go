@@ -1,6 +1,8 @@
 package music
 
 import (
+	"bytes"
+	"cmp"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -9,7 +11,10 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"mime/multipart"
 	"net/url"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -31,6 +36,14 @@ import (
 // the planned score closely, though, so cav sends "seconds" (another extension) and the
 // wrapper cuts the planned score to about that length at a phrase or section boundary
 // before it generates. cav then reports the length that came back.
+//
+// With a reference track (Request.Ref), cav makes a cover: it uploads the track to POST
+// /v1/covers, a multipart form of at most 40 MiB with the fields of YuE2-Turbo's covers route
+// (audio, style, lyrics, seed; README and service.py read on 2026-10-11). SheetSage2 on the
+// server transcribes the track's melody, without chords, and YuE2 generates from it with
+// cot=melody. It does not copy the singer. cav also sends "instrumental" and "seconds", so
+// cav's wrapper moves the melody to an instrument. When the server cannot transcribe, the
+// error is ErrNoCover and the caller describes the track in words instead.
 func yue2(ctx context.Context, c *services.Config, key string, r Request) (*Track, error) {
 	ep := c.Endpoints["yue2"]
 	base := strings.TrimRight(ep.BaseURL, "/")
@@ -59,10 +72,23 @@ func yue2(ctx context.Context, c *services.Config, key string, r Request) (*Trac
 	for k, v := range h {
 		submitHeaders[k] = v
 	}
+	route, payload := "/v1/jobs", any(body)
+	if r.Ref != "" {
+		form, ctype, err := yue2CoverForm(body, r.Ref)
+		if err != nil {
+			return nil, err
+		}
+		route, payload, submitHeaders["Content-Type"] = "/v1/covers", form, ctype
+	}
+	cover := r.Ref != ""
 	var job yue2Job
 	for {
-		err := services.Do(ctx, "POST", base+"/v1/jobs", submitHeaders, body, &job)
+		err := services.Do(ctx, "POST", base+route, submitHeaders, payload, &job)
 		var he *services.HTTPError
+		if cover && errors.As(err, &he) && (he.Status == 501 || he.Status == 404) {
+			// cav 1.3's wrapper answered 501; a server without the route, 404.
+			return nil, fmt.Errorf("%w: the YuE2 server has no covers route (%s)", ErrNoCover, clip(detail(he.Body), 200))
+		}
 		if errors.As(err, &he) && he.Status == 503 {
 			// 503 means the model is loading, or failed to load: only the first passes.
 			var ready struct {
@@ -77,6 +103,10 @@ func yue2(ctx context.Context, c *services.Config, key string, r Request) (*Trac
 			json.Unmarshal(raw, &ready)
 			if ready.Status == "failed" {
 				return nil, fmt.Errorf("yue2: the server could not load YuE2: %s", clip(ready.Error, 300))
+			}
+			if cover && ready.Status == "ready" {
+				// The model is loaded, so the 503 means covers are off, and waiting does not help.
+				return nil, fmt.Errorf("%w: %s", ErrNoCover, clip(detail(he.Body), 300))
 			}
 		}
 		if errors.As(err, &he) && (he.Status == 429 || he.Status == 503) {
@@ -114,6 +144,9 @@ func yue2(ctx context.Context, c *services.Config, key string, r Request) (*Trac
 		if job.Error != nil && job.Error.Message != "" {
 			msg = job.Error.Message
 		}
+		if job.Error != nil && job.Error.Code == "transcription_failed" {
+			return nil, fmt.Errorf("%w: %s", ErrNoCover, clip(msg, 300))
+		}
 		return nil, fmt.Errorf("yue2: the job failed: %s", clip(msg, 300))
 	default:
 		return nil, fmt.Errorf("yue2: the job ended as %q", job.Status)
@@ -131,11 +164,60 @@ func yue2(ctx context.Context, c *services.Config, key string, r Request) (*Trac
 		model = job.Result.Model
 	}
 	s := seed.Int64()
-	tr := &Track{Data: data, Ext: ".flac", Provider: "yue2", Model: model, Seed: &s}
+	tr := &Track{Data: data, Ext: ".flac", Provider: "yue2", Model: model, Seed: &s, Cover: cover}
 	if job.Result != nil {
 		tr.Notes = job.Result.notes(r.Seconds, seed.Int64())
+		if cv := job.Result.Cover; cv != nil {
+			n := fmt.Sprintf("a cover of %s: SheetSage2 transcribed its melody on %s in %.0f s", r.Ref, cmp.Or(cv.Device, "the server"), cv.Seconds)
+			if cv.ScoreSeconds > 0 {
+				n += fmt.Sprintf(" (a %.1f s score at %g BPM)", cv.ScoreSeconds, cv.BPM)
+			}
+			tr.Notes = append(tr.Notes, n+"; the singer and the arrangement are not copied")
+			for _, w := range cv.Warnings {
+				tr.Notes = append(tr.Notes, "SheetSage2: "+w)
+			}
+		}
 	}
 	return tr, nil
+}
+
+// ErrNoCover means the YuE2 server could not make a cover: covers are off on it, or
+// SheetSage2 could not transcribe the track.
+var ErrNoCover = errors.New("yue2: no cover")
+
+// yue2CoverLimit is the size of a cover form that YuE2-Turbo and cav's wrapper accept.
+const yue2CoverLimit = 40 << 20
+
+// yue2CoverForm builds the multipart form for POST /v1/covers from a job body.
+func yue2CoverForm(body map[string]any, ref string) ([]byte, string, error) {
+	var buf bytes.Buffer
+	w := multipart.NewWriter(&buf)
+	w.WriteField("style", body["style"].(string))
+	w.WriteField("lyrics", body["lyrics"].(string))
+	w.WriteField("seed", strconv.FormatInt(body["seed"].(int64), 10))
+	w.WriteField("instrumental", "true")
+	if sec, ok := body["seconds"].(float64); ok {
+		w.WriteField("seconds", strconv.FormatFloat(sec, 'f', -1, 64))
+	}
+	if err := attach(w, "audio", ref); err != nil {
+		return nil, "", err
+	}
+	w.Close()
+	if buf.Len() > yue2CoverLimit {
+		return nil, "", fmt.Errorf("yue2: %s makes a %d MB upload; covers take at most 40 MiB", filepath.Base(ref), buf.Len()>>20)
+	}
+	return buf.Bytes(), w.FormDataContentType(), nil
+}
+
+// detail is the "detail" message of a FastAPI-style error body, or the body itself.
+func detail(body string) string {
+	var d struct {
+		Detail string `json:"detail"`
+	}
+	if json.Unmarshal([]byte(body), &d) == nil && d.Detail != "" {
+		return d.Detail
+	}
+	return body
 }
 
 // How often cav asks about a job, and how long it waits when the server is busy or loading.
@@ -166,6 +248,13 @@ type yue2Result struct {
 		PlannedSeconds float64 `json:"planned_seconds"`
 		BPM            float64 `json:"bpm"`
 	} `json:"instrumental"`
+	Cover *struct { // cav's wrapper: how SheetSage2 transcribed a cover's track
+		Device       string   `json:"device"`
+		Seconds      float64  `json:"transcription_seconds"`
+		ScoreSeconds float64  `json:"score_seconds"`
+		BPM          float64  `json:"bpm"`
+		Warnings     []string `json:"warnings"`
+	} `json:"cover"`
 }
 
 // notes says how long the take came out against the request, and which part of the

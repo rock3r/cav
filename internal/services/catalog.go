@@ -343,6 +343,11 @@ var Catalog = map[string]*Def{
 			if r.Device != "" {
 				msg += " on " + r.Device
 			}
+			if slices.Contains(r.Extensions, "covers") {
+				msg += "; covers on"
+			} else {
+				msg += "; covers off (no SheetSage2 environment), so --ref goes in as words"
+			}
 			return msg, nil
 		}},
 	"vtracer": {Title: "vtracer (trace PNG to SVG, local)", Kind: KindLocal, Jobs: []string{"image.vector"}, Binary: "vtracer",

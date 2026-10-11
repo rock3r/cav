@@ -82,3 +82,30 @@ func TestYuE2TakesFollowTheProjectLicence(t *testing.T) {
 		}
 	}
 }
+
+func TestCoverRecordsTheSongAndIsCredited(t *testing.T) {
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, "music"), 0o755)
+	os.WriteFile(filepath.Join(root, "music/c.wav"), []byte("x"), 0o644)
+	m := &Manifest{}
+	e := Entry{Path: filepath.Join(root, "music/c.wav"), Generated: &Generated{Provider: "yue2", Model: "YuE2-3B", CoverOf: "refs/theme.mp3"}}
+	CoverTerms("yue2", "refs/theme.mp3").Apply(&e)
+	e.Attribution = DefaultAttribution(e)
+	m.Put(root, e)
+	if e.CommercialOK || !e.AttributionRequired || e.Licence != "YuE2-model-licence" ||
+		!strings.Contains(e.LicenceNote, "individual creator") || !strings.Contains(e.LicenceNote, "a cover of refs/theme.mp3") ||
+		!strings.Contains(e.LicenceNote, "SheetSage2, whose weights are CC BY-NC 4.0") {
+		t.Fatalf("terms: %+v", e)
+	}
+	want := "Cover of “theme” (melody from refs/theme.mp3). Generated with yue2 (YuE2-3B)"
+	if lines := Credits(m, false); len(lines) != 1 || lines[0] != want {
+		t.Fatalf("a cover is credited without --all: %q", lines)
+	}
+	probs := Check(root, m, &Project{Licence: "commercial"})
+	if len(probs) != 1 || probs[0].Kind != "nc-in-commercial" || !strings.Contains(probs[0].Detail, "cover licence") {
+		t.Fatalf("check: %+v", probs)
+	}
+	if probs := Check(root, m, &Project{Licence: "nc-ok"}); len(probs) != 0 {
+		t.Fatalf("nc-ok, with the credit recorded: %+v", probs)
+	}
+}

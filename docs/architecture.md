@@ -363,7 +363,9 @@ never talk to the bridge. They are plain Go around ffmpeg, HTTPS and uv:
   standard-library Python server that runs in the YuE2 checkout's environment, keeps one
   pipeline loaded, and speaks a subset of YuE2-Turbo's job API with an `instrumental`
   extension (plan a score, move the vocal notes to the Ins voice with the YuE2
-  repository's instrumental helper, generate again). Its tests use a fake pipeline.
+  repository's instrumental helper, generate again). Its `POST /v1/covers` runs the
+  helper's SheetSage2 transcription in a separate Python, then generates from the melody.
+  Its tests use a fake pipeline and a fake transcriber.
 - `internal/score` writes REAPER projects (`.rpp`, plain text) and renders them with
   `reaper -renderproject`.
 - `internal/board` turns a storyboard into a board sheet, an animatic (ffmpeg concat with one

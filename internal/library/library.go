@@ -27,6 +27,8 @@ type Generated struct {
 	Prompt   string   `json:"prompt,omitempty"`
 	Seed     *int64   `json:"seed,omitempty"`
 	Refs     []string `json:"refs,omitempty"`
+	// CoverOf is the recording whose melody a cover plays (YuE2 through SheetSage2).
+	CoverOf string `json:"coverOf,omitempty"`
 }
 
 // Entry is one asset.
@@ -221,7 +223,8 @@ func Credits(m *Manifest, all bool) []string {
 	var lines []string
 	seen := map[string]bool{}
 	for _, e := range m.Assets {
-		if e.Generated != nil && !all {
+		// A cover credits the song it plays, so it is listed like a licensed asset.
+		if e.Generated != nil && e.Generated.CoverOf == "" && !all {
 			continue
 		}
 		// A source may suggest a credit for a licence that needs none (Openverse does for
@@ -248,6 +251,10 @@ func DefaultAttribution(e Entry) string {
 		s := "Generated with " + e.Generated.Provider
 		if e.Generated.Model != "" {
 			s += " (" + e.Generated.Model + ")"
+		}
+		if c := e.Generated.CoverOf; c != "" {
+			// cav knows only the file: the user adds the song's title and writers.
+			s = "Cover of “" + strings.TrimSuffix(filepath.Base(c), filepath.Ext(c)) + "” (melody from " + c + "). " + s
 		}
 		return s
 	}
