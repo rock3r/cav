@@ -302,9 +302,9 @@ Turbo's own `POST /v1/covers`: SheetSage2 transcribes the track, and cav takes t
 from that job's score instead of a plan. Turbo turns covers off when
 `YUE2_SHEETSAGE_DEVICE=off`, and then cav describes the track in words.
 
-So each instrumental take costs two jobs on Turbo. A song with `--lyrics` needs neither the
-instrumental steps nor a cut, so it is one ordinary job on Turbo, as on cav's server. At Turbo's speed, the extra job adds about 10 to 40
-seconds. The take sounds the same as on cav's server for the same planned score: cav's Go
+So each instrumental take costs two jobs on Turbo. At Turbo's speed, the extra job adds
+about 10 to 40 seconds. A song with `--lyrics` needs neither the instrumental steps nor a
+cut, so it is one ordinary job on Turbo, as on cav's server. The take sounds the same as on cav's server for the same planned score: cav's Go
 code writes the same score as the server's Python code, byte for byte, in cav's tests.
 
 Turbo needs an API key of 16 characters or more, on every job route. Start it with the key,
