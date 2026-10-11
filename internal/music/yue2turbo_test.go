@@ -135,7 +135,7 @@ func TestYuE2TurboPlansThenGeneratesFromTheScore(t *testing.T) {
 	}
 }
 
-func TestYuE2TurboRefusesTheWrongKeyAndATruncatedPlan(t *testing.T) {
+func TestYuE2TurboRefusesTheWrongKeyATruncatedPlanAndALongPrompt(t *testing.T) {
 	f := &fakeTurbo{t: t, key: fakeTurboKey, score: mustRead(t, "planned.abc"), trunc: true}
 	srv := httptest.NewServer(f)
 	defer srv.Close()
@@ -150,6 +150,12 @@ func TestYuE2TurboRefusesTheWrongKeyAndATruncatedPlan(t *testing.T) {
 	_, err = Generate(t.Context(), c, &services.Choice{Service: "yue2", Key: fakeTurboKey}, Request{Prompt: "x", Seconds: 30})
 	if err == nil || !strings.Contains(err.Error(), "truncated score") {
 		t.Fatalf("truncated plan: %v", err)
+	}
+	// A prompt that fits Turbo but not with the instrumental words fails before any job.
+	f.bodies = nil
+	_, err = Generate(t.Context(), c, &services.Choice{Service: "yue2", Key: fakeTurboKey}, Request{Prompt: strings.Repeat("é", 1990), Seconds: 30})
+	if err == nil || !strings.Contains(err.Error(), "too long") || len(f.bodies) != 0 {
+		t.Fatalf("long prompt: %v, %d jobs", err, len(f.bodies))
 	}
 }
 

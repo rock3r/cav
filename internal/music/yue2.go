@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/rock3r/cav/internal/services"
 )
@@ -75,6 +76,11 @@ func yue2(ctx context.Context, c *services.Config, key string, r Request) (*Trac
 func yue2Turbo(ctx context.Context, base string, h map[string]string, seed int64, r Request) (*Track, error) {
 	start := time.Now()
 	style := strings.TrimSpace(r.Prompt)
+	// Turbo takes a style of up to 2000 characters, and the instrumental style is longer
+	// than the prompt: check it now, before the planning job.
+	if n := utf8.RuneCountInString(instrumentalStyle(style)); n > yue2MaxStyle {
+		return nil, fmt.Errorf("yue2: the prompt is too long for an instrumental on YuE2-Turbo: with the words cav adds it is %d characters, and Turbo takes %d", n, yue2MaxStyle)
+	}
 	plan, planURL, err := yue2Run(ctx, base, h, map[string]any{"style": style, "lyrics": yue2Sections,
 		"cot": "full", "seed": seed, "n": 1})
 	if err != nil {
@@ -227,6 +233,9 @@ func yue2Download(ctx context.Context, base string, h map[string]string, job *yu
 	}
 	return tr, nil
 }
+
+// yue2MaxStyle is the longest style YuE2-Turbo takes (GenerateRequest.style).
+const yue2MaxStyle = 2000
 
 // How often cav asks about a job, and how long it waits when the server is busy or loading.
 var yue2Poll, yue2Retry = 3 * time.Second, 5 * time.Second
