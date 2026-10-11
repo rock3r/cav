@@ -24,10 +24,14 @@ import (
 	"github.com/rock3r/cav/internal/services"
 )
 
-// yue2 makes an instrumental take on a YuE2 server: cav's wrapper (tools/yue2-server) or
-// YuE2-Turbo. Both speak the job API of YuE2-Turbo's src/yue2/service.py (read at commit
+// yue2 makes a take on a YuE2 server: cav's wrapper (tools/yue2-server) or YuE2-Turbo. Both speak the job API of YuE2-Turbo's src/yue2/service.py (read at commit
 // 7c88813 on 2026-10-11): POST /v1/jobs, then GET /v1/jobs/{id} until the status is
 // terminal, then GET /v1/jobs/{id}/audio (FLAC).
+//
+// With lyrics, cav sends a plain job that both servers take: YuE2 writes a song and sings
+// them. A song gets no length cut: the score has the vocal notes but not the syllables, so
+// a cut could stop a sung line in the middle, and the lyrics after the cut would still be
+// in the request. The lyrics set its length.
 //
 // YuE2 writes songs with vocals. An instrumental takes three steps, the way the YuE2
 // repository's instrumental helper does it: YuE2 plans a score, the Vocal notes of the
@@ -47,10 +51,10 @@ import (
 // /v1/covers, a multipart form of at most 40 MiB with the fields of YuE2-Turbo's covers route
 // (audio, style, lyrics, seed; README and service.py read on 2026-10-11). SheetSage2 on the
 // server transcribes the track's melody, without chords, and YuE2 generates from it with
-// cot=melody. It does not copy the singer. To cav's wrapper cav also sends "instrumental" and
-// "seconds", so the wrapper moves the melody to an instrument. With Turbo, the cover job
-// takes the place of the planning job: cav moves the transcribed melody to the Ins voice
-// itself. When the server cannot transcribe, the error is ErrNoCover and the caller
+// cot=melody. It does not copy the singer. With lyrics, YuE2 sings them to the melody.
+// Without lyrics, cav also sends "instrumental" and "seconds" to its wrapper, so the wrapper
+// moves the melody to an instrument. With Turbo, the cover job then takes the place of the
+// planning job: cav moves the transcribed melody to the Ins voice itself. When the server cannot transcribe, the error is ErrNoCover and the caller
 // describes the track in words instead.
 func yue2(ctx context.Context, c *services.Config, key string, r Request) (*Track, error) {
 	ep := c.Endpoints["yue2"]
@@ -71,19 +75,26 @@ func yue2(ctx context.Context, c *services.Config, key string, r Request) (*Trac
 	if err != nil {
 		return nil, err
 	}
-	if !slices.Contains(extensions, "instrumental") {
+	sung := strings.TrimSpace(r.Lyrics) != ""
+	if !sung && !slices.Contains(extensions, "instrumental") {
 		return yue2Turbo(ctx, base, h, ep.Model, seed.Int64(), r)
 	}
 	// The brief goes in as YuE2's style; with --board it already holds the tempo.
 	body := map[string]any{"style": strings.TrimSpace(r.Prompt), "lyrics": yue2Sections, "cot": "full",
 		"seed": seed.Int64(), "n": 1, "instrumental": true}
-	if r.Seconds > 0 {
+	if sung {
+		body["lyrics"] = strings.TrimSpace(r.Lyrics)
+		delete(body, "instrumental")
+	} else if r.Seconds > 0 {
 		body["seconds"] = math.Max(5, math.Min(600, r.Seconds))
 	}
 	sub := yue2Submit{route: "/v1/jobs", payload: body}
 	if r.Ref != "" {
-		fields := map[string]string{"style": body["style"].(string), "lyrics": yue2Sections,
-			"seed": strconv.FormatInt(seed.Int64(), 10), "instrumental": "true"}
+		fields := map[string]string{"style": body["style"].(string), "lyrics": body["lyrics"].(string),
+			"seed": strconv.FormatInt(seed.Int64(), 10)}
+		if body["instrumental"] == true {
+			fields["instrumental"] = "true"
+		}
 		if sec, ok := body["seconds"].(float64); ok {
 			fields["seconds"] = strconv.FormatFloat(sec, 'f', -1, 64)
 		}
@@ -95,7 +106,7 @@ func yue2(ctx context.Context, c *services.Config, key string, r Request) (*Trac
 	if err != nil {
 		return nil, err
 	}
-	tr, err := yue2Download(ctx, base, h, job, jobURL, "", seed.Int64(), r.Seconds)
+	tr, err := yue2Download(ctx, base, h, job, jobURL, ep.Model, seed.Int64(), r.Seconds, sung)
 	if err != nil {
 		return nil, err
 	}
@@ -181,7 +192,7 @@ func yue2Turbo(ctx context.Context, base string, h map[string]string, model stri
 		job.Result.Timing.TwoJobs = true
 	}
 	// Turbo does not say which model it loaded (YUE2_MODEL): the endpoint's model names it.
-	tr, err := yue2Download(ctx, base, h, job, jobURL, cmp.Or(model, "YuE2-3B"), seed, r.Seconds)
+	tr, err := yue2Download(ctx, base, h, job, jobURL, model, seed, r.Seconds, false)
 	if err != nil {
 		return nil, err
 	}
@@ -323,7 +334,7 @@ func yue2Run(ctx context.Context, base string, h map[string]string, sub yue2Subm
 
 // yue2Download fetches the audio of a finished job.
 // The model is the server's answer, then the given name, then YuE2-3B.
-func yue2Download(ctx context.Context, base string, h map[string]string, job *yue2Job, jobURL, model string, seed int64, want float64) (*Track, error) {
+func yue2Download(ctx context.Context, base string, h map[string]string, job *yue2Job, jobURL, model string, seed int64, want float64, sung bool) (*Track, error) {
 	audio := jobURL + "/audio"
 	if job.Result != nil && job.Result.AudioURL != "" {
 		audio = base + job.Result.AudioURL
@@ -338,7 +349,7 @@ func yue2Download(ctx context.Context, base string, h map[string]string, job *yu
 	model = cmp.Or(model, "YuE2-3B")
 	tr := &Track{Data: data, Ext: ".flac", Provider: "yue2", Model: model, Seed: &seed}
 	if job.Result != nil {
-		tr.Notes = job.Result.notes(want, seed)
+		tr.Notes = job.Result.notes(want, sung, seed)
 	}
 	return tr, nil
 }
@@ -426,7 +437,7 @@ type yue2Score struct {
 
 // notes says how long the take came out against the request, and which part of the
 // generation stopped at its token limit.
-func (res *yue2Result) notes(want float64, seed int64) []string {
+func (res *yue2Result) notes(want float64, sung bool, seed int64) []string {
 	var out []string
 	took := res.Timing.Job
 	if took == 0 {
@@ -446,7 +457,11 @@ func (res *yue2Result) notes(want float64, seed int64) []string {
 		}
 	}
 	if want > 0 && math.Abs(res.AudioSeconds-want) > 1 {
-		length += fmt.Sprintf("; you asked for %.1f s: YuE2 cuts only at a phrase, so trim or fade it", want)
+		if sung {
+			length += fmt.Sprintf("; you asked for %.1f s, but the lyrics set the length of a song: write fewer or shorter sections, or trim or fade it", want)
+		} else {
+			length += fmt.Sprintf("; you asked for %.1f s: YuE2 cuts only at a phrase, so trim or fade it", want)
+		}
 	}
 	out = append(out, length)
 	for _, part := range []string{"abc", "semantic"} {

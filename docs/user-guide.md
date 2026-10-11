@@ -255,7 +255,11 @@ individual creator (see `cav guide production`). `--ref <track>` makes variation
 track you already have: Stable Audio and ACE-Step get the audio, YuE2 makes an
 instrumental cover of its melody (transcribed by SheetSage2 on the server), and Lyria and
 ElevenLabs get a description of it in words. A cover plays someone else's song, so cav
-records the track with the take and `cav credits` lists it. `cav music render score.json` plays a score written as notes on a beat
+records the track with the take and `cav credits` lists it. The takes are instrumental
+unless you give `--lyrics song.txt` with `[Verse]` and `[Chorus]` tags: then YuE2 or
+ACE-Step sing them, and the other services refuse. With YuE2, the lyrics set the length of
+the song, and with `--ref` YuE2 sings them to the melody of the track.
+`cav music render score.json` plays a score written as notes on a beat
 grid, with built-in synths and drums, samples or VST3/AU instruments, and masters it.
 `cav listen <track> --board storyboard.json` reports length, tempo, loudness, the cuts
 against the downbeats, a picture and, with a Gemini key, a written critique. `--score` adds

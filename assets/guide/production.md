@@ -136,6 +136,7 @@ cav sfx gen "glassy riser into a hit" --seconds 2       # generated (ElevenLabs 
 cav music gen "warm synthwave, builds to a drop" --board storyboard.json --takes 2
 cav music gen "warm synthwave" --board storyboard.json --service lyria   # Gemini key
 cav music gen "toy piano pop, more playful" --ref music/pixel-pop-a.mp3 --takes 2 # variations
+cav music gen "English piano pop, warm female voice, 88 BPM" --lyrics song.txt --service yue2  # a song
 cav listen music/<take>.mp3 --board storyboard.json --brief "builds to a drop on s4"
 ```
 
@@ -143,6 +144,8 @@ Lyria (`lyria-3.5`) has no length or section fields. cav writes them into the pr
 total length, "instrumental only", and one `[m:ss - m:ss]` line per shot. Lyria follows
 them loosely, so check the cuts with `cav listen --board`. cav asks for WAV.
 `cav config model lyria lyria-3-clip-preview` makes a 30-second MP3 clip instead.
+
+The music is instrumental unless you give `--lyrics`; see "Songs with lyrics" below.
 
 `--ref <track>` (repeatable) makes variations of a track you have, `--takes` takes for each
 reference. Where the reference goes depends on the service:
@@ -186,6 +189,42 @@ description cav prints, and if it is off, write the style into the prompt yourse
 Keep brand and product names out of prompts and the storyboard's music `prompt` fields:
 ElevenLabs refuses them, and they do not help any music model.
 
+### Songs with lyrics
+
+`--lyrics song.txt` makes a song with vocals. Only the servers you run sing: YuE2 and
+ACE-Step. ElevenLabs, Stable Audio and Lyria get "no vocals" in every request, and cav
+refuses `--lyrics` for them. Write the lyrics as plain text, with one section tag on its
+own line before each section and a blank line between sections:
+
+```text
+[Verse]
+Neon fades along the lane
+Footsteps keep the time of rain
+
+[Chorus]
+Let the day come into view
+Every road begins with you
+```
+
+Put the language, the voice and the tempo in the prompt, for example "English, warm
+piano pop, expressive female voice, 88 BPM". The two services set the length in
+different ways:
+
+- ACE-Step keeps `--seconds` (or the storyboard's length). If the lyrics are too long for
+  that length, the song can stop in the middle of a line. It takes at most 4096
+  characters of lyrics; YuE2 takes 16000.
+- YuE2 sings all the lyrics, and the lyrics set the length. cav does not send
+  `--seconds`: YuE2's score has the vocal notes but not the words, so the server cannot
+  cut it without stopping in the middle of a sung line. For a shorter song, write fewer
+  or shorter sections, then trim or fade the take. cav prints how long it came out.
+  In one take on 2026-10-11, a verse and a chorus of four lines each came out at 49.8 s
+  (asked for 30 s), in 241 s on the M1 Max.
+
+With `--ref` as well, YuE2 makes a sung cover: it sings your lyrics to the melody that
+SheetSage2 transcribed from the track. The rules in "YuE2 covers" below still apply.
+
+A take with lyrics has the same licence terms as an instrumental take from that service.
+
 ### YuE2
 
 YuE2 is an open music model. It has no HTTP server of its own, so cav has one:
@@ -202,12 +241,13 @@ cav config check
 cav music gen "warm synthwave, gated drums, builds to a drop, 112 BPM" --seconds 60 --service yue2
 ```
 
-YuE2 makes songs with vocals. The server makes an instrumental the way the YuE2
+YuE2 makes songs with vocals. With `--lyrics`, the server runs YuE2 as it is and sings
+them (see "Songs with lyrics"). Without lyrics, the server makes an instrumental the way the YuE2
 repository's instrumental helper does: YuE2 plans a score, the helper moves the vocal
 notes to an instrument, and YuE2 generates the audio from the changed score. In one take,
 YuE2 planned no vocal notes at all for an instrumental style.
 
-YuE2 has no length setting, and its planner wrote 92 to 240 s whatever cav asked for. The
+YuE2 has no length setting, and for an instrumental its planner wrote 92 to 240 s whatever cav asked for. The
 audio follows the planned score, though: in 5 uncut takes it was within 3 s of the
 score's length. So the server cuts the score before it generates: it keeps the start up
 to a phrase (every four bars) or a section, then the outro. Asked for 60 s, the two cut
@@ -262,7 +302,8 @@ Turbo's own `POST /v1/covers`: SheetSage2 transcribes the track, and cav takes t
 from that job's score instead of a plan. Turbo turns covers off when
 `YUE2_SHEETSAGE_DEVICE=off`, and then cav describes the track in words.
 
-So each take costs two jobs on Turbo. At Turbo's speed, the extra job adds about 10 to 40
+So each instrumental take costs two jobs on Turbo. A song with `--lyrics` needs neither the
+instrumental steps nor a cut, so it is one ordinary job on Turbo, as on cav's server. At Turbo's speed, the extra job adds about 10 to 40
 seconds. The take sounds the same as on cav's server for the same planned score: cav's Go
 code writes the same score as the server's Python code, byte for byte, in cav's tests.
 
