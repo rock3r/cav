@@ -215,6 +215,8 @@ different ways:
   `--seconds`: YuE2's score has the vocal notes but not the words, so the server cannot
   cut it without stopping in the middle of a sung line. For a shorter song, write fewer
   or shorter sections, then trim or fade the take. cav prints how long it came out.
+  In one take on 2026-10-11, a verse and a chorus of four lines each came out at 49.8 s
+  (asked for 30 s), in 241 s on the M1 Max.
 
 A take with lyrics has the same licence terms as an instrumental take from that service.
 
