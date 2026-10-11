@@ -554,7 +554,7 @@ func cmdMusic(a *app, args []string) error {
 			if *takes > 1 {
 				name += fmt.Sprintf("-take%d", i)
 			}
-			path, note, err := saveTake(ctx, root, *outDirFlag, name, tr, j.req.Prompt, j.Path, !*rawLevel)
+			path, note, err := saveTake(ctx, root, *outDirFlag, name, tr, j.req.Prompt, j.req.Lyrics, j.Path, !*rawLevel)
 			if err != nil {
 				return err
 			}
@@ -625,7 +625,7 @@ func cmdMusic(a *app, args []string) error {
 
 // saveTake writes one take into dir, lowers its level when it would clip (level), and
 // records it in the manifest. The note says what cav did to the level.
-func saveTake(ctx context.Context, root, dir, name string, tr *music.Track, prompt, ref string, level bool) (string, string, error) {
+func saveTake(ctx context.Context, root, dir, name string, tr *music.Track, prompt, lyrics, ref string, level bool) (string, string, error) {
 	path := filepath.Join(dir, name+tr.Ext)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", "", err
@@ -661,7 +661,7 @@ func saveTake(ctx context.Context, root, dir, name string, tr *music.Track, prom
 		refs = []string{ref}
 	}
 	e := library.Entry{Path: path, Kind: "audio", Source: tr.Provider,
-		RetrievedAt: time.Now().UTC(), SHA256: sum, Generated: &library.Generated{Provider: tr.Provider, Model: tr.Model, Prompt: prompt, Refs: refs, Seed: tr.Seed}}
+		RetrievedAt: time.Now().UTC(), SHA256: sum, Generated: &library.Generated{Provider: tr.Provider, Model: tr.Model, Prompt: prompt, Lyrics: lyrics, Refs: refs, Seed: tr.Seed}}
 	library.GeneratedTerms(tr.Provider).Apply(&e)
 	if tr.Cover {
 		e.Generated.CoverOf = ref

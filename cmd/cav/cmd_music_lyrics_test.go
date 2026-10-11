@@ -1,11 +1,15 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/rock3r/cav/internal/library"
+	"github.com/rock3r/cav/internal/music"
 )
 
 // With --lyrics and no --service, cav tries only the services that sing, so a configured
@@ -26,4 +30,27 @@ func TestMusicLyricsPicksOnlySingers(t *testing.T) {
 	if !errors.As(err, &ce) || !strings.Contains(ce.msg, "makes only instrumentals") {
 		t.Fatalf("--service elevenlabs: %v", err)
 	}
+}
+
+// The manifest keeps the words of a take, so a song can be made again from its record.
+func TestSaveTakeRecordsTheLyrics(t *testing.T) {
+	root := t.TempDir()
+	tr := &music.Track{Data: []byte("RIFFsong"), Ext: ".wav", Provider: "acestep", Model: "m"}
+	path, _, err := saveTake(context.Background(), root, filepath.Join(root, "music"), "song", tr, "pop", "[Verse]\nla la", "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := library.Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range m.Assets {
+		if e.Path == library.Rel(root, path) {
+			if e.Generated == nil || e.Generated.Lyrics != "[Verse]\nla la" || e.Generated.Prompt != "pop" {
+				t.Fatalf("record: %+v", e.Generated)
+			}
+			return
+		}
+	}
+	t.Fatalf("no record for %s in %+v", path, m.Assets)
 }

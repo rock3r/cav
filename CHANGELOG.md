@@ -37,6 +37,7 @@
   services refuse `--lyrics` with an error that names the two that can. Without
   `--service`, cav tries only YuE2 and ACE-Step for a song. YuE2 takes up to 16000
   characters of lyrics and ACE-Step up to 4096.
+- `.cav/manifest.json` records the lyrics of each take with lyrics, next to its prompt.
 - With YuE2, the lyrics set the length of a song, and cav does not send `--seconds`. The
   server cannot cut a sung score without stopping in the middle of a line, because the
   score has the vocal notes but not the words. ACE-Step keeps `--seconds`, so lyrics that
