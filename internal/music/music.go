@@ -61,6 +61,7 @@ type Track struct {
 	Ext      string
 	Provider string
 	Model    string
+	Seed     *int64 // the seed the service used, when cav chose it (YuE2)
 	// Notes are what the caller should tell the user about the take: a length far from
 	// the request, or a part the service cut short.
 	Notes []string

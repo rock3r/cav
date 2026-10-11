@@ -130,7 +130,8 @@ func yue2(ctx context.Context, c *services.Config, key string, r Request) (*Trac
 	if job.Result != nil && job.Result.Model != "" {
 		model = job.Result.Model
 	}
-	tr := &Track{Data: data, Ext: ".flac", Provider: "yue2", Model: model}
+	s := seed.Int64()
+	tr := &Track{Data: data, Ext: ".flac", Provider: "yue2", Model: model, Seed: &s}
 	if job.Result != nil {
 		tr.Notes = job.Result.notes(r.Seconds, seed.Int64())
 	}

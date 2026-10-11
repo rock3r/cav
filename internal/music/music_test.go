@@ -3,6 +3,7 @@ package music
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -281,6 +282,7 @@ func TestStableAudioStrengthStaysAboveTheMinimum(t *testing.T) {
 // which cav's tools/yue2-server copies, plus that wrapper's "instrumental" extension.
 func TestYuE2SubmitsPollsAndDownloads(t *testing.T) {
 	polls, submits := 0, 0
+	var sentSeed json.Number
 	idem := ""
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer secret" {
@@ -301,13 +303,17 @@ func TestYuE2SubmitsPollsAndDownloads(t *testing.T) {
 				return
 			}
 			var body map[string]any
-			json.NewDecoder(r.Body).Decode(&body)
-			if body["instrumental"] != true || body["cot"] != "full" || body["n"] != float64(1) ||
-				body["style"] != "warm synthwave, 112 BPM" || body["lyrics"] != "[Intro]\n\n[Verse]\n\n[Chorus]\n\n[Outro]\n" || body["seconds"] != float64(60) {
+			dec := json.NewDecoder(r.Body)
+			dec.UseNumber() // a 62-bit seed does not fit a float64
+			dec.Decode(&body)
+			if body["instrumental"] != true || body["cot"] != "full" || body["n"] != json.Number("1") ||
+				body["style"] != "warm synthwave, 112 BPM" || body["lyrics"] != "[Intro]\n\n[Verse]\n\n[Chorus]\n\n[Outro]\n" || body["seconds"] != json.Number("60") {
 				t.Errorf("job body: %#v", body)
 			}
-			if _, ok := body["seed"].(float64); !ok {
+			if s, ok := body["seed"].(json.Number); !ok {
 				t.Errorf("seed: %v", body["seed"])
+			} else {
+				sentSeed = s
 			}
 			w.WriteHeader(202)
 			w.Write([]byte(`{"id":"j1","status":"queued","stage":"queued"}`))
@@ -329,7 +335,7 @@ func TestYuE2SubmitsPollsAndDownloads(t *testing.T) {
 	defer srv.Close()
 	c := &services.Config{Endpoints: map[string]services.Endpoint{"yue2": {BaseURL: srv.URL + "/"}}}
 	tr, err := yue2Generate(t, c, Request{Prompt: "warm synthwave, 112 BPM", Seconds: 60})
-	if err != nil || string(tr.Data) != "fLaCdata" || tr.Ext != ".flac" || tr.Provider != "yue2" || tr.Model != "/models/YuE2-3B-ft" {
+	if err != nil || string(tr.Data) != "fLaCdata" || tr.Ext != ".flac" || tr.Provider != "yue2" || tr.Model != "/models/YuE2-3B-ft" || tr.Seed == nil || fmt.Sprint(*tr.Seed) != sentSeed.String() {
 		t.Fatalf("got %+v, %v", tr, err)
 	}
 	if len(tr.Notes) != 2 || !strings.Contains(tr.Notes[0], "71.5 s of audio") || !strings.Contains(tr.Notes[0], "you asked for 60.0 s") ||

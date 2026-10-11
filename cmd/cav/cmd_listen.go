@@ -567,7 +567,7 @@ func saveTake(ctx context.Context, root, dir, name string, tr *music.Track, prom
 		refs = []string{ref}
 	}
 	e := library.Entry{Path: path, Kind: "audio", Source: tr.Provider,
-		RetrievedAt: time.Now().UTC(), SHA256: sum, Generated: &library.Generated{Provider: tr.Provider, Model: tr.Model, Prompt: prompt, Refs: refs}}
+		RetrievedAt: time.Now().UTC(), SHA256: sum, Generated: &library.Generated{Provider: tr.Provider, Model: tr.Model, Prompt: prompt, Refs: refs, Seed: tr.Seed}}
 	library.GeneratedTerms(tr.Provider).Apply(&e)
 	m.Put(root, e)
 	return path, note, m.Save(root)
