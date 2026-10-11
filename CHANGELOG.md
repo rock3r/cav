@@ -21,7 +21,17 @@
   commercial licence from the YuE2 authors. cav cannot tell the two apart, so it treats a
   take as non-commercial. A project set to `cav credits licence nc-ok` accepts it.
   Otherwise `cav music gen` warns, and `cav credits check` lists the take.
-- A reference track (`--ref`) goes to YuE2 as words, as for Lyria and ElevenLabs.
+- With a reference track (`--ref`), YuE2 makes an instrumental cover. cav uploads the
+  track to the server's new `POST /v1/covers` route, which has the same fields as
+  YuE2-Turbo's. SheetSage2, a transcription model, writes down the track's melody. YuE2
+  then plays that melody on an instrument, in the style of the prompt. It does not copy
+  the singer or the arrangement.
+- SheetSage2 runs in its own Python environment next to YuE2, on CUDA, on an Apple
+  silicon Mac (MPS) or on the CPU. Without it, the server's covers are off, and cav
+  describes the track in words instead, as for Lyria and ElevenLabs. cav says why.
+- A cover plays someone else's song. cav records the reference track with the take, next
+  to YuE2's licence, and `cav credits` lists a credit line for the song. You need the
+  songwriter's permission or a cover licence to use a cover.
 - `cav music gen --lyrics song.txt` makes a song with vocals. Mark the sections of the file
   with tags such as `[Verse]` and `[Chorus]`. Only YuE2 and ACE-Step can sing. The other
   services refuse `--lyrics` with an error that names the two that can. Without
@@ -31,6 +41,8 @@
   server cannot cut a sung score without stopping in the middle of a line, because the
   score has the vocal notes but not the words. ACE-Step keeps `--seconds`, so lyrics that
   are too long can stop in the middle of a line.
+- With `--lyrics` and `--ref`, YuE2 makes a sung cover: it sings the new lyrics to the
+  melody of the track.
 - Music is instrumental unless you give `--lyrics`. The help, `cav guide production`, the
   user guide and the skill now say so.
 

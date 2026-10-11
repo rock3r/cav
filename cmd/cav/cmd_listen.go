@@ -82,9 +82,14 @@ cav music gen "warm synthwave, confident, builds to a drop" --board storyboard.j
 --ref (repeatable) makes variations of a reference track: --takes takes for each one.
     Stable Audio and ACE-Step get the track itself. Stable Audio keeps its structure
     (--keep, 0-1, how much of it to keep; default 0.4); ACE-Step uses it as a style
-    reference. Lyria, ElevenLabs and YuE2 cannot take it, so the audio model (the "ears" job)
-    describes its style in words and cav adds that to the prompt: a new track in a similar
-    style, not a variation of the track. cav says which way each reference went.
+    reference. YuE2 makes an instrumental cover: SheetSage2 on the YuE2 server transcribes
+    the track's melody, and YuE2 plays it on an instrument in the prompt's style, for the
+    length of the track (--seconds cuts it). Lyria and ElevenLabs cannot take it, so the
+    audio model (the "ears" job) describes its style in words and cav adds that to the
+    prompt: a new track in a similar style, not a variation of the track. YuE2 falls back
+    to words too when its server cannot transcribe. cav says which way each reference went.
+    A cover plays someone's song: cav records the reference with the take, and cav credits
+    lists it.
     Stable Audio takes a reference of 6 to 190 s in MP3 or WAV; cav converts other
     formats and sends the first 190 s of a longer track.
 A take whose true peak is above -1 dBTP comes down in level (gain only) so it does not
@@ -354,6 +359,8 @@ func cmdMusic(a *app, args []string) error {
 	if err != nil {
 		return err
 	}
+	secondsSet := false
+	fs.Visit(func(f *flag.Flag) { secondsSet = secondsSet || f.Name == "seconds" })
 	if len(pos) == 0 {
 		return usageErr("give a prompt: genre, instruments, mood, tempo")
 	}
@@ -452,7 +459,7 @@ func cmdMusic(a *app, args []string) error {
 	// One job per reference track, or one with no reference.
 	type refJob struct {
 		Path        string `json:"path"`
-		Mode        string `json:"mode"` // "sent" (as audio) or "described" (in words)
+		Mode        string `json:"mode"` // "sent" (as audio), "cover" (YuE2: its melody) or "described" (in words)
 		Note        string `json:"note,omitempty"`
 		Description string `json:"description,omitempty"`
 		name        string // distinct among the references, for the take's file name
@@ -463,6 +470,24 @@ func cmdMusic(a *app, args []string) error {
 		return err
 	}
 	defer os.RemoveAll(tmp)
+	// describe turns a reference into words in the prompt. why says why it is not sent as
+	// audio, when the service could take audio.
+	describe := func(j *refJob, why string) error {
+		if why == "" {
+			fmt.Fprintf(os.Stderr, "%s cannot take a reference track as audio; describing %s with the audio model…\n", ch.Service, j.Path)
+		} else {
+			fmt.Fprintf(os.Stderr, "%s; describing %s with the audio model instead…\n", why, j.Path)
+		}
+		desc, _, note := askEars(ctx, j.Path, "", listen.StylePrompt)
+		if desc == "" {
+			return fail(exitError, "cannot describe "+j.Path+": "+note,
+				"use a service that takes audio (--service stability or acestep), or describe the reference in the prompt yourself")
+		}
+		j.Mode, j.Note, j.Description = "described", why, desc
+		j.req = req
+		j.req.Prompt = strings.TrimRight(req.Prompt, ". ") + ". In the style of this reference: " + desc
+		return nil
+	}
 	jobs := []refJob{{req: req}}
 	if len(refs) > 0 {
 		jobs = nil
@@ -476,15 +501,14 @@ func cmdMusic(a *app, args []string) error {
 				}
 				j.Mode, j.Note = "sent", note
 				j.req.Ref, j.req.Keep = send, *keep
-			} else {
-				fmt.Fprintf(os.Stderr, "%s cannot take a reference track as audio; describing %s with the audio model…\n", ch.Service, r)
-				desc, _, note := askEars(ctx, r, "", listen.StylePrompt)
-				if desc == "" {
-					return fail(exitError, "cannot describe "+r+": "+note,
-						"use a service that takes audio (--service stability or acestep), or describe the reference in the prompt yourself")
+				if ch.Service == "yue2" {
+					j.Mode = "cover"
+					if !secondsSet && *boardFile == "" {
+						j.req.Seconds = 0 // a cover is as long as the track's melody
+					}
 				}
-				j.Mode, j.Description = "described", desc
-				j.req.Prompt = strings.TrimRight(req.Prompt, ". ") + ". In the style of this reference: " + desc
+			} else if err := describe(&j, ""); err != nil {
+				return err
 			}
 			jobs = append(jobs, j)
 		}
@@ -502,7 +526,8 @@ func cmdMusic(a *app, args []string) error {
 	var errs []error
 	levels := map[string]string{}  // take -> what cav did to its level
 	notes := map[string][]string{} // take -> what the service said about it
-	for _, j := range jobs {
+	for k := range jobs {
+		j := &jobs[k]
 		for i := 1; i <= *takes; i++ {
 			what := fmt.Sprintf("take %d of %d", i, *takes)
 			if j.Path != "" {
@@ -510,6 +535,14 @@ func cmdMusic(a *app, args []string) error {
 			}
 			fmt.Fprintf(os.Stderr, "%s with %s…\n", what, ch.Service)
 			tr, err := music.Generate(ctx, c, ch, j.req)
+			if errors.Is(err, music.ErrNoCover) && j.Mode == "cover" {
+				// The server cannot transcribe: describe the track, and make this take again.
+				if err := describe(j, "the YuE2 server could not make a cover ("+strings.TrimPrefix(err.Error(), music.ErrNoCover.Error()+": ")+")"); err != nil {
+					return err
+				}
+				i--
+				continue
+			}
 			if err != nil {
 				errs = append(errs, err)
 				break
@@ -555,8 +588,18 @@ func cmdMusic(a *app, args []string) error {
 				if j.Note != "" {
 					fmt.Fprintf(os.Stderr, "note: %s: %s\n", j.Path, j.Note)
 				}
+			case "cover":
+				fmt.Fprintf(os.Stderr, "note: sent %s to %s for a cover: its melody, played in the prompt's style\n", j.Path, ch.Service)
+				if j.Note != "" {
+					fmt.Fprintf(os.Stderr, "note: %s: %s\n", j.Path, j.Note)
+				}
+				fmt.Fprintf(os.Stderr, "note: a cover plays someone's song: you need the songwriter's permission or a cover licence; cav credits lists it\n")
 			case "described":
-				fmt.Fprintf(os.Stderr, "note: %s cannot take audio, so %s went in as words: %s\n", ch.Service, j.Path, j.Description)
+				if j.Note != "" {
+					fmt.Fprintf(os.Stderr, "note: %s, so %s went in as words: %s\n", j.Note, j.Path, j.Description)
+				} else {
+					fmt.Fprintf(os.Stderr, "note: %s cannot take audio, so %s went in as words: %s\n", ch.Service, j.Path, j.Description)
+				}
 			}
 		}
 		for _, p := range made {
@@ -620,6 +663,11 @@ func saveTake(ctx context.Context, root, dir, name string, tr *music.Track, prom
 	e := library.Entry{Path: path, Kind: "audio", Source: tr.Provider,
 		RetrievedAt: time.Now().UTC(), SHA256: sum, Generated: &library.Generated{Provider: tr.Provider, Model: tr.Model, Prompt: prompt, Refs: refs, Seed: tr.Seed}}
 	library.GeneratedTerms(tr.Provider).Apply(&e)
+	if tr.Cover {
+		e.Generated.CoverOf = ref
+		library.CoverTerms(tr.Provider, ref).Apply(&e)
+		e.Attribution = library.DefaultAttribution(e)
+	}
 	m.Put(root, e)
 	return path, note, m.Save(root)
 }

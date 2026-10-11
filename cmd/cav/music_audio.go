@@ -20,11 +20,31 @@ const (
 	stabilityRefBytes                = 45 << 20 // leaves room for the rest of the form
 )
 
+// A YuE2 cover is a form of at most 40 MiB (YuE2-Turbo's limit, which cav's server copies).
+// cav sends a bigger track as 192 kbps MP3: 39 MiB of that is about 28 minutes.
+const yue2RefBytes = 39 << 20
+
 // prepareRef makes a reference track fit the service. For Stable Audio, cav converts other
 // formats (m4a, flac, aiff...) and files too big for one request to WAV, and keeps the
-// first 190 seconds of a longer track; a track shorter than 6 seconds is an error. Other services get the file as it is. It
-// returns the file to send and a note when cav changed it.
+// first 190 seconds of a longer track; a track shorter than 6 seconds is an error. For a
+// YuE2 cover, cav converts a file too big for the upload to MP3. Other services get the
+// file as it is. It returns the file to send and a note when cav changed it.
 func prepareRef(ctx context.Context, service, path, tmp string) (string, string, error) {
+	if service == "yue2" {
+		st, err := os.Stat(path)
+		if err != nil || st.Size() <= yue2RefBytes {
+			return path, "", err
+		}
+		dir, err := os.MkdirTemp(tmp, "ref")
+		if err != nil {
+			return "", "", err
+		}
+		out := filepath.Join(dir, strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))+".mp3")
+		if b, err := exec.CommandContext(ctx, "ffmpeg", "-v", "error", "-y", "-i", path, "-vn", "-c:a", "libmp3lame", "-b:a", "192k", out).CombinedOutput(); err != nil {
+			return "", "", fmt.Errorf("converting %s: %v: %s", path, err, strings.TrimSpace(string(b)))
+		}
+		return out, "converted to 192 kbps MP3 to fit the 40 MiB cover upload", nil
+	}
 	if service != "stability" {
 		return path, "", nil
 	}

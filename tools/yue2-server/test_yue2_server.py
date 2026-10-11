@@ -82,12 +82,38 @@ class FakeHelper:
         return {"nominal_duration_seconds": 32.0, "bpm": 96}
 
 
+class FakeTranscriber:
+    device = "fake-device"
+
+    def __init__(self, fail=False):
+        self.calls, self.fail = [], fail
+
+    def __call__(self, audio, out, cancelled):
+        self.calls.append(Path(audio).read_bytes())
+        if self.fail:
+            raise srv.TranscriptionFailed("SheetSage2 could not transcribe the recording: no melody")
+        return "TRANSCRIBED-MELODY", ["short input"]
+
+
+def form(fields, audio=b"ID3fake", filename="song.mp3"):
+    """A multipart/form-data body, as cav and curl -F send it."""
+    boundary = "cavtestboundary"
+    out = b""
+    for name, value in fields.items():
+        out += (f"--{boundary}\r\nContent-Disposition: form-data; name=\"{name}\"\r\n\r\n{value}\r\n").encode()
+    if audio is not None:
+        out += (f"--{boundary}\r\nContent-Disposition: form-data; name=\"audio\"; filename=\"{filename}\"\r\n"
+                "Content-Type: application/octet-stream\r\n\r\n").encode() + audio + b"\r\n"
+    out += f"--{boundary}--\r\n".encode()
+    return out, f"multipart/form-data; boundary={boundary}"
+
+
 class ServerTest(unittest.TestCase):
-    def start(self, pipe, key="", max_pending=16, helper=FakeHelper):
+    def start(self, pipe, key="", max_pending=16, helper=FakeHelper, transcriber=None):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         jobs = srv.Jobs(tmp.name, max_pending=max_pending)
-        worker = srv.Worker(jobs, lambda: (srv.Engine(pipe, helper), {"device": "fake", "model": "fake-model"}),
+        worker = srv.Worker(jobs, lambda: (srv.Engine(pipe, helper, transcriber), {"device": "fake", "model": "fake-model"}),
                             log=open(os.devnull, "w"))
         worker.start()
         httpd = srv.ThreadingHTTPServer(("127.0.0.1", 0), srv.make_handler(jobs, worker, key))
@@ -106,7 +132,9 @@ class ServerTest(unittest.TestCase):
         if self.key:
             h.setdefault("Authorization", "Bearer " + self.key)
         data = None
-        if body is not None:
+        if isinstance(body, tuple):  # a form from form()
+            data, h["Content-Type"] = body
+        elif body is not None:
             data = json.dumps(body).encode()
             h["Content-Type"] = "application/json"
         req = urllib.request.Request(self.base + path, data=data, method=method, headers=h)
@@ -223,6 +251,99 @@ class ServerTest(unittest.TestCase):
         code, body, _ = self.call("POST", "/v1/jobs", {"style": "x", "lyrics": "[Intro]", "instrumental": True})
         job = self.wait(json.loads(body)["id"])
         self.assertEqual((job["status"], job["error"]["code"]), ("failed", "invalid_generation"))
+
+    def test_instrumental_cover_transcribes_then_moves_the_melody(self):
+        pipe, tr = FakePipe(), FakeTranscriber()
+        jobs = self.start(pipe, transcriber=tr)
+        ready = json.loads(self.call("GET", "/health/ready")[1])
+        self.assertEqual(ready["extensions"], ["instrumental", "covers"])
+        body = form({"style": "solo cello", "lyrics": "[Intro]", "seed": "11", "instrumental": "true"})
+        code, resp, headers = self.call("POST", "/v1/covers", body, headers={"Idempotency-Key": "c1"})
+        self.assertEqual(code, 202, resp)
+        job = self.wait(json.loads(resp)["id"])
+        self.assertEqual(job["status"], "succeeded", job)
+        self.assertEqual(tr.calls, [b"ID3fake"])
+        (kind, song), = pipe.calls  # no planning: the score comes from the recording
+        self.assertEqual(kind, "song")
+        self.assertEqual(song["abc"], "CONVERTED TRANSCRIBED-MELODY")
+        self.assertEqual(song["seed"], 11)
+        res = job["result"]
+        self.assertEqual(res["instrumental"]["score_origin"], "SheetSage2")
+        self.assertEqual((res["cover"]["transcriber"], res["cover"]["device"], res["cover"]["warnings"]),
+                         ("SheetSage2", "fake-device", ["short input"]))
+        self.assertEqual(res["cover"]["score_seconds"], 32.0)
+        # The same key and the same recording find the same job.
+        code, again, _ = self.call("POST", "/v1/covers", body, headers={"Idempotency-Key": "c1"})
+        self.assertEqual((code, json.loads(again)["id"]), (200, job["id"]))
+        other = form({"style": "solo cello", "lyrics": "[Intro]", "seed": "11", "instrumental": "true"},
+                     audio=b"ID3other")
+        code, _, _ = self.call("POST", "/v1/covers", other, headers={"Idempotency-Key": "c1"})
+        self.assertEqual(code, 409)
+        self.assertEqual(len(list((jobs.root / "covers").glob("*.mp3"))), 2)
+
+    def test_sung_cover_uses_the_melody_as_turbo_does(self):
+        pipe = FakePipe()
+        self.start(pipe, transcriber=FakeTranscriber())
+        code, resp, _ = self.call("POST", "/v1/covers", form({"style": "piano pop", "lyrics": "[Verse]\nla la"}))
+        self.assertEqual(code, 202, resp)
+        job = self.wait(json.loads(resp)["id"])
+        self.assertEqual(job["status"], "succeeded", job)
+        self.assertNotIn("instrumental", job["result"])
+        (_, song), = pipe.calls
+        self.assertEqual((song["cot"], song["abc"], song["seed"]), ("melody", "TRANSCRIBED-MELODY", 831001))
+
+    def test_cover_validation(self):
+        self.start(FakePipe(), transcriber=FakeTranscriber())
+        for body in (form({"style": "x", "lyrics": "y"}, audio=None), form({"style": "x", "lyrics": "y"}, audio=b""),
+                     form({"style": "x"}), form({"style": "x", "lyrics": "y", "bogus": "1"}),
+                     form({"style": "x", "lyrics": "y", "seed": "seven"}),
+                     form({"style": "x", "lyrics": "y", "instrumental": "yes"}),
+                     form({"style": "x", "lyrics": "y", "seconds": "30"})):
+            code, resp, _ = self.call("POST", "/v1/covers", body)
+            self.assertEqual(code, 422, resp)
+        code, _, _ = self.call("POST", "/v1/covers", {"style": "x", "lyrics": "y"})
+        self.assertEqual(code, 422)
+        code, resp, _ = self.call("POST", "/v1/covers", (b"x", "multipart/form-data; boundary=b"),
+                                  headers={"Content-Length": str(srv.COVER_LIMIT + 1)})
+        self.assertEqual(code, 413, resp)
+
+    def test_covers_off_answers_503_without_retry(self):
+        self.start(FakePipe())
+        self.assertEqual(json.loads(self.call("GET", "/health/ready")[1])["extensions"], ["instrumental"])
+        code, resp, headers = self.call("POST", "/v1/covers", form({"style": "x", "lyrics": "y"}))
+        self.assertEqual(code, 503)
+        self.assertIsNone(headers.get("Retry-After"))
+        self.assertIn("covers are off", json.loads(resp)["detail"])
+
+    def test_failed_transcription_has_its_own_code(self):
+        self.start(FakePipe(), transcriber=FakeTranscriber(fail=True))
+        code, resp, _ = self.call("POST", "/v1/covers", form({"style": "x", "lyrics": "y", "instrumental": "true"}))
+        job = self.wait(json.loads(resp)["id"])
+        self.assertEqual((job["status"], job["error"]["code"]), ("failed", "transcription_failed"))
+        self.assertIn("no melody", job["error"]["message"])
+
+    def test_transcriber_runs_the_helper_script(self):
+        # A stand-in for the helper's transcribe_cover.py: it records its arguments and writes a score.
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: __import__("shutil").rmtree(tmp, ignore_errors=True))
+        script = tmp / "transcribe_cover.py"
+        script.write_text("import json, sys, pathlib\n"
+                          "out = pathlib.Path(sys.argv[sys.argv.index('--output') + 1]); out.mkdir(parents=True)\n"
+                          "(out / 'args.json').write_text(json.dumps(sys.argv[1:]))\n"
+                          "if 'fail' in sys.argv[1]:\n"
+                          "    (out / 'failure.json').write_text(json.dumps({'error': 'bad audio'})); sys.exit(2)\n"
+                          "(out / 'score.abc').write_text('X:1')\n"
+                          "(out / 'transcription_manifest.json').write_text(json.dumps({'warnings': ['w']}))\n")
+        import sys as _sys
+        tr = srv.Transcriber(_sys.executable, script, "models/SheetSage2", base_model="models/MERT", device="mps")
+        abc, warnings = tr(tmp / "song.mp3", tmp / "t1", lambda: False)
+        self.assertEqual((abc, warnings), ("X:1", ["w"]))
+        args = json.loads((tmp / "t1/args.json").read_text())
+        self.assertEqual(args[:5], [str(tmp / "song.mp3"), "--output", str(tmp / "t1"), "--task", "melody-full"])
+        for flag, value in (("--device", "mps"), ("--dtype", "fp32"), ("--base-model", "models/MERT"), ("--model", "models/SheetSage2")):
+            self.assertEqual(args[args.index(flag) + 1], value)
+        with self.assertRaisesRegex(srv.TranscriptionFailed, "bad audio"):
+            tr(tmp / "fail.mp3", tmp / "t2", lambda: False)
 
     def test_style_rewrite_matches_the_helper(self):
         self.assertEqual(srv.instrumental_style("Instrumental, piano, no vocals."),
