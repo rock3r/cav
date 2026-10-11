@@ -43,6 +43,8 @@
 - `cav config check` now tells cav's server and Turbo apart, and checks Turbo's key. It no
   longer says that a Turbo server cannot make instrumentals.
 - No real Turbo server was tested: the tests use a fake one, written from Turbo's code.
+- When cav or its server cuts a YuE2 score, a note held across the cut now keeps its part
+  after the cut. Before, it was dropped, and left a rest at the start of the outro.
 
 ## 1.3.0
 

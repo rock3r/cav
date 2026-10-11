@@ -19,10 +19,12 @@ V1 = ['"G"B4d4B4A4', '"Em"G4E4G8', '"C"c4B4A4G4', '"D"A8z8']
 I1 = ["G,8z8", "Z", "C8E4G4", "D,16"]
 body += group("verse", V1, I1)
 body += group(None, ['"G"B2c2d4e4d4', '"Em"G4^F4E8-', 'E4"C"G4A4B4', '"D7"A8^c8'], ["Z", "E,16", "z8C8", "D8z8"])
-body += group("chorus", ['"C"e4d4c4B4', '"G"d8B8', '"Am"c4B4A4G4', '"D"A16'], ["c16", "B,16", "A,8C8", "D16"])
-body += group(None, ['"C"e4g4e4d4', '"G"d4B4G4B4', '"D"A4d4^f4a4', '"G"g16'], ["c8e8", "Z", "d16", "G,16"])
-body += group("bridge", ['"Bm"f4e4d4c4', '"A"c8A8', '"G"B4A4G4F4', '"A"E16'], ["B,16", "A,16", "G,16", "A,8C8"], extra="K:D")
-body += group("outro", ['"G"d4B4G4B4', '"C"c4e4g4e4', '"D"d16', '"G"G16'], ["G,16", "C16", "D,16", "G,16"], extra="K:G")
+# Ins notes are tied across a phrase boundary (chorus) and into the outro (bridge), so a
+# cut there must keep the held note.
+body += group("chorus", ['"C"e4d4c4B4', '"G"d8B8', '"Am"c4B4A4G4', '"D"A8z8'], ["c16", "B,16", "A,8C8", "D,16-"])
+body += group(None, ['"C"z8g4e4', '"G"d4B4G4B4', '"D"A4d4^f4a4', '"G"g16'], ["D,8e8", "Z", "d16", "G,16"])
+body += group("bridge", ['"Bm"f4e4d4c4', '"A"c8A8', '"G"B4A4G4F4', '"A"E16'], ["B,16", "A,16", "G,16", "A,8D,8-"], extra="K:D")
+body += group("outro", ['"G"z16', '"C"c4e4g4e4', '"D"d16', '"G"G16'], ["D,8G,8", "C16", "D,16", "G,16"], extra="K:G")
 text = "\n".join(head + body) + "\n"
 H.parse_abc(text)
 out.mkdir(exist_ok=True)
@@ -32,7 +34,7 @@ conv, transfer = H.convert_score(text, overlap="vocal", keep_chords=True)
 rep = H.report(H.validate_score(conv))
 meta = {"planned_seconds": rep["nominal_duration_seconds"], "bpm": rep["bpm"], "vocal_notes_moved": transfer["vocal_notes_before"],
         "lyrics": H.lyric_tags(conv), "style": yue2_server.instrumental_style("warm synthwave, 112 BPM"), "fits": {}}
-for sec in (5, 20, 30, 45, 60, 90):
+for sec in (5, 20, 30, 40, 45, 60, 90):
     fitted, nominal = yue2_server.fit_score(H, conv, sec)
     H.validate_score(fitted)
     (out / f"fit-{sec}.abc").write_text(fitted)

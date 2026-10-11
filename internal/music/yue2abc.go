@@ -1183,6 +1183,7 @@ func fitScore(text string, seconds float64) (string, float64, error) {
 	// Rebuild the score from the kept segments, shifted to follow one another.
 	var bars []abcEventBar
 	var notes []abcNote
+	var sources []int // the index in ins.notes of each kept note
 	var chords []abcEvent
 	at := fi(0)
 	for _, seg := range best {
@@ -1194,10 +1195,19 @@ func fitScore(text string, seconds float64) (string, float64, error) {
 					key: barKey(vocal.keys, bar.start), section: starts[bar.start]})
 			}
 		}
-		for _, n := range ins.notes {
-			if !n.t.less(a) && n.t.less(b) {
-				notes = append(notes, abcNote{n.t.add(shift), n.pitch, minFrac(n.dur, b.sub(n.t))})
+		// A note that sounds across a cut keeps its part inside the segment. When the next
+		// segment follows on, its two parts join again into one held note.
+		for i, n := range ins.notes {
+			lo, hi := maxFrac(n.t, a), minFrac(n.t.add(n.dur), b)
+			if !lo.less(hi) {
+				continue
 			}
+			if k := len(notes) - 1; k >= 0 && sources[k] == i && notes[k].t.add(notes[k].dur) == lo.add(shift) {
+				notes[k].dur = notes[k].dur.add(hi.sub(lo))
+				continue
+			}
+			notes = append(notes, abcNote{lo.add(shift), n.pitch, hi.sub(lo)})
+			sources = append(sources, i)
 		}
 		active := ""
 		for _, c := range vocal.chords {

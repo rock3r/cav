@@ -232,9 +232,16 @@ def fit_score(helper, text, seconds):
                 if start in starts:
                     bar["section"] = starts[start]
                 bars.append(bar)
-        for t, pitch, dur in ins.notes:
-            if a <= t < b:
-                notes.append([str(t + shift), str(min(dur, b - t)), pitch])
+        # A note that sounds across a cut keeps its part inside the segment. When the next
+        # segment follows on, its two parts join again into one held note.
+        for i, (t, pitch, dur) in enumerate(ins.notes):
+            lo, hi = max(t, a), min(t + dur, b)
+            if lo >= hi:
+                continue
+            if notes and notes[-1][3] == i and notes[-1][0] + notes[-1][1] == lo + shift:
+                notes[-1][1] += hi - lo
+            else:
+                notes.append([lo + shift, hi - lo, pitch, i])
         active = next((s for t, s in reversed(vocal.chords) if t <= a), None)
         if active is not None:
             chords.append([str(at), active])
@@ -248,6 +255,7 @@ def fit_score(helper, text, seconds):
             dedup[-1] = [when, symbol]
         elif not dedup or dedup[-1][1] != symbol:
             dedup.append([when, symbol])
+    notes = [[str(start), str(length), pitch] for start, length, pitch, _ in notes]
     fitted, _ = helper.compile_events({"bpm": score.bpm, "key": bars[0]["key"], "bars": bars,
                                        "notes": notes, "chords": dedup})
     return fitted, float(at * sec_per_quarter)

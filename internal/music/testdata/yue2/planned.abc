@@ -22,24 +22,24 @@ V: Ins
 Z|E,16|z8C8|D8z8|
 % chorus
 V: Vocal
-"C"e4d4c4B4|"G"d8B8|"Am"c4B4A4G4|"D"A16|
+"C"e4d4c4B4|"G"d8B8|"Am"c4B4A4G4|"D"A8z8|
 V: Ins
-c16|B,16|A,8C8|D16|
+c16|B,16|A,8C8|D,16-|
 V: Vocal
-"C"e4g4e4d4|"G"d4B4G4B4|"D"A4d4^f4a4|"G"g16|
+"C"z8g4e4|"G"d4B4G4B4|"D"A4d4^f4a4|"G"g16|
 V: Ins
-c8e8|Z|d16|G,16|
+D,8e8|Z|d16|G,16|
 % bridge
 V: Vocal
 K:D
 "Bm"f4e4d4c4|"A"c8A8|"G"B4A4G4F4|"A"E16|
 V: Ins
 K:D
-B,16|A,16|G,16|A,8C8|
+B,16|A,16|G,16|A,8D,8-|
 % outro
 V: Vocal
 K:G
-"G"d4B4G4B4|"C"c4e4g4e4|"D"d16|"G"G16|
+"G"z16|"C"c4e4g4e4|"D"d16|"G"G16|
 V: Ins
 K:G
-G,16|C16|D,16|G,16|
+D,8G,8|C16|D,16|G,16|
