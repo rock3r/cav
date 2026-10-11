@@ -14,9 +14,11 @@ jobs:
     name: Attach the Codex plugin zip
     runs-on: ubuntu-latest
     steps:
+      # Run the script from the default branch, so tags made before it existed can be zipped.
+      # The script archives only the tag's committed plugin folder.
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.release.tag_name || inputs.tag }}
+          ref: ${{ github.event.repository.default_branch }}
       - name: Zip the plugin and upload it to the release
         env:
           TAG: ${{ github.event.release.tag_name || inputs.tag }}
