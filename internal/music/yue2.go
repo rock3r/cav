@@ -282,7 +282,12 @@ func yue2Run(ctx context.Context, base string, h map[string]string, sub yue2Subm
 		return nil, "", fmt.Errorf("yue2: the server answered with no job id")
 	}
 	jobURL := base + "/v1/jobs/" + url.PathEscape(job.ID)
+	// stage is the last stage cav saw before the job ended: the server sets "finished" then.
+	stage := job.Stage
 	for job.Status == "queued" || job.Status == "running" {
+		if job.Stage != "" {
+			stage = job.Stage
+		}
 		if err := sleep(ctx, yue2Poll); err != nil {
 			// Free the GPU: the server would otherwise finish a take nobody collects.
 			cctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -303,6 +308,11 @@ func yue2Run(ctx context.Context, base string, h map[string]string, sub yue2Subm
 		}
 		if job.Error != nil && job.Error.Code == "transcription_failed" {
 			return nil, "", fmt.Errorf("%w: %s", ErrNoCover, clip(msg, 300))
+		}
+		// YuE2-Turbo reports a failed transcription as an ordinary failure, with a generic
+		// message. A cover job that never got past transcribing failed there.
+		if sub.cover() && (stage == "" || stage == "queued" || stage == "claimed" || stage == "transcribing") {
+			return nil, "", fmt.Errorf("%w: the cover job failed before it generated anything (%s)", ErrNoCover, clip(msg, 300))
 		}
 		return nil, "", fmt.Errorf("yue2: the job failed: %s", clip(msg, 300))
 	default:

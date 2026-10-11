@@ -27,6 +27,9 @@ type fakeTurbo struct {
 	mu     sync.Mutex
 	bodies []map[string]any
 	trunc  bool // the plan reached the token limit
+	// failAt makes the first job fail, as Turbo reports it, after this stage was last seen.
+	failAt string
+	polls  int
 }
 
 const fakeTurboKey = "turbo-key-0123456789"
@@ -103,6 +106,14 @@ func (f *fakeTurbo) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		f.bodies = append(f.bodies, body)
 		reply(202, `{"id":"plan","status":"queued","stage":"queued"}`)
+	case r.URL.Path == "/v1/jobs/plan" && f.failAt != "":
+		f.polls++
+		if f.polls == 1 {
+			reply(200, `{"id":"plan","status":"running","stage":"`+f.failAt+`"}`)
+			return
+		}
+		// Turbo's _handle_error: a generic code and message, and stage "finished".
+		reply(200, `{"id":"plan","status":"failed","stage":"finished","error":{"code":"inference_failed","message":"Inference failed; see worker logs with this job ID."}}`)
 	case r.URL.Path == "/v1/jobs/plan":
 		trunc := "false"
 		status := "succeeded"
@@ -220,5 +231,25 @@ func TestYuE2TurboCoverAndModelName(t *testing.T) {
 	}
 	if !strings.Contains(strings.Join(tr.Notes, "\n"), "a cover of "+ref) {
 		t.Errorf("notes %q", tr.Notes)
+	}
+}
+
+// Turbo reports a failed transcription as "inference_failed". cav falls back to words only
+// when the cover job never got past transcribing.
+func TestYuE2TurboCoverThatFailsToTranscribe(t *testing.T) {
+	ref := filepath.Join(t.TempDir(), "theme.mp3")
+	os.WriteFile(ref, []byte("ID3reference"), 0o644)
+	oldPoll := yue2Poll
+	yue2Poll = 0
+	defer func() { yue2Poll = oldPoll }()
+	for stage, noCover := range map[string]bool{"transcribing": true, "generating": false} {
+		f := &fakeTurbo{t: t, key: fakeTurboKey, failAt: stage}
+		srv := httptest.NewServer(f)
+		c := &services.Config{Endpoints: map[string]services.Endpoint{"yue2": {BaseURL: srv.URL}}}
+		_, err := Generate(t.Context(), c, &services.Choice{Service: "yue2", Key: fakeTurboKey}, Request{Prompt: "x", Ref: ref})
+		srv.Close()
+		if err == nil || errors.Is(err, ErrNoCover) != noCover {
+			t.Errorf("failed after %s: %v", stage, err)
+		}
 	}
 }
