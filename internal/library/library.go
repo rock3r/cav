@@ -25,6 +25,7 @@ type Generated struct {
 	Provider string   `json:"provider"`
 	Model    string   `json:"model,omitempty"`
 	Prompt   string   `json:"prompt,omitempty"`
+	Lyrics   string   `json:"lyrics,omitempty"` // the words a music take sings (cav music gen --lyrics)
 	Seed     *int64   `json:"seed,omitempty"`
 	Refs     []string `json:"refs,omitempty"`
 	// CoverOf is the recording whose melody a cover plays (YuE2 through SheetSage2).

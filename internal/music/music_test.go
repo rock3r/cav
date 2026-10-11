@@ -485,3 +485,115 @@ func yue2Generate(t *testing.T, c *services.Config, r Request) (*Track, error) {
 	t.Cleanup(func() { yue2Poll, yue2Retry = oldPoll, oldRetry })
 	return Generate(context.Background(), c, &services.Choice{Service: "yue2", Key: "secret"}, r)
 }
+
+// With lyrics, cav sends YuE2 a plain Turbo-shaped job: the lyrics, no "instrumental" and no
+// "seconds", because the server cannot cut a sung score without cutting a line.
+func TestYuE2SingsLyrics(t *testing.T) {
+	const words = "[Verse]\nNeon fades along the lane\n\n[Chorus]\nLet the day come into view"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == "POST" && r.URL.Path == "/v1/jobs":
+			var body map[string]any
+			json.NewDecoder(r.Body).Decode(&body)
+			if body["lyrics"] != words || body["style"] != "English piano pop, female voice" {
+				t.Errorf("job body: %#v", body)
+			}
+			for _, k := range []string{"instrumental", "seconds"} {
+				if _, ok := body[k]; ok {
+					t.Errorf("a song sends no %q: %#v", k, body)
+				}
+			}
+			w.WriteHeader(202)
+			w.Write([]byte(`{"id":"j3","status":"queued"}`))
+		case r.URL.Path == "/v1/jobs/j3":
+			w.Write([]byte(`{"id":"j3","status":"succeeded","result":{"audio_seconds":84.2,"truncated":{},"timing":{"job_seconds":610}}}`))
+		case r.URL.Path == "/v1/jobs/j3/audio":
+			w.Write([]byte("fLaCsong"))
+		default:
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+	c := &services.Config{Endpoints: map[string]services.Endpoint{"yue2": {BaseURL: srv.URL}}}
+	tr, err := yue2Generate(t, c, Request{Prompt: "English piano pop, female voice", Seconds: 30, Lyrics: "\n" + words + "\n"})
+	if err != nil || string(tr.Data) != "fLaCsong" {
+		t.Fatalf("got %+v, %v", tr, err)
+	}
+	if len(tr.Notes) != 1 || !strings.Contains(tr.Notes[0], "84.2 s of audio") || !strings.Contains(tr.Notes[0], "the lyrics set the length") {
+		t.Fatalf("notes: %q", tr.Notes)
+	}
+}
+
+func TestACEStepSingsLyrics(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/release_task":
+			var body map[string]any
+			json.NewDecoder(r.Body).Decode(&body)
+			if body["lyrics"] != "[verse]\nhello" || strings.Contains(body["prompt"].(string), "instrumental") || body["audio_duration"] != float64(40) {
+				t.Errorf("release_task body: %v", body)
+			}
+			w.Write([]byte(`{"data":{"task_id":"t1"},"code":200}`))
+		case "/query_result":
+			b, _ := json.Marshal(map[string]any{"data": []any{map[string]any{"task_id": "t1", "status": 1,
+				"result": `[{"file":"/v1/audio?path=a.wav","status":1}]`}}, "code": 200})
+			w.Write(b)
+		case "/v1/audio":
+			w.Write([]byte("RIFFsong"))
+		}
+	}))
+	defer srv.Close()
+	c := &services.Config{Endpoints: map[string]services.Endpoint{"acestep": {BaseURL: srv.URL}}}
+	tr, err := Generate(context.Background(), c, &services.Choice{Service: "acestep"}, Request{Prompt: "pop", Seconds: 40, Lyrics: "[verse]\nhello"})
+	if err != nil || string(tr.Data) != "RIFFsong" {
+		t.Fatalf("got %+v, %v", tr, err)
+	}
+	// ACE-Step takes at most 4096 characters; cav refuses more before it calls the server.
+	long := "[verse]\n" + strings.Repeat("la ", 1400)
+	if _, err := Generate(context.Background(), c, &services.Choice{Service: "acestep"}, Request{Prompt: "pop", Seconds: 40, Lyrics: long}); err == nil || !strings.Contains(err.Error(), "at most 4096") {
+		t.Fatalf("long lyrics: %v", err)
+	}
+}
+
+func TestLyricsRefusedWhereNoOneSings(t *testing.T) {
+	for _, s := range []string{"elevenlabs", "stability", "lyria"} {
+		if SingsLyrics(s) {
+			t.Errorf("%s does not sing", s)
+		}
+		_, err := Generate(context.Background(), &services.Config{}, &services.Choice{Service: s, Key: "k"}, Request{Prompt: "x", Seconds: 10, Lyrics: "[Verse]\nla"})
+		if err == nil || !strings.Contains(err.Error(), "makes only instrumentals") {
+			t.Errorf("%s: %v", s, err)
+		}
+	}
+}
+
+// A cover with lyrics is a sung cover: the form carries the lyrics, with no "instrumental"
+// and no "seconds", so YuE2 sings them to the track's melody.
+func TestYuE2CoverWithLyricsSingsThem(t *testing.T) {
+	ref := filepath.Join(t.TempDir(), "theme.mp3")
+	os.WriteFile(ref, []byte("ID3reference"), 0o644)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == "POST" && r.URL.Path == "/v1/covers":
+			if err := r.ParseMultipartForm(1 << 20); err != nil {
+				t.Fatal(err)
+			}
+			v := r.MultipartForm.Value
+			if v["lyrics"][0] != "[Verse]\nnew words" || v["instrumental"] != nil || v["seconds"] != nil {
+				t.Errorf("form: %v", v)
+			}
+			w.WriteHeader(202)
+			w.Write([]byte(`{"id":"c2","status":"queued"}`))
+		case r.URL.Path == "/v1/jobs/c2":
+			w.Write([]byte(`{"id":"c2","status":"succeeded","result":{"audio_seconds":40,"cover":{"device":"cuda","transcription_seconds":9}}}`))
+		case r.URL.Path == "/v1/jobs/c2/audio":
+			w.Write([]byte("fLaCsung"))
+		}
+	}))
+	defer srv.Close()
+	c := &services.Config{Endpoints: map[string]services.Endpoint{"yue2": {BaseURL: srv.URL}}}
+	tr, err := yue2Generate(t, c, Request{Prompt: "folk, male voice", Seconds: 30, Ref: ref, Lyrics: "[Verse]\nnew words"})
+	if err != nil || string(tr.Data) != "fLaCsung" || !tr.Cover {
+		t.Fatalf("got %+v, %v", tr, err)
+	}
+}

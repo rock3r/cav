@@ -1,6 +1,10 @@
-// Package music generates instrumental tracks with an API: ElevenLabs Music (with a
-// composition plan whose sections follow the storyboard's shots), Stable Audio, Lyria
-// through the Gemini API, or an ACE-Step 1.5 or YuE2 server the user runs.
+// Package music generates tracks with an API: ElevenLabs Music (with a composition plan
+// whose sections follow the storyboard's shots), Stable Audio, Lyria through the Gemini API,
+// or an ACE-Step 1.5 or YuE2 server the user runs.
+//
+// Tracks are instrumental unless the request has lyrics (Request.Lyrics). Only the
+// services the user runs sing them: ACE-Step and YuE2 (see SingsLyrics). The others get
+// "no vocals" in their request, and Generate refuses lyrics for them.
 //
 // Request shapes: ElevenLabs from its API reference read on 2026-10-08; Lyria from the Gemini
 // API music generation guide read on 2026-10-08; Stable Audio (stable-audio-2 text-to-audio
@@ -30,6 +34,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/rock3r/cav/internal/services"
 )
@@ -51,6 +56,25 @@ type Request struct {
 	Model    string
 	Ref      string  // optional reference track (a local file) for services that take audio
 	Keep     float64 // how much of Ref to keep, 0-1 (Stable Audio only)
+	// Lyrics, with section tags such as [Verse] and [Chorus], make a song with vocals.
+	// Empty means an instrumental.
+	Lyrics string
+}
+
+// SingsLyrics reports whether the service can sing Request.Lyrics.
+func SingsLyrics(service string) bool { return MaxLyrics(service) > 0 }
+
+// MaxLyrics is the most characters of lyrics the service takes, or 0 when it sings none:
+// 4096 for ACE-Step (its INFERENCE.md, read on 2026-10-11), 16000 for YuE2 (YuE2-Turbo's
+// request limit, which cav's wrapper copies).
+func MaxLyrics(service string) int {
+	switch service {
+	case "acestep":
+		return 4096
+	case "yue2":
+		return 16000
+	}
+	return 0
 }
 
 // SendsAudio reports whether the service takes a reference track as audio.
@@ -76,6 +100,14 @@ type Track struct {
 func Generate(ctx context.Context, c *services.Config, ch *services.Choice, r Request) (*Track, error) {
 	if r.Ref != "" && !SendsAudio(ch.Service) {
 		return nil, fmt.Errorf("%s cannot take a reference track as audio", ch.Service)
+	}
+	if lyrics := strings.TrimSpace(r.Lyrics); lyrics != "" {
+		if !SingsLyrics(ch.Service) {
+			return nil, fmt.Errorf("%s makes only instrumentals; lyrics need yue2 or acestep", ch.Service)
+		}
+		if n, max := utf8.RuneCountInString(lyrics), MaxLyrics(ch.Service); n > max {
+			return nil, fmt.Errorf("%s takes at most %d characters of lyrics; these have %d", ch.Service, max, n)
+		}
 	}
 	switch ch.Service {
 	case "elevenlabs":
@@ -319,7 +351,8 @@ func mmss(sec float64) string {
 
 // acestep runs text2music on an ACE-Step 1.5 API server: submit the task, ask for its
 // result until it is done, then download the audio. API docs (docs/en/API.md) read on
-// 2026-10-08.
+// 2026-10-08. Lyrics go in its "lyrics" field (re-read on 2026-10-11) and keep the length
+// of audio_duration; without lyrics cav asks for an instrumental.
 func acestep(ctx context.Context, c *services.Config, key string, r Request) (*Track, error) {
 	ep := c.Endpoints["acestep"]
 	base := strings.TrimRight(ep.BaseURL, "/")
@@ -341,7 +374,11 @@ func acestep(ctx context.Context, c *services.Config, key string, r Request) (*T
 		}
 		prompt += ". Structure: " + strings.Join(parts, "; ")
 	}
-	body := map[string]any{"prompt": prompt + ", instrumental", "lyrics": "[Instrumental]", "audio_format": "wav",
+	lyrics := strings.TrimSpace(r.Lyrics)
+	if lyrics == "" {
+		prompt, lyrics = prompt+", instrumental", "[Instrumental]"
+	}
+	body := map[string]any{"prompt": prompt, "lyrics": lyrics, "audio_format": "wav",
 		"audio_duration": math.Max(10, math.Min(600, r.Seconds)), "batch_size": 1, "thinking": true}
 	if bpm := bpmIn(r.Prompt); bpm > 0 {
 		body["bpm"] = bpm

@@ -32,6 +32,20 @@
 - A cover plays someone else's song. cav records the reference track with the take, next
   to YuE2's licence, and `cav credits` lists a credit line for the song. You need the
   songwriter's permission or a cover licence to use a cover.
+- `cav music gen --lyrics song.txt` makes a song with vocals. Mark the sections of the file
+  with tags such as `[Verse]` and `[Chorus]`. Only YuE2 and ACE-Step can sing. The other
+  services refuse `--lyrics` with an error that names the two that can. Without
+  `--service`, cav tries only YuE2 and ACE-Step for a song. YuE2 takes up to 16000
+  characters of lyrics and ACE-Step up to 4096.
+- `.cav/manifest.json` records the lyrics of each take with lyrics, next to its prompt.
+- With YuE2, the lyrics set the length of a song, and cav does not send `--seconds`. The
+  server cannot cut a sung score without stopping in the middle of a line, because the
+  score has the vocal notes but not the words. ACE-Step keeps `--seconds`, so lyrics that
+  are too long can stop in the middle of a line.
+- With `--lyrics` and `--ref`, YuE2 makes a sung cover: it sings the new lyrics to the
+  melody of the track.
+- Music is instrumental unless you give `--lyrics`. The help, `cav guide production`, the
+  user guide and the skill now say so.
 
 ## 1.3.0
 
