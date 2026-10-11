@@ -253,7 +253,10 @@ Apple silicon Mac or an NVIDIA GPU; a 60-second take took 71 s on an RTX 3080 Ti
 8 minutes on an M1 Max. Its takes count as non-commercial unless you are an
 individual creator (see `cav guide production`). `--ref <track>` makes variations of a
 track you already have: Stable Audio and ACE-Step get the audio, while Lyria, ElevenLabs
-and YuE2 get a description of it in words. `cav music render score.json` plays a score written as notes on a beat
+and YuE2 get a description of it in words. The takes are instrumental unless you give
+`--lyrics song.txt` with `[Verse]` and `[Chorus]` tags: then YuE2 or ACE-Step sing them,
+and the other services refuse. With YuE2, the lyrics set the length of the song.
+`cav music render score.json` plays a score written as notes on a beat
 grid, with built-in synths and drums, samples or VST3/AU instruments, and masters it.
 `cav listen <track> --board storyboard.json` reports length, tempo, loudness, the cuts
 against the downbeats, a picture and, with a Gemini key, a written critique. `--score` adds

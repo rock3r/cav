@@ -22,6 +22,15 @@
   take as non-commercial. A project set to `cav credits licence nc-ok` accepts it.
   Otherwise `cav music gen` warns, and `cav credits check` lists the take.
 - A reference track (`--ref`) goes to YuE2 as words, as for Lyria and ElevenLabs.
+- `cav music gen --lyrics song.txt` makes a song with vocals. Mark the sections of the file
+  with tags such as `[Verse]` and `[Chorus]`. Only YuE2 and ACE-Step can sing. The other
+  services refuse `--lyrics` with an error that names the two that can.
+- With YuE2, the lyrics set the length of a song, and cav does not send `--seconds`. The
+  server cannot cut a sung score without stopping in the middle of a line, because the
+  score has the vocal notes but not the words. ACE-Step keeps `--seconds`, so lyrics that
+  are too long can stop in the middle of a line.
+- Music is instrumental unless you give `--lyrics`. The help, `cav guide production`, the
+  user guide and the skill now say so.
 
 ## 1.3.0
 

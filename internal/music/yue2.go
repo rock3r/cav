@@ -16,21 +16,25 @@ import (
 	"github.com/rock3r/cav/internal/services"
 )
 
-// yue2 makes an instrumental take on a YuE2 server: cav's wrapper (tools/yue2-server) or,
-// later, YuE2-Turbo. Both speak the job API of YuE2-Turbo's src/yue2/service.py (read on
+// yue2 makes a take on a YuE2 server: cav's wrapper (tools/yue2-server) or, later,
+// YuE2-Turbo. Both speak the job API of YuE2-Turbo's src/yue2/service.py (read on
 // 2026-10-11): POST /v1/jobs, then GET /v1/jobs/{id} until the status is terminal, then GET
 // /v1/jobs/{id}/audio (FLAC).
 //
-// cav asks for "instrumental": true. That field is an extension of cav's wrapper: YuE2
-// writes songs with vocals, and the wrapper makes an instrumental the way the YuE2
-// repository's instrumental helper does (plan a score, move its Vocal notes to the Ins
-// voice, generate again from the changed score). YuE2-Turbo has no such field and refuses
-// unknown fields.
+// With lyrics, cav sends a plain job: YuE2 writes a song and sings them.
+//
+// Without lyrics, cav asks for "instrumental": true. That field is an extension of cav's
+// wrapper: the wrapper makes an instrumental the way the YuE2 repository's instrumental
+// helper does (plan a score, move its Vocal notes to the Ins voice, generate again from the
+// changed score). YuE2-Turbo has no such field and refuses unknown fields.
 //
 // YuE2 has no length setting: its planner decides how many bars to write. Its audio follows
-// the planned score closely, though, so cav sends "seconds" (another extension) and the
-// wrapper cuts the planned score to about that length at a phrase or section boundary
-// before it generates. cav then reports the length that came back.
+// the planned score closely, though, so for an instrumental cav sends "seconds" (another
+// extension) and the wrapper cuts the planned score to about that length at a phrase or
+// section boundary before it generates. A song with lyrics gets no "seconds": the score has
+// the vocal notes but not the syllables, so a cut could stop a sung line in the middle, and
+// the lyrics after the cut would still be in the request. The lyrics set its length. cav
+// reports the length that came back.
 func yue2(ctx context.Context, c *services.Config, key string, r Request) (*Track, error) {
 	ep := c.Endpoints["yue2"]
 	base := strings.TrimRight(ep.BaseURL, "/")
@@ -49,7 +53,11 @@ func yue2(ctx context.Context, c *services.Config, key string, r Request) (*Trac
 	// The brief goes in as YuE2's style; with --board it already holds the tempo.
 	body := map[string]any{"style": strings.TrimSpace(r.Prompt), "lyrics": yue2Sections, "cot": "full",
 		"seed": seed.Int64(), "n": 1, "instrumental": true}
-	if r.Seconds > 0 {
+	sung := strings.TrimSpace(r.Lyrics) != ""
+	if sung {
+		body["lyrics"] = strings.TrimSpace(r.Lyrics)
+		delete(body, "instrumental")
+	} else if r.Seconds > 0 {
 		body["seconds"] = math.Max(5, math.Min(600, r.Seconds))
 	}
 	// One key per take: a retried submit then finds the same job instead of starting a second.
@@ -133,7 +141,7 @@ func yue2(ctx context.Context, c *services.Config, key string, r Request) (*Trac
 	s := seed.Int64()
 	tr := &Track{Data: data, Ext: ".flac", Provider: "yue2", Model: model, Seed: &s}
 	if job.Result != nil {
-		tr.Notes = job.Result.notes(r.Seconds, seed.Int64())
+		tr.Notes = job.Result.notes(r.Seconds, sung, seed.Int64())
 	}
 	return tr, nil
 }
@@ -170,7 +178,7 @@ type yue2Result struct {
 
 // notes says how long the take came out against the request, and which part of the
 // generation stopped at its token limit.
-func (res *yue2Result) notes(want float64, seed int64) []string {
+func (res *yue2Result) notes(want float64, sung bool, seed int64) []string {
 	var out []string
 	took := res.Timing.Job
 	if took == 0 {
@@ -185,7 +193,11 @@ func (res *yue2Result) notes(want float64, seed int64) []string {
 		}
 	}
 	if want > 0 && math.Abs(res.AudioSeconds-want) > 1 {
-		length += fmt.Sprintf("; you asked for %.1f s: YuE2 cuts only at a phrase, so trim or fade it", want)
+		if sung {
+			length += fmt.Sprintf("; you asked for %.1f s, but the lyrics set the length of a song: write fewer or shorter sections, or trim or fade it", want)
+		} else {
+			length += fmt.Sprintf("; you asked for %.1f s: YuE2 cuts only at a phrase, so trim or fade it", want)
+		}
 	}
 	out = append(out, length)
 	for _, part := range []string{"abc", "semantic"} {

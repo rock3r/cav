@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/rock3r/cav/internal/beats"
 	"github.com/rock3r/cav/internal/board"
@@ -56,8 +57,8 @@ Use it to compare takes from cav music gen and to check a track before cav rende
 The numbers and the picture are measurements; the critique is a model's opinion.`
 	register(command{
 		name:    "music",
-		args:    "gen \"<prompt>\" [--seconds 30 | --board storyboard.json] [--ref track.mp3]... [--keep 0.4] [--raw-level] [--takes 2] [--service S] [--model M] [-o music/] | render score.json [-o out.wav] [--stems]",
-		summary: "Generate instrumental music with an API, or render a written score locally.",
+		args:    "gen \"<prompt>\" [--seconds 30 | --board storyboard.json] [--lyrics song.txt] [--ref track.mp3]... [--keep 0.4] [--raw-level] [--takes 2] [--service S] [--model M] [-o music/] | render score.json [-o out.wav] [--stems]",
+		summary: "Generate music (instrumental, or a song with --lyrics) with an API, or render a written score locally.",
 		run:     cmdMusic,
 	})
 	longHelp["music"] = `
@@ -68,6 +69,14 @@ cav music gen "warm synthwave, confident, builds to a drop" --board storyboard.j
     so changes in the music fall on the shot cuts. Without
     --board, --seconds sets the length. YuE2 has no length setting: cav's YuE2 server cuts
     the planned score at a phrase near that length, and cav says how long the take is.
+--lyrics song.txt makes a song with vocals instead of an instrumental. Only the servers
+    you run can sing: yue2 and acestep. The other services refuse it. Put each section
+    tag on its own line ([Intro], [Verse], [Chorus], [Bridge], [Outro]) and leave a blank
+    line between sections. Describe the voice and the language in the prompt, for
+    example "English, warm female voice". ACE-Step keeps
+    --seconds and can stop in the middle of a line if the lyrics are too long. YuE2 sings
+    all the lyrics and ignores --seconds: its server cannot cut a song without cutting a
+    line, so write fewer or shorter sections for a shorter song.
 --ref (repeatable) makes variations of a reference track: --takes takes for each one.
     Stable Audio and ACE-Step get the track itself. Stable Audio keeps its structure
     (--keep, 0-1, how much of it to keep; default 0.4); ACE-Step uses it as a style
@@ -338,6 +347,7 @@ func cmdMusic(a *app, args []string) error {
 	fs.Var(&refs, "ref", "reference track to make variations of (repeatable)")
 	keep := fs.Float64("keep", 0.4, "how much of the reference to keep, 0-1 (Stable Audio)")
 	rawLevel := fs.Bool("raw-level", false, "keep the level the service sent, even if it clips")
+	lyricsFile := fs.String("lyrics", "", "text file of lyrics with [Verse]/[Chorus] tags: a song with vocals (yue2, acestep)")
 	pos, err := parseFlags(fs, args[1:])
 	if err != nil {
 		return err
@@ -353,8 +363,23 @@ func cmdMusic(a *app, args []string) error {
 			return fail(exitError, "reference track: "+err.Error(), "")
 		}
 	}
+	lyrics := ""
+	if *lyricsFile != "" {
+		b, err := os.ReadFile(*lyricsFile)
+		if err != nil {
+			return fail(exitError, "lyrics: "+err.Error(), "")
+		}
+		lyrics = strings.TrimSpace(string(b))
+		if lyrics == "" {
+			return usageErr("%s has no lyrics", *lyricsFile)
+		}
+		// YuE2's limit; ACE-Step sets none, and a song this long would not fit its 600 s anyway.
+		if n := utf8.RuneCountInString(lyrics); n > 16000 {
+			return usageErr("%s has %d characters of lyrics; the most is 16000", *lyricsFile, n)
+		}
+	}
 	prompt := strings.Join(pos, " ")
-	req := music.Request{Prompt: prompt, Seconds: *seconds, Model: *model}
+	req := music.Request{Prompt: prompt, Seconds: *seconds, Model: *model, Lyrics: lyrics}
 	if *boardFile != "" {
 		sb, err := board.Load(*boardFile)
 		if err != nil {
@@ -397,6 +422,10 @@ func cmdMusic(a *app, args []string) error {
 	ch, err := services.Pick(ctx, c, "music", *service)
 	if err != nil {
 		return fail(exitError, err.Error(), "add an ElevenLabs, Stability or Gemini (Lyria) key (cav config); or use cav sfx search to find music")
+	}
+	if lyrics != "" && !music.SingsLyrics(ch.Service) {
+		return fail(exitError, ch.Service+" makes only instrumentals, so it cannot sing --lyrics",
+			"use a service that sings: --service yue2 or --service acestep (a server you run; cav config)")
 	}
 	// One job per reference track, or one with no reference.
 	type refJob struct {
