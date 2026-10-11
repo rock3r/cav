@@ -27,6 +27,7 @@ func TestYuE2ScoreMatchesThePythonHelper(t *testing.T) {
 		Lyrics  string             `json:"lyrics"`
 		Style   string             `json:"style"`
 		Fits    map[string]float64 `json:"fits"`
+		Silent  float64            `json:"silent_fit_8"`
 	}
 	if err := json.Unmarshal([]byte(read("expected.json")), &want); err != nil {
 		t.Fatal(err)
@@ -58,6 +59,11 @@ func TestYuE2ScoreMatchesThePythonHelper(t *testing.T) {
 		if _, err := validateInstrumental(fitted); err != nil {
 			t.Fatalf("fit %s: %v", sec, err)
 		}
+	}
+	// A cut that keeps only silent bars would have nothing to play.
+	fitted, got, err := fitScore(read("silent.abc"), 8)
+	if err != nil || fitted != read("silent-fit-8.abc") || got != want.Silent {
+		t.Fatalf("silent opening: %.1f s (want %.1f), %v:\n%s", got, want.Silent, err, fitted)
 	}
 	in, err := makeInstrumental(planned, "warm synthwave, 112 BPM", 30)
 	if err != nil {

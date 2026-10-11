@@ -216,6 +216,9 @@ def fit_score(helper, text, seconds):
             options.append(phrases[:k] + [outro])
     if outro is not None:
         options.append([outro])
+    # A cut that keeps only silent bars has nothing to play: keep a cut with a note in it.
+    # The whole score is always one of the options, and it has notes.
+    options = [o for o in options if any(t < b and a < t + d for a, b in o for t, _, d in ins.notes)]
     segments = phrases + ([outro] if outro else [])
     best = min(options, key=lambda o: (abs(sum(b - a for a, b in o) - target), len(o)))
     if best == segments:

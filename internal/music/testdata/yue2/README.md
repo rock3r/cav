@@ -10,6 +10,8 @@ copies:
 - `converted.abc`: `convert_score` of the instrumental helper in the YuE2 repository
   (`skills/yue2-music/instrumental/scripts`, commit 1647252).
 - `fit-<seconds>.abc`: `fit_score` of cav's wrapper (`tools/yue2-server/yue2_server.py`).
+- `silent.abc` and `silent-fit-8.abc`: an instrumental score whose first phrase is silent,
+  made with `compile_events`, and its `fit_score` cut to 8 s. The cut must keep notes.
 - `expected.json`: the nominal lengths, the lyric tags and the instrumental style.
 
 To make them again, from the cav repository, with a YuE2 checkout at `<YuE>`:

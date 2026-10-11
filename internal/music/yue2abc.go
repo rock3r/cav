@@ -1156,6 +1156,18 @@ func fitScore(text string, seconds float64) (string, float64, error) {
 	if outro != nil {
 		options = append(options, []span{*outro})
 	}
+	// A cut that keeps only silent bars has nothing to play: keep a cut with a note in it.
+	// The whole score is always one of the options, and it has notes.
+	options = slices.DeleteFunc(options, func(o []span) bool {
+		for _, seg := range o {
+			for _, n := range ins.notes {
+				if n.t.less(seg[1]) && seg[0].less(n.t.add(n.dur)) {
+					return false
+				}
+			}
+		}
+		return true
+	})
 	length := func(o []span) frac {
 		sum := fi(0)
 		for _, p := range o {

@@ -39,5 +39,13 @@ for sec in (5, 20, 30, 40, 45, 60, 90):
     H.validate_score(fitted)
     (out / f"fit-{sec}.abc").write_text(fitted)
     meta["fits"][str(sec)] = nominal
+# An instrumental score whose first phrase is silent: a short cut must still keep notes.
+silent, _ = H.compile_events({"bpm": 120, "key": "C", "bars": [{"meter": "4/4", "section": "intro"}] + [{}] * 3
+                              + [{"section": "verse"}] + [{}] * 7,
+                              "notes": [[str(16 + 2 * i), "2", 60 + i % 5] for i in range(16)], "chords": []})
+(out / "silent.abc").write_text(silent)
+fitted, nominal = yue2_server.fit_score(H, silent, 8)
+(out / "silent-fit-8.abc").write_text(fitted)
+meta["silent_fit_8"] = nominal
 (out / "expected.json").write_text(json.dumps(meta, indent=1) + "\n")
 print(json.dumps(meta, indent=1))
