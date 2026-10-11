@@ -293,12 +293,7 @@ func yue2Run(ctx context.Context, base string, h map[string]string, sub yue2Subm
 		return nil, "", fmt.Errorf("yue2: the server answered with no job id")
 	}
 	jobURL := base + "/v1/jobs/" + url.PathEscape(job.ID)
-	// stage is the last stage cav saw before the job ended: the server sets "finished" then.
-	stage := job.Stage
 	for job.Status == "queued" || job.Status == "running" {
-		if job.Stage != "" {
-			stage = job.Stage
-		}
 		if err := sleep(ctx, yue2Poll); err != nil {
 			// Free the GPU: the server would otherwise finish a take nobody collects.
 			cctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -320,11 +315,11 @@ func yue2Run(ctx context.Context, base string, h map[string]string, sub yue2Subm
 		if job.Error != nil && job.Error.Code == "transcription_failed" {
 			return nil, "", fmt.Errorf("%w: %s", ErrNoCover, clip(msg, 300))
 		}
-		// YuE2-Turbo reports a failed transcription as an ordinary failure, with a generic
-		// message. Only a job last seen transcribing surely failed there: one last seen queued
-		// may have transcribed and then failed between two polls.
-		if sub.cover() && stage == "transcribing" {
-			return nil, "", fmt.Errorf("%w: the cover job failed while SheetSage2 transcribed the track (%s)", ErrNoCover, clip(msg, 300))
+		// YuE2-Turbo reports a failed transcription as an ordinary failure, and no poll can
+		// prove where a cover job failed. So cav does not guess: it reports the failure and
+		// says how to get a take without the track's melody.
+		if sub.cover() {
+			return nil, "", fmt.Errorf("yue2: the cover job failed: %s (if SheetSage2 could not transcribe the track, run again without --ref)", clip(msg, 300))
 		}
 		return nil, "", fmt.Errorf("yue2: the job failed: %s", clip(msg, 300))
 	default:
