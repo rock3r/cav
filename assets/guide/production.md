@@ -209,8 +209,9 @@ YuE2 planned no vocal notes at all for an instrumental style.
 YuE2 has no length setting, and its planner wrote 92 to 240 s whatever cav asked for. The
 audio follows the planned score, though: in 5 uncut takes it was within 3 s of the
 score's length. So the server cuts the score before it generates: it keeps the start up
-to a phrase (every four bars) or a section, then the outro. The cut take came out 7 s
-longer than its cut score (64.8 s for 60 s asked), so trim or fade it to the storyboard.
+to a phrase (every four bars) or a section, then the outro. Asked for 60 s, the two cut
+takes came out at 64.8 s (cut score 57.4 s) and 60.4 s (cut score 61.1 s), so trim or fade
+a take to the storyboard.
 cav prints the length, and says when YuE2 stopped a part at its token limit
 (`truncated`).
 
@@ -219,10 +220,12 @@ Speed, measured on 2026-10-11 with `cav music gen ... --seconds 60` through the 
 | Machine | Server flags | Result |
 |---|---|---|
 | RTX 3080 Ti 12 GB, WSL2 Ubuntu | `--device cuda --budget 12` | 64.8 s of audio in 71 s |
-| M1 Max 64 GB | `--device mps --budget 24` | M1TIME |
+| M1 Max 64 GB | `--device mps --budget 24` | 60.4 s of audio in 476 s (about 8 minutes) |
 
 On the M1, most of the time goes to generating audio tokens (about 10 per second) and to
-the 32 synthesis steps. A take of the full 90 s planned score took about 10 minutes there.
+the 32 synthesis steps. An uncut take of 90 s took about 10 minutes there. Earlier runs
+of YuE2's own command line, with the same flags, made 35.7 s of audio in 198 s on the M1
+(peak memory 15.5 GB) and 59.2 s in 47.3 s on the 3080 Ti.
 
 The weights are CC BY-NC 4.0, with a permission for individuals: personal users, creators
 and musicians may use and sell what they make. A company that uses the weights

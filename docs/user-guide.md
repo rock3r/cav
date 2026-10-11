@@ -248,8 +248,8 @@ one with its credit, `cav sfx index <folder>` adds a library you own (for exampl
 GDC bundle), and `cav sfx gen "<prompt>"` generates one. With a key, `cav music gen` makes
 takes whose sections follow the storyboard's shots; an ACE-Step 1.5 or YuE2 server you run
 does the same without a key. YuE2 runs through a small server in `tools/yue2-server`, on an
-Apple silicon Mac or an NVIDIA GPU; a 60-second take takes about one minute on an RTX 3080
-Ti and several minutes on an M1 Max. Its takes count as non-commercial unless you are an
+Apple silicon Mac or an NVIDIA GPU; a 60-second take took 71 s on an RTX 3080 Ti and about
+8 minutes on an M1 Max. Its takes count as non-commercial unless you are an
 individual creator (see `cav guide production`). `--ref <track>` makes variations of a
 track you already have: Stable Audio and ACE-Step get the audio, while Lyria, ElevenLabs
 and YuE2 get a description of it in words. `cav music render score.json` plays a score written as notes on a beat
