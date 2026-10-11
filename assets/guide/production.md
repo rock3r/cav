@@ -210,7 +210,8 @@ piano pop, expressive female voice, 88 BPM". The two services set the length in
 different ways:
 
 - ACE-Step keeps `--seconds` (or the storyboard's length). If the lyrics are too long for
-  that length, the song can stop in the middle of a line.
+  that length, the song can stop in the middle of a line. It takes at most 4096
+  characters of lyrics; YuE2 takes 16000.
 - YuE2 sings all the lyrics, and the lyrics set the length. cav does not send
   `--seconds`: YuE2's score has the vocal notes but not the words, so the server cannot
   cut it without stopping in the middle of a sung line. For a shorter song, write fewer

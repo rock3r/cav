@@ -33,6 +33,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/rock3r/cav/internal/services"
 )
@@ -60,7 +61,20 @@ type Request struct {
 }
 
 // SingsLyrics reports whether the service can sing Request.Lyrics.
-func SingsLyrics(service string) bool { return service == "acestep" || service == "yue2" }
+func SingsLyrics(service string) bool { return MaxLyrics(service) > 0 }
+
+// MaxLyrics is the most characters of lyrics the service takes, or 0 when it sings none:
+// 4096 for ACE-Step (its INFERENCE.md, read on 2026-10-11), 16000 for YuE2 (YuE2-Turbo's
+// request limit, which cav's wrapper copies).
+func MaxLyrics(service string) int {
+	switch service {
+	case "acestep":
+		return 4096
+	case "yue2":
+		return 16000
+	}
+	return 0
+}
 
 // SendsAudio reports whether the service takes a reference track as audio.
 func SendsAudio(service string) bool { return service == "stability" || service == "acestep" }
@@ -81,8 +95,13 @@ func Generate(ctx context.Context, c *services.Config, ch *services.Choice, r Re
 	if r.Ref != "" && !SendsAudio(ch.Service) {
 		return nil, fmt.Errorf("%s cannot take a reference track as audio", ch.Service)
 	}
-	if strings.TrimSpace(r.Lyrics) != "" && !SingsLyrics(ch.Service) {
-		return nil, fmt.Errorf("%s makes only instrumentals; lyrics need yue2 or acestep", ch.Service)
+	if lyrics := strings.TrimSpace(r.Lyrics); lyrics != "" {
+		if !SingsLyrics(ch.Service) {
+			return nil, fmt.Errorf("%s makes only instrumentals; lyrics need yue2 or acestep", ch.Service)
+		}
+		if n, max := utf8.RuneCountInString(lyrics), MaxLyrics(ch.Service); n > max {
+			return nil, fmt.Errorf("%s takes at most %d characters of lyrics; these have %d", ch.Service, max, n)
+		}
 	}
 	switch ch.Service {
 	case "elevenlabs":

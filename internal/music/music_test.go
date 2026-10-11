@@ -461,6 +461,11 @@ func TestACEStepSingsLyrics(t *testing.T) {
 	if err != nil || string(tr.Data) != "RIFFsong" {
 		t.Fatalf("got %+v, %v", tr, err)
 	}
+	// ACE-Step takes at most 4096 characters; cav refuses more before it calls the server.
+	long := "[verse]\n" + strings.Repeat("la ", 1400)
+	if _, err := Generate(context.Background(), c, &services.Choice{Service: "acestep"}, Request{Prompt: "pop", Seconds: 40, Lyrics: long}); err == nil || !strings.Contains(err.Error(), "at most 4096") {
+		t.Fatalf("long lyrics: %v", err)
+	}
 }
 
 func TestLyricsRefusedWhereNoOneSings(t *testing.T) {

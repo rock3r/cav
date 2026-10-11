@@ -375,10 +375,6 @@ func cmdMusic(a *app, args []string) error {
 		if lyrics == "" {
 			return usageErr("%s has no lyrics", *lyricsFile)
 		}
-		// YuE2's limit; ACE-Step sets none, and a song this long would not fit its 600 s anyway.
-		if n := utf8.RuneCountInString(lyrics); n > 16000 {
-			return usageErr("%s has %d characters of lyrics; the most is 16000", *lyricsFile, n)
-		}
 	}
 	prompt := strings.Join(pos, " ")
 	req := music.Request{Prompt: prompt, Seconds: *seconds, Model: *model, Lyrics: lyrics}
@@ -448,6 +444,10 @@ func cmdMusic(a *app, args []string) error {
 	if lyrics != "" && !music.SingsLyrics(ch.Service) {
 		return fail(exitError, ch.Service+" makes only instrumentals, so it cannot sing --lyrics",
 			"use a service that sings: --service yue2 or --service acestep (a server you run; cav config)")
+	}
+	if n, max := utf8.RuneCountInString(lyrics), music.MaxLyrics(ch.Service); lyrics != "" && n > max {
+		return fail(exitError, fmt.Sprintf("%s has %d characters of lyrics; %s takes at most %d", *lyricsFile, n, ch.Service, max),
+			"shorten the lyrics, or use --service yue2 (up to 16000)")
 	}
 	// One job per reference track, or one with no reference.
 	type refJob struct {

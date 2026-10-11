@@ -25,7 +25,8 @@
 - `cav music gen --lyrics song.txt` makes a song with vocals. Mark the sections of the file
   with tags such as `[Verse]` and `[Chorus]`. Only YuE2 and ACE-Step can sing. The other
   services refuse `--lyrics` with an error that names the two that can. Without
-  `--service`, cav tries only YuE2 and ACE-Step for a song.
+  `--service`, cav tries only YuE2 and ACE-Step for a song. YuE2 takes up to 16000
+  characters of lyrics and ACE-Step up to 4096.
 - With YuE2, the lyrics set the length of a song, and cav does not send `--seconds`. The
   server cannot cut a sung score without stopping in the middle of a line, because the
   score has the vocal notes but not the words. ACE-Step keeps `--seconds`, so lyrics that
