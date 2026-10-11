@@ -24,7 +24,8 @@
 - A reference track (`--ref`) goes to YuE2 as words, as for Lyria and ElevenLabs.
 - `cav music gen --lyrics song.txt` makes a song with vocals. Mark the sections of the file
   with tags such as `[Verse]` and `[Chorus]`. Only YuE2 and ACE-Step can sing. The other
-  services refuse `--lyrics` with an error that names the two that can.
+  services refuse `--lyrics` with an error that names the two that can. Without
+  `--service`, cav tries only YuE2 and ACE-Step for a song.
 - With YuE2, the lyrics set the length of a song, and cav does not send `--seconds`. The
   server cannot cut a sung score without stopping in the middle of a line, because the
   score has the vocal notes but not the words. ACE-Step keeps `--seconds`, so lyrics that

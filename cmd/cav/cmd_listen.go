@@ -13,6 +13,7 @@ import (
 	"github.com/rock3r/cav/assets"
 	"github.com/rock3r/cav/internal/config"
 	"github.com/rock3r/cav/internal/pyrun"
+	"maps"
 	"math"
 	"os"
 	"path/filepath"
@@ -70,7 +71,8 @@ cav music gen "warm synthwave, confident, builds to a drop" --board storyboard.j
     --board, --seconds sets the length. YuE2 has no length setting: cav's YuE2 server cuts
     the planned score at a phrase near that length, and cav says how long the take is.
 --lyrics song.txt makes a song with vocals instead of an instrumental. Only the servers
-    you run can sing: yue2 and acestep. The other services refuse it. Put each section
+    you run can sing: yue2 and acestep. Without --service, cav tries only those two;
+    the other services refuse it. Put each section
     tag on its own line ([Intro], [Verse], [Chorus], [Bridge], [Outro]) and leave a blank
     line between sections. Describe the voice and the language in the prompt, for
     example "English, warm female voice". ACE-Step keeps
@@ -419,8 +421,28 @@ func cmdMusic(a *app, args []string) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
+	if lyrics != "" && *service == "" {
+		// Only some services sing: try those, in the configured order.
+		var singers []string
+		for _, s := range c.OrderFor("music") {
+			if music.SingsLyrics(s) {
+				singers = append(singers, s)
+			}
+		}
+		if len(singers) == 0 {
+			singers = []string{"yue2", "acestep"}
+		}
+		c.Order = maps.Clone(c.Order)
+		if c.Order == nil {
+			c.Order = map[string][]string{}
+		}
+		c.Order["music"] = singers
+	}
 	ch, err := services.Pick(ctx, c, "music", *service)
 	if err != nil {
+		if lyrics != "" {
+			return fail(exitError, err.Error(), "--lyrics needs a server that sings: cav config endpoint yue2 <url> (or acestep), see cav guide production")
+		}
 		return fail(exitError, err.Error(), "add an ElevenLabs, Stability or Gemini (Lyria) key (cav config); or use cav sfx search to find music")
 	}
 	if lyrics != "" && !music.SingsLyrics(ch.Service) {
