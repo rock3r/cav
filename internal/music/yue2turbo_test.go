@@ -235,14 +235,14 @@ func TestYuE2TurboCoverAndModelName(t *testing.T) {
 }
 
 // Turbo reports a failed transcription as "inference_failed". cav falls back to words only
-// when the cover job never got past transcribing.
+// when it saw the cover job transcribing last: a job last seen queued may have failed later.
 func TestYuE2TurboCoverThatFailsToTranscribe(t *testing.T) {
 	ref := filepath.Join(t.TempDir(), "theme.mp3")
 	os.WriteFile(ref, []byte("ID3reference"), 0o644)
 	oldPoll := yue2Poll
 	yue2Poll = 0
 	defer func() { yue2Poll = oldPoll }()
-	for stage, noCover := range map[string]bool{"transcribing": true, "generating": false} {
+	for stage, noCover := range map[string]bool{"transcribing": true, "generating": false, "queued": false} {
 		f := &fakeTurbo{t: t, key: fakeTurboKey, failAt: stage}
 		srv := httptest.NewServer(f)
 		c := &services.Config{Endpoints: map[string]services.Endpoint{"yue2": {BaseURL: srv.URL}}}

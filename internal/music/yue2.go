@@ -321,9 +321,10 @@ func yue2Run(ctx context.Context, base string, h map[string]string, sub yue2Subm
 			return nil, "", fmt.Errorf("%w: %s", ErrNoCover, clip(msg, 300))
 		}
 		// YuE2-Turbo reports a failed transcription as an ordinary failure, with a generic
-		// message. A cover job that never got past transcribing failed there.
-		if sub.cover() && (stage == "" || stage == "queued" || stage == "claimed" || stage == "transcribing") {
-			return nil, "", fmt.Errorf("%w: the cover job failed before it generated anything (%s)", ErrNoCover, clip(msg, 300))
+		// message. Only a job last seen transcribing surely failed there: one last seen queued
+		// may have transcribed and then failed between two polls.
+		if sub.cover() && stage == "transcribing" {
+			return nil, "", fmt.Errorf("%w: the cover job failed while SheetSage2 transcribed the track (%s)", ErrNoCover, clip(msg, 300))
 		}
 		return nil, "", fmt.Errorf("yue2: the job failed: %s", clip(msg, 300))
 	default:
