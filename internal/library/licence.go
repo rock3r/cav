@@ -124,6 +124,23 @@ func GeneratedTerms(provider string) Terms {
 	return Terms{ID: "generated", CommercialOK: true}
 }
 
+// CoverTerms are the terms of a cover: a take that plays the melody of the recording ref.
+// They are the model's terms (GeneratedTerms), with two more facts in the note. The song in
+// ref belongs to whoever wrote it, so using the cover needs their permission or a cover
+// licence, whatever the model allows. And SheetSage2, which transcribed the melody, has
+// weights under CC BY-NC 4.0 (its LICENSE file, read on 2026-10-11), with no permission for
+// outputs like YuE2's. A cover always needs a credit for the song.
+func CoverTerms(provider, ref string) Terms {
+	t := GeneratedTerms(provider)
+	note := "a cover of " + ref + ": its melody comes from that recording (transcribed by SheetSage2, whose weights are CC BY-NC 4.0), " +
+		"and the song belongs to its writers, so you need their permission or a cover licence, and a credit for the song"
+	if t.Note != "" {
+		note = t.Note + "; " + note
+	}
+	t.Note, t.AttributionRequired, t.CommercialOK = note, true, false
+	return t
+}
+
 // LicenceName turns an id into words for a credit line.
 func LicenceName(id string) string {
 	switch {

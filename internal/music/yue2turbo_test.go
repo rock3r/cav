@@ -5,6 +5,9 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -81,6 +84,25 @@ func (f *fakeTurbo) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			id = "song"
 		}
 		reply(202, `{"id":"`+id+`","status":"queued","stage":"queued"}`)
+	case r.Method == "POST" && r.URL.Path == "/v1/covers":
+		// Turbo's covers route: a form with audio, style, lyrics, seed and cfg_scale.
+		if err := r.ParseMultipartForm(1 << 20); err != nil {
+			reply(422, `{"detail":"not a form"}`)
+			return
+		}
+		body := map[string]any{"cover": true}
+		for k, v := range r.MultipartForm.Value {
+			if k != "style" && k != "lyrics" && k != "seed" && k != "cfg_scale" {
+				f.t.Errorf("cover form field %q: Turbo ignores it", k)
+			}
+			body[k] = v[0]
+		}
+		if _, _, err := r.FormFile("audio"); err != nil {
+			reply(422, `{"detail":"audio is required"}`)
+			return
+		}
+		f.bodies = append(f.bodies, body)
+		reply(202, `{"id":"plan","status":"queued","stage":"queued"}`)
 	case r.URL.Path == "/v1/jobs/plan":
 		trunc := "false"
 		status := "succeeded"
@@ -169,5 +191,34 @@ func TestFakeTurboRefusesTheWrapperExtensions(t *testing.T) {
 	var he *services.HTTPError
 	if !errors.As(err, &he) || he.Status != 422 || !strings.Contains(he.Body, "extra_forbidden") {
 		t.Fatalf("instrumental field: %v", err)
+	}
+}
+
+// A cover on Turbo: the covers job gives the melody (no chords), and cav moves it to Ins.
+// The endpoint's model names the take, since Turbo does not report its model.
+func TestYuE2TurboCoverAndModelName(t *testing.T) {
+	melody := regexp.MustCompile(`"[A-G][^"]*"`).ReplaceAllString(mustRead(t, "planned.abc"), "")
+	f := &fakeTurbo{t: t, key: fakeTurboKey, score: melody}
+	srv := httptest.NewServer(f)
+	defer srv.Close()
+	ref := filepath.Join(t.TempDir(), "theme.mp3")
+	os.WriteFile(ref, []byte("ID3reference"), 0o644)
+	c := &services.Config{Endpoints: map[string]services.Endpoint{"yue2": {BaseURL: srv.URL, Model: "YuE2-3B-ft"}}}
+	oldPoll := yue2Poll
+	yue2Poll = 0
+	defer func() { yue2Poll = oldPoll }()
+	tr, err := Generate(t.Context(), c, &services.Choice{Service: "yue2", Key: fakeTurboKey}, Request{Prompt: "solo cello", Ref: ref})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !tr.Cover || tr.Model != "YuE2-3B-ft" || len(f.bodies) != 2 || f.bodies[0]["cover"] != true {
+		t.Fatalf("track %+v, jobs %v", tr, f.bodies)
+	}
+	song := f.bodies[1]
+	if song["cot"] != "melody" || strings.Contains(song["abc"].(string), `"G"`) || song["seed"].(json.Number).String() != f.bodies[0]["seed"] {
+		t.Errorf("song body %#v", song)
+	}
+	if !strings.Contains(strings.Join(tr.Notes, "\n"), "a cover of "+ref) {
+		t.Errorf("notes %q", tr.Notes)
 	}
 }

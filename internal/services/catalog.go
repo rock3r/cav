@@ -345,7 +345,13 @@ var Catalog = map[string]*Def{
 				if r.Device != "" {
 					msg += " on " + r.Device
 				}
-				return msg + "; it makes instrumentals itself", nil
+				msg += "; it makes instrumentals itself"
+				if slices.Contains(r.Extensions, "covers") {
+					msg += "; covers on"
+				} else {
+					msg += "; covers off (no SheetSage2 environment), so --ref goes in as words"
+				}
+				return msg, nil
 			}
 			// No extensions: YuE2-Turbo, which needs a key on every job route. cav plans the
 			// instrumental itself and sends the score as "abc", so it can still make one.

@@ -151,7 +151,8 @@ reference. Where the reference goes depends on the service:
 |---|---|---|
 | Stable Audio | the audio (audio-to-audio) | a variation that keeps the reference's structure; `--keep` (0-1, default 0.4) sets how much |
 | ACE-Step | the audio, as a style reference | a new track with the reference's sound |
-| Lyria, ElevenLabs, YuE2 | a description of the audio, written by the audio model ("ears" job) | a new track written from words: a similar style, not a variation |
+| YuE2 | the audio, for a cover: SheetSage2 on the server transcribes its melody | an instrumental cover: the reference's melody on an instrument, in the prompt's style |
+| Lyria, ElevenLabs | a description of the audio, written by the audio model ("ears" job) | a new track written from words: a similar style, not a variation |
 
 cav says on stderr (and in `refs` with `--json`) which way each reference went. For a real
 variation, pick Stable Audio or ACE-Step with `--service`.
@@ -172,7 +173,7 @@ observations, not guarantees.
 | Lyria | a prompt hint only (3 s too long) | one `[m:ss - m:ss]` line per shot; the drop landed on its cut | described in words | sends MP3 unless asked for WAV; cav asks, and the WAV came as 24-bit 48 kHz |
 | ElevenLabs | not kept (7 s too long with music_v1) | composition plan; section names are the shot ids only | described in words | music needs a paid plan (HTTP 402 on free); an API key can have its own credit cap below the plan's (HTTP 401 "exceeds your API key quota"); moderation refuses a plan or prompt that names a brand, product or artist |
 | ACE-Step | `audio_duration` | sections go into the prompt | sent as audio, as a style reference; `--keep` does nothing | a server you run |
-| YuE2 | no length setting: cav, or its server, cuts the planned score at a phrase (see "YuE2" below) | not used: YuE2 knows only its own section names | described in words | a server you run; the music is non-commercial for a company (see below) |
+| YuE2 | no length setting: cav, or its server, cuts the planned score at a phrase (see "YuE2" below) | not used: YuE2 knows only its own section names | a cover of its melody (see "YuE2 covers" below); in words when the server cannot transcribe | a server you run; the music is non-commercial for a company (see below) |
 
 How `--keep` behaved on one 74 s reference (one take each): 0.2 drifted to its own tempo
 and structure; 0.4 kept the reference's tempo and its groove, breakdown and re-drop
@@ -256,6 +257,11 @@ cav's server takes. cav then does that work itself, with the same steps as its s
    `--seconds` (the same cut as its server).
 3. A second job generates the audio from that score, sent as `abc`.
 
+A cover (`--ref`, see "YuE2 covers" below) works the same way on Turbo. The first job is
+Turbo's own `POST /v1/covers`: SheetSage2 transcribes the track, and cav takes the melody
+from that job's score instead of a plan. Turbo turns covers off when
+`YUE2_SHEETSAGE_DEVICE=off`, and then cav describes the track in words.
+
 So each take costs two jobs on Turbo. At Turbo's speed, the extra job adds about 10 to 40
 seconds. The take sounds the same as on cav's server for the same planned score: cav's Go
 code writes the same score as the server's Python code, byte for byte, in cav's tests.
@@ -273,6 +279,10 @@ cav config endpoint yue2 http://<linux-host>:8000
 cav config check                  # "YuE2-Turbo ready at ...; cav makes each instrumental in two jobs"
 ```
 
+Turbo does not say which model it loaded. cav records `YuE2-3B` with each take. If Turbo
+runs another model (`YUE2_MODEL`), give its name as the endpoint's model, so cav records
+that instead: `cav config endpoint yue2 http://<linux-host>:8000 <model name>`.
+
 `cav config check` tells the two servers apart. cav's server lists `"extensions":
 ["instrumental"]` in `/health/ready`, and Turbo lists none. For Turbo, the check also sends
 the key to `/internal/load`, so a wrong key shows up there and not in the middle of a take.
@@ -283,6 +293,42 @@ the M1 Max has no CUDA, and the RTX 3080 Ti has only 12 GB. cav's tests use a fa
 server, written from Turbo's source (`src/yue2/service.py`, commit 7c88813, read on
 2026-10-11), that refuses unknown fields as Turbo does. If you run Turbo, please report
 how it goes.
+
+### YuE2 covers
+
+With `--ref`, YuE2 makes an instrumental cover of the track:
+
+```bash
+cav music gen "solo cello with warm piano accompaniment, intimate and gentle" --ref theme.mp3 --service yue2
+```
+
+cav uploads the track to the server's `POST /v1/covers`, the same route and fields as
+YuE2-Turbo's (at most 40 MiB; cav converts a bigger file to MP3). SheetSage2, a
+transcription model, turns the track's melody into a score, without chords. The server
+moves the melody to an instrument, as for any instrumental take, and YuE2 plays it in the
+prompt's style with a new accompaniment. It does not copy the singer, the sound or the
+arrangement: only the tune. The cover is about as long as the track. `--seconds` cuts it
+at a phrase, as for other takes.
+
+SheetSage2 needs its own Python environment and about 2.7 GB of weights, next to YuE2's
+(see `tools/yue2-server/README.md`). Without them, the server's covers are off. cav then
+describes the track in words, as for Lyria, and says why. cav does the same when
+SheetSage2 cannot transcribe a track.
+
+Measured on 2026-10-11 on an M1 Max 64 GB (`--device mps`), with a 38.4 s reference
+(Ode to Joy, rendered with `cav music render`): SheetSage2 transcribed it on MPS in 18 s,
+and the cover came back with 37.8 s of audio in 177 s. When SheetSage2 transcribed the
+cover again, it found the same 62-note melody as in the reference. One take, so treat
+this as one observation. A transcription is never exact: SheetSage2 can miss quiet or
+busy parts of a song.
+
+A cover plays someone else's song. cav records the reference track with the take
+(`generated.coverOf` in `.cav/manifest.json`), adds it to the take's licence note, and
+`cav credits` lists a credit line for it: `Cover of “theme” (melody from theme.mp3)`. Put
+the song's real title and writers in that line. To use the cover, you need the
+songwriter's permission or a cover licence, whatever YuE2's terms allow. SheetSage2's
+weights are CC BY-NC 4.0 as well, with no permission like YuE2's for selling what it
+makes.
 
 ### Write the music
 

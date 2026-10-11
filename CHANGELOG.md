@@ -21,12 +21,23 @@
   commercial licence from the YuE2 authors. cav cannot tell the two apart, so it treats a
   take as non-commercial. A project set to `cav credits licence nc-ok` accepts it.
   Otherwise `cav music gen` warns, and `cav credits check` lists the take.
-- A reference track (`--ref`) goes to YuE2 as words, as for Lyria and ElevenLabs.
+- With a reference track (`--ref`), YuE2 makes an instrumental cover. cav uploads the
+  track to the server's new `POST /v1/covers` route, which has the same fields as
+  YuE2-Turbo's. SheetSage2, a transcription model, writes down the track's melody. YuE2
+  then plays that melody on an instrument, in the style of the prompt. It does not copy
+  the singer or the arrangement.
+- SheetSage2 runs in its own Python environment next to YuE2, on CUDA, on an Apple
+  silicon Mac (MPS) or on the CPU. Without it, the server's covers are off, and cav
+  describes the track in words instead, as for Lyria and ElevenLabs. cav says why.
+- A cover plays someone else's song. cav records the reference track with the take, next
+  to YuE2's licence, and `cav credits` lists a credit line for the song. You need the
+  songwriter's permission or a cover licence to use a cover.
 - The `yue2` service also works with a YuE2-Turbo server. Turbo is NOIZ's fast server for
   YuE2. It needs Linux, an NVIDIA GPU with BF16, and vLLM, and it uses about 18 GB of GPU
   memory at rest. Turbo has no instrumental mode and no length cut, so cav does that work
   itself. One job plans a score. cav moves the vocal notes to an instrument and cuts the
-  score to about `--seconds`. A second job then makes the audio from that score.
+  score to about `--seconds`. A second job then makes the audio from that score. A cover works the same way: the
+  cover job's transcribed melody takes the place of the planned score.
 - cav needs Turbo's API key. Give it with `YUE2_API_KEY` or `cav config set-key yue2`.
   cav never prints the key.
 - `cav config check` now tells cav's server and Turbo apart, and checks Turbo's key. It no

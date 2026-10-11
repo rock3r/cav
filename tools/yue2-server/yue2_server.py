@@ -16,6 +16,7 @@ client works with either server:
     POST /v1/jobs/{id}/cancel
     GET  /v1/jobs/{id}/audio     FLAC
     GET  /v1/jobs/{id}/score     ABC
+    POST /v1/covers              202 with the job; a multipart form with the recording in "audio"
 
 Job fields: style, lyrics, cot (full, melody or off), seed, n (this server takes only 1),
 abc, cfg_scale. When YUE2_API_KEY is set, every route but the health routes needs it as a
@@ -30,11 +31,24 @@ then only section tags for the planner ("[Intro]\\n\\n[Verse]..."); nobody sings
 "instrumental" object with the score's nominal length. /health/ready lists "instrumental"
 in "extensions", so a client can tell this server from YuE2-Turbo.
 
+Covers, as in YuE2-Turbo: POST /v1/covers takes a multipart form of at most 40 MiB with the
+recording in "audio" and the fields style, lyrics, seed and cfg_scale. SheetSage2 transcribes
+the recording's melody to ABC, without chords, and YuE2 generates from it with cot=melody. It
+does not copy the original singer. The server runs SheetSage2 in its own Python, through the
+instrumental helper's scripts/transcribe_cover.py, the way the helper's cover command does
+(skills/yue2-music/instrumental/references/cover.md). With "instrumental": true, the server
+then moves the melody to the Ins voice, as above. "seconds" also works. The result has a
+"cover" object. When the server has no SheetSage2 environment, covers are off: /v1/covers
+answers 503 without Retry-After, and /health/ready does not list "covers" in "extensions".
+
 Only the Python standard library is used here; YuE2 and the helper come from the checkout.
 """
 from __future__ import annotations
 
 import argparse
+from email import policy
+from email.parser import BytesParser
+import hashlib
 import hmac
 import json
 import os
@@ -42,6 +56,7 @@ from pathlib import Path
 import queue
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import threading
@@ -54,11 +69,17 @@ SERVER = "cav-yue2-server"
 TERMINAL = {"succeeded", "truncated", "failed", "cancelled"}
 FIELDS = {"n", "style", "lyrics", "cot", "seed", "abc", "cfg_scale", "instrumental", "seconds"}
 BODY_LIMIT = 256 * 1024
+COVER_LIMIT = 40 * 1024 * 1024  # the whole form, as in YuE2-Turbo
+COVER_FIELDS = {"audio", "style", "lyrics", "seed", "cfg_scale", "instrumental", "seconds"}
 NO_VOCALS = ("no vocals", "no singing", "no choir", "no spoken words")
 
 
 class Invalid(ValueError):
     """A request the server will not run (HTTP 422)."""
+
+
+class TranscriptionFailed(RuntimeError):
+    """SheetSage2 could not turn the recording into a score."""
 
 
 def validate(body):
@@ -99,6 +120,51 @@ def validate(body):
     if sec is not None and not req["instrumental"]:
         raise Invalid("seconds needs instrumental: the server fits the planned score")
     return req
+
+
+def parse_form(content_type, body):
+    """Reads a multipart/form-data body into {name: (filename, bytes)}."""
+    if not content_type.lower().startswith("multipart/form-data"):
+        raise Invalid("a cover is a multipart/form-data upload")
+    head = b"Content-Type: " + content_type.encode("latin-1") + b"\r\n\r\n"
+    msg = BytesParser(policy=policy.HTTP).parsebytes(head + body)
+    if not msg.is_multipart():
+        raise Invalid("the form has no parts")
+    form = {}
+    for part in msg.iter_parts():
+        name = part.get_param("name", header="content-disposition")
+        if not name:
+            continue
+        if name in form:
+            raise Invalid(f"{name} is in the form twice")
+        form[name] = (part.get_filename(), part.get_payload(decode=True) or b"")
+    return form
+
+
+def cover_request(form):
+    """Checks a cover form. Returns the job request (without the audio) and the audio part."""
+    unknown = sorted(set(form) - COVER_FIELDS)
+    if unknown:
+        raise Invalid(f"unknown fields: {unknown}")
+    filename, audio = form.get("audio", (None, b""))
+    if not audio:
+        raise Invalid("audio is missing or empty")
+    try:
+        text = {k: v[1].decode("utf-8") for k, v in form.items() if k != "audio"}
+    except UnicodeDecodeError:
+        raise Invalid("the form fields must be UTF-8 text") from None
+    body = {"style": text.get("style"), "lyrics": text.get("lyrics"), "cot": "melody"}
+    for name, kind in (("seed", int), ("cfg_scale", float), ("seconds", float)):
+        if name in text:
+            try:
+                body[name] = kind(text[name])
+            except ValueError:
+                raise Invalid(f"{name} must be a number") from None
+    if "instrumental" in text:
+        if text["instrumental"] not in ("true", "false"):
+            raise Invalid("instrumental must be true or false")
+        body["instrumental"] = text["instrumental"] == "true"
+    return validate(body), (filename or "", audio)
 
 
 def instrumental_style(style):
@@ -187,6 +253,54 @@ def fit_score(helper, text, seconds):
     return fitted, float(at * sec_per_quarter)
 
 
+class Transcriber:
+    """Runs SheetSage2 on a recording in its own Python, through the instrumental helper's
+    scripts/transcribe_cover.py, and returns the melody as ABC. A process of its own keeps
+    SheetSage2's packages (pinned by its snapshot) out of YuE2's environment, as the helper
+    does; on a GPU, its memory is free again when the process ends."""
+
+    def __init__(self, python, script, model, base_model=None, revision=None, device="cpu", offline=False):
+        self.python, self.script, self.model = str(python), str(script), str(model)
+        self.base_model, self.revision, self.device, self.offline = base_model, revision, device, offline
+
+    def __call__(self, audio, out, cancelled):
+        command = [self.python, self.script, str(audio), "--output", str(out), "--task", "melody-full",
+                   "--model", self.model, "--device", self.device,
+                   "--dtype", "bf16" if self.device == "cuda" else "fp32"]
+        if self.revision:
+            command += ["--revision", self.revision]
+        if self.base_model:
+            command += ["--base-model", str(self.base_model)]
+        if self.offline:
+            command += ["--offline"]
+        env = os.environ.copy()
+        env.pop("PYTHONPATH", None)
+        env["PYTHONNOUSERSITE"] = "1"
+        log = Path(str(out) + ".log")
+        with open(log, "wb") as sink:
+            proc = subprocess.Popen(command, stdout=sink, stderr=subprocess.STDOUT, env=env)
+            while proc.poll() is None:
+                if cancelled():
+                    proc.kill()
+                    proc.wait()
+                    raise InterruptedError("cancelled")
+                time.sleep(0.2)
+        score = Path(out) / "score.abc"
+        if proc.returncode or not score.is_file():
+            reason = log.read_text(errors="replace").strip().splitlines()[-1:] or ["no output"]
+            try:
+                reason = [json.loads((Path(out) / "failure.json").read_text())["error"]]
+            except (OSError, ValueError, KeyError):
+                pass
+            raise TranscriptionFailed(f"SheetSage2 could not transcribe the recording: {reason[0]}")
+        warnings = []
+        try:
+            warnings = json.loads((Path(out) / "transcription_manifest.json").read_text()).get("warnings", [])
+        except (OSError, ValueError):
+            pass
+        return score.read_text(encoding="utf-8"), warnings
+
+
 class Jobs:
     """Jobs in memory, with their artifacts in one folder. One worker runs them in order."""
 
@@ -229,6 +343,29 @@ class Jobs:
                 table.pop(job_id, None)
             self.idem = {k: v for k, v in self.idem.items() if v[1] != job_id}
             shutil.rmtree(self.root / job_id, ignore_errors=True)
+        # An uploaded recording stays while a job still uses it. A new one may not have its
+        # job yet, so a recording is kept for a minute after the upload too.
+        used = {r.get("audio") for r in self.requests.values()}
+        covers = self.root / "covers"
+        if covers.is_dir():
+            for path in covers.iterdir():
+                if str(path) not in used and not path.name.startswith(".") and time.time() - path.stat().st_mtime > 60:
+                    path.unlink(missing_ok=True)
+
+    def store_audio(self, filename, data):
+        """Keeps an uploaded recording under its hash, with its extension for ffmpeg."""
+        digest = hashlib.sha256(data).hexdigest()
+        ext = Path(filename).suffix.lower()
+        if not re.fullmatch(r"\.[a-z0-9]{1,5}", ext):
+            ext = ".bin"
+        covers = self.root / "covers"
+        covers.mkdir(parents=True, exist_ok=True)
+        path = covers / (digest + ext)
+        if not path.exists():
+            tmp = covers / f".{digest}.{uuid.uuid4().hex}"
+            tmp.write_bytes(data)
+            tmp.replace(path)
+        return str(path), digest
 
     def get(self, job_id):
         with self.lock:
@@ -269,20 +406,34 @@ class Conflict(Exception):
 
 
 class Engine:
-    """Runs one request on a YuE2 pipeline. helper is the instrumental helper's scripts module set."""
+    """Runs one request on a YuE2 pipeline. helper is the instrumental helper's scripts module
+    set; transcriber (a Transcriber) turns a cover's recording into a melody score."""
 
-    def __init__(self, pipe, helper=None):
-        self.pipe, self.helper = pipe, helper
+    def __init__(self, pipe, helper=None, transcriber=None):
+        self.pipe, self.helper, self.transcriber = pipe, helper, transcriber
 
     def run(self, req, out, cancelled, stage):
         """Writes the artifacts into out and returns the job result (without the URLs)."""
         common = {"seed": req["seed"], "cfg_scale": req["cfg_scale"], "cancelled": cancelled}
-        extra = None
+        extra = cover = None
         plan_truncated = False
+        abc, origin = req["abc"], "request"
+        if req.get("audio"):
+            if self.transcriber is None:
+                raise TranscriptionFailed("covers are off on this server (no SheetSage2 environment)")
+            stage("transcribing")
+            out.mkdir(parents=True, exist_ok=True)
+            began = time.time()
+            abc, warnings = self.transcriber(Path(req["audio"]), out / "transcription", cancelled)
+            origin = "SheetSage2"
+            cover = {"transcriber": "SheetSage2", "device": self.transcriber.device,
+                     "transcription_seconds": time.time() - began, "warnings": warnings}
+            if self.helper is not None:
+                score = self.helper.report(self.helper.validate_score(abc))
+                cover.update(score_seconds=score["nominal_duration_seconds"], bpm=score["bpm"])
         if req["instrumental"]:
             if self.helper is None:
                 raise RuntimeError("the instrumental helper is not loaded (see --yue2)")
-            abc, origin = req["abc"], "request"
             if abc is None:
                 stage("planning")
                 plan = self.pipe.plan(style=req["style"], lyrics=req["lyrics"], cot=req["cot"],
@@ -294,7 +445,9 @@ class Engine:
             out.mkdir(parents=True, exist_ok=True)
             (out / "original.abc").write_text(abc, encoding="utf-8")
             stage("converting")
-            converted, transfer = self.helper.convert_score(abc, overlap="vocal", keep_chords=True)
+            # A cover drops the transcription's chords, as the helper's cover does by default,
+            # so YuE2 arranges a new accompaniment for the melody.
+            converted, transfer = self.helper.convert_score(abc, overlap="vocal", keep_chords=cover is None)
             planned = self.helper.report(self.helper.validate_score(converted))["nominal_duration_seconds"]
             if req["seconds"] is not None:
                 stage("fitting")
@@ -314,7 +467,7 @@ class Engine:
             song = self.pipe(**final, **common)
         else:
             stage("generating")
-            song = self.pipe(style=req["style"], lyrics=req["lyrics"], cot=req["cot"], abc=req["abc"], **common)
+            song = self.pipe(style=req["style"], lyrics=req["lyrics"], cot=req["cot"], abc=abc, **common)
         stage("saving")
         saved = song.save_artifacts(out)
         truncated = dict(saved["truncated"])
@@ -325,6 +478,8 @@ class Engine:
                   "truncated": truncated, "timing": saved["timing"], "configuration": song.config}
         if extra is not None:
             result["instrumental"] = extra
+        if cover is not None:
+            result["cover"] = cover
         return result
 
 
@@ -388,6 +543,8 @@ class Worker:
         except Exception as exc:
             traceback.print_exc(file=self.log)
             code = "invalid_generation" if isinstance(exc, (ValueError, TypeError)) else "inference_failed"
+            if isinstance(exc, TranscriptionFailed):
+                code = "transcription_failed"
             self.jobs.update(job_id, status="failed", error={"code": code, "message": f"{type(exc).__name__}: {exc}"})
 
 
@@ -434,7 +591,8 @@ def make_handler(jobs, worker, api_key):
                     return self.send_json(503, {"status": "failed", "error": worker.startup_error})
                 if not worker.ready():
                     return self.send_json(503, {"status": "loading"})
-                return self.send_json(200, {"status": "ready", "server": SERVER, "extensions": ["instrumental"],
+                extensions = ["instrumental"] + (["covers"] if worker.engine.transcriber else [])
+                return self.send_json(200, {"status": "ready", "server": SERVER, "extensions": extensions,
                                             **worker.info})
             if len(parts) < 3 or parts[:2] != ["v1", "jobs"] or len(parts) > 4:
                 return self.detail(404, "Not found")
@@ -469,23 +627,31 @@ def make_handler(jobs, worker, api_key):
                     return
                 job = jobs.cancel(parts[2])
                 return self.send_json(200, job) if job else self.detail(404, "Job not found")
-            if parts == ["v1", "covers"]:
-                return self.detail(501, "covers need YuE2-Turbo; this server does not transcribe audio")
-            if parts != ["v1", "jobs"]:
+            cover = parts == ["v1", "covers"]
+            if parts != ["v1", "jobs"] and not cover:
                 return self.detail(404, "Not found")
             if not self.authorized():
                 return
             length = int(self.headers.get("Content-Length") or 0)
-            if length > BODY_LIMIT:
-                return self.detail(413, "Request body is too large")
-            try:
-                req = validate(json.loads(self.rfile.read(length) or b"null"))
-            except (ValueError, Invalid) as exc:
-                return self.detail(422, str(exc))
+            if length > (COVER_LIMIT if cover else BODY_LIMIT):
+                return self.detail(413, "Request body exceeds 40 MiB" if cover else "Request body is too large")
             if worker.startup_error:
                 return self.detail(503, "The server could not load YuE2: " + worker.startup_error)
             if not worker.ready():
                 return self.detail(503, "Inference worker is not ready", {"Retry-After": "5"})
+            if cover and worker.engine.transcriber is None:
+                # No Retry-After: waiting does not help, as with YuE2-Turbo's covers turned off.
+                return self.detail(503, "covers are off: start the server with a SheetSage2 environment "
+                                        "(--transcriber-python; see tools/yue2-server/README.md)")
+            raw = self.rfile.read(length)
+            try:
+                if cover:
+                    req, (filename, audio) = cover_request(parse_form(self.headers.get("Content-Type", ""), raw))
+                    req["audio"], req["audio_sha256"] = jobs.store_audio(filename, audio)
+                else:
+                    req = validate(json.loads(raw or b"null"))
+            except (ValueError, Invalid) as exc:
+                return self.detail(422, str(exc))
             key = self.headers.get("Idempotency-Key")
             if key is not None and not 1 <= len(key) <= 128:
                 return self.detail(422, "Idempotency-Key must be 1 to 128 characters")
@@ -533,6 +699,40 @@ def find_checkout(package):
     raise FileNotFoundError("cannot find the YuE2 checkout for the instrumental helper; pass --yue2 <checkout>")
 
 
+def transcriber_for(args, root, pipe_device):
+    """The SheetSage2 transcriber, or None when covers are off. Paths default to the names
+    the helper's cover.md uses in a YuE2 checkout: .venv-transcribe, models/SheetSage2 and
+    models/MERT-v2-FullSong."""
+    if args.sheetsage_device == "off":
+        return None
+    python = Path(args.transcriber_python) if args.transcriber_python else root / ".venv-transcribe/bin/python"
+    if not python.is_file():
+        print(f"covers are off: no SheetSage2 Python at {python} (see --transcriber-python)", file=sys.stderr)
+        return None
+    script = root / "skills/yue2-music/instrumental/scripts/transcribe_cover.py"
+    release = json.loads((root / "skills/yue2-music/instrumental/assets/cover-release.json").read_text())
+    model, revision = args.sheetsage, None
+    if model is None:
+        local = root / "models/SheetSage2"
+        model = str(local) if local.is_dir() else release["transcriber"]["repo"]
+    if not Path(model).is_dir():
+        revision = release["transcriber"]["revision"] if model == release["transcriber"]["repo"] else None
+    base = args.mert
+    if base is None and (root / "models/MERT-v2-FullSong").is_dir():
+        base = str(root / "models/MERT-v2-FullSong")
+    device = args.sheetsage_device
+    if device == "auto":
+        # As in YuE2-Turbo: the GPU only when enough memory is free with YuE2 loaded.
+        device = "cpu"
+        if pipe_device.type == "mps":
+            device = "mps"
+        elif pipe_device.type == "cuda":
+            import torch
+            free, _ = torch.cuda.mem_get_info(pipe_device)
+            device = "cuda" if free >= args.sheetsage_min_free_gib * 1024**3 else "cpu"
+    return Transcriber(python, script, model, base_model=base, revision=revision, device=device, offline=args.offline)
+
+
 def loader(args):
     def load():
         import yue2
@@ -548,9 +748,12 @@ def loader(args):
             vae = str(local) if local.is_dir() else "m-a-p/YuE2-Vae"
         pipe = YuE2Pipeline.from_pretrained(model, vae=vae, device=args.device, memory_budget_gib=args.budget,
                                             local_files_only=args.offline)
-        info = {"device": str(pipe.device), "budget_gib": args.budget, "model": model, "vae": vae}
-        print(f"ready: {model} on {pipe.device}, budget {args.budget:g} GiB", file=sys.stderr, flush=True)
-        return Engine(pipe, helper), info
+        transcriber = transcriber_for(args, root, pipe.device)
+        info = {"device": str(pipe.device), "budget_gib": args.budget, "model": model, "vae": vae,
+                "covers": {"transcriber": "SheetSage2", "device": transcriber.device} if transcriber else None}
+        covers = f"; covers with SheetSage2 on {transcriber.device}" if transcriber else "; covers off"
+        print(f"ready: {model} on {pipe.device}, budget {args.budget:g} GiB{covers}", file=sys.stderr, flush=True)
+        return Engine(pipe, helper, transcriber), info
     return load
 
 
@@ -564,6 +767,12 @@ def main(argv=None):
     p.add_argument("--model", help="model path or Hugging Face id (default: m-a-p/YuE2-3B)")
     p.add_argument("--vae", help="audio decoder path or Hugging Face id (default: m-a-p/YuE2-Vae)")
     p.add_argument("--offline", action="store_true", help="use only models already downloaded")
+    p.add_argument("--transcriber-python", help="Python of a SheetSage2 environment, for covers (default: <checkout>/.venv-transcribe)")
+    p.add_argument("--sheetsage", help="SheetSage2 path or Hugging Face id (default: <checkout>/models/SheetSage2, else the helper's pinned snapshot)")
+    p.add_argument("--mert", help="MERT-v2-FullSong path that SheetSage2 builds on (default: <checkout>/models/MERT-v2-FullSong when it exists)")
+    p.add_argument("--sheetsage-device", default="auto", choices=("auto", "cuda", "mps", "cpu", "off"),
+                   help="where SheetSage2 runs; auto: mps on a Mac, cuda when enough is free, else cpu; off turns covers off")
+    p.add_argument("--sheetsage-min-free-gib", type=float, default=8, help="free GPU memory auto needs to put SheetSage2 on CUDA")
     p.add_argument("--max-pending", type=int, default=16, help="queued and running jobs before 429")
     p.add_argument("--artifacts", help="folder for job files (default: a temporary folder, removed on exit)")
     args = p.parse_args(argv)
