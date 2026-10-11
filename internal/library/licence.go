@@ -13,6 +13,8 @@ type Terms struct {
 	CommercialOK        bool
 	ShareAlike          bool
 	NoDerivatives       bool
+	// Note explains the terms when "non-commercial" alone would mislead (YuE2).
+	Note string
 }
 
 var ccURL = regexp.MustCompile(`creativecommons\.org/(licenses|publicdomain)/([a-z-]+)/([0-9.]+)`)
@@ -101,6 +103,27 @@ var (
 	UnsplashTerms = Terms{ID: "Unsplash", URL: "https://unsplash.com/license", CommercialOK: true}
 )
 
+// YuE2Terms are the terms of a take made with YuE2's weights (MODEL_LICENSE in the YuE
+// repository, read on 2026-10-11). The weights are CC BY-NC 4.0. A separate permission lets
+// personal users, creators and musicians acting as individuals monetize what they make,
+// and says outputs are not non-commercial only because YuE2 made them. It does not cover a
+// company: a company that uses the weights commercially needs a licence from the authors.
+// cav cannot tell an individual from a company, so a take counts as non-commercial: an
+// "nc-ok" project accepts it, and a "commercial" project gets a warning that says who may
+// still use it. Credit is optional but encouraged.
+var YuE2Terms = Terms{ID: "YuE2-model-licence", URL: "https://github.com/multimodal-art-projection/YuE/blob/main/MODEL_LICENSE",
+	Note: "made with YuE2, whose weights are CC BY-NC 4.0: an individual creator or musician may use and sell the music, " +
+		"but a company needs a commercial licence from the YuE2 authors (ryuanab@connect.ust.hk)"}
+
+// GeneratedTerms are the terms cav records for a take or image from a generation service:
+// YuE2's model licence for yue2, and "generated" (commercial use allowed) for the others.
+func GeneratedTerms(provider string) Terms {
+	if provider == "yue2" {
+		return YuE2Terms
+	}
+	return Terms{ID: "generated", CommercialOK: true}
+}
+
 // LicenceName turns an id into words for a credit line.
 func LicenceName(id string) string {
 	switch {
@@ -119,6 +142,8 @@ func LicenceName(id string) string {
 		return "Pexels License"
 	case id == "Unsplash":
 		return "Unsplash License"
+	case id == YuE2Terms.ID:
+		return "YuE2 model licence"
 	}
 	return id
 }
@@ -127,6 +152,7 @@ func LicenceName(id string) string {
 func (t Terms) Apply(e *Entry) {
 	e.Licence, e.LicenceURL = t.ID, t.URL
 	e.AttributionRequired, e.CommercialOK, e.ShareAlike, e.NoDerivatives = t.AttributionRequired, t.CommercialOK, t.ShareAlike, t.NoDerivatives
+	e.LicenceNote = t.Note
 }
 
 // Allowed reports whether the licence fits a filter: "any", "commercial" (no NC), or

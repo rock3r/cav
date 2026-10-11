@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"os/exec"
@@ -65,11 +66,12 @@ cav music gen "warm synthwave, confident, builds to a drop" --board storyboard.j
     becomes a section of the same length (ElevenLabs composition plan; Lyria gets one
     timed "[m:ss - m:ss]" line per shot; Stable Audio gets the structure in its prompt),
     so changes in the music fall on the shot cuts. Without
-    --board, --seconds sets the length.
+    --board, --seconds sets the length. YuE2 has no length setting: cav's YuE2 server cuts
+    the planned score at a phrase near that length, and cav says how long the take is.
 --ref (repeatable) makes variations of a reference track: --takes takes for each one.
     Stable Audio and ACE-Step get the track itself. Stable Audio keeps its structure
     (--keep, 0-1, how much of it to keep; default 0.4); ACE-Step uses it as a style
-    reference. Lyria and ElevenLabs cannot take it, so the audio model (the "ears" job)
+    reference. Lyria, ElevenLabs and YuE2 cannot take it, so the audio model (the "ears" job)
     describes its style in words and cav adds that to the prompt: a new track in a similar
     style, not a variation of the track. cav says which way each reference went.
     Stable Audio takes a reference of 6 to 190 s in MP3 or WAV; cav converts other
@@ -80,7 +82,8 @@ What each service does differently (lengths, plans, moderation, credits): cav gu
 production, "Music services".
 Then compare the takes: cav listen music/<take>.mp3 --board storyboard.json --brief "...".
 Needs a key for the "music" job (cav config). Check the service's terms for your use:
-ElevenLabs self-serve plans, for example, exclude film, TV and games.
+ElevenLabs self-serve plans, for example, exclude film, TV and games. YuE2's weights
+are CC BY-NC 4.0: an individual creator may sell the music, a company needs a licence.
 
 cav music render score.json [-o music/score.wav] [--stems]
     renders a written score locally, with no key: notes and hits on a beat grid, played
@@ -436,9 +439,18 @@ func cmdMusic(a *app, args []string) error {
 		}
 	}
 	root := library.Root()
+	licenceNote := ""
+	if t := library.GeneratedTerms(ch.Service); !t.CommercialOK {
+		if p, err := library.LoadProject(root); err == nil && p.Licence != "nc-ok" {
+			licenceNote = t.Note + "; this project's licence is " + cmp.Or(p.Licence, "not set (cav assumes commercial)") +
+				", so cav credits check will flag the takes (cav credits licence nc-ok if the piece is non-commercial)"
+			fmt.Fprintln(os.Stderr, "note: "+licenceNote)
+		}
+	}
 	var made []string
 	var errs []error
-	levels := map[string]string{} // take -> what cav did to its level
+	levels := map[string]string{}  // take -> what cav did to its level
+	notes := map[string][]string{} // take -> what the service said about it
 	for _, j := range jobs {
 		for i := 1; i <= *takes; i++ {
 			what := fmt.Sprintf("take %d of %d", i, *takes)
@@ -465,6 +477,9 @@ func cmdMusic(a *app, args []string) error {
 			if note != "" {
 				levels[path] = note
 			}
+			if len(tr.Notes) > 0 {
+				notes[path] = tr.Notes
+			}
 			made = append(made, path)
 		}
 	}
@@ -472,6 +487,12 @@ func cmdMusic(a *app, args []string) error {
 		return fail(exitError, errors.Join(errs...).Error(), "")
 	}
 	out := map[string]any{"takes": made, "service": ch.Service, "sections": len(req.Sections), "levels": levels}
+	if len(notes) > 0 {
+		out["notes"] = notes
+	}
+	if licenceNote != "" {
+		out["licence"] = licenceNote
+	}
 	if len(refs) > 0 {
 		out["refs"] = jobs
 	}
@@ -489,6 +510,9 @@ func cmdMusic(a *app, args []string) error {
 		}
 		for _, p := range made {
 			if n := levels[p]; n != "" {
+				fmt.Fprintf(os.Stderr, "note: %s: %s\n", p, n)
+			}
+			for _, n := range notes[p] {
 				fmt.Fprintf(os.Stderr, "note: %s: %s\n", p, n)
 			}
 			fmt.Println(p)
@@ -516,13 +540,21 @@ func saveTake(ctx context.Context, root, dir, name string, tr *music.Track, prom
 		return "", "", err
 	}
 	note := ""
+	if tr.Ext == ".flac" {
+		// YuE2 sends FLAC; Cavalry and most editors take WAV.
+		if wav, err := flacToWAV(ctx, path); err != nil {
+			note = "kept as FLAC (" + err.Error() + ")"
+		} else {
+			path = wav
+		}
+	}
 	if level {
 		gain, err := addHeadroom(ctx, path)
 		switch {
 		case err != nil:
-			note = "level not checked (" + err.Error() + ")"
+			note = strings.TrimPrefix(note+"; ", "; ") + "level not checked (" + err.Error() + ")"
 		case gain != 0:
-			note = fmt.Sprintf("the true peak was above %g dBTP, so cav lowered the level by %.1f dB (--raw-level keeps it)", headroomPeak, -gain)
+			note = strings.TrimPrefix(note+"; ", "; ") + fmt.Sprintf("the true peak was above %g dBTP, so cav lowered the level by %.1f dB (--raw-level keeps it)", headroomPeak, -gain)
 		}
 	}
 	m, err := library.Load(root)
@@ -534,8 +566,10 @@ func saveTake(ctx context.Context, root, dir, name string, tr *music.Track, prom
 	if ref != "" {
 		refs = []string{ref}
 	}
-	m.Put(root, library.Entry{Path: path, Kind: "audio", Source: tr.Provider, Licence: "generated", CommercialOK: true,
-		RetrievedAt: time.Now().UTC(), SHA256: sum, Generated: &library.Generated{Provider: tr.Provider, Model: tr.Model, Prompt: prompt, Refs: refs}})
+	e := library.Entry{Path: path, Kind: "audio", Source: tr.Provider,
+		RetrievedAt: time.Now().UTC(), SHA256: sum, Generated: &library.Generated{Provider: tr.Provider, Model: tr.Model, Prompt: prompt, Refs: refs, Seed: tr.Seed}}
+	library.GeneratedTerms(tr.Provider).Apply(&e)
+	m.Put(root, e)
 	return path, note, m.Save(root)
 }
 

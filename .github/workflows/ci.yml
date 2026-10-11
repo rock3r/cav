@@ -72,6 +72,9 @@ jobs:
         run: >-
           uv run --no-project --python 3.12 --with numpy --with pedalboard --with pyloudnorm
           --with mido --with matchering python -m unittest discover -s assets/python/test
+      - name: YuE2 server (Python, fake pipeline)
+        if: matrix.os == 'ubuntu-latest'
+        run: uv run --no-project --python 3.12 python -m unittest discover -s tools/yue2-server
       - name: Development archives for all five targets
         # No Apple credentials, live bridge access, release tags or publication.
         run: |

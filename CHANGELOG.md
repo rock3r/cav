@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased
+
+- `cav music gen --service yue2` makes instrumental takes with YuE2, an open music model,
+  on a server you run. The server is new: `tools/yue2-server` loads YuE2 once and keeps it
+  in memory. It runs on an Apple silicon Mac and on an NVIDIA GPU with 12 GB or more. Set
+  it with `cav config endpoint yue2 http://127.0.0.1:8002`. The server's routes and fields
+  are a subset of YuE2-Turbo's API. Its instrumental mode is an extension that Turbo does
+  not have.
+- YuE2 makes songs with vocals. For cav, the server plans a score, moves the vocal notes
+  to an instrument, and generates again, as the instrumental helper in the YuE2
+  repository does.
+- YuE2 has no length setting, but its audio follows the score it plans. The server cuts
+  that score to about `--seconds` at a phrase (every four bars) or a section, and keeps
+  the outro. cav says how long the take came out, and when YuE2 stopped part of a take at
+  its token limit.
+- cav converts YuE2's FLAC to 24-bit WAV.
+- cav records YuE2's real terms with each take: the weights are CC BY-NC 4.0, and an
+  individual creator or musician may still use and sell the music. A company needs a
+  commercial licence from the YuE2 authors. cav cannot tell the two apart, so it treats a
+  take as non-commercial. A project set to `cav credits licence nc-ok` accepts it.
+  Otherwise `cav music gen` warns, and `cav credits check` lists the take.
+- A reference track (`--ref`) goes to YuE2 as words, as for Lyria and ElevenLabs.
+
 ## 1.3.0
 
 - In `cav review` and the chat review, each note has an Edit action. You edit the text in

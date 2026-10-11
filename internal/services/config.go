@@ -64,7 +64,7 @@ var DefaultOrder = map[string][]string{
 	"image.alpha":  {"openai", "recraft"},
 	"image.vector": {"recraft", "vtracer", "potrace"},
 	"video":        {"veo"},
-	"music":        {"elevenlabs", "stability", "lyria", "acestep"},
+	"music":        {"elevenlabs", "stability", "lyria", "acestep", "yue2"},
 	"sfx":          {"freesound", "openverse"},
 	"ref":          {"pexels", "unsplash", "openverse", "wikimedia"},
 	"ears":         {"gemini", "qwen-omni"},

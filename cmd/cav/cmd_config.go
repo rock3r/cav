@@ -48,6 +48,8 @@ no keys (greybox frames, Openverse, Wikimedia) and gets better as you add keys.
                                     an OpenAI-compatible server you run or rent
   cav config endpoint comfyui http://127.0.0.1:8188 <workflow-api.json>
   cav config endpoint acestep http://127.0.0.1:8001
+  cav config endpoint yue2 http://127.0.0.1:8002
+                                    the server in tools/yue2-server (cav guide production)
   cav config login freesound --client-id ID [--secret SOURCE]
                                     OAuth login, needed to download Freesound originals
 

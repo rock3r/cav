@@ -357,9 +357,13 @@ never talk to the bridge. They are plain Go around ffmpeg, HTTPS and uv:
   and nothing is installed globally. `score_takes.py` runs Audiobox Aesthetics and CLAP;
   `render_music.py` plays a written score with numpy synthesis and pedalboard (effects,
   VST3/AU hosting, file I/O), then masters it with pyloudnorm and its own lookahead limiter.
-  mflux runs through `uvx` the same way. ComfyUI and ACE-Step are HTTP servers the user
-  runs; cav submits a job and asks for its result until it is done, because neither server
-  pushes.
+  mflux runs through `uvx` the same way. ComfyUI, ACE-Step and YuE2 are HTTP servers the
+  user runs; cav submits a job and asks for its result until it is done, because none of
+  them pushes. YuE2 has no server of its own: `tools/yue2-server/yue2_server.py` is a
+  standard-library Python server that runs in the YuE2 checkout's environment, keeps one
+  pipeline loaded, and speaks a subset of YuE2-Turbo's job API with an `instrumental`
+  extension (plan a score, move the vocal notes to the Ins voice with the YuE2
+  repository's instrumental helper, generate again). Its tests use a fake pipeline.
 - `internal/score` writes REAPER projects (`.rpp`, plain text) and renders them with
   `reaper -renderproject`.
 - `internal/board` turns a storyboard into a board sheet, an animatic (ffmpeg concat with one

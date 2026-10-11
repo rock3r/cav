@@ -89,6 +89,17 @@ func audioSeconds(ctx context.Context, path string) (float64, error) {
 	return strconv.ParseFloat(strings.TrimSpace(string(b)), 64)
 }
 
+// flacToWAV converts a FLAC take to 24-bit WAV next to it and removes the FLAC. It needs
+// ffmpeg.
+func flacToWAV(ctx context.Context, path string) (string, error) {
+	wav := strings.TrimSuffix(path, filepath.Ext(path)) + ".wav"
+	if b, err := exec.CommandContext(ctx, "ffmpeg", "-v", "error", "-y", "-i", path, "-vn", "-c:a", "pcm_s24le", wav).CombinedOutput(); err != nil {
+		os.Remove(wav)
+		return "", fmt.Errorf("ffmpeg: %v: %s", err, strings.TrimSpace(string(b)))
+	}
+	return wav, os.Remove(path)
+}
+
 // Takes from every music service came back with true peaks above 0 dBFS in tests on
 // 2026-10-09, so they can clip once encoded again. cav lowers the gain of such a take to
 // headroomTarget (below the -1 dBTP that cav listen asks for, to leave room for the MP3
@@ -108,8 +119,11 @@ func addHeadroom(ctx context.Context, path string) (float64, error) {
 	gain := headroomTarget - l.TruePeak
 	ext := strings.ToLower(filepath.Ext(path))
 	codec := []string{"-c:a", "libmp3lame", "-b:a", "320k"}
-	if ext == ".wav" {
+	switch ext {
+	case ".wav":
 		codec = []string{"-c:a", "pcm_s24le"}
+	case ".flac":
+		codec = []string{"-c:a", "flac"}
 	}
 	tmp := strings.TrimSuffix(path, filepath.Ext(path)) + ".level" + ext
 	args := append([]string{"-v", "error", "-y", "-i", path, "-vn", "-af", fmt.Sprintf("volume=%.2fdB", gain)}, codec...)

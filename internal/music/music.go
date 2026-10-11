@@ -1,6 +1,6 @@
 // Package music generates instrumental tracks with an API: ElevenLabs Music (with a
 // composition plan whose sections follow the storyboard's shots), Stable Audio, Lyria
-// through the Gemini API, or an ACE-Step 1.5 server the user runs.
+// through the Gemini API, or an ACE-Step 1.5 or YuE2 server the user runs.
 //
 // Request shapes: ElevenLabs from its API reference read on 2026-10-08; Lyria from the Gemini
 // API music generation guide read on 2026-10-08; Stable Audio (stable-audio-2 text-to-audio
@@ -10,7 +10,9 @@
 // A reference track (Request.Ref) goes to the services that take audio: Stable Audio
 // (audio-to-audio) and ACE-Step (its reference_audio style input). Lyria takes only text and
 // images, and ElevenLabs takes audio only through an upload endpoint, so for those the
-// caller describes the reference in words instead (see SendsAudio).
+// caller describes the reference in words instead (see SendsAudio). YuE2 takes audio only
+// through SheetSage2 transcription (a cover), which cav does not use yet, so it also gets
+// words.
 package music
 
 import (
@@ -59,6 +61,10 @@ type Track struct {
 	Ext      string
 	Provider string
 	Model    string
+	Seed     *int64 // the seed the service used, when cav chose it (YuE2)
+	// Notes are what the caller should tell the user about the take: a length far from
+	// the request, or a part the service cut short.
+	Notes []string
 }
 
 func Generate(ctx context.Context, c *services.Config, ch *services.Choice, r Request) (*Track, error) {
@@ -74,6 +80,8 @@ func Generate(ctx context.Context, c *services.Config, ch *services.Choice, r Re
 		return acestep(ctx, c, ch.Key, r)
 	case "lyria":
 		return lyria(ctx, c, ch.Key, r)
+	case "yue2":
+		return yue2(ctx, c, ch.Key, r)
 	}
 	return nil, fmt.Errorf("%s does not make music", ch.Service)
 }

@@ -21,11 +21,13 @@ cav config set-key openai op://Private/OpenAI/api key    # or env:NAME, keychain
 Local models run on this machine. mflux runs open image models (default FLUX.2 klein 4B)
 through uv on Apple silicon; it is not in the default order because its first run
 downloads several GB, so ask for it: `--service mflux`, or `cav config order image ...`.
-ComfyUI and ACE-Step are servers the user runs:
+ComfyUI, ACE-Step and YuE2 are servers the user runs:
 `cav config endpoint comfyui http://127.0.0.1:8188 <workflow-api.json>` (the workflow holds
 `{{prompt}}`, `"{{width}}"`, `"{{height}}"` and `"{{seed}}"`), and
 `cav config endpoint acestep http://127.0.0.1:8001` for ACE-Step 1.5 (`uv run acestep-api`
-in its repository; MIT licence, so its music can be used commercially).
+in its repository; MIT licence, so its music can be used commercially), and
+`cav config endpoint yue2 http://127.0.0.1:8002` for YuE2 (the server in cav's
+`tools/yue2-server`; see "YuE2" below for setup and its licence).
 
 Veo (video) and Lyria (music) use the Gemini key, so `cav config set-key gemini ...` sets
 all three. Give one of them its own key with `cav config set-key veo <source>`.
@@ -51,7 +53,7 @@ key into the chat: ask them to run `cav config set-key` themselves.
 | `video` (moving animatic shots) | none (the animatic holds each frame) | veo |
 | `ref` (reference images) | openverse, wikimedia | pexels, unsplash |
 | `sfx` (sound search) | openverse, indexed folders | freesound |
-| `music` | `cav music render` (a written score); acestep (your server); search with `cav sfx` | elevenlabs, stability, lyria |
+| `music` | `cav music render` (a written score); acestep, yue2 (your servers); search with `cav sfx` | elevenlabs, stability, lyria |
 | `ears` (critique of a track) | none | gemini, qwen-omni (your server) |
 
 ## 2. Licences come first
@@ -149,7 +151,7 @@ reference. Where the reference goes depends on the service:
 |---|---|---|
 | Stable Audio | the audio (audio-to-audio) | a variation that keeps the reference's structure; `--keep` (0-1, default 0.4) sets how much |
 | ACE-Step | the audio, as a style reference | a new track with the reference's sound |
-| Lyria, ElevenLabs | a description of the audio, written by the audio model ("ears" job) | a new track written from words: a similar style, not a variation |
+| Lyria, ElevenLabs, YuE2 | a description of the audio, written by the audio model ("ears" job) | a new track written from words: a similar style, not a variation |
 
 cav says on stderr (and in `refs` with `--json`) which way each reference went. For a real
 variation, pick Stable Audio or ACE-Step with `--service`.
@@ -170,6 +172,7 @@ observations, not guarantees.
 | Lyria | a prompt hint only (3 s too long) | one `[m:ss - m:ss]` line per shot; the drop landed on its cut | described in words | sends MP3 unless asked for WAV; cav asks, and the WAV came as 24-bit 48 kHz |
 | ElevenLabs | not kept (7 s too long with music_v1) | composition plan; section names are the shot ids only | described in words | music needs a paid plan (HTTP 402 on free); an API key can have its own credit cap below the plan's (HTTP 401 "exceeds your API key quota"); moderation refuses a plan or prompt that names a brand, product or artist |
 | ACE-Step | `audio_duration` | sections go into the prompt | sent as audio, as a style reference; `--keep` does nothing | a server you run |
+| YuE2 | no length setting: cav's server cuts the planned score at a phrase (see "YuE2" below) | not used: YuE2 knows only its own section names | described in words | a server you run; the music is non-commercial for a company (see below) |
 
 How `--keep` behaved on one 74 s reference (one take each): 0.2 drifted to its own tempo
 and structure; 0.4 kept the reference's tempo and its groove, breakdown and re-drop
@@ -181,6 +184,60 @@ described once as "F major electropop" and once as "A minor 1980s synthwave". Re
 description cav prints, and if it is off, write the style into the prompt yourself.
 Keep brand and product names out of prompts and the storyboard's music `prompt` fields:
 ElevenLabs refuses them, and they do not help any music model.
+
+### YuE2
+
+YuE2 is an open music model. It has no HTTP server of its own, so cav has one:
+`tools/yue2-server/yue2_server.py` in the cav repository. It loads YuE2 once and keeps it in
+memory. Install YuE2 from https://github.com/multimodal-art-projection/YuE and let it
+download its weights (about 7 GB). Then start the server with that checkout's Python, and
+point cav at it:
+
+```bash
+uv run --project ~/src/YuE --no-sync tools/yue2-server/yue2_server.py --device mps          # Apple silicon
+uv run --project ~/src/YuE --no-sync tools/yue2-server/yue2_server.py --device cuda --budget 12  # 12 GB GPU
+cav config endpoint yue2 http://127.0.0.1:8002
+cav config check
+cav music gen "warm synthwave, gated drums, builds to a drop, 112 BPM" --seconds 60 --service yue2
+```
+
+YuE2 makes songs with vocals. The server makes an instrumental the way the YuE2
+repository's instrumental helper does: YuE2 plans a score, the helper moves the vocal
+notes to an instrument, and YuE2 generates the audio from the changed score. In one take,
+YuE2 planned no vocal notes at all for an instrumental style.
+
+YuE2 has no length setting, and its planner wrote 92 to 240 s whatever cav asked for. The
+audio follows the planned score, though: in 5 uncut takes it was within 3 s of the
+score's length. So the server cuts the score before it generates: it keeps the start up
+to a phrase (every four bars) or a section, then the outro. Asked for 60 s, the two cut
+takes came out at 64.8 s (cut score 57.4 s) and 60.4 s (cut score 61.1 s), so trim or fade
+a take to the storyboard.
+cav prints the length, and says when YuE2 stopped a part at its token limit
+(`truncated`).
+
+Speed, measured on 2026-10-11 with `cav music gen ... --seconds 60` through the server:
+
+| Machine | Server flags | Result |
+|---|---|---|
+| RTX 3080 Ti 12 GB, WSL2 Ubuntu | `--device cuda --budget 12` | 64.8 s of audio in 71 s |
+| M1 Max 64 GB | `--device mps --budget 24` | 60.4 s of audio in 476 s (about 8 minutes) |
+
+On the M1, most of the time goes to generating audio tokens (about 10 per second) and to
+the 32 synthesis steps. An uncut take of 90 s took about 10 minutes there. Earlier runs
+of YuE2's own command line, with the same flags, made 35.7 s of audio in 198 s on the M1
+(peak memory 15.5 GB) and 59.2 s in 47.3 s on the 3080 Ti.
+
+The weights are CC BY-NC 4.0, with a permission for individuals: personal users, creators
+and musicians may use and sell what they make. A company that uses the weights
+commercially needs a licence from the YuE2 authors. cav cannot tell the two apart, so it
+records each take with YuE2's terms as non-commercial. A project set to
+`cav credits licence nc-ok` accepts it. Otherwise `cav music gen` warns, and
+`cav credits check` lists the take with those terms. If you work as an individual
+creator, the take is yours to use; set the project to `nc-ok` or accept the warning.
+
+The server's API is a subset of YuE2-Turbo's, NOIZ's serving layer for YuE2, which needs
+Linux, CUDA and vLLM. Its instrumental mode and length cut are extensions that Turbo does
+not have, so cav works only with its own server for now.
 
 ### Write the music
 
