@@ -433,7 +433,9 @@ func cmdMusic(a *app, args []string) error {
 			}
 		}
 		if len(singers) == 0 {
-			singers = []string{"yue2", "acestep"}
+			// The default order has both, so this order was set on purpose: respect it.
+			return fail(exitError, "the music order ("+strings.Join(c.OrderFor("music"), ", ")+") has no service that sings --lyrics",
+				"add yue2 or acestep to it (cav config order music yue2,elevenlabs,...), or name one with --service")
 		}
 		c.Order = maps.Clone(c.Order)
 		if c.Order == nil {

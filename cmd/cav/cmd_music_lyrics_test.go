@@ -54,3 +54,20 @@ func TestSaveTakeRecordsTheLyrics(t *testing.T) {
 	}
 	t.Fatalf("no record for %s in %+v", path, m.Assets)
 }
+
+// An order set without a singer stays as it is: cav does not add YuE2 or ACE-Step back.
+func TestMusicLyricsRespectsAnOrderWithoutSingers(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("CAV_HOME", home)
+	cfg := `{"order":{"music":["elevenlabs"]},"endpoints":{"yue2":{"baseUrl":"http://127.0.0.1:1"}}}`
+	if err := os.WriteFile(filepath.Join(home, "services.json"), []byte(cfg), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	song := filepath.Join(t.TempDir(), "song.txt")
+	os.WriteFile(song, []byte("[Verse]\nla la"), 0o600)
+	err := cmdMusic(&app{}, []string{"gen", "pop", "--lyrics", song})
+	var ce *cliError
+	if !errors.As(err, &ce) || !strings.Contains(ce.msg, "has no service that sings") {
+		t.Fatalf("got %v", err)
+	}
+}
