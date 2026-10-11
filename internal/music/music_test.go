@@ -285,6 +285,10 @@ func TestYuE2SubmitsPollsAndDownloads(t *testing.T) {
 	var sentSeed json.Number
 	idem := ""
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/health/ready" {
+			w.Write([]byte(`{"status":"ready","server":"cav-yue2-server","extensions":["instrumental"]}`))
+			return
+		}
 		if r.Header.Get("Authorization") != "Bearer secret" {
 			t.Errorf("%s %s without the key", r.Method, r.URL.Path)
 		}
@@ -349,6 +353,10 @@ func TestYuE2SubmitsPollsAndDownloads(t *testing.T) {
 
 func TestYuE2FailedJob(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/health/ready" {
+			w.Write([]byte(`{"status":"ready","extensions":["instrumental"]}`))
+			return
+		}
 		if r.Method == "POST" {
 			w.WriteHeader(202)
 			w.Write([]byte(`{"id":"j2","status":"queued"}`))

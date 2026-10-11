@@ -66,8 +66,8 @@ cav music gen "warm synthwave, confident, builds to a drop" --board storyboard.j
     becomes a section of the same length (ElevenLabs composition plan; Lyria gets one
     timed "[m:ss - m:ss]" line per shot; Stable Audio gets the structure in its prompt),
     so changes in the music fall on the shot cuts. Without
-    --board, --seconds sets the length. YuE2 has no length setting: cav's YuE2 server cuts
-    the planned score at a phrase near that length, and cav says how long the take is.
+    --board, --seconds sets the length. YuE2 has no length setting: cav (with YuE2-Turbo)
+    or cav's YuE2 server cuts the planned score at a phrase near that length, and cav says how long the take is.
 --ref (repeatable) makes variations of a reference track: --takes takes for each one.
     Stable Audio and ACE-Step get the track itself. Stable Audio keeps its structure
     (--keep, 0-1, how much of it to keep; default 0.4); ACE-Step uses it as a style

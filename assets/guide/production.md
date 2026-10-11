@@ -172,7 +172,7 @@ observations, not guarantees.
 | Lyria | a prompt hint only (3 s too long) | one `[m:ss - m:ss]` line per shot; the drop landed on its cut | described in words | sends MP3 unless asked for WAV; cav asks, and the WAV came as 24-bit 48 kHz |
 | ElevenLabs | not kept (7 s too long with music_v1) | composition plan; section names are the shot ids only | described in words | music needs a paid plan (HTTP 402 on free); an API key can have its own credit cap below the plan's (HTTP 401 "exceeds your API key quota"); moderation refuses a plan or prompt that names a brand, product or artist |
 | ACE-Step | `audio_duration` | sections go into the prompt | sent as audio, as a style reference; `--keep` does nothing | a server you run |
-| YuE2 | no length setting: cav's server cuts the planned score at a phrase (see "YuE2" below) | not used: YuE2 knows only its own section names | described in words | a server you run; the music is non-commercial for a company (see below) |
+| YuE2 | no length setting: cav, or its server, cuts the planned score at a phrase (see "YuE2" below) | not used: YuE2 knows only its own section names | described in words | a server you run; the music is non-commercial for a company (see below) |
 
 How `--keep` behaved on one 74 s reference (one take each): 0.2 drifted to its own tempo
 and structure; 0.4 kept the reference's tempo and its groove, breakdown and re-drop
@@ -235,9 +235,54 @@ records each take with YuE2's terms as non-commercial. A project set to
 `cav credits check` lists the take with those terms. If you work as an individual
 creator, the take is yours to use; set the project to `nc-ok` or accept the warning.
 
-The server's API is a subset of YuE2-Turbo's, NOIZ's serving layer for YuE2, which needs
-Linux, CUDA and vLLM. Its instrumental mode and length cut are extensions that Turbo does
-not have, so cav works only with its own server for now.
+#### YuE2-Turbo
+
+cav also works with [YuE2-Turbo](https://github.com/NoizAI/YuE2-Turbo), NOIZ's serving
+layer for YuE2 (Apache 2.0). cav's server speaks a subset of Turbo's job API, so the same
+`yue2` service talks to either one.
+
+Choose Turbo when you have a large NVIDIA GPU on Linux. It needs Linux x86_64, an NVIDIA
+GPU with BF16, CUDA 12.8 and vLLM. NOIZ tested it on an RTX 5090 (32 GB): it uses about
+18 GB at rest, and it writes a 60-second song in about 10 seconds. It can also run several
+jobs at once. Choose cav's server on an Apple silicon Mac, or on a GPU with less memory,
+such as a 12 GB card: Turbo does not run there.
+
+Turbo has no instrumental mode and no length cut, and it refuses the extra fields that
+cav's server takes. cav then does that work itself, with the same steps as its server:
+
+1. A first job plans a song from your prompt. cav downloads its score
+   (`GET /v1/jobs/{id}/score`) and does not use its audio.
+2. cav moves the vocal notes to the instrument voice, and cuts the score to about
+   `--seconds` (the same cut as its server).
+3. A second job generates the audio from that score, sent as `abc`.
+
+So each take costs two jobs on Turbo. At Turbo's speed, the extra job adds about 10 to 40
+seconds. The take sounds the same as on cav's server for the same planned score: cav's Go
+code writes the same score as the server's Python code, byte for byte, in cav's tests.
+
+Turbo needs an API key of 16 characters or more, on every job route. Start it with the key,
+then give cav the same key:
+
+```bash
+# On the Linux machine, in a YuE2-Turbo checkout installed as its README says:
+export YUE2_API_KEY="$(openssl rand -hex 32)"
+YUE2_HOST=0.0.0.0 yue2-serve      # port 8000; put HTTPS in front beyond a trusted network
+# On the machine with cav:
+export YUE2_API_KEY=<the same key>  # or cav config set-key yue2 <source>, such as a keychain item
+cav config endpoint yue2 http://<linux-host>:8000
+cav config check                  # "YuE2-Turbo ready at ...; cav makes each instrumental in two jobs"
+```
+
+`cav config check` tells the two servers apart. cav's server lists `"extensions":
+["instrumental"]` in `/health/ready`, and Turbo lists none. For Turbo, the check also sends
+the key to `/internal/load`, so a wrong key shows up there and not in the middle of a take.
+cav never prints the key.
+
+**No real Turbo server was tested.** None of the machines cav was developed on can run it:
+the M1 Max has no CUDA, and the RTX 3080 Ti has only 12 GB. cav's tests use a fake Turbo
+server, written from Turbo's source (`src/yue2/service.py`, commit 7c88813, read on
+2026-10-11), that refuses unknown fields as Turbo does. If you run Turbo, please report
+how it goes.
 
 ### Write the music
 

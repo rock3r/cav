@@ -1,0 +1,15 @@
+{
+ "planned_seconds": 56.0,
+ "bpm": 120,
+ "vocal_notes_moved": 70,
+ "lyrics": "[Intro]\n\n[Verse]\n\n[Chorus]\n\n[Bridge]\n\n[Outro]\n",
+ "style": "Instrumental, warm synthwave, 112 BPM, no vocals, no singing, no choir, no spoken words.",
+ "fits": {
+  "5": 8.0,
+  "20": 16.0,
+  "30": 32.0,
+  "45": 48.0,
+  "60": 56.0,
+  "90": 56.0
+ }
+}

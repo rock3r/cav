@@ -22,6 +22,16 @@
   take as non-commercial. A project set to `cav credits licence nc-ok` accepts it.
   Otherwise `cav music gen` warns, and `cav credits check` lists the take.
 - A reference track (`--ref`) goes to YuE2 as words, as for Lyria and ElevenLabs.
+- The `yue2` service also works with a YuE2-Turbo server. Turbo is NOIZ's fast server for
+  YuE2. It needs Linux, an NVIDIA GPU with BF16, and vLLM, and it uses about 18 GB of GPU
+  memory at rest. Turbo has no instrumental mode and no length cut, so cav does that work
+  itself. One job plans a score. cav moves the vocal notes to an instrument and cuts the
+  score to about `--seconds`. A second job then makes the audio from that score.
+- cav needs Turbo's API key. Give it with `YUE2_API_KEY` or `cav config set-key yue2`.
+  cav never prints the key.
+- `cav config check` now tells cav's server and Turbo apart, and checks Turbo's key. It no
+  longer says that a Turbo server cannot make instrumentals.
+- No real Turbo server was tested: the tests use a fake one, written from Turbo's code.
 
 ## 1.3.0
 

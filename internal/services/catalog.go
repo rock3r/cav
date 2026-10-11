@@ -308,14 +308,15 @@ var Catalog = map[string]*Def{
 			}
 			return "reachable at " + hostOf(ep.BaseURL), nil
 		}},
-	"yue2": {Title: "YuE2 server you run (open music model; weights CC BY-NC 4.0 with a creator permission; Mac or NVIDIA GPU)", Kind: KindEndpoint,
+	"yue2": {Title: "YuE2 server you run: cav's wrapper (Mac or NVIDIA GPU) or YuE2-Turbo (Linux, NVIDIA GPU, vLLM); open music model, weights CC BY-NC 4.0 with a creator permission", Kind: KindEndpoint,
 		Jobs: []string{"music"}, EnvVars: []string{"YUE2_API_KEY"},
-		Signup: "git clone https://github.com/multimodal-art-projection/YuE && cd YuE && uv venv && uv pip install -e ., then from the cav repository: uv run --project <YuE> --no-sync tools/yue2-server/yue2_server.py",
-		Check: func(ctx context.Context, c *Config, _ string) (string, error) {
+		Signup: "git clone https://github.com/multimodal-art-projection/YuE && cd YuE && uv venv && uv pip install -e ., then from the cav repository: uv run --project <YuE> --no-sync tools/yue2-server/yue2_server.py (or YuE2-Turbo: cav guide production)",
+		Check: func(ctx context.Context, c *Config, key string) (string, error) {
 			ep, ok := c.Endpoints["yue2"]
 			if !ok || ep.BaseURL == "" {
 				return "", &KeyError{Msg: "no server set", Missing: true, Fix: "cav config endpoint yue2 http://127.0.0.1:8002"}
 			}
+			base := strings.TrimRight(ep.BaseURL, "/")
 			// /health/ready answers 503 while the server loads the model.
 			var r struct {
 				Status     string   `json:"status"`
@@ -323,11 +324,14 @@ var Catalog = map[string]*Def{
 				Extensions []string `json:"extensions"`
 				Error      string   `json:"error"`
 			}
-			raw, _, err := DoRaw(ctx, "GET", strings.TrimRight(ep.BaseURL, "/")+"/health/ready", nil, nil)
+			raw, _, err := DoRaw(ctx, "GET", base+"/health/ready", nil, nil)
 			var he *HTTPError
 			if errors.As(err, &he) && he.Status == 503 {
 				json.Unmarshal([]byte(he.Body), &r)
 				if r.Status == "failed" {
+					if r.Error == "" {
+						r.Error = "see the server's log"
+					}
 					return "", fmt.Errorf("the server could not load YuE2: %s", r.Error)
 				}
 				return "", fmt.Errorf("the server at %s is still loading the model; try again in a minute", hostOf(ep.BaseURL))
@@ -336,14 +340,32 @@ var Catalog = map[string]*Def{
 				return "", err
 			}
 			json.Unmarshal(raw, &r)
-			if !slices.Contains(r.Extensions, "instrumental") {
-				return "", fmt.Errorf("the server at %s cannot make instrumentals: cav needs its own wrapper (tools/yue2-server), not YuE2-Turbo", hostOf(ep.BaseURL))
+			if slices.Contains(r.Extensions, "instrumental") {
+				msg := "cav's wrapper ready at " + hostOf(ep.BaseURL)
+				if r.Device != "" {
+					msg += " on " + r.Device
+				}
+				return msg + "; it makes instrumentals itself", nil
 			}
-			msg := "ready at " + hostOf(ep.BaseURL)
-			if r.Device != "" {
-				msg += " on " + r.Device
+			// No extensions: YuE2-Turbo, which needs a key on every job route. cav plans the
+			// instrumental itself and sends the score as "abc", so it can still make one.
+			const turbo = "; cav makes each instrumental in two jobs (plan a score, then generate from it)"
+			if key == "" {
+				return "", &KeyError{Msg: "the server at " + hostOf(ep.BaseURL) + " has no cav extensions, so it is likely YuE2-Turbo, which needs its API key",
+					Fix: "export YUE2_API_KEY (the same key, 16 characters or more, that the server has), or cav config set-key yue2 <source>"}
 			}
-			return msg, nil
+			// /internal/load needs the key and only Turbo has it: one call checks both.
+			err = Do(ctx, "GET", base+"/internal/load", map[string]string{"Authorization": "Bearer " + key}, nil, nil)
+			switch {
+			case errors.As(err, &he) && he.KeyRefused():
+				return "", &KeyError{Msg: fmt.Sprintf("the server at %s refused the key (HTTP %d)", hostOf(ep.BaseURL), he.Status),
+					Fix: "give cav the key the server has in YUE2_API_KEY: cav config set-key yue2 <source>"}
+			case errors.As(err, &he) && he.Status == 404:
+				return "ready at " + hostOf(ep.BaseURL) + " (not YuE2-Turbo or cav's wrapper: it lists no extensions)" + turbo, nil
+			case err != nil:
+				return "", err
+			}
+			return "YuE2-Turbo ready at " + hostOf(ep.BaseURL) + turbo, nil
 		}},
 	"vtracer": {Title: "vtracer (trace PNG to SVG, local)", Kind: KindLocal, Jobs: []string{"image.vector"}, Binary: "vtracer",
 		Signup: "cargo install vtracer, or https://github.com/visioncortex/vtracer/releases"},
@@ -459,6 +481,9 @@ func Probe(ctx context.Context, c *Config, name string) Status {
 			return st
 		}
 		st.State, st.Detail = "fail", redact(err.Error(), key)
+		if ke != nil {
+			st.Fix = ke.Fix
+		}
 		var he *HTTPError
 		switch {
 		case errors.As(err, &he) && he.KeyRefused() && d.Kind == KindKey:
