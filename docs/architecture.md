@@ -367,6 +367,12 @@ never talk to the bridge. They are plain Go around ffmpeg, HTTPS and uv:
   `instrumental` runs YuE2 as it is and sings them. Its `POST /v1/covers` runs the
   helper's SheetSage2 transcription in a separate Python, then generates from the melody.
   Its tests use a fake pipeline and a fake transcriber.
+  YuE2-Turbo has no extensions and refuses unknown fields, so for Turbo cav does the same
+  steps itself: `internal/music/yue2abc.go` is a Go port of the helper's ABC parser,
+  voice move and score compiler, and of the server's length cut. One job plans the score
+  (or, for a cover, transcribes it), cav converts and cuts it, and a second job generates
+  from it as `abc`. Tests compare the port with the Python output in
+  `internal/music/testdata/yue2`, and run the client against a fake Turbo server. cav picks the path by the `extensions` list in `/health/ready`.
 - `internal/score` writes REAPER projects (`.rpp`, plain text) and renders them with
   `reaper -renderproject`.
 - `internal/board` turns a storyboard into a board sheet, an animatic (ffmpeg concat with one

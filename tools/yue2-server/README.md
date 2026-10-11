@@ -53,6 +53,12 @@ The routes and fields are a subset of the API of
 Turbo needs Linux, CUDA and vLLM, so it does not run on an Apple silicon Mac or, probably,
 on a 12 GB GPU. This server runs on both.
 
+cav works with Turbo too. Turbo refuses this server's extensions, so with Turbo cav plans
+the instrumental and cuts the score itself, and sends the result as `abc` (see "YuE2-Turbo"
+in `cav guide production`). cav tells the servers apart by `"extensions"` in
+`/health/ready`. It still uses the extensions here: they save a pass of audio generation,
+which is slow on a Mac.
+
 | Route | What it does |
 |---|---|
 | `GET /health/live` | `{"status": "alive"}` |

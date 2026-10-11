@@ -68,8 +68,8 @@ cav music gen "warm synthwave, confident, builds to a drop" --board storyboard.j
     becomes a section of the same length (ElevenLabs composition plan; Lyria gets one
     timed "[m:ss - m:ss]" line per shot; Stable Audio gets the structure in its prompt),
     so changes in the music fall on the shot cuts. Without
-    --board, --seconds sets the length. YuE2 has no length setting: cav's YuE2 server cuts
-    the planned score at a phrase near that length, and cav says how long the take is.
+    --board, --seconds sets the length. YuE2 has no length setting: cav, or its YuE2 server,
+    cuts the planned score at a phrase near that length, and cav says how long the take is.
 --lyrics song.txt makes a song with vocals instead of an instrumental. Only the servers
     you run can sing: yue2 and acestep. Without --service, cav tries only those two;
     the other services refuse it. Put each section
@@ -77,7 +77,7 @@ cav music gen "warm synthwave, confident, builds to a drop" --board storyboard.j
     line between sections. Describe the voice and the language in the prompt, for
     example "English, warm female voice". ACE-Step keeps
     --seconds and can stop in the middle of a line if the lyrics are too long. YuE2 sings
-    all the lyrics and ignores --seconds: its server cannot cut a song without cutting a
+    all the lyrics and ignores --seconds: cav cannot cut a song without cutting a
     line, so write fewer or shorter sections for a shorter song.
 --ref (repeatable) makes variations of a reference track: --takes takes for each one.
     Stable Audio and ACE-Step get the track itself. Stable Audio keeps its structure

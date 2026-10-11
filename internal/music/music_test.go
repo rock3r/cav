@@ -286,6 +286,10 @@ func TestYuE2SubmitsPollsAndDownloads(t *testing.T) {
 	var sentSeed json.Number
 	idem := ""
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/health/ready" {
+			w.Write([]byte(`{"status":"ready","server":"cav-yue2-server","extensions":["instrumental"]}`))
+			return
+		}
 		if r.Header.Get("Authorization") != "Bearer secret" {
 			t.Errorf("%s %s without the key", r.Method, r.URL.Path)
 		}
@@ -350,6 +354,10 @@ func TestYuE2SubmitsPollsAndDownloads(t *testing.T) {
 
 func TestYuE2FailedJob(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/health/ready" {
+			w.Write([]byte(`{"status":"ready","extensions":["instrumental"]}`))
+			return
+		}
 		if r.Method == "POST" {
 			w.WriteHeader(202)
 			w.Write([]byte(`{"id":"j2","status":"queued"}`))
@@ -398,6 +406,8 @@ func TestYuE2CoverUploadsTheTrack(t *testing.T) {
 	os.WriteFile(ref, []byte("ID3reference"), 0o644)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
+		case r.URL.Path == "/health/ready":
+			w.Write([]byte(`{"status":"ready","extensions":["instrumental","covers"]}`))
 		case r.Method == "POST" && r.URL.Path == "/v1/covers":
 			if r.Header.Get("Idempotency-Key") == "" || r.Header.Get("Authorization") != "Bearer secret" {
 				t.Errorf("headers: %v", r.Header)
@@ -455,10 +465,18 @@ func TestYuE2CoverFallsBackWhenTheServerCannot(t *testing.T) {
 			w.Write([]byte(`{"detail":"covers are off: start the server with a SheetSage2 environment"}`))
 		},
 		"cav 1.3 wrapper": func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/health/ready" {
+				w.Write([]byte(`{"status":"ready","extensions":["instrumental"]}`))
+				return
+			}
 			w.WriteHeader(501)
 			w.Write([]byte(`{"detail":"covers need YuE2-Turbo"}`))
 		},
 		"transcription failed": func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/health/ready" {
+				w.Write([]byte(`{"status":"ready","extensions":["instrumental","covers"]}`))
+				return
+			}
 			if r.Method == "POST" {
 				w.WriteHeader(202)
 				w.Write([]byte(`{"id":"c2","status":"queued"}`))
@@ -492,6 +510,9 @@ func TestYuE2SingsLyrics(t *testing.T) {
 	const words = "[Verse]\nNeon fades along the lane\n\n[Chorus]\nLet the day come into view"
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
+		case r.URL.Path == "/health/ready":
+			// No extensions, as on YuE2-Turbo: a song needs none, so it is still one job.
+			w.Write([]byte(`{"status":"ready"}`))
 		case r.Method == "POST" && r.URL.Path == "/v1/jobs":
 			var body map[string]any
 			json.NewDecoder(r.Body).Decode(&body)

@@ -249,7 +249,7 @@ GDC bundle), and `cav sfx gen "<prompt>"` generates one. With a key, `cav music 
 takes whose sections follow the storyboard's shots; an ACE-Step 1.5 server you run does the
 same without a key. A YuE2 server you run also works without a key, but it uses only the
 storyboard's length and tempo, not its shots. YuE2 runs through a small server in `tools/yue2-server`, on an
-Apple silicon Mac or an NVIDIA GPU; a 60-second take took 71 s on an RTX 3080 Ti and about
+Apple silicon Mac or an NVIDIA GPU, or through YuE2-Turbo on Linux with a large NVIDIA GPU (untested); a 60-second take took 71 s on an RTX 3080 Ti and about
 8 minutes on an M1 Max. Its takes count as non-commercial unless you are an
 individual creator (see `cav guide production`). `--ref <track>` makes variations of a
 track you already have: Stable Audio and ACE-Step get the audio, YuE2 makes an
