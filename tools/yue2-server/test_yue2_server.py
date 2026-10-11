@@ -87,7 +87,8 @@ class ServerTest(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         jobs = srv.Jobs(tmp.name, max_pending=max_pending)
-        worker = srv.Worker(jobs, lambda: (srv.Engine(pipe, helper), {"device": "fake"}), log=open(os.devnull, "w"))
+        worker = srv.Worker(jobs, lambda: (srv.Engine(pipe, helper), {"device": "fake", "model": "fake-model"}),
+                            log=open(os.devnull, "w"))
         worker.start()
         httpd = srv.ThreadingHTTPServer(("127.0.0.1", 0), srv.make_handler(jobs, worker, key))
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
@@ -137,6 +138,7 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(res["truncated"], {"abc": False, "semantic": False})
         self.assertEqual(res["instrumental"]["nominal_seconds"], 32.0)
         self.assertGreaterEqual(res["timing"]["job_seconds"], 0)
+        self.assertEqual(res["model"], "fake-model")
         self.assertEqual(res["instrumental"]["score_origin"], "YuE2")
         self.assertEqual(res["audio_url"], f"/v1/jobs/{job['id']}/audio")
         (kind, plan), (kind2, song) = pipe.calls

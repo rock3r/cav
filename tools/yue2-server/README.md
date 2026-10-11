@@ -63,7 +63,7 @@ on a 12 GB GPU. This server runs on both.
 Job fields, as in Turbo: `style`, `lyrics` (with `[Verse]` and `[Chorus]` markers), `cot`
 (`full`, `melody` or `off`), `seed`, `n` (only 1 here), `abc`, `cfg_scale`. A finished
 job's `result` has `audio_seconds`, `sample_rate`, `truncated` (`abc` and `semantic`),
-`timing` and `configuration`. `POST /v1/covers` answers 501: covers need Turbo.
+`timing`, `configuration` and, as an extension, `model` (the model the server loaded). `POST /v1/covers` answers 501: covers need Turbo.
 
 ### The instrumental extension
 

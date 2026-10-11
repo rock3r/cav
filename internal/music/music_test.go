@@ -317,7 +317,7 @@ func TestYuE2SubmitsPollsAndDownloads(t *testing.T) {
 				w.Write([]byte(`{"id":"j1","status":"running","stage":"planning"}`))
 				return
 			}
-			w.Write([]byte(`{"id":"j1","status":"truncated","stage":"finished","result":{"audio_url":"/v1/jobs/j1/audio",
+			w.Write([]byte(`{"id":"j1","status":"truncated","stage":"finished","result":{"audio_url":"/v1/jobs/j1/audio","model":"/models/YuE2-3B-ft",
 				"audio_seconds":71.5,"sample_rate":48000,"truncated":{"abc":false,"semantic":true},"timing":{"e2e_seconds":95},
 				"instrumental":{"nominal_seconds":64,"planned_seconds":120,"bpm":112}}}`))
 		case r.Method == "GET" && r.URL.Path == "/v1/jobs/j1/audio":
@@ -329,7 +329,7 @@ func TestYuE2SubmitsPollsAndDownloads(t *testing.T) {
 	defer srv.Close()
 	c := &services.Config{Endpoints: map[string]services.Endpoint{"yue2": {BaseURL: srv.URL + "/"}}}
 	tr, err := yue2Generate(t, c, Request{Prompt: "warm synthwave, 112 BPM", Seconds: 60})
-	if err != nil || string(tr.Data) != "fLaCdata" || tr.Ext != ".flac" || tr.Provider != "yue2" || tr.Model != "YuE2-3B" {
+	if err != nil || string(tr.Data) != "fLaCdata" || tr.Ext != ".flac" || tr.Provider != "yue2" || tr.Model != "/models/YuE2-3B-ft" {
 		t.Fatalf("got %+v, %v", tr, err)
 	}
 	if len(tr.Notes) != 2 || !strings.Contains(tr.Notes[0], "71.5 s of audio") || !strings.Contains(tr.Notes[0], "you asked for 60.0 s") ||
@@ -361,6 +361,26 @@ func TestYuE2FailedJob(t *testing.T) {
 	}
 	if SendsAudio("yue2") {
 		t.Fatal("yue2 takes a reference track in words for now")
+	}
+	if _, err := yue2Generate(t, c, Request{Prompt: "x", Model: "other"}); err == nil || !strings.Contains(err.Error(), "server chooses the model") {
+		t.Fatalf("--model: %v", err)
+	}
+}
+
+func TestYuE2StopsWhenTheServerCouldNotLoad(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(503)
+		if r.URL.Path == "/health/ready" {
+			w.Write([]byte(`{"status":"failed","error":"FileNotFoundError: no instrumental helper"}`))
+			return
+		}
+		w.Write([]byte(`{"detail":"The server could not load YuE2"}`))
+	}))
+	defer srv.Close()
+	c := &services.Config{Endpoints: map[string]services.Endpoint{"yue2": {BaseURL: srv.URL}}}
+	_, err := yue2Generate(t, c, Request{Prompt: "x", Seconds: 30})
+	if err == nil || !strings.Contains(err.Error(), "could not load YuE2: FileNotFoundError") {
+		t.Fatalf("err %v", err)
 	}
 }
 

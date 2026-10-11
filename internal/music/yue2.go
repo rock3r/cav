@@ -4,12 +4,12 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
 	"math/big"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 
@@ -38,18 +38,16 @@ func yue2(ctx context.Context, c *services.Config, key string, r Request) (*Trac
 	if key != "" {
 		h["Authorization"] = "Bearer " + key
 	}
-	model := r.Model
-	if model == "" {
-		model = ep.Model
-	}
-	if model == "" {
-		model = "YuE2-3B"
+	// The server loads one model at startup, so the model comes from its answer.
+	if r.Model != "" {
+		return nil, fmt.Errorf("yue2: the server chooses the model when it starts (its --model flag), not cav")
 	}
 	seed, err := rand.Int(rand.Reader, big.NewInt(1<<62))
 	if err != nil {
 		return nil, err
 	}
-	body := map[string]any{"style": Yue2Style(r), "lyrics": yue2Sections, "cot": "full",
+	// The brief goes in as YuE2's style; with --board it already holds the tempo.
+	body := map[string]any{"style": strings.TrimSpace(r.Prompt), "lyrics": yue2Sections, "cot": "full",
 		"seed": seed.Int64(), "n": 1, "instrumental": true}
 	if r.Seconds > 0 {
 		body["seconds"] = math.Max(5, math.Min(600, r.Seconds))
@@ -65,6 +63,22 @@ func yue2(ctx context.Context, c *services.Config, key string, r Request) (*Trac
 	for {
 		err := services.Do(ctx, "POST", base+"/v1/jobs", submitHeaders, body, &job)
 		var he *services.HTTPError
+		if errors.As(err, &he) && he.Status == 503 {
+			// 503 means the model is loading, or failed to load: only the first passes.
+			var ready struct {
+				Status string `json:"status"`
+				Error  string `json:"error"`
+			}
+			raw, _, herr := services.DoRaw(ctx, "GET", base+"/health/ready", nil, nil)
+			var re *services.HTTPError
+			if errors.As(herr, &re) {
+				raw = []byte(re.Body)
+			}
+			json.Unmarshal(raw, &ready)
+			if ready.Status == "failed" {
+				return nil, fmt.Errorf("yue2: the server could not load YuE2: %s", clip(ready.Error, 300))
+			}
+		}
 		if errors.As(err, &he) && (he.Status == 429 || he.Status == 503) {
 			// A full queue (429) or a model still loading (503): both say to come back.
 			if err := sleep(ctx, yue2Retry); err != nil {
@@ -112,6 +126,10 @@ func yue2(ctx context.Context, c *services.Config, key string, r Request) (*Trac
 	if err != nil {
 		return nil, fmt.Errorf("yue2: downloading the audio: %w", err)
 	}
+	model := "YuE2-3B"
+	if job.Result != nil && job.Result.Model != "" {
+		model = job.Result.Model
+	}
 	tr := &Track{Data: data, Ext: ".flac", Provider: "yue2", Model: model}
 	if job.Result != nil {
 		tr.Notes = job.Result.notes(r.Seconds, seed.Int64())
@@ -135,6 +153,7 @@ type yue2Job struct {
 
 type yue2Result struct {
 	AudioURL     string          `json:"audio_url"`
+	Model        string          `json:"model"` // cav's wrapper: the model it loaded
 	AudioSeconds float64         `json:"audio_seconds"`
 	Truncated    map[string]bool `json:"truncated"`
 	Timing       struct {
@@ -184,16 +203,6 @@ func sleep(ctx context.Context, d time.Duration) error {
 	case <-time.After(d):
 		return nil
 	}
-}
-
-// Yue2Style is the request as a YuE2 style line: the brief, and the tempo when there is one.
-// The server adds "Instrumental" and the no-vocals conditions.
-func Yue2Style(r Request) string {
-	s := strings.TrimSpace(r.Prompt)
-	if bpm := bpmIn(r.Prompt); bpm > 0 && !strings.Contains(strings.ToLower(s), strconv.Itoa(bpm)+" bpm") {
-		s += fmt.Sprintf(", %d BPM", bpm)
-	}
-	return s
 }
 
 // yue2Sections are the planner's "lyrics" for an instrumental: section tags only, the

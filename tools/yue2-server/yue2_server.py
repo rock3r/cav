@@ -376,6 +376,7 @@ class Worker:
                 raise InterruptedError("cancelled")
             # e2e_seconds covers only the final pass; job_seconds also covers planning.
             result["timing"] = dict(result["timing"], job_seconds=time.time() - start)
+            result["model"] = self.info.get("model")
             result["audio_url"] = f"/v1/jobs/{job_id}/audio"
             result["score_url"] = f"/v1/jobs/{job_id}/score" if (out / "score.abc").is_file() else None
             status = "truncated" if any(result["truncated"].values()) else "succeeded"
@@ -481,7 +482,9 @@ def make_handler(jobs, worker, api_key):
                 req = validate(json.loads(self.rfile.read(length) or b"null"))
             except (ValueError, Invalid) as exc:
                 return self.detail(422, str(exc))
-            if worker.startup_error or not worker.ready():
+            if worker.startup_error:
+                return self.detail(503, "The server could not load YuE2: " + worker.startup_error)
+            if not worker.ready():
                 return self.detail(503, "Inference worker is not ready", {"Retry-After": "5"})
             key = self.headers.get("Idempotency-Key")
             if key is not None and not 1 <= len(key) <= 128:
