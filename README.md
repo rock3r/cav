@@ -120,7 +120,7 @@ troubleshooting.
 | `cav version [--check]` / `cav update` | Versions, and updates that ask before they install |
 
 The production commands work without API keys (greybox frames, Openverse, Wikimedia,
-written scores, local models through uv, ComfyUI and ACE-Step servers) and use better
+written scores, local models through uv, ComfyUI, ACE-Step and YuE2 servers) and use better
 services when you add keys. `cav guide production` explains
 them.
 

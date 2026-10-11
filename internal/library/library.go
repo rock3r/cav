@@ -47,7 +47,8 @@ type Entry struct {
 	CommercialOK        bool       `json:"commercialOk"`
 	ShareAlike          bool       `json:"shareAlike,omitempty"`
 	NoDerivatives       bool       `json:"noDerivatives,omitempty"`
-	Preview             bool       `json:"preview,omitempty"` // a lower-quality preview, not the original file
+	LicenceNote         string     `json:"licenceNote,omitempty"` // what the licence allows, when its id alone would mislead
+	Preview             bool       `json:"preview,omitempty"`     // a lower-quality preview, not the original file
 	Generated           *Generated `json:"generated,omitempty"`
 	RetrievedAt         time.Time  `json:"retrievedAt"`
 	SHA256              string     `json:"sha256,omitempty"`
@@ -180,7 +181,9 @@ func Check(root string, m *Manifest, p *Project) []Problem {
 		if _, err := os.Stat(path); err != nil {
 			out = append(out, Problem{e.Path, "missing-file", "the manifest lists it, but the file is gone"})
 		}
-		if e.Generated != nil {
+		// Generated assets have no licence of their own to check, unless the model's terms
+		// limit them (YuE2).
+		if e.Generated != nil && e.CommercialOK {
 			continue
 		}
 		if e.Licence == "reference-only" {
@@ -192,6 +195,9 @@ func Check(root string, m *Manifest, p *Project) []Problem {
 		}
 		if !e.CommercialOK && licence != "nc-ok" {
 			msg := e.Licence + " allows non-commercial use only"
+			if e.LicenceNote != "" {
+				msg = e.LicenceNote
+			}
 			if licence == "" {
 				msg += " (the project sets no licence, so cav assumes commercial; `cav credits licence nc-ok` if it is non-commercial)"
 			}

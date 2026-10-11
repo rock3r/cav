@@ -3,6 +3,7 @@ package library
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -49,5 +50,35 @@ func TestCheckFollowsTheProjectLicence(t *testing.T) {
 	}
 	if all := Credits(m, true); len(all) != 4 {
 		t.Fatalf("--all lists every asset once: %q", all)
+	}
+}
+
+func TestYuE2TakesFollowTheProjectLicence(t *testing.T) {
+	root := t.TempDir()
+	for _, f := range []string{"music/y.wav", "music/e.mp3"} {
+		os.MkdirAll(filepath.Join(root, filepath.Dir(f)), 0o755)
+		os.WriteFile(filepath.Join(root, f), []byte("x"), 0o644)
+	}
+	m := &Manifest{}
+	yue := Entry{Path: filepath.Join(root, "music/y.wav"), Generated: &Generated{Provider: "yue2", Model: "YuE2-3B"}}
+	GeneratedTerms("yue2").Apply(&yue)
+	other := Entry{Path: filepath.Join(root, "music/e.mp3"), Generated: &Generated{Provider: "elevenlabs"}}
+	GeneratedTerms("elevenlabs").Apply(&other)
+	m.Put(root, yue)
+	m.Put(root, other)
+	if yue.CommercialOK || yue.Licence != "YuE2-model-licence" || yue.AttributionRequired || other.Licence != "generated" || !other.CommercialOK {
+		t.Fatalf("terms: %+v / %+v", yue, other)
+	}
+	for _, c := range []struct {
+		licence string
+		want    int
+	}{{"commercial", 1}, {"", 1}, {"nc-ok", 0}} {
+		probs := Check(root, m, &Project{Licence: c.licence})
+		if len(probs) != c.want {
+			t.Fatalf("%q: %+v", c.licence, probs)
+		}
+		if c.want == 1 && (probs[0].Path != "music/y.wav" || probs[0].Kind != "nc-in-commercial" || !strings.Contains(probs[0].Detail, "individual creator")) {
+			t.Fatalf("%q: %+v", c.licence, probs[0])
+		}
 	}
 }

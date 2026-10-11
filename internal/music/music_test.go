@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/rock3r/cav/internal/services"
 )
@@ -274,4 +275,100 @@ func TestStableAudioStrengthStaysAboveTheMinimum(t *testing.T) {
 	if _, err := Generate(context.Background(), &services.Config{}, &services.Choice{Service: "stability", Key: "k"}, Request{Prompt: "x", Seconds: 10, Ref: ref, Keep: 1}); err != nil || strength != "0.01" {
 		t.Fatalf("--keep 1 must send strength 0.01, sent %q (%v)", strength, err)
 	}
+}
+
+// The YuE2 fixture follows YuE2-Turbo's job API (src/yue2/service.py, read on 2026-10-11),
+// which cav's tools/yue2-server copies, plus that wrapper's "instrumental" extension.
+func TestYuE2SubmitsPollsAndDownloads(t *testing.T) {
+	polls, submits := 0, 0
+	idem := ""
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer secret" {
+			t.Errorf("%s %s without the key", r.Method, r.URL.Path)
+		}
+		switch {
+		case r.Method == "POST" && r.URL.Path == "/v1/jobs":
+			submits++
+			if k := r.Header.Get("Idempotency-Key"); k == "" || (idem != "" && k != idem) {
+				t.Errorf("Idempotency-Key %q, then %q", idem, k)
+			} else {
+				idem = k
+			}
+			if submits == 1 {
+				w.Header().Set("Retry-After", "0")
+				w.WriteHeader(429)
+				w.Write([]byte(`{"detail":"Queue is full"}`))
+				return
+			}
+			var body map[string]any
+			json.NewDecoder(r.Body).Decode(&body)
+			if body["instrumental"] != true || body["cot"] != "full" || body["n"] != float64(1) ||
+				body["style"] != "warm synthwave, 112 BPM" || body["lyrics"] != "[Intro]\n\n[Verse]\n\n[Chorus]\n\n[Outro]\n" || body["seconds"] != float64(60) {
+				t.Errorf("job body: %#v", body)
+			}
+			if _, ok := body["seed"].(float64); !ok {
+				t.Errorf("seed: %v", body["seed"])
+			}
+			w.WriteHeader(202)
+			w.Write([]byte(`{"id":"j1","status":"queued","stage":"queued"}`))
+		case r.Method == "GET" && r.URL.Path == "/v1/jobs/j1":
+			polls++
+			if polls < 2 {
+				w.Write([]byte(`{"id":"j1","status":"running","stage":"planning"}`))
+				return
+			}
+			w.Write([]byte(`{"id":"j1","status":"truncated","stage":"finished","result":{"audio_url":"/v1/jobs/j1/audio",
+				"audio_seconds":71.5,"sample_rate":48000,"truncated":{"abc":false,"semantic":true},"timing":{"e2e_seconds":95},
+				"instrumental":{"nominal_seconds":64,"planned_seconds":120,"bpm":112}}}`))
+		case r.Method == "GET" && r.URL.Path == "/v1/jobs/j1/audio":
+			w.Write([]byte("fLaCdata"))
+		default:
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+	c := &services.Config{Endpoints: map[string]services.Endpoint{"yue2": {BaseURL: srv.URL + "/"}}}
+	tr, err := yue2Generate(t, c, Request{Prompt: "warm synthwave, 112 BPM", Seconds: 60})
+	if err != nil || string(tr.Data) != "fLaCdata" || tr.Ext != ".flac" || tr.Provider != "yue2" || tr.Model != "YuE2-3B" {
+		t.Fatalf("got %+v, %v", tr, err)
+	}
+	if len(tr.Notes) != 2 || !strings.Contains(tr.Notes[0], "71.5 s of audio") || !strings.Contains(tr.Notes[0], "you asked for 60.0 s") ||
+		!strings.Contains(tr.Notes[0], "planned 120.0 s at 112 BPM; the server cut the score to 64.0 s") || !strings.Contains(tr.Notes[1], "audio tokens") {
+		t.Fatalf("notes: %q", tr.Notes)
+	}
+	if submits != 2 {
+		t.Fatalf("a full queue is retried: %d submits", submits)
+	}
+}
+
+func TestYuE2FailedJob(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "POST" {
+			w.WriteHeader(202)
+			w.Write([]byte(`{"id":"j2","status":"queued"}`))
+			return
+		}
+		if r.Header.Get("Authorization") != "Bearer secret" {
+			t.Errorf("no key")
+		}
+		w.Write([]byte(`{"id":"j2","status":"failed","error":{"code":"invalid_generation","message":"Invalid: YuE2 planned an empty or truncated score; try another seed"}}`))
+	}))
+	defer srv.Close()
+	c := &services.Config{Endpoints: map[string]services.Endpoint{"yue2": {BaseURL: srv.URL}}}
+	_, err := yue2Generate(t, c, Request{Prompt: "x", Seconds: 30})
+	if err == nil || !strings.Contains(err.Error(), "planned an empty or truncated score") {
+		t.Fatalf("err %v", err)
+	}
+	if SendsAudio("yue2") {
+		t.Fatal("yue2 takes a reference track in words for now")
+	}
+}
+
+// yue2Generate runs the yue2 service with the key "secret" and a short poll for the test.
+func yue2Generate(t *testing.T, c *services.Config, r Request) (*Track, error) {
+	t.Helper()
+	oldPoll, oldRetry := yue2Poll, yue2Retry
+	yue2Poll, yue2Retry = time.Millisecond, time.Millisecond
+	t.Cleanup(func() { yue2Poll, yue2Retry = oldPoll, oldRetry })
+	return Generate(context.Background(), c, &services.Choice{Service: "yue2", Key: "secret"}, r)
 }

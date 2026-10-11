@@ -2,10 +2,12 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 )
@@ -305,6 +307,43 @@ var Catalog = map[string]*Def{
 				return "", err
 			}
 			return "reachable at " + hostOf(ep.BaseURL), nil
+		}},
+	"yue2": {Title: "YuE2 server you run (open music model; weights CC BY-NC 4.0 with a creator permission; Mac or NVIDIA GPU)", Kind: KindEndpoint,
+		Jobs: []string{"music"}, EnvVars: []string{"YUE2_API_KEY"},
+		Signup: "git clone https://github.com/multimodal-art-projection/YuE && cd YuE && uv venv && uv pip install -e ., then from the cav repository: uv run --project <YuE> --no-sync tools/yue2-server/yue2_server.py",
+		Check: func(ctx context.Context, c *Config, _ string) (string, error) {
+			ep, ok := c.Endpoints["yue2"]
+			if !ok || ep.BaseURL == "" {
+				return "", &KeyError{Msg: "no server set", Missing: true, Fix: "cav config endpoint yue2 http://127.0.0.1:8002"}
+			}
+			// /health/ready answers 503 while the server loads the model.
+			var r struct {
+				Status     string   `json:"status"`
+				Device     string   `json:"device"`
+				Extensions []string `json:"extensions"`
+				Error      string   `json:"error"`
+			}
+			raw, _, err := DoRaw(ctx, "GET", strings.TrimRight(ep.BaseURL, "/")+"/health/ready", nil, nil)
+			var he *HTTPError
+			if errors.As(err, &he) && he.Status == 503 {
+				json.Unmarshal([]byte(he.Body), &r)
+				if r.Status == "failed" {
+					return "", fmt.Errorf("the server could not load YuE2: %s", r.Error)
+				}
+				return "", fmt.Errorf("the server at %s is still loading the model; try again in a minute", hostOf(ep.BaseURL))
+			}
+			if err != nil {
+				return "", err
+			}
+			json.Unmarshal(raw, &r)
+			if !slices.Contains(r.Extensions, "instrumental") {
+				return "", fmt.Errorf("the server at %s cannot make instrumentals: cav needs its own wrapper (tools/yue2-server), not YuE2-Turbo", hostOf(ep.BaseURL))
+			}
+			msg := "ready at " + hostOf(ep.BaseURL)
+			if r.Device != "" {
+				msg += " on " + r.Device
+			}
+			return msg, nil
 		}},
 	"vtracer": {Title: "vtracer (trace PNG to SVG, local)", Kind: KindLocal, Jobs: []string{"image.vector"}, Binary: "vtracer",
 		Signup: "cargo install vtracer, or https://github.com/visioncortex/vtracer/releases"},
