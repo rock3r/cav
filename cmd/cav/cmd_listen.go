@@ -425,16 +425,18 @@ func cmdMusic(a *app, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 	if lyrics != "" && *service == "" {
-		// Only some services sing: try those, in the configured order.
+		// Only some services sing, and each takes lyrics up to its own length: try those
+		// that can take these, in the configured order.
+		n := utf8.RuneCountInString(lyrics)
 		var singers []string
 		for _, s := range c.OrderFor("music") {
-			if music.SingsLyrics(s) {
+			if music.SingsLyrics(s) && n <= music.MaxLyrics(s) {
 				singers = append(singers, s)
 			}
 		}
 		if len(singers) == 0 {
 			// The default order has both, so this order was set on purpose: respect it.
-			return fail(exitError, "the music order ("+strings.Join(c.OrderFor("music"), ", ")+") has no service that sings --lyrics",
+			return fail(exitError, "the music order ("+strings.Join(c.OrderFor("music"), ", ")+") has no service that sings lyrics this long",
 				"add yue2 or acestep to it (cav config order music yue2,elevenlabs,...), or name one with --service")
 		}
 		c.Order = maps.Clone(c.Order)

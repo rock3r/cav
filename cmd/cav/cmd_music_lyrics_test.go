@@ -71,3 +71,20 @@ func TestMusicLyricsRespectsAnOrderWithoutSingers(t *testing.T) {
 		t.Fatalf("got %v", err)
 	}
 }
+
+// Lyrics longer than ACE-Step's 4096 characters skip it when cav picks a service.
+func TestMusicLyricsSkipsASingerWithTooSmallALimit(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("CAV_HOME", home)
+	cfg := `{"order":{"music":["acestep"]},"endpoints":{"acestep":{"baseURL":"http://127.0.0.1:1"}}}`
+	if err := os.WriteFile(filepath.Join(home, "services.json"), []byte(cfg), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	song := filepath.Join(t.TempDir(), "song.txt")
+	os.WriteFile(song, []byte("[Verse]\n"+strings.Repeat("la ", 1500)), 0o600)
+	err := cmdMusic(&app{}, []string{"gen", "pop", "--lyrics", song})
+	var ce *cliError
+	if !errors.As(err, &ce) || !strings.Contains(ce.msg, "lyrics this long") {
+		t.Fatalf("got %v", err)
+	}
+}
