@@ -35,6 +35,10 @@ working, and `cav doctor` suggests a restart.
    gh release create v1.1.0 dist/* --title v1.1.0 --notes-file <that CHANGELOG section>
    ```
 
+6. Upload the plugin to the OpenAI plugin marketplace. `tools/package-codex-plugin.sh v1.1.0`
+   zips the plugin folder at that tag into `build/cav-codex-plugin-1.1.0.zip`. It fails when
+   the tag and the plugin version differ.
+
 `cav update` and the install scripts download from the latest GitHub release and check each
 archive against `checksums.txt`. The plugin updates through the marketplace, which reads the
 `version` in `plugins/cavalry/.claude-plugin/plugin.json`: bump it on every release, or users
