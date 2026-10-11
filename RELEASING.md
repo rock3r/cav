@@ -35,9 +35,11 @@ working, and `cav doctor` suggests a restart.
    gh release create v1.1.0 dist/* --title v1.1.0 --notes-file <that CHANGELOG section>
    ```
 
-6. Upload the plugin to the OpenAI plugin marketplace. `tools/package-codex-plugin.sh v1.1.0`
-   zips the plugin folder at that tag into `build/cav-codex-plugin-1.1.0.zip`. It fails when
-   the tag and the plugin version differ.
+6. Upload the plugin to the OpenAI plugin marketplace. When the release is published, the
+   `codex-plugin-zip.yml` workflow attaches `cav-codex-plugin-1.1.0.zip` to it, so you can
+   download the zip from the release page. To build it locally,
+   `tools/package-codex-plugin.sh v1.1.0` zips the plugin folder at that tag into
+   `build/cav-codex-plugin-1.1.0.zip`. Both fail when the tag and the plugin version differ.
 
 `cav update` and the install scripts download from the latest GitHub release and check each
 archive against `checksums.txt`. The plugin updates through the marketplace, which reads the
