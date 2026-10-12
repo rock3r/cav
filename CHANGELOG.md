@@ -14,9 +14,17 @@
   agent running.
 - The plugin's root `hooks.json` installs this hook in Antigravity. Only the Antigravity CLI
   runs plugin hooks. The Antigravity app and IDE do not.
+- `agy plugin install` installs the plugin for the CLI only. The user guide shows how to copy
+  it for the Antigravity app and IDE, and how to remove that copy.
+- The review hook now finds the render next to its review file. Before, when `cav review`
+  ran in a subfolder with a relative path, the hook could tell the agent a wrong path. Paths
+  with spaces are quoted in the command the hook suggests.
 - We have not checked whether Antigravity draws MCP Apps. If it does not, `show_review`
   still gives the agent the open notes as text, and `cav review` shows the page in a
   browser.
+- `cav scene save` reads its flags before or after the path, and it takes `--timeout`
+  (5 minutes by default). Before, `cav scene save --timeout 120s scene.cv` saved the scene
+  as `./--timeout.cv`. An unknown flag is now an error.
 
 ## 1.4.0
 
