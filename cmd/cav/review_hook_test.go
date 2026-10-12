@@ -58,7 +58,7 @@ func TestReviewHookTellsTheAgentOnce(t *testing.T) {
 	m := runHook(t, "UserPromptSubmit", dir, false)
 	hso, _ := m["hookSpecificOutput"].(map[string]any)
 	ctx, _ := hso["additionalContext"].(string)
-	if hso["hookEventName"] != "UserPromptSubmit" || !strings.Contains(ctx, "cav review wait renders/final.mp4") || !strings.Contains(m["systemMessage"].(string), "2 note") {
+	if hso["hookEventName"] != "UserPromptSubmit" || !strings.Contains(ctx, "cav review wait "+shellArg("renders/final.mp4")) || !strings.Contains(m["systemMessage"].(string), "2 note") {
 		t.Fatalf("prompt hook output: %v", m)
 	}
 	if m := runHook(t, "UserPromptSubmit", dir, false); m != nil {
@@ -113,7 +113,7 @@ func TestAntigravityHookTellsTheAgentOnce(t *testing.T) {
 	}
 	msg, _ := steps[0].(map[string]any)["ephemeralMessage"].(string)
 	// With several workspace folders, the render is named in full.
-	if !strings.Contains(msg, "cav review wait "+filepath.Join(dir, "renders", "final.mp4")) || !strings.Contains(msg, "send #1") {
+	if !strings.Contains(msg, "cav review wait "+shellArg(filepath.Join(dir, "renders", "final.mp4"))) || !strings.Contains(msg, "send #1") {
 		t.Fatalf("ephemeralMessage: %q", msg)
 	}
 	// PreInvocation runs before every model call: the same send must not come back.
@@ -147,16 +147,20 @@ func TestAntigravityHookNeedsAKnownEvent(t *testing.T) {
 	}
 }
 
-func TestShellArgQuotesPathsThatNeedIt(t *testing.T) {
-	if got := shellArg("/work/renders/final.mp4"); got != "/work/renders/final.mp4" {
-		t.Fatalf("plain path: %q", got)
+func TestShellArgQuotesEveryPath(t *testing.T) {
+	cases := map[string][2]string{
+		"/work/renders/final.mp4": {`'/work/renders/final.mp4'`, `'/work/renders/final.mp4'`},
+		"/My Work/it's/final.mp4": {`'/My Work/it'\''s/final.mp4'`, `'/My Work/it''s/final.mp4'`},
+		"/a\\b\nrm -rf x.mp4":     {`'/a\b?rm -rf x.mp4'`, `'/a\b?rm -rf x.mp4'`},
 	}
-	want := `'/My Work/it'\''s/final.mp4'`
-	if runtime.GOOS == "windows" {
-		want = `'/My Work/it''s/final.mp4'`
-	}
-	if got := shellArg("/My Work/it's/final.mp4"); got != want {
-		t.Fatalf("path with a space: %q, want %q", got, want)
+	for in, want := range cases {
+		w := want[0]
+		if runtime.GOOS == "windows" {
+			w = want[1]
+		}
+		if got := shellArg(in); got != w {
+			t.Errorf("shellArg(%q) = %q, want %q", in, got, w)
+		}
 	}
 }
 

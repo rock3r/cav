@@ -264,13 +264,17 @@ func loadHookState() map[string]time.Time {
 	return st
 }
 
-// shellArg quotes a path for the command the agent runs, when the path needs it.
+// shellArg quotes a path for the command the agent runs: single quotes in POSIX shells
+// and in PowerShell, which expands neither $ nor ` inside them. Control characters, such
+// as a line break, could start another command, so they become "?".
 func shellArg(s string) string {
-	if !strings.ContainsAny(s, " \t'\"$`&|;<>()*?[]{}!#~") {
-		return s
-	}
+	s = strings.Map(func(r rune) rune {
+		if r < 0x20 || r == 0x7f {
+			return '?'
+		}
+		return r
+	}, s)
 	if runtime.GOOS == "windows" {
-		// PowerShell does not expand $ or ` inside single quotes; '' is a literal quote.
 		return "'" + strings.ReplaceAll(s, "'", "''") + "'"
 	}
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"

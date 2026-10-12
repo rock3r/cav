@@ -133,8 +133,9 @@ func TestAntigravityHooks(t *testing.T) {
 			for _, h := range list {
 				hm, _ := h.(map[string]any)
 				cmd, _ := hm["command"].(string)
-				if !strings.HasPrefix(cmd, "cav review hook --host antigravity --event "+ev+" ") {
-					t.Errorf("hook %q: %s command %q must pass --host antigravity --event %s", name, ev, cmd, ev)
+				// No "|| true": Windows PowerShell 5.1 cannot parse it, and the hook always exits 0.
+				if cmd != "cav review hook --host antigravity --event "+ev {
+					t.Errorf("hook %q: %s command %q must be exactly cav review hook --host antigravity --event %s", name, ev, cmd, ev)
 				}
 			}
 		}
