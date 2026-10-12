@@ -14,7 +14,7 @@ func fakeReleases(t *testing.T, tag string, status int) *int {
 	hits := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		hits++
-		if r.URL.Path != "/repos/rock3r/cav/releases/latest" {
+		if r.URL.Path != "/repos/"+repo()+"/releases/latest" {
 			t.Errorf("path %s", r.URL.Path)
 		}
 		w.WriteHeader(status)
@@ -82,5 +82,16 @@ func TestDoctorUpdateCheckCanBeTurnedOff(t *testing.T) {
 	t.Setenv("CAV_NO_UPDATE_CHECK", "1")
 	if c := updateCheck(time.Now()); !c.OK || *hits != 0 || !strings.Contains(c.Detail, "CAV_NO_UPDATE_CHECK") {
 		t.Fatalf("turned off: %+v after %d requests", c, *hits)
+	}
+}
+
+func TestDoctorUpdateCacheBelongsToOneRepository(t *testing.T) {
+	hits := fakeReleases(t, "v1.5.0", 200)
+	now := time.Now()
+	updateCheck(now)
+	t.Setenv("CAV_REPO", "someone/fork")
+	updateCheck(now.Add(time.Minute))
+	if *hits != 2 {
+		t.Fatalf("another CAV_REPO reused the cache: %d requests", *hits)
 	}
 }

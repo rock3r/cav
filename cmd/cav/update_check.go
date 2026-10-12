@@ -21,6 +21,7 @@ const (
 
 type updateCache struct {
 	CheckedAt time.Time `json:"checkedAt"`
+	Repo      string    `json:"repo"`
 	Latest    string    `json:"latest,omitempty"`
 	URL       string    `json:"url,omitempty"`
 	Error     string    `json:"error,omitempty"`
@@ -40,8 +41,9 @@ func updateCheck(now time.Time) check {
 	}
 	fresh := cache.Error == "" && now.Sub(cache.CheckedAt) < updateCheckEvery ||
 		cache.Error != "" && now.Sub(cache.CheckedAt) < updateCheckRetryAfter
-	if !fresh || cache.CheckedAt.After(now) {
-		cache = updateCache{CheckedAt: now}
+	// A cache for another CAV_REPO, or from the future, does not count.
+	if !fresh || cache.Repo != repo() || cache.CheckedAt.After(now) {
+		cache = updateCache{CheckedAt: now, Repo: repo()}
 		if r, err := fetchReleaseWithin("", updateCheckTimeout); err != nil {
 			cache.Error = err.Error()
 		} else {
