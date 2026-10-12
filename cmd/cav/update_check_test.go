@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -93,5 +94,22 @@ func TestDoctorUpdateCacheBelongsToOneRepository(t *testing.T) {
 	updateCheck(now.Add(time.Minute))
 	if *hits != 2 {
 		t.Fatalf("another CAV_REPO reused the cache: %d requests", *hits)
+	}
+}
+
+func TestDoctorIgnoresABrokenUpdateCache(t *testing.T) {
+	hits := fakeReleases(t, "v1.5.0", 200)
+	now := time.Now()
+	for _, broken := range []string{
+		`{"checkedAt":"` + now.Format(time.RFC3339Nano) + `","repo":"rock3r/cav","latest":`,
+		`{"checkedAt":"` + now.Format(time.RFC3339Nano) + `","repo":"rock3r/cav"}`,
+	} {
+		if err := os.WriteFile(updateCachePath(), []byte(broken), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		updateCheck(now.Add(time.Minute))
+	}
+	if *hits != 2 {
+		t.Fatalf("a broken cache was trusted: %d requests, want 2", *hits)
 	}
 }

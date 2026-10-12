@@ -36,8 +36,11 @@ func updateCheck(now time.Time) check {
 		return c
 	}
 	var cache updateCache
+	// A cache that does not decode, or that has neither an answer nor an error, does not count.
 	if b, err := os.ReadFile(updateCachePath()); err == nil {
-		_ = json.Unmarshal(b, &cache)
+		if json.Unmarshal(b, &cache) != nil || cache.Latest == "" && cache.Error == "" {
+			cache = updateCache{}
+		}
 	}
 	fresh := cache.Error == "" && now.Sub(cache.CheckedAt) < updateCheckEvery ||
 		cache.Error != "" && now.Sub(cache.CheckedAt) < updateCheckRetryAfter
