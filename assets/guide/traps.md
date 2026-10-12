@@ -56,6 +56,7 @@ these observations have not all been independently reproduced.
 | Trap | Symptom | Fix |
 |---|---|---|
 | Redeclaring a SkSL input uniform added in the Inputs UI. | The effect can silently fail to compile. | Use the input's name directly; Cavalry declares it. Keep required built-ins such as `uniform shader layer;` in filter code. |
+| SkSL coordinates on a pre-comp reference. | A rim or SDF drawn around `fragCoord` stays at the comp centre and cuts across a card that is off centre. | `fragCoord` is centred on the filtered layer and y-up, and `resolution` is that layer's size. A pre-comp reference is as large as its comp, so its centre is the comp centre. Pass the card's centre and size as inputs, or derive edges from `layer.eval(...)` alpha. On a plain shape the coordinates follow the shape (checked in 2.8.0). |
 | A filter attached to a group. | In the observed scene it filtered each child instead of the composite. | For an effect over the flattened image, filter a pre-comp reference; verify the result on overlapping children. |
 | Hard-coded variable-font `fontAxes.N` indices. | A different axis animates without an error. | Inspect the selected font's axis order (its `fvar` table); indices are not portable between fonts. |
 | JavaScript output driving a Duplicator's `shapeRotation`. | Returning a scalar produces no rotation. | Return `{x: 0, y: 0, z: angle}` for the full attribute, or connect a scalar to `.z`. |
@@ -68,8 +69,15 @@ these observations have not all been independently reproduced.
 
 - Code runs inside a function: use `return` to send a value back. Values must be JSON-safe.
 - `var` variables do not survive between runs. `globalThis.x = ...` survives until the bridge restarts.
-- Scripts slow down as a scene grows (believed, not measured). Build in a few larger scripts,
-  and use native duplicators instead of hundreds of layers.
+- Scripts slow down as a scene grows. Build in a few larger scripts, and use native
+  duplicators instead of hundreds of layers.
+- Connect masks and filters last: fill the group and key its children first, then call
+  `cav.mask`, `cav.filter` or `cav.sksl`. One user reported a masked build that went from
+  over 180 s to 14 s after this change. In our own checks with up to 480 layers, the order
+  made no difference, so the cause is not known. The order costs nothing, so use it.
+- Deleting many layers from the active comp is quadratic in Cavalry 2.8: 1,500 layers took
+  65 s one by one. `cav.clear()` deletes them while an empty comp is active, which took 4 s.
+  To start a big build again from nothing, `cav scene new --force` is faster still.
 - A timeout does not prove a native job stopped. Inspect/resume the printed operation ID
   with `cav operation status/resume <id>`; never retry the original command. Raw
   `cav job wait <job-id>` waits only for that job and cannot continue render phases.

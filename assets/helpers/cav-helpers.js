@@ -42,11 +42,25 @@
 		}
 	}
 
+	// Deleting layers from the active comp makes Cavalry 2.8 walk the remaining graph after
+	// every delete, which is quadratic: 1,500 layers took 65 s. With an empty temporary comp
+	// active, the same deletes took 4 s. The original comp keeps its id and settings.
 	cav.clear = function () {
 		api.select([])
+		var comp = api.getActiveComp(),
+			frame = api.getFrame()
 		var ids = api.getCompLayers(true)
-		for (var i = 0; i < ids.length; i++) {
-			if (api.layerExists(ids[i])) api.deleteLayer(ids[i])
+		if (!ids.length) return 0
+		var tmp = api.createComp('cav.clear')
+		try {
+			api.setActiveComp(tmp)
+			for (var i = 0; i < ids.length; i++) {
+				if (api.layerExists(ids[i])) api.deleteLayer(ids[i])
+			}
+		} finally {
+			api.setActiveComp(comp)
+			api.setFrame(frame)
+			api.deleteLayer(tmp)
 		}
 		return ids.length
 	}
@@ -171,7 +185,8 @@
 	//@ cav.key(layer, attr, [[frame, value, ease?], ...])
 	//@     attr: any attribute path. Shortcuts: 'position' and 'scale' take [x, y]
 	//@     ('scale' also takes one number); colour attributes ('fill', 'material.materialColor',
-	//@     'stroke.strokeColor') take '#rrggbb' and are keyed per channel for you.
+	//@     'stroke.strokeColor') take '#rrggbb' and are keyed per channel for you;
+	//@     undefined keys the current colour.
 	//@     'fill' = 'material.materialColor', 'strokeColor' = 'stroke.strokeColor'.
 	//@     Scale is a multiplier: 1 = 100 %. Opacity is 0..100. Rotation is in degrees
 	//@     ('rotation' means rotation.z; 'rotation.y' spins 2.5D layers).
@@ -219,13 +234,40 @@
 			checkEase(k[2])
 			if (typeof k[0] !== 'number' || isNaN(k[0])) fail('cav.key: frame must be a number, got ' + JSON.stringify(k[0]))
 		})
-		if (isColorAttr(attr) && typeof keys[0][1] === 'string') {
-			;['r', 'g', 'b'].forEach(function (ch, ci) {
+		// Cavalry ignores a hex string keyed on a whole colour attribute, so colours are always
+		// keyed per channel. An undefined value keys the colour the layer has now.
+		if (isColorAttr(attr)) {
+			var rgbs = keys.map(function (k) {
+				if (k[1] === undefined) return null
+				if (
+					k[1] &&
+					typeof k[1] === 'object' &&
+					[k[1].r, k[1].g, k[1].b].every(function (n) {
+						return typeof n === 'number' && isFinite(n)
+					})
+				) {
+					if (k[1].a !== undefined && !(typeof k[1].a === 'number' && isFinite(k[1].a))) fail('cav.key: ' + attr + ' alpha must be a number, got ' + JSON.stringify(k[1].a))
+					return [k[1].r, k[1].g, k[1].b, k[1].a]
+				}
+				if (typeof k[1] !== 'string') fail('cav.key: ' + attr + ' takes "#rrggbb" or {r, g, b, a?} values (undefined keys the current colour), got ' + JSON.stringify(k[1]))
+				return cav.rgb(k[1])
+			})
+			// Alpha is keyed only when a value gives it; the other keys hold the current alpha.
+			var channels = ['r', 'g', 'b']
+			if (
+				rgbs.some(function (c) {
+					return c && c[3] !== undefined
+				})
+			)
+				channels.push('a')
+			channels.forEach(function (ch, ci) {
+				var now = api.get(layer, attr + '.' + ch)
 				cav.key(
 					layer,
 					attr + '.' + ch,
-					keys.map(function (k) {
-						return [k[0], cav.rgb(k[1])[ci], k[2]]
+					keys.map(function (k, i) {
+						var v = rgbs[i] && rgbs[i][ci]
+						return [k[0], v === undefined || v === null ? now : v, k[2]]
 					}),
 				)
 			})
@@ -523,7 +565,9 @@
 	//@ ## Effects and structure
 	//@ cav.filter(layer, type, attrs)   type e.g. 'blurFilter', 'glowFilter', 'dropShadowFilter'
 	//@ cav.blur(layer, amount)          fast blur filter; returns the filter id (animate 'amount')
-	//@ cav.mask(maskShape, target)      the shape masks the target (shape is hidden automatically)
+	//@ cav.mask(maskShape, target)      the shape masks the target (shape is hidden automatically).
+	//@     Call it after the target's children and keys exist; one large build was much
+	//@     faster that way (see `cav guide traps`).
 	//@ cav.order(layer, below)          put layer directly below another layer in the stack
 	//@ cav.connect(from, fromAttr, to, toAttr)   api.connect with a clear error
 	cav.filter = function (layer, type, attrs) {
@@ -1114,7 +1158,9 @@
 	//@ ## Production guardrails
 	//@ cav.below(a, b) / cav.above(a, b)     explicit stacking relative to a sibling
 	//@ cav.precomp(name, build, options)    build in a new comp; restore comp/frame on error too
-	//@ cav.sksl(layer, code, {inputs})      attach a SkSL filter; inputs map names to numbers or {type,value}
+	//@ cav.sksl(layer, code, {inputs})      attach a SkSL filter; inputs map names to numbers or {type,value}.
+	//@     fragCoord is centred on the layer and y-up; resolution is the layer's size. On a
+	//@     pre-comp reference that is the whole comp (see `cav guide traps`).
 	//@ cav.axes(text, {wght:900, ROND:50})   use the selected font's actual fvar axis tags/ranges
 	//@ cav.driver(layer, attr, expression, {start,end,from=0,to=1})   JavaScript with a two-key n0 clock
 	//@ cav.copyDriver(layer, attr, expression)   typed per-copy JavaScript; destination-aware rotation and hex colours
