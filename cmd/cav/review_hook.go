@@ -192,14 +192,14 @@ func hookMessage(fresh []pendingSend) (text, msg string) {
 	total := 0
 	for _, p := range fresh {
 		total += p.notes
-		lines = append(lines, fmt.Sprintf("- %d note(s) on %s (send #%d): run `cav review wait %s --timeout 10s` to read them", p.notes, p.video, p.n, shellArg(p.video)))
+		lines = append(lines, fmt.Sprintf("- %d note(s) on %s (send #%d): run `cav review wait %s --timeout 10s` to read them", p.notes, plainPath(p.video), p.n, shellArg(p.video)))
 	}
 	text = "The reviewer pressed \"Send to agent\" in cav review:\n" + strings.Join(lines, "\n") +
 		"\n`cav review wait` prints each note (frame, text, drawing, snapshot path) and marks the send received; look at each snapshot." +
 		" Fix the notes, re-render to the same file, then resolve each one with `cav review resolve <id> --note \"what changed\"`."
 	msg = fmt.Sprintf("cav review: the reviewer sent %d note(s)", total)
 	if len(fresh) == 1 {
-		msg += " on " + filepath.Base(fresh[0].video)
+		msg += " on " + plainPath(filepath.Base(fresh[0].video))
 	}
 	return text, msg
 }
@@ -264,16 +264,22 @@ func loadHookState() map[string]time.Time {
 	return st
 }
 
-// shellArg quotes a path for the command the agent runs: single quotes in POSIX shells
-// and in PowerShell, which expands neither $ nor ` inside them. Control characters, such
-// as a line break, could start another command, so they become "?".
-func shellArg(s string) string {
-	s = strings.Map(func(r rune) rune {
+// plainPath replaces control characters, such as a line break, with "?". A review file
+// could carry them, and they would start a new line in the agent's message.
+func plainPath(s string) string {
+	return strings.Map(func(r rune) rune {
 		if r < 0x20 || r == 0x7f {
 			return '?'
 		}
 		return r
 	}, s)
+}
+
+// shellArg quotes a path for the command the agent runs: single quotes in POSIX shells
+// and in PowerShell, which expands neither $ nor ` inside them. Control characters, such
+// as a line break, could start another command, so they become "?".
+func shellArg(s string) string {
+	s = plainPath(s)
 	if runtime.GOOS == "windows" {
 		return "'" + strings.ReplaceAll(s, "'", "''") + "'"
 	}
