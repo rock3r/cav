@@ -17,6 +17,8 @@
 - `cav guide traps` says to connect masks and filters after a group's children and keys
   exist. One user reported a much faster build this way. Our own checks did not show a
   difference.
+- On Windows, `cav score` no longer ends the REAPER render folder with a `/` when the
+  output path uses forward slashes.
 - `cav scene save` reads its flags before or after the path, and it takes `--timeout`
   (5 minutes by default). Before, `cav scene save --timeout 120s scene.cv` saved the scene
   as `./--timeout.cv`. An unknown flag is now an error.

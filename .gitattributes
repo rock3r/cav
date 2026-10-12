@@ -1,0 +1,2 @@
+# YuE2 test scores are compared byte for byte, so Windows must not check them out with CRLF.
+internal/music/testdata/** text eol=lf
