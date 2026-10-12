@@ -33,7 +33,7 @@ first time, Cavalry asks whether to trust the script; the user must click Yes.
 ## Update
 
 ```bash
-cav version --check     # is there a newer release?
+cav version --check     # is there a newer release? (cav doctor also says so)
 cav update              # shows the change and asks before installing
 ```
 
