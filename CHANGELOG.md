@@ -61,6 +61,10 @@
 - When cav or its server cuts a YuE2 score, a note held across the cut now keeps its part
   after the cut. Before, it was dropped, and left a rest at the start of the outro.
 - A cut never keeps only silent bars, even when they are closest to `--seconds`.
+- In the `cav review` page, the cursor in a note you are writing no longer jumps to the
+  end of the text by itself. The page moved the note row on every layout, even when it
+  was already in place. Now it moves the row only when the playhead passes a note, and
+  keeps the cursor where it was.
 
 ## 1.3.0
 

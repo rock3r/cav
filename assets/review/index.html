@@ -957,10 +957,16 @@
     // The playhead row goes before the first note that starts after this frame.
     const notes = [...sheet.querySelectorAll('.note')];
     const next = notes.find(n => +n.dataset.start > frame) || sheet.querySelector('.hint');
-    if (here.nextElementSibling !== next || rebuilt) {
-      const typing = document.activeElement === $('text');
-      if (here.nextElementSibling !== next) sheet.insertBefore(here, next);
-      if (typing) $('text').focus();
+    // The gap rows from the last layout are still in: look past them, or the row moves on
+    // every layout even when it is already in place.
+    let after = here.nextElementSibling;
+    while (after && after.classList.contains('gap')) after = after.nextElementSibling;
+    if (after !== next) {
+      // Moving the row can reset the note's caret to its end: put the selection back.
+      const t = $('text'), typing = document.activeElement === t;
+      const caret = typing ? [t.selectionStart, t.selectionEnd, t.selectionDirection, t.scrollTop] : null;
+      sheet.insertBefore(here, next);
+      if (typing) { t.focus({ preventScroll: true }); t.setSelectionRange(caret[0], caret[1], caret[2]); t.scrollTop = caret[3]; }
     }
     // Then the empty runs between rows, split at the playhead.
     sheet.querySelectorAll('.gap').forEach(g => g.remove());
