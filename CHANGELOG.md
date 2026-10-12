@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.4.0
 
 - `cav music gen --service yue2` makes instrumental takes with YuE2, an open music model,
   on a server you run. The server is new: `tools/yue2-server` loads YuE2 once and keeps it
