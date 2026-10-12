@@ -153,9 +153,31 @@ func TestShellArgQuotesPathsThatNeedIt(t *testing.T) {
 	}
 	want := `'/My Work/it'\''s/final.mp4'`
 	if runtime.GOOS == "windows" {
-		want = `"/My Work/it's/final.mp4"`
+		want = `'/My Work/it''s/final.mp4'`
 	}
 	if got := shellArg("/My Work/it's/final.mp4"); got != want {
 		t.Fatalf("path with a space: %q, want %q", got, want)
+	}
+}
+
+func TestHookFindsTheRenderNextToItsReviewFile(t *testing.T) {
+	t.Setenv("CAV_HOME", t.TempDir())
+	t.Setenv("CAV_OUT_DIR", "")
+	dir := t.TempDir()
+	// cav review ran in a subfolder and stored the path as typed.
+	d := review.Doc{Schema: review.Schema, Source: review.Source{Render: "../renders/final.mp4"}, Sends: []review.Send{{N: 1, At: time.Now(), Comments: []string{"c_01"}}}}
+	b, _ := json.Marshal(d)
+	os.MkdirAll(filepath.Join(dir, "renders"), 0o755)
+	if err := os.WriteFile(filepath.Join(dir, "renders", "final.review.json"), b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m := runAntigravityHook(t, "PreInvocation", map[string]any{"workspacePaths": []string{dir}})
+	steps, _ := m["injectSteps"].([]any)
+	if len(steps) != 1 {
+		t.Fatalf("PreInvocation output: %v", m)
+	}
+	msg, _ := steps[0].(map[string]any)["ephemeralMessage"].(string)
+	if !strings.Contains(msg, "cav review wait "+shellArg(filepath.Join(dir, "renders", "final.mp4"))+" ") {
+		t.Fatalf("ephemeralMessage: %q", msg)
 	}
 }

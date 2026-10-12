@@ -221,6 +221,10 @@ func findPending(dir string) []pendingSend {
 		video := d.Source.Render
 		if video == "" {
 			video = strings.TrimSuffix(path, ".review.json") + ".mp4"
+		} else if !filepath.IsAbs(video) {
+			// cav review stores the path as it was typed, relative to where it ran. The review
+			// file always sits next to its render, so take the folder from the review file.
+			video = filepath.Join(filepath.Dir(path), filepath.Base(video))
 		}
 		if rel, err := filepath.Rel(dir, video); err == nil && !strings.HasPrefix(rel, "..") && filepath.IsAbs(video) {
 			video = rel
@@ -261,7 +265,8 @@ func shellArg(s string) string {
 		return s
 	}
 	if runtime.GOOS == "windows" {
-		return `"` + s + `"`
+		// PowerShell does not expand $ or ` inside single quotes; '' is a literal quote.
+		return "'" + strings.ReplaceAll(s, "'", "''") + "'"
 	}
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }

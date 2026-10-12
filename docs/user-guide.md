@@ -479,8 +479,10 @@ your clone, then run `agy plugin install ./cav/plugins/cavalry` again.
 2. Delete `~/.cav` (the token, job results and docs cache).
 3. Delete `cav-bridge.js` from Cavalry's Scripts folder: macOS
    `~/Library/Application Support/Cavalry/Scripts`, Windows `%APPDATA%\Cavalry\Scripts`.
-4. In Claude Code, remove the plugin with `/plugin uninstall cavalry@cav`. In Antigravity, run
-   `agy plugin uninstall cavalry`.
+4. In Claude Code, remove the plugin with `/plugin uninstall cavalry@cav`. In the Antigravity
+   CLI, run `agy plugin uninstall cavalry`. If you copied the plugin for the Antigravity app or
+   IDE, also delete `~/.gemini/config/plugins/cavalry` or `.agents/plugins/cavalry` in the
+   workspace.
 
 ## Reference
 
