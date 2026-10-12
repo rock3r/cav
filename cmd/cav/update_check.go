@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/rock3r/cav/internal/config"
@@ -64,8 +65,10 @@ func updateCheck(now time.Time) check {
 		c.OK = false
 		c.Detail = "cav " + cache.Latest + " is available (this is " + version + "): " + cache.URL
 		c.Fix = "cav update"
-	default:
+	case cache.Latest == strings.TrimSuffix(version, "-dev"):
 		c.Detail = "cav " + version + " is the latest release"
+	default:
+		c.Detail = "cav " + version + " is newer than the latest release (" + cache.Latest + ")"
 	}
 	return c
 }

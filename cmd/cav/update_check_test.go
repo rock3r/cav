@@ -113,3 +113,13 @@ func TestDoctorIgnoresABrokenUpdateCache(t *testing.T) {
 		t.Fatalf("a broken cache was trusted: %d requests, want 2", *hits)
 	}
 }
+
+func TestDoctorSaysWhenThisBuildIsNewerThanTheLatestRelease(t *testing.T) {
+	old := version
+	version = "1.5.1"
+	defer func() { version = old }()
+	fakeReleases(t, "v1.5.0", 200)
+	if c := updateCheck(time.Now()); !c.OK || !strings.Contains(c.Detail, "cav 1.5.1 is newer than the latest release (1.5.0)") {
+		t.Fatalf("newer build: %+v", c)
+	}
+}

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- `cav doctor` no longer calls a build the latest release when it is newer than the latest
+  published release. It says, for example, "cav 1.5.1 is newer than the latest release
+  (1.5.0)".
+
 ## 1.5.1
 
 - `cav doctor` says when a newer cav release exists. Its new `update` line is a warning with
