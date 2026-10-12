@@ -65,7 +65,11 @@ func (p Project) RPP() string {
 	fmt.Fprintf(&b, "  SAMPLERATE %d 1 0\n", p.SampleRate)
 	if p.RenderTo != "" {
 		dir, file := filepath.Split(p.RenderTo)
-		fmt.Fprintf(&b, "  RENDER_FILE %s\n", quote(strings.TrimSuffix(dir, string(filepath.Separator))))
+		// filepath.Split also splits at / on Windows, so trim either separator.
+		if len(dir) > 1 {
+			dir = strings.TrimRight(dir, `/\`)
+		}
+		fmt.Fprintf(&b, "  RENDER_FILE %s\n", quote(dir))
 		fmt.Fprintf(&b, "  RENDER_PATTERN %s\n", quote(strings.TrimSuffix(file, filepath.Ext(file))))
 		// The whole project with no tail: REAPER's default adds a 1 s tail, so the WAV
 		// came out a second longer than the piece. The render sample rate follows the
