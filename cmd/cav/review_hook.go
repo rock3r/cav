@@ -227,7 +227,7 @@ func findPending(dir string) []pendingSend {
 			video = filepath.Join(filepath.Dir(path), filepath.Base(video))
 		}
 		if rel, err := filepath.Rel(dir, video); err == nil && !strings.HasPrefix(rel, "..") && filepath.IsAbs(video) {
-			video = rel
+			video = filepath.ToSlash(rel) // cav accepts / on Windows too, and the message stays the same everywhere
 		}
 		for _, s := range d.Sends {
 			if s.DeliveredAt != nil {
