@@ -181,3 +181,19 @@ func TestHookFindsTheRenderNextToItsReviewFile(t *testing.T) {
 		t.Fatalf("ephemeralMessage: %q", msg)
 	}
 }
+
+func TestAntigravityHookCountsASharedOutputFolderOnce(t *testing.T) {
+	t.Setenv("CAV_HOME", t.TempDir())
+	shared := t.TempDir()
+	t.Setenv("CAV_OUT_DIR", filepath.Join(shared, "renders"))
+	writeReview(t, shared, review.Send{N: 1, At: time.Now(), Comments: []string{"c_01"}})
+	m := runAntigravityHook(t, "PreInvocation", map[string]any{"workspacePaths": []string{t.TempDir(), t.TempDir()}})
+	steps, _ := m["injectSteps"].([]any)
+	if len(steps) != 1 {
+		t.Fatalf("PreInvocation output: %v", m)
+	}
+	msg, _ := steps[0].(map[string]any)["ephemeralMessage"].(string)
+	if n := strings.Count(msg, "send #1"); n != 1 {
+		t.Fatalf("send listed %d times: %q", n, msg)
+	}
+}

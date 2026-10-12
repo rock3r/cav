@@ -133,8 +133,13 @@ func antigravityHook(event string, stdin io.Reader, stdout, stderr io.Writer) in
 	}
 	state := loadHookState()
 	var fresh []pendingSend
+	seen := map[string]bool{} // an absolute CAV_OUT_DIR is the same folder for every workspace
 	for _, dir := range dirs {
 		for _, p := range freshSends(state, dir) {
+			if seen[p.key] {
+				continue
+			}
+			seen[p.key] = true
 			// The agent may run in another workspace folder, so name the render in full.
 			if !filepath.IsAbs(p.video) {
 				p.video = filepath.Join(dir, p.video)
