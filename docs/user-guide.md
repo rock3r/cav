@@ -470,7 +470,9 @@ cav update                # shows the release, asks, installs, then runs cav set
 `cav` never updates itself without asking. After an update, restart the cav-bridge window in
 Cavalry if `cav doctor` says the running bridge is older. Update the Claude Code plugin with
 `/plugin marketplace update cav`. To update the Antigravity plugin, pull the latest changes in
-your clone, then run `agy plugin install ./cav/plugins/cavalry` again.
+your clone, then run `agy plugin install ./cav/plugins/cavalry` again. If you copied the plugin
+for the Antigravity app or IDE, replace that copy too: delete
+`~/.gemini/config/plugins/cavalry` (or `.agents/plugins/cavalry`) and copy the folder again.
 
 ## Uninstalling
 
