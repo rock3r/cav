@@ -152,6 +152,7 @@ func TestShellArgQuotesEveryPath(t *testing.T) {
 		"/work/renders/final.mp4": {`'/work/renders/final.mp4'`, `'/work/renders/final.mp4'`},
 		"/My Work/it's/final.mp4": {`'/My Work/it'\''s/final.mp4'`, `'/My Work/it''s/final.mp4'`},
 		"/a\\b\nrm -rf x.mp4":     {`'/a\b?rm -rf x.mp4'`, `'/a\b?rm -rf x.mp4'`},
+		"/a b\u0085c.mp4":         {`'/a?b?c.mp4'`, `'/a?b?c.mp4'`},
 	}
 	for in, want := range cases {
 		w := want[0]

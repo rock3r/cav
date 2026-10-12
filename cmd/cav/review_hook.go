@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/rock3r/cav/internal/config"
 	"github.com/rock3r/cav/internal/review"
@@ -264,11 +265,11 @@ func loadHookState() map[string]time.Time {
 	return st
 }
 
-// plainPath replaces control characters, such as a line break, with "?". A review file
+// plainPath replaces control characters and line separators, such as a line break or U+2028, with "?". A review file
 // could carry them, and they would start a new line in the agent's message.
 func plainPath(s string) string {
 	return strings.Map(func(r rune) rune {
-		if r < 0x20 || r == 0x7f {
+		if unicode.IsControl(r) || unicode.In(r, unicode.Zl, unicode.Zp) {
 			return '?'
 		}
 		return r
