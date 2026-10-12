@@ -111,7 +111,8 @@ func TestAntigravityHookTellsTheAgentOnce(t *testing.T) {
 		t.Fatalf("PreInvocation output: %v", m)
 	}
 	msg, _ := steps[0].(map[string]any)["ephemeralMessage"].(string)
-	if !strings.Contains(msg, "cav review wait renders/final.mp4") || !strings.Contains(msg, "send #1") {
+	// With several workspace folders, the render is named in full.
+	if !strings.Contains(msg, "cav review wait "+filepath.Join(dir, "renders", "final.mp4")) || !strings.Contains(msg, "send #1") {
 		t.Fatalf("ephemeralMessage: %q", msg)
 	}
 	// PreInvocation runs before every model call: the same send must not come back.

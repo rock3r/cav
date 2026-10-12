@@ -133,7 +133,13 @@ func antigravityHook(event string, stdin io.Reader, stdout, stderr io.Writer) in
 	state := loadHookState()
 	var fresh []pendingSend
 	for _, dir := range dirs {
-		fresh = append(fresh, freshSends(state, dir)...)
+		for _, p := range freshSends(state, dir) {
+			// The agent may run in another workspace folder, so name the render in full.
+			if !filepath.IsAbs(p.video) {
+				p.video = filepath.Join(dir, p.video)
+			}
+			fresh = append(fresh, p)
+		}
 	}
 	if len(fresh) == 0 {
 		return quiet()

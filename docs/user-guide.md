@@ -384,6 +384,16 @@ MCP server and one hook. We have not yet tested `agy plugin install` with the re
 URL. The plugin is in a subfolder, and Antigravity does not document how it reads another
 marketplace.
 
+`agy plugin install` installs the plugin for the CLI only, in
+`~/.gemini/antigravity-cli/plugins/`. The Antigravity app and the Antigravity IDE read plugins
+from other folders. For them, copy the plugin folder into `~/.gemini/config/plugins/` (all
+workspaces) or into `.agents/plugins/` at the root of one workspace:
+
+```bash
+mkdir -p ~/.gemini/config/plugins
+cp -R ./cav/plugins/cavalry ~/.gemini/config/plugins/cavalry
+```
+
 The plugin gives Antigravity three things:
 
 - the `cavalry` skill;
@@ -399,7 +409,8 @@ Limits:
 
 - Only the Antigravity CLI runs plugin hooks. The Antigravity app and the Antigravity IDE run
   only the hooks in a workspace or global `hooks.json`, so there the review hook does not run.
-  Use `cav review wait` or the `review_notes` tool instead.
+  Use `cav review wait`, or the `review_notes` tool when the plugin is installed for the app
+  or IDE as shown above.
 - We have checked the plugin only with `agy plugin validate`. We have not yet tested it end
   to end in Antigravity.
 
