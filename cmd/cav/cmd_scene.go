@@ -36,8 +36,9 @@ cav scene comp [--width W --height H --fps F --seconds S | --frames N] [--bg #he
 cav scene open <file.cv> [--force] [--timeout 10m]
     Wait for the scene to finish opening, including the follow-up scene-info job.
     On timeout, resume the operation ID; do not open the scene a second time.
-cav scene save [<file.cv>]
-    Without a path, saves in place (the scene must already have a path).`
+cav scene save [<file.cv>] [--timeout 5m]
+    Without a path, saves in place (the scene must already have a path). Flags may
+    come before or after the path; an unknown flag is an error.`
 	register(command{
 		name:    "tree",
 		args:    "[--depth N] [--frame F]",
@@ -114,10 +115,19 @@ func cmdScene(a *app, args []string) error {
 		emitSceneInfo(a, &st)
 		return nil
 	case "save":
+		fs := flag.NewFlagSet("scene save", flag.ContinueOnError)
+		timeout := fs.Duration("timeout", 5*time.Minute, "how long to wait for Cavalry to save")
+		pos, err := parseFlags(fs, rest)
+		if err != nil {
+			return err
+		}
+		if len(pos) > 1 || *timeout <= 0 {
+			return usageErr("usage: cav scene save [<file.cv>] [--timeout 5m]")
+		}
 		code := `if (!api.getSceneFilePath()) throw new Error('the scene has never been saved: pass a path, e.g. cav scene save scenes/intro.cv'); return api.saveScene()`
 		var p string
-		if len(rest) > 0 {
-			p, _ = filepath.Abs(rest[0])
+		if len(pos) > 0 {
+			p, _ = filepath.Abs(pos[0])
 			if !strings.HasSuffix(p, ".cv") {
 				p += ".cv"
 			}
@@ -125,7 +135,7 @@ func cmdScene(a *app, args []string) error {
 			code = fmt.Sprintf("return api.saveSceneAs(%s)", jsString(p))
 		}
 		var ok bool
-		if err := a.jsCall(code, 5*time.Minute, &ok); err != nil {
+		if err := a.jsCall(code, *timeout, &ok); err != nil {
 			return err
 		}
 		if !ok {
