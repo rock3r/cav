@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- `cav scene save` reads its flags before or after the path, and it takes `--timeout`
+  (5 minutes by default). Before, `cav scene save --timeout 120s scene.cv` saved the scene
+  as `./--timeout.cv`. An unknown flag is now an error.
+
 ## 1.4.0
 
 - `cav music gen --service yue2` makes instrumental takes with YuE2, an open music model,

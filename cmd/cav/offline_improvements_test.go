@@ -387,3 +387,48 @@ func TestTargetedSimulationProfileEnablesPNGAndReportsWarmup(t *testing.T) {
 		t.Fatalf("submissions=%d", posts)
 	}
 }
+
+func TestSceneSaveParsesFlagsBeforeThePath(t *testing.T) {
+	var mu sync.Mutex
+	var codes []string
+	fixtureBridge(t, func(req bridge.Request) {
+		code, err := os.ReadFile(req.File)
+		if err != nil {
+			t.Error(err)
+		}
+		mu.Lock()
+		codes = append(codes, string(code))
+		n := len(codes)
+		mu.Unlock()
+		if n == 1 {
+			fixtureResult(t, req.ID, true)
+			return
+		}
+		fixtureResult(t, req.ID, map[string]any{})
+	})
+	dir := t.TempDir()
+	scene := filepath.Join(dir, "intro.cv")
+	a := &app{json: true}
+	if c := a.dispatch([]string{"scene", "save", "--timeout", "120s", scene}); c != exitOK {
+		t.Fatalf("exit %d", c)
+	}
+	mu.Lock()
+	first := codes[0]
+	mu.Unlock()
+	if want := "api.saveSceneAs(" + jsString(scene) + ")"; !regexp.MustCompile(regexp.QuoteMeta(want)).MatchString(first) {
+		t.Fatalf("save code %q does not save to %s", first, scene)
+	}
+	if _, err := os.Stat(filepath.Join(".", "--timeout.cv")); err == nil {
+		t.Fatal("saved to ./--timeout.cv")
+	}
+
+	b := &app{json: true}
+	if c := b.dispatch([]string{"scene", "save", "--bogus", scene}); c == exitOK {
+		t.Fatal("an unknown flag was accepted")
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(codes) != 2 {
+		t.Fatalf("an unknown flag reached the bridge: %d jobs", len(codes))
+	}
+}
