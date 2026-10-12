@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+- The `cavalry` plugin now works as an Antigravity plugin. Install it in the Antigravity CLI
+  with `agy plugin install ./plugins/cavalry` from a clone of this repository.
+- Antigravity starts `cav mcp` from the new `mcp_config.json`. It has the same content as
+  `.mcp.json`, and a test keeps the two files the same.
+- `cav review hook --host antigravity --event PreInvocation|Stop` is the review hook for
+  Antigravity. It reads Antigravity's events and looks for review files in each workspace
+  folder. Before a model call, it adds a message about new notes. When the agent wants to
+  stop, it asks the agent to continue and read them. It tells the agent about each send
+  once. So it does not repeat the notes before every model call, and it does not keep the
+  agent running.
+- The plugin's root `hooks.json` installs this hook in Antigravity. Only the Antigravity CLI
+  runs plugin hooks. The Antigravity app and IDE do not.
+- `agy plugin install` installs the plugin for the CLI only. The user guide shows how to copy
+  it for the Antigravity app and IDE, and how to remove that copy.
+- The review hook now finds the render next to its review file. Before, when `cav review`
+  ran in a subfolder with a relative path, the hook could tell the agent a wrong path. Paths
+  with spaces are quoted in the command the hook suggests.
+- We have not checked whether Antigravity draws MCP Apps. If it does not, `show_review`
+  still gives the agent the open notes as text, and `cav review` shows the page in a
+  browser.
 - `cav.clear()` is much faster on large scenes. Cavalry 2.8 slows down more and more when it
   deletes many layers from the active comp: 1,500 layers took 65 seconds. `cav.clear()` now
   deletes them while an empty temporary comp is active, which took 4 seconds. The comp keeps

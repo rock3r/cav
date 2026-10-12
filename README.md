@@ -9,7 +9,7 @@ for common mistakes, and renders the video, with music if you want.
 |---|---|
 | `cav` | A command-line tool for macOS and Windows. It runs JavaScript in Cavalry, renders frames, contact sheets and MP4 videos, inspects scenes, finds the beats and the structure of a music track, draws it as a picture, checks a render against it, and searches the Cavalry API and docs offline. `cav guide` explains the workflow and has motion design recipes. |
 | cav-bridge | A small Cavalry script that `cav` talks to. `cav setup` installs it. |
-| `cavalry` skill | A short entry point for coding agents. It checks the setup and sends the agent to `cav guide`. Packaged as a Claude Code plugin and a Codex plugin. |
+| `cavalry` skill | A short entry point for coding agents. It checks the setup and sends the agent to `cav guide`. Packaged as a Claude Code, Codex and Antigravity plugin. |
 
 Cav drives Cavalry through the CLI, not an MCP server. Cavalry always runs on a desktop, so
 a shell is always there, and a command-line tool costs an agent no context until it asks for
@@ -65,6 +65,17 @@ codex plugin marketplace add rock3r/cav
 ```bash
 codex plugin add cavalry@cav
 ```
+
+In the Antigravity CLI, from a clone of this repository:
+
+```bash
+agy plugin install ./plugins/cavalry
+```
+
+The plugin gives Antigravity the skill, the `cav mcp` server and the review hook. Only the
+Antigravity CLI runs plugin hooks: the Antigravity app and IDE load the skill and the
+server, but not the hook. See
+[the user guide](docs/user-guide.md#using-cav-with-a-coding-agent).
 
 Other agents: copy `plugins/cavalry/skills/cavalry` into the agent's skills folder.
 
@@ -162,6 +173,7 @@ found are in [the evaluation](docs/evaluation.md).
 | `cav update` from 1.0.0 to 1.0.1 | tested | tested |
 | Driving Cavalry: jobs, sheets, checks, renders | tested (65 helper and 14 native-feature checks live) | not tested |
 | Claude Code and Codex plugins, with a sandboxed agent through `cav relay` | tested | not tested |
+| Antigravity plugin | `agy plugin validate` only | not tested |
 
 ## Documentation
 

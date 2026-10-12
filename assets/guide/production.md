@@ -478,7 +478,9 @@ cav review export renders/final.mp4         # every note
   it outside.
 - The cavalry plugin for Claude Code and Codex adds a hook (`cav review hook`): when the
   reviewer presses Send to agent and no `cav review wait` picks the notes up, the next prompt
-  or the end of your turn tells you once. Then run `cav review wait`.
+  or the end of your turn tells you once. Then run `cav review wait`. In the Antigravity CLI
+  the plugin adds the same hook (`cav review hook --host antigravity`); it tells you before a
+  model call or at the end of your turn.
 - In Claude Code, the optional cav-review plugin also shows the open notes above the prompt,
   links to the page, and can start a turn when notes arrive.
 - When `cav mcp` runs (the cavalry plugin starts it; see `cav help mcp`), the `show_review`

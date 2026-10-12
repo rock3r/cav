@@ -90,6 +90,58 @@ func TestPluginMCPServer(t *testing.T) {
 	}
 }
 
+// Antigravity reads mcp_config.json at the plugin root. It has the same format as .mcp.json,
+// so the two files stay identical.
+func TestAntigravityMCPConfig(t *testing.T) {
+	r := root(t)
+	a, errA := os.ReadFile(filepath.Join(r, "plugins/cavalry/.mcp.json"))
+	b, errB := os.ReadFile(filepath.Join(r, "plugins/cavalry/mcp_config.json"))
+	if errA != nil || errB != nil {
+		t.Fatal(errA, errB)
+	}
+	if !bytes.Equal(a, b) {
+		t.Errorf("plugins/cavalry/mcp_config.json differs from .mcp.json; copy .mcp.json over it")
+	}
+}
+
+// Antigravity reads hooks.json at the plugin root: {"<hook name>": {"<Event>": [handlers]}}.
+// Claude Code and Codex read hooks/hooks.json, so the two formats never mix.
+func TestAntigravityHooks(t *testing.T) {
+	r := root(t)
+	m := readJSON(t, filepath.Join(r, "plugins/cavalry/hooks.json"))
+	if len(m) == 0 {
+		t.Fatal("hooks.json has no hooks")
+	}
+	events := map[string]bool{"PreToolUse": true, "PostToolUse": true, "PreInvocation": true, "PostInvocation": true, "Stop": true}
+	for name, v := range m {
+		hook, ok := v.(map[string]any)
+		if !ok {
+			t.Errorf("hook %q must be an object", name)
+			continue
+		}
+		for ev, handlers := range hook {
+			if ev == "enabled" {
+				continue
+			}
+			if !events[ev] {
+				t.Errorf("hook %q: %q is not an Antigravity event", name, ev)
+			}
+			list, _ := handlers.([]any)
+			if len(list) == 0 {
+				t.Errorf("hook %q: %s has no handlers", name, ev)
+			}
+			for _, h := range list {
+				hm, _ := h.(map[string]any)
+				cmd, _ := hm["command"].(string)
+				// No "|| true": Windows PowerShell 5.1 cannot parse it, and the hook always exits 0.
+				if cmd != "cav review hook --host antigravity --event "+ev {
+					t.Errorf("hook %q: %s command %q must be exactly cav review hook --host antigravity --event %s", name, ev, cmd, ev)
+				}
+			}
+		}
+	}
+}
+
 func TestSkillFrontmatter(t *testing.T) {
 	b, err := os.ReadFile(filepath.Join(root(t), "plugins/cavalry/skills/cavalry/SKILL.md"))
 	if err != nil {

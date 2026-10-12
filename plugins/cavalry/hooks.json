@@ -1,0 +1,10 @@
+{
+  "cav-review": {
+    "PreInvocation": [
+      { "type": "command", "command": "cav review hook --host antigravity --event PreInvocation", "timeout": 10 }
+    ],
+    "Stop": [
+      { "type": "command", "command": "cav review hook --host antigravity --event Stop", "timeout": 10 }
+    ]
+  }
+}

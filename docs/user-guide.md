@@ -277,8 +277,8 @@ the earlier render (wipe, difference) or shows an onion skin.
 
 `cav mcp` is a small MCP server that shows the same review page inside the chat, as an
 [MCP App](https://modelcontextprotocol.io/extensions/apps). It runs over stdin and stdout,
-so the agent starts it. The `cavalry` plugin registers it in Claude Code and Codex, so with
-the plugin installed there is nothing to do. It needs cav 1.2 or newer: with an older CLI
+so the agent starts it. The `cavalry` plugin registers it in Claude Code, Codex and Antigravity, so
+with the plugin installed there is nothing to do. It needs cav 1.2 or newer: with an older CLI
 the server fails to start, and the rest of the plugin works as before.
 
 Without the plugin, register it once. Do not do both, or the agent sees the tools twice.
@@ -344,6 +344,12 @@ page, and its Code tab ran the tool but did not draw the page. Chats that do not
 of open notes, both as text and in the structured result. The server resolves a relative
 video path against the folder the agent started it in.
 
+We have not checked whether Antigravity draws MCP Apps. If it does not, `show_review` still
+gives the agent the open notes and the video path as text. The tool result does not contain
+a page address. To see the page, run `cav review` with the video path in a shell: it serves
+the full review page in the browser. In Antigravity, the tools of the plugin's server have
+the prefix `cavalry_cav`. The skill does not depend on the tool names.
+
 ## Using cav with a coding agent
 
 `cav guide` prints the workflow, the traps, and recipes for motion design (entrances,
@@ -365,6 +371,48 @@ codex plugin marketplace add rock3r/cav
 ```bash
 codex plugin add cavalry@cav
 ```
+
+In the Antigravity CLI, install the plugin from a clone of this repository:
+
+```bash
+git clone https://github.com/rock3r/cav
+agy plugin install ./cav/plugins/cavalry
+```
+
+Check the plugin with `agy plugin validate ./cav/plugins/cavalry`. It reports one skill, one
+MCP server and one hook. We have not yet tested `agy plugin install` with the repository
+URL. The plugin is in a subfolder, and Antigravity does not document how it reads another
+marketplace.
+
+`agy plugin install` installs the plugin for the CLI only, in
+`~/.gemini/antigravity-cli/plugins/`. The Antigravity app and the Antigravity IDE read plugins
+from other folders. For them, copy the plugin folder into `~/.gemini/config/plugins/` (all
+workspaces) or into `.agents/plugins/` at the root of one workspace:
+
+```bash
+mkdir -p ~/.gemini/config/plugins
+cp -R ./cav/plugins/cavalry ~/.gemini/config/plugins/cavalry
+```
+
+The plugin gives Antigravity three things:
+
+- the `cavalry` skill;
+- the `cav mcp` server (from `mcp_config.json`), with the `show_review` and `review_notes`
+  tools;
+- the review hook (from `hooks.json`). When the reviewer presses "Send to agent" and no agent
+  reads the notes, the hook tells the agent once. Before a model call, it adds a short
+  message for the agent. When the agent wants to stop, it asks the agent to continue and
+  read the notes. The hook needs a `cav` that knows `cav review hook --host antigravity`.
+  With an older `cav`, the hook does nothing.
+
+Limits:
+
+- Only the Antigravity CLI runs plugin hooks. The Antigravity app and the Antigravity IDE run
+  only the hooks in a workspace or global `hooks.json`, so there the review hook does not run.
+  Use `cav review wait`, or the `review_notes` tool when the plugin is installed for the app
+  or IDE as shown above.
+- We have checked the plugin only with `agy plugin validate`. We have not yet tested it end
+  to end in Antigravity.
 
 For other agents, copy `plugins/cavalry/skills/cavalry` into the agent's skills folder.
 
@@ -421,7 +469,10 @@ cav update                # shows the release, asks, installs, then runs cav set
 
 `cav` never updates itself without asking. After an update, restart the cav-bridge window in
 Cavalry if `cav doctor` says the running bridge is older. Update the Claude Code plugin with
-`/plugin marketplace update cav`.
+`/plugin marketplace update cav`. To update the Antigravity plugin, pull the latest changes in
+your clone, then run `agy plugin install ./cav/plugins/cavalry` again. If you copied the plugin
+for the Antigravity app or IDE, replace that copy too: delete
+`~/.gemini/config/plugins/cavalry` (or `.agents/plugins/cavalry`) and copy the folder again.
 
 ## Uninstalling
 
@@ -430,7 +481,10 @@ Cavalry if `cav doctor` says the running bridge is older. Update the Claude Code
 2. Delete `~/.cav` (the token, job results and docs cache).
 3. Delete `cav-bridge.js` from Cavalry's Scripts folder: macOS
    `~/Library/Application Support/Cavalry/Scripts`, Windows `%APPDATA%\Cavalry\Scripts`.
-4. In Claude Code, remove the plugin with `/plugin uninstall cavalry@cav`.
+4. In Claude Code, remove the plugin with `/plugin uninstall cavalry@cav`. In the Antigravity
+   CLI, run `agy plugin uninstall cavalry`. If you copied the plugin for the Antigravity app or
+   IDE, also delete `~/.gemini/config/plugins/cavalry` or `.agents/plugins/cavalry` in the
+   workspace.
 
 ## Reference
 
