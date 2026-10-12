@@ -282,11 +282,11 @@ cav also works with [YuE2-Turbo](https://github.com/NoizAI/YuE2-Turbo), NOIZ's s
 layer for YuE2 (Apache 2.0). cav's server speaks a subset of Turbo's job API, so the same
 `yue2` service talks to either one.
 
-Choose Turbo when you have a large NVIDIA GPU on Linux. It needs Linux x86_64, an NVIDIA
-GPU with BF16, CUDA 12.8 and vLLM. NOIZ tested it on an RTX 5090 (32 GB): it uses about
-18 GB at rest, and it writes a 60-second song in about 10 seconds. It can also run several
-jobs at once. Choose cav's server on an Apple silicon Mac, or on a GPU with less memory,
-such as a 12 GB card: Turbo does not run there.
+Turbo is fastest on a large NVIDIA GPU on Linux, with vLLM. NOIZ tested it on an RTX 5090
+(32 GB): with its default settings it uses about 18 GB at rest, writes a 60-second song in
+about 10 seconds, and runs several jobs at once. Without vLLM, Turbo also runs on a 12 GB
+GPU and on an Apple silicon Mac, with the low-memory settings below. There it is about as
+fast as cav's server, so either one works.
 
 Turbo has no instrumental mode and no length cut, and it refuses the extra fields that
 cav's server takes. cav then does that work itself, with the same steps as its server:
@@ -311,29 +311,51 @@ Turbo needs an API key of 16 characters or more, on every job route. Start it wi
 then give cav the same key:
 
 ```bash
-# On the Linux machine, in a YuE2-Turbo checkout installed as its README says:
+# On the Turbo machine, in a YuE2-Turbo checkout installed as its README says:
 export YUE2_API_KEY="$(openssl rand -hex 32)"
 YUE2_HOST=0.0.0.0 yue2-serve      # port 8000; put HTTPS in front beyond a trusted network
 # On the machine with cav:
 export YUE2_API_KEY=<the same key>  # or cav config set-key yue2 <source>, such as a keychain item
-cav config endpoint yue2 http://<linux-host>:8000
+cav config endpoint yue2 http://<turbo-host>:8000
 cav config check                  # "YuE2-Turbo ready at ...; cav makes each instrumental in two jobs"
 ```
 
+On a 12 GB GPU or a Mac, install Turbo without its vLLM extra, and start it with these
+settings. They keep one job at a time and do not keep the models in memory between songs:
+
+```bash
+export YUE2_BACKEND=torch YUE2_RESIDENT_MODELS=false YUE2_MEMORY_BUDGET_GIB=12 \
+  YUE2_AR_CONCURRENCY=1 YUE2_NAR_BATCH_SIZE=1 YUE2_AR_NAR_OVERLAP=false
+# On a Mac, also: YUE2_DEVICE=mps YUE2_BACKEND=torch-eager, and a larger budget (24 on 64 GB).
+```
+
+Turbo's `server` extra installs vLLM. Without it, install the server's other packages by
+hand. Covers also need `torchaudio`, and `setuptools` older than 81, because `pretty_midi`
+imports `pkg_resources`. On macOS 27, Turbo's pinned scipy 1.15.3 does not load: upgrade
+scipy. SheetSage2 downloads its parent model, `m-a-p/MERT-v2-FullSong` (2.4 GB), the
+first time. With `YUE2_LOCAL_FILES_ONLY=true`, download it first.
+
 Turbo does not say which model it loaded. cav records `YuE2-3B` with each take. If Turbo
 runs another model (`YUE2_MODEL`), give its name as the endpoint's model, so cav records
-that instead: `cav config endpoint yue2 http://<linux-host>:8000 <model name>`.
+that instead: `cav config endpoint yue2 http://<turbo-host>:8000 <model name>`.
 
 `cav config check` tells the two servers apart. cav's server lists `"extensions":
 ["instrumental"]` in `/health/ready`, and Turbo lists none. For Turbo, the check also sends
 the key to `/internal/load`, so a wrong key shows up there and not in the middle of a take.
 cav never prints the key.
 
-**No real Turbo server was tested.** None of the machines cav was developed on can run it:
-the M1 Max has no CUDA, and the RTX 3080 Ti has only 12 GB. cav's tests use a fake Turbo
-server, written from Turbo's source (`src/yue2/service.py`, commit 7c88813, read on
-2026-10-11), that refuses unknown fields as Turbo does. If you run Turbo, please report
-how it goes.
+cav was tested against Turbo commit 7c88813 on 2026-10-12, with the low-memory settings
+above:
+
+| Machine | Take | Audio | Time |
+|---|---|---|---|
+| RTX 3080 Ti, 12 GB (WSL2) | instrumental, `--seconds 30` | 31.6 s | 127 s |
+| RTX 3080 Ti | song, `--lyrics` | 70.9 s | 46 s |
+| RTX 3080 Ti | cover, `--ref` (60 s track), `--seconds 30` | 32.1 s | 100 s |
+| M1 Max, 64 GB | instrumental, `--seconds 30` | 32.4 s | 670 s |
+
+A large GPU with vLLM was not tested. cav's tests also use a fake Turbo server, written
+from Turbo's source (`src/yue2/service.py`), that refuses unknown fields as Turbo does.
 
 ### YuE2 covers
 

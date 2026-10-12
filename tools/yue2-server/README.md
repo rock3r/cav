@@ -50,8 +50,9 @@ needs it as a Bearer key. cav sends the key from `cav config set-key yue2 <sourc
 The routes and fields are a subset of the API of
 [YuE2-Turbo](https://github.com/NoizAI/YuE2-Turbo), NOIZ's serving layer for YuE2
 (`src/yue2/service.py`, read on 2026-10-11). One client can then work with either server.
-Turbo needs Linux, CUDA and vLLM, so it does not run on an Apple silicon Mac or, probably,
-on a 12 GB GPU. This server runs on both.
+Turbo is fastest with vLLM on a large NVIDIA GPU. Without vLLM, and with low-memory
+settings, it also runs on a 12 GB GPU and on an Apple silicon Mac (see "YuE2-Turbo" in
+`cav guide production`).
 
 cav works with Turbo too. Turbo refuses this server's extensions, so with Turbo cav plans
 the instrumental and cuts the score itself, and sends the result as `abc` (see "YuE2-Turbo"

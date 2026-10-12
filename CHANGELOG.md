@@ -47,8 +47,9 @@
 - Music is instrumental unless you give `--lyrics`. The help, `cav guide production`, the
   user guide and the skill now say so.
 - The `yue2` service also works with a YuE2-Turbo server. Turbo is NOIZ's fast server for
-  YuE2. It needs Linux, an NVIDIA GPU with BF16, and vLLM, and it uses about 18 GB of GPU
-  memory at rest. Turbo has no instrumental mode and no length cut, so cav does that work
+  YuE2. With vLLM on a large NVIDIA GPU it uses about 18 GB at rest. Without vLLM, and with
+  the low-memory settings in `cav guide production`, it also runs on a 12 GB GPU and on an
+  Apple silicon Mac. Turbo has no instrumental mode and no length cut, so cav does that work
   itself. One job plans a score. cav moves the vocal notes to an instrument and cuts the
   score to about `--seconds`. A second job then makes the audio from that score. A cover
   works the same way: the cover job's transcribed melody takes the place of the planned
@@ -57,7 +58,9 @@
   cav never prints the key.
 - `cav config check` now tells cav's server and Turbo apart, and checks Turbo's key. It no
   longer says that a Turbo server cannot make instrumentals.
-- No real Turbo server was tested: the tests use a fake one, written from Turbo's code.
+- cav was tested against a real Turbo server (commit 7c88813) on an RTX 3080 Ti, with an
+  instrumental, a song with lyrics and a cover, and on an M1 Max with an instrumental. A
+  large GPU with vLLM was not tested. `cav guide production` has the times.
 - When cav or its server cuts a YuE2 score, a note held across the cut now keeps its part
   after the cut. Before, it was dropped, and left a rest at the start of the outro.
 - A cut never keeps only silent bars, even when they are closest to `--seconds`.
