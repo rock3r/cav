@@ -18,6 +18,8 @@ The `cav` CLI does the work and carries its own guides. This skill only gets you
      way.
    - `blocked: a sandbox`: your sandbox stops `cav`. Show the user the fix that `cav doctor`
      prints (allow `cav` to reach 127.0.0.1:8723, or run `cav relay` outside the sandbox).
+   - `warn update`: a newer cav exists. Tell the user that `cav update` installs it. Do not
+     run `cav update` without asking.
 2. Run `cav guide` and follow it. It covers the workflow, script rules and a done checklist.
    Read `cav guide design` before a creative task and `cav guide music` when there is music
    (it covers `cav spectrogram` and `cav sync`, which let you look at music you cannot hear).

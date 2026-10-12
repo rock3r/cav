@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- `cav doctor` says when a newer cav release exists. Its new `update` line is a warning with
+  the fix `cav update`, so an agent that runs `cav doctor` learns about it too. cav asks
+  GitHub at most once a day, waits at most 3 seconds, and keeps the answer in
+  `~/.cav/update-check.json`. After a failed check it waits an hour before it asks again.
+  The check never makes `cav doctor` fail. Set `CAV_NO_UPDATE_CHECK=1` to turn it off. The
+  privacy policy says so.
+
 ## 1.5.0
 
 - The `cavalry` plugin now works as an Antigravity plugin. Install it in the Antigravity CLI

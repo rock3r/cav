@@ -46,6 +46,9 @@ After setup, start the bridge once per Cavalry session: Scripts menu > cav-bridg
 	longHelp["doctor"] = `
 Exit code 0 when cav is ready, 2 when only the bridge is not running, 1 for any other
 problem. Each FAIL line is followed by the fix.
+The "update" line says when a newer cav release exists (a warning, never a failure). It
+asks GitHub at most once a day and keeps the answer in ~/.cav/update-check.json.
+CAV_NO_UPDATE_CHECK=1 turns it off.
 --services also checks the image, music and sound services (see cav config): one free
 call each. A service without a key is skipped, not failed; a key that is refused fails.
 --live adds one small paid call per service with a key (an image, a half-second sound),
@@ -137,6 +140,11 @@ func cmdCheck(a *app, args []string, fix bool) error {
 
 	// 6. Running bridge.
 	checks = append(checks, bridgeCheck(a))
+
+	// 7. A newer cav release (doctor only; setup runs right after an install or update).
+	if !fix {
+		checks = append(checks, updateCheck(time.Now()))
+	}
 
 	var svc []services.Status
 	if *withServices {

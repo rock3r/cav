@@ -58,12 +58,19 @@ type release struct {
 	} `json:"assets"`
 }
 
+// releaseAPI is GitHub's API root. Tests point it at a fake server.
+var releaseAPI = "https://api.github.com"
+
 func fetchRelease(tag string) (*release, error) {
-	url := "https://api.github.com/repos/" + repo() + "/releases/latest"
+	return fetchReleaseWithin(tag, 20*time.Second)
+}
+
+func fetchReleaseWithin(tag string, timeout time.Duration) (*release, error) {
+	url := releaseAPI + "/repos/" + repo() + "/releases/latest"
 	if tag != "" {
-		url = "https://api.github.com/repos/" + repo() + "/releases/tags/" + tag
+		url = releaseAPI + "/repos/" + repo() + "/releases/tags/" + tag
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	req.Header.Set("Accept", "application/vnd.github+json")
@@ -92,7 +99,7 @@ func checkUpdate(a *app, data map[string]any) error {
 		return nil
 	}
 	latest := strings.TrimPrefix(r.Tag, "v")
-	newer := versionLess(strings.TrimSuffix(version, "-dev"), latest) || (strings.HasSuffix(version, "-dev") && !versionLess(latest, strings.TrimSuffix(version, "-dev")) && latest != strings.TrimSuffix(version, "-dev"))
+	newer := isNewerRelease(latest)
 	data["latest"] = latest
 	data["updateAvailable"] = newer
 	data["releaseURL"] = r.URL
@@ -288,4 +295,10 @@ func replaceBinary(self string, bin []byte) error {
 		_ = os.Remove(old)
 	}
 	return nil
+}
+
+// isNewerRelease reports whether the release version latest is newer than this cav.
+func isNewerRelease(latest string) bool {
+	cur := strings.TrimSuffix(version, "-dev")
+	return versionLess(cur, latest) || (strings.HasSuffix(version, "-dev") && !versionLess(latest, cur) && latest != cur)
 }

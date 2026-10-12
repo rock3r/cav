@@ -467,6 +467,11 @@ cav version --check       # tells you whether a newer release exists, changes no
 cav update                # shows the release, asks, installs, then runs cav setup
 ```
 
+`cav doctor` also tells you, and the agent, when a newer release exists: its `update` line
+is a warning with the fix `cav update`. It asks GitHub at most once a day (once an hour after
+a failed check) and keeps the answer in `~/.cav/update-check.json`. A failed check never
+makes `cav doctor` fail. Set `CAV_NO_UPDATE_CHECK=1` to turn it off.
+
 `cav` never updates itself without asking. After an update, restart the cav-bridge window in
 Cavalry if `cav doctor` says the running bridge is older. Update the Claude Code plugin with
 `/plugin marketplace update cav`. To update the Antigravity plugin, pull the latest changes in
@@ -508,6 +513,7 @@ Environment variables:
 | `CAV_OUT_DIR` | Default folder for sheets and frames (default `renders`). |
 | `CAV_BRIDGE_PORT` | The bridge port (default 8723). |
 | `CAV_SCRIPTS_DIR` | Cavalry's Scripts folder, if it is not in the usual place. |
+| `CAV_NO_UPDATE_CHECK` | Any value stops `cav doctor` from asking GitHub for a newer release. |
 
 Use `cav check --quick --json` for cheap structural performance warnings. Add `--profile`
 for measured sampling, or `--profile-render` to time low-resolution PNG calls too. Default
