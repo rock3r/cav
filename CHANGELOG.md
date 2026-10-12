@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.5.0
 
 - The `cavalry` plugin now works as an Antigravity plugin. Install it in the Antigravity CLI
   with `agy plugin install ./plugins/cavalry` from a clone of this repository.
@@ -17,8 +17,8 @@
 - `agy plugin install` installs the plugin for the CLI only. The user guide shows how to copy
   it for the Antigravity app and IDE, and how to remove that copy.
 - The review hook now finds the render next to its review file. Before, when `cav review`
-  ran in a subfolder with a relative path, the hook could tell the agent a wrong path. Paths
-  with spaces are quoted in the command the hook suggests.
+  ran in a subfolder with a relative path, the hook could tell the agent a wrong path. The
+  command that the hook suggests now quotes the path.
 - We have not checked whether Antigravity draws MCP Apps. If it does not, `show_review`
   still gives the agent the open notes as text, and `cav review` shows the page in a
   browser.
