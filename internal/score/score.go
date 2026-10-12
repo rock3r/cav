@@ -7,6 +7,7 @@ package score
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -65,9 +66,10 @@ func (p Project) RPP() string {
 	fmt.Fprintf(&b, "  SAMPLERATE %d 1 0\n", p.SampleRate)
 	if p.RenderTo != "" {
 		dir, file := filepath.Split(p.RenderTo)
-		// filepath.Split also splits at / on Windows, so trim either separator. A root
-		// (/ or C:\) keeps it: C: alone means the drive's current folder.
-		if t := strings.TrimRight(dir, `/\`); t != "" && t != filepath.VolumeName(dir) {
+		// filepath.Split also splits at / on Windows, so trim every separator of this OS
+		// (a \ in a POSIX name is a normal character). A root (/ or C:\) keeps it: C: alone
+		// means the drive's current folder.
+		if t := strings.TrimRightFunc(dir, func(r rune) bool { return r < 0x80 && os.IsPathSeparator(uint8(r)) }); t != "" && t != filepath.VolumeName(dir) {
 			dir = t
 		}
 		fmt.Fprintf(&b, "  RENDER_FILE %s\n", quote(dir))
