@@ -83,6 +83,51 @@ test('hex colour keys are split per channel', () => {
 	assert.deepEqual(keys, [{ 'material.materialColor.r': 255 }, { 'material.materialColor.r': 0 }, { 'material.materialColor.g': 128 }, { 'material.materialColor.g': 0 }, { 'material.materialColor.b': 0 }, { 'material.materialColor.b': 0 }])
 })
 
+test('colour keys with an undefined value key the current colour per channel', () => {
+	const { cav, calls, layers } = mockEnv()
+	const r = cav.rect('r', 10, 10)
+	Object.assign(layers[r].attrs, { 'material.materialColor.r': 255, 'material.materialColor.g': 0, 'material.materialColor.b': 0 })
+	cav.key(r, 'fill', [
+		[0, undefined],
+		[30, '#00ff00'],
+	])
+	const keys = calls.filter((c) => c[0] === 'keyframe').map((c) => c[3])
+	assert.deepEqual(keys, [{ 'material.materialColor.r': 255 }, { 'material.materialColor.r': 0 }, { 'material.materialColor.g': 0 }, { 'material.materialColor.g': 255 }, { 'material.materialColor.b': 0 }, { 'material.materialColor.b': 0 }])
+	assert.throws(() => cav.key(r, 'fill', [[0, 5]]), /takes "#rrggbb" or \{r, g, b\}/)
+})
+
+test('clear deletes with a temporary comp active and restores comp and playhead', () => {
+	const { cav, api, layers } = mockEnv()
+	let comp = 'root',
+		frame = 17
+	const deleted = []
+	api.getActiveComp = () => comp
+	api.getFrame = () => frame
+	api.setActiveComp = (c) => {
+		comp = c
+	}
+	api.setFrame = (f) => {
+		frame = f
+	}
+	api.createComp = () => 'tmp'
+	api.deleteLayer = (id) => {
+		deleted.push([id, comp])
+		delete layers[id]
+	}
+	const a = cav.rect('a', 10, 10)
+	const b = cav.rect('b', 10, 10)
+	frame = 17
+	assert.equal(cav.clear(), 2)
+	assert.deepEqual(deleted, [
+		[a, 'tmp'],
+		[b, 'tmp'],
+		['tmp', 'root'],
+	])
+	assert.equal(comp, 'root')
+	assert.equal(frame, 17)
+	assert.equal(cav.clear(), 0)
+})
+
 test('scale takes one number', () => {
 	const { cav, calls } = mockEnv()
 	const r = cav.rect('r', 10, 10)

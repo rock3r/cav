@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+- `cav.clear()` is much faster on large scenes. Cavalry 2.8 slows down more and more when it
+  deletes many layers from the active comp: 1,500 layers took 65 seconds. `cav.clear()` now
+  deletes them while an empty temporary comp is active, which took 4 seconds. The comp keeps
+  its id, its settings and the playhead.
+- `cav.key(layer, 'fill', ...)` animates a colour when the first value is `undefined`. Before,
+  cav checked only the first value, so the colour stayed the same without an error.
+  `undefined` now keys the colour the layer has at that moment. Colour values can be
+  `'#rrggbb'` or `{r, g, b}`. Any other value stops the script with an error.
+- `cav guide traps` explains SkSL coordinates. `fragCoord` is centred on the filtered layer,
+  and `resolution` is the layer's size. On a pre-comp reference, the layer is the whole comp,
+  so a shape drawn around the centre stays in the middle of the comp.
+- `cav guide traps` says to connect masks and filters after a group's children and keys
+  exist. One user reported a much faster build this way. Our own checks did not show a
+  difference.
+
 ## 1.4.0
 
 - `cav music gen --service yue2` makes instrumental takes with YuE2, an open music model,
