@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.5.1
 
 - `cav doctor` says when a newer cav release exists. Its new `update` line is a warning with
   the fix `cav update`, so an agent that runs `cav doctor` learns about it too. cav asks
