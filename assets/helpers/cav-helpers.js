@@ -239,7 +239,14 @@
 		if (isColorAttr(attr)) {
 			var rgbs = keys.map(function (k) {
 				if (k[1] === undefined) return null
-				if (k[1] && typeof k[1] === 'object' && typeof k[1].r === 'number') return [k[1].r, k[1].g, k[1].b]
+				if (
+					k[1] &&
+					typeof k[1] === 'object' &&
+					[k[1].r, k[1].g, k[1].b].every(function (n) {
+						return typeof n === 'number' && isFinite(n)
+					})
+				)
+					return [k[1].r, k[1].g, k[1].b]
 				if (typeof k[1] !== 'string') fail('cav.key: ' + attr + ' takes "#rrggbb" or {r, g, b} values (undefined keys the current colour), got ' + JSON.stringify(k[1]))
 				return cav.rgb(k[1])
 			})

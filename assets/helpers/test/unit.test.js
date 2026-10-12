@@ -94,6 +94,7 @@ test('colour keys with an undefined value key the current colour per channel', (
 	const keys = calls.filter((c) => c[0] === 'keyframe').map((c) => c[3])
 	assert.deepEqual(keys, [{ 'material.materialColor.r': 255 }, { 'material.materialColor.r': 0 }, { 'material.materialColor.g': 0 }, { 'material.materialColor.g': 255 }, { 'material.materialColor.b': 0 }, { 'material.materialColor.b': 0 }])
 	assert.throws(() => cav.key(r, 'fill', [[0, 5]]), /takes "#rrggbb" or \{r, g, b\}/)
+	assert.throws(() => cav.key(r, 'fill', [[0, { r: 255 }]]), /takes "#rrggbb" or \{r, g, b\}/)
 })
 
 test('clear deletes with a temporary comp active and restores comp and playhead', () => {
