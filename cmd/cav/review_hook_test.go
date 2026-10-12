@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -143,5 +144,18 @@ func TestAntigravityHookNeedsAKnownEvent(t *testing.T) {
 	t.Setenv("CAV_HOME", t.TempDir())
 	if m := runAntigravityHook(t, "PostToolUse", map[string]any{}); len(m) != 0 {
 		t.Fatalf("unknown event: %v", m)
+	}
+}
+
+func TestShellArgQuotesPathsThatNeedIt(t *testing.T) {
+	if got := shellArg("/work/renders/final.mp4"); got != "/work/renders/final.mp4" {
+		t.Fatalf("plain path: %q", got)
+	}
+	want := `'/My Work/it'\''s/final.mp4'`
+	if runtime.GOOS == "windows" {
+		want = `"/My Work/it's/final.mp4"`
+	}
+	if got := shellArg("/My Work/it's/final.mp4"); got != want {
+		t.Fatalf("path with a space: %q, want %q", got, want)
 	}
 }

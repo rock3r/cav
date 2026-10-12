@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -186,7 +187,7 @@ func hookMessage(fresh []pendingSend) (text, msg string) {
 	total := 0
 	for _, p := range fresh {
 		total += p.notes
-		lines = append(lines, fmt.Sprintf("- %d note(s) on %s (send #%d): run `cav review wait %s --timeout 10s` to read them", p.notes, p.video, p.n, p.video))
+		lines = append(lines, fmt.Sprintf("- %d note(s) on %s (send #%d): run `cav review wait %s --timeout 10s` to read them", p.notes, p.video, p.n, shellArg(p.video)))
 	}
 	text = "The reviewer pressed \"Send to agent\" in cav review:\n" + strings.Join(lines, "\n") +
 		"\n`cav review wait` prints each note (frame, text, drawing, snapshot path) and marks the send received; look at each snapshot." +
@@ -254,12 +255,32 @@ func loadHookState() map[string]time.Time {
 	return st
 }
 
+// shellArg quotes a path for the command the agent runs, when the path needs it.
+func shellArg(s string) string {
+	if !strings.ContainsAny(s, " \t'\"$`&|;<>()*?[]{}!#~") {
+		return s
+	}
+	if runtime.GOOS == "windows" {
+		return `"` + s + `"`
+	}
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
+// saveHookState writes the state through a temporary file of its own, so hooks that run
+// at the same time never rename each other's file. When two of them race, the last one
+// wins, and at worst a send is announced twice.
 func saveHookState(st map[string]time.Time) bool {
 	os.MkdirAll(config.Home(), 0o700)
 	b, _ := json.Marshal(st)
-	tmp := hookStatePath() + ".tmp"
-	if os.WriteFile(tmp, b, 0o600) != nil {
+	f, err := os.CreateTemp(config.Home(), "review-hook-*.tmp")
+	if err != nil {
 		return false
 	}
-	return os.Rename(tmp, hookStatePath()) == nil
+	_, werr := f.Write(b)
+	cerr := f.Close()
+	if werr != nil || cerr != nil || os.Rename(f.Name(), hookStatePath()) != nil {
+		os.Remove(f.Name())
+		return false
+	}
+	return true
 }
