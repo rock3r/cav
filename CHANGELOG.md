@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- The review hook writes render paths as Markdown code with a fence longer than any run of
+  backticks in the path. Before, a backtick in a path from a review file could end the code
+  span, and the rest of the name showed as plain text in the agent's message.
 - `cav doctor` no longer calls a build the latest release when it is newer than the latest
   published release. It says, for example, "cav 1.5.1 is newer than the latest release
   (1.5.0)".

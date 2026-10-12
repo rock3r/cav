@@ -193,7 +193,7 @@ func hookMessage(fresh []pendingSend) (text, msg string) {
 	total := 0
 	for _, p := range fresh {
 		total += p.notes
-		lines = append(lines, fmt.Sprintf("- %d note(s) on %s (send #%d): run `cav review wait %s --timeout 10s` to read them", p.notes, plainPath(p.video), p.n, shellArg(p.video)))
+		lines = append(lines, fmt.Sprintf("- %d note(s) on %s (send #%d): run %s to read them", p.notes, codeSpan(plainPath(p.video)), p.n, codeSpan("cav review wait "+shellArg(p.video)+" --timeout 10s")))
 	}
 	text = "The reviewer pressed \"Send to agent\" in cav review:\n" + strings.Join(lines, "\n") +
 		"\n`cav review wait` prints each note (frame, text, drawing, snapshot path) and marks the send received; look at each snapshot." +
@@ -274,6 +274,26 @@ func plainPath(s string) string {
 		}
 		return r
 	}, s)
+}
+
+// codeSpan writes s as Markdown inline code. The path in s comes from a review file, so
+// the fence is one backtick longer than the longest run of backticks in s: a backtick in
+// the path cannot end the span, and nothing in it is read as Markdown (CommonMark 6.1).
+func codeSpan(s string) string {
+	longest, run := 0, 0
+	for _, r := range s {
+		if r == '`' {
+			run++
+			longest = max(longest, run)
+		} else {
+			run = 0
+		}
+	}
+	fence := strings.Repeat("`", longest+1)
+	if strings.HasPrefix(s, "`") || strings.HasSuffix(s, "`") {
+		s = " " + s + " "
+	}
+	return fence + s + fence
 }
 
 // shellArg quotes a path for the command the agent runs: single quotes in POSIX shells

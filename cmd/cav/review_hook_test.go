@@ -202,3 +202,17 @@ func TestAntigravityHookCountsASharedOutputFolderOnce(t *testing.T) {
 		t.Fatalf("send listed %d times: %q", n, msg)
 	}
 }
+
+func TestCodeSpanKeepsBackticksInside(t *testing.T) {
+	cases := map[string]string{
+		"/work/final.mp4":   "`/work/final.mp4`",
+		"/a`b/*x*.mp4":      "``/a`b/*x*.mp4``",
+		"/a``b.mp4":         "```/a``b.mp4```",
+		"`/starts-with.mp4": "`` `/starts-with.mp4 ``",
+	}
+	for in, want := range cases {
+		if got := codeSpan(in); got != want {
+			t.Errorf("codeSpan(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
