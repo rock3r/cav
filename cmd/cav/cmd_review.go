@@ -56,6 +56,10 @@ For the agent:
         a command hook for Claude Code and Codex (SessionStart, UserPromptSubmit, Stop):
         reads the hook event on stdin and, when notes were sent and nobody picked them up,
         tells the agent once. The cavalry plugin installs it.
+  cav review hook --host antigravity --event PreInvocation|Stop
+        the same hook for Antigravity: it reads Antigravity's camelCase event, looks in
+        each workspace path, and answers with injectSteps (PreInvocation) or a "continue"
+        decision (Stop). The cavalry plugin installs it in the Antigravity CLI.
 Fix a note, re-render to the same file, then resolve it with a short note. The page
 shows resolved notes, and marks notes made on an older render.`
 }
@@ -74,7 +78,7 @@ func cmdReview(a *app, args []string) error {
 	case "serve":
 		return reviewServe(a, args)
 	case "hook":
-		os.Exit(reviewHook(os.Stdin, os.Stdout, os.Stderr))
+		os.Exit(reviewHook(args, os.Stdin, os.Stdout, os.Stderr))
 	case "export":
 		return reviewExport(a, args)
 	case "resolve", "reopen":
