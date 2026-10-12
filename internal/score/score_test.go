@@ -1,6 +1,7 @@
 package score
 
 import (
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -64,5 +65,20 @@ func TestWithAudioDevice(t *testing.T) {
 		if got, changed := WithAudioDevice(c.ini, c.goos); changed || got != c.ini {
 			t.Errorf("%s: changed a device the user picked: %q", c.goos, got)
 		}
+	}
+}
+
+func TestRPPKeepsARootRenderFolder(t *testing.T) {
+	if rpp := (Project{BPM: 120, RenderTo: "/final-music.wav"}).RPP(); !strings.Contains(rpp, `RENDER_FILE "/"`) {
+		t.Errorf("root folder lost:\n%s", rpp)
+	}
+}
+
+func TestRPPKeepsABackslashInAPOSIXFolderName(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("a backslash is a separator on Windows")
+	}
+	if rpp := (Project{BPM: 120, RenderTo: `/tmp/render\/final-music.wav`}).RPP(); !strings.Contains(rpp, `RENDER_FILE "/tmp/render\"`) {
+		t.Errorf("backslash lost:\n%s", rpp)
 	}
 }
