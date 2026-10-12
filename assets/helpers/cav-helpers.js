@@ -245,18 +245,29 @@
 					[k[1].r, k[1].g, k[1].b].every(function (n) {
 						return typeof n === 'number' && isFinite(n)
 					})
-				)
-					return [k[1].r, k[1].g, k[1].b]
-				if (typeof k[1] !== 'string') fail('cav.key: ' + attr + ' takes "#rrggbb" or {r, g, b} values (undefined keys the current colour), got ' + JSON.stringify(k[1]))
+				) {
+					if (k[1].a !== undefined && !(typeof k[1].a === 'number' && isFinite(k[1].a))) fail('cav.key: ' + attr + ' alpha must be a number, got ' + JSON.stringify(k[1].a))
+					return [k[1].r, k[1].g, k[1].b, k[1].a]
+				}
+				if (typeof k[1] !== 'string') fail('cav.key: ' + attr + ' takes "#rrggbb" or {r, g, b, a?} values (undefined keys the current colour), got ' + JSON.stringify(k[1]))
 				return cav.rgb(k[1])
 			})
-			;['r', 'g', 'b'].forEach(function (ch, ci) {
+			// Alpha is keyed only when a value gives it; the other keys hold the current alpha.
+			var channels = ['r', 'g', 'b']
+			if (
+				rgbs.some(function (c) {
+					return c && c[3] !== undefined
+				})
+			)
+				channels.push('a')
+			channels.forEach(function (ch, ci) {
 				var now = api.get(layer, attr + '.' + ch)
 				cav.key(
 					layer,
 					attr + '.' + ch,
 					keys.map(function (k, i) {
-						return [k[0], rgbs[i] ? rgbs[i][ci] : now, k[2]]
+						var v = rgbs[i] && rgbs[i][ci]
+						return [k[0], v === undefined || v === null ? now : v, k[2]]
 					}),
 				)
 			})

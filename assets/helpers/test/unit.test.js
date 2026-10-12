@@ -93,8 +93,21 @@ test('colour keys with an undefined value key the current colour per channel', (
 	])
 	const keys = calls.filter((c) => c[0] === 'keyframe').map((c) => c[3])
 	assert.deepEqual(keys, [{ 'material.materialColor.r': 255 }, { 'material.materialColor.r': 0 }, { 'material.materialColor.g': 0 }, { 'material.materialColor.g': 255 }, { 'material.materialColor.b': 0 }, { 'material.materialColor.b': 0 }])
-	assert.throws(() => cav.key(r, 'fill', [[0, 5]]), /takes "#rrggbb" or \{r, g, b\}/)
-	assert.throws(() => cav.key(r, 'fill', [[0, { r: 255 }]]), /takes "#rrggbb" or \{r, g, b\}/)
+	assert.throws(() => cav.key(r, 'fill', [[0, 5]]), /takes "#rrggbb" or \{r, g, b, a\?\}/)
+	assert.throws(() => cav.key(r, 'fill', [[0, { r: 255 }]]), /takes "#rrggbb" or \{r, g, b, a\?\}/)
+})
+
+test('colour objects with alpha key the alpha channel too', () => {
+	const { cav, calls, layers } = mockEnv()
+	const r = cav.rect('r', 10, 10)
+	Object.assign(layers[r].attrs, { 'material.materialColor.a': 255 })
+	cav.key(r, 'fill', [
+		[0, '#ff0000'],
+		[10, { r: 255, g: 0, b: 0, a: 0 }],
+	])
+	const alpha = calls.filter((c) => c[0] === 'keyframe' && 'material.materialColor.a' in c[3]).map((c) => c[3]['material.materialColor.a'])
+	assert.deepEqual(alpha, [255, 0])
+	assert.throws(() => cav.key(r, 'fill', [[0, { r: 1, g: 2, b: 3, a: 'x' }]]), /alpha must be a number/)
 })
 
 test('clear deletes with a temporary comp active and restores comp and playhead', () => {
