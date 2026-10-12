@@ -65,9 +65,10 @@ func (p Project) RPP() string {
 	fmt.Fprintf(&b, "  SAMPLERATE %d 1 0\n", p.SampleRate)
 	if p.RenderTo != "" {
 		dir, file := filepath.Split(p.RenderTo)
-		// filepath.Split also splits at / on Windows, so trim either separator.
-		if len(dir) > 1 {
-			dir = strings.TrimRight(dir, `/\`)
+		// filepath.Split also splits at / on Windows, so trim either separator. A root
+		// (/ or C:\) keeps it: C: alone means the drive's current folder.
+		if t := strings.TrimRight(dir, `/\`); t != "" && t != filepath.VolumeName(dir) {
+			dir = t
 		}
 		fmt.Fprintf(&b, "  RENDER_FILE %s\n", quote(dir))
 		fmt.Fprintf(&b, "  RENDER_PATTERN %s\n", quote(strings.TrimSuffix(file, filepath.Ext(file))))

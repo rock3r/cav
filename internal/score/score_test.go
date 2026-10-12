@@ -66,3 +66,9 @@ func TestWithAudioDevice(t *testing.T) {
 		}
 	}
 }
+
+func TestRPPKeepsARootRenderFolder(t *testing.T) {
+	if rpp := (Project{BPM: 120, RenderTo: "/final-music.wav"}).RPP(); !strings.Contains(rpp, `RENDER_FILE "/"`) {
+		t.Errorf("root folder lost:\n%s", rpp)
+	}
+}
