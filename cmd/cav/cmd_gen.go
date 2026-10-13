@@ -396,10 +396,6 @@ func freePath(base, ext string) (string, error) {
 	}
 }
 
-func saveGenerated(a *app, path string, im *imagegen.Image, prompt string, refs []string, skipped []string) error {
-	return saveAsset(a, path, im, prompt, refs, skipped, "")
-}
-
 // cutoutTerms gives a cutout the licence of the image it was cut from, because a cutout is
 // a changed version of that image. An image that the manifest does not list gets an unknown
 // licence, so cav credits check asks about it.
