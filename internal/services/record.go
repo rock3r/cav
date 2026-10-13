@@ -124,9 +124,13 @@ func (r *recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 	if err != nil {
 		rec["error"] = err.Error()
 	} else {
-		body, _ := io.ReadAll(resp.Body)
+		body, rerr := io.ReadAll(resp.Body)
 		resp.Body.Close()
-		resp.Body = io.NopCloser(bytes.NewReader(body))
+		// Hand a failed read back to the caller, so a cut-off answer never looks complete.
+		resp.Body = io.NopCloser(io.MultiReader(bytes.NewReader(body), errReader{rerr}))
+		if rerr != nil {
+			rec["read_error"] = rerr.Error()
+		}
 		rec["status"] = resp.StatusCode
 		rec["response_type"] = resp.Header.Get("Content-Type")
 		rec["response"] = bodyForRecord(body, resp.Header.Get("Content-Type"))
@@ -137,4 +141,14 @@ func (r *recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 		os.WriteFile(filepath.Join(r.dir, name), b, 0o600)
 	}
 	return resp, err
+}
+
+// errReader returns err after the bytes before it, or io.EOF when err is nil.
+type errReader struct{ err error }
+
+func (r errReader) Read([]byte) (int, error) {
+	if r.err != nil {
+		return 0, r.err
+	}
+	return 0, io.EOF
 }
