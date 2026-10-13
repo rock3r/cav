@@ -297,7 +297,7 @@ n=$((n + 1))
 "$cav" update --json >"$logs/update.json" 2>&1
 if grep -q '"updated": false\|needs confirmation' "$logs/update.json"; then
 	pass=$((pass + 1)); printf 'ok    %-34s\n' "update --json (installs nothing)"
-elif grep -q 'update check failed' "$logs/update.json"; then
+elif grep -qiE "$net_errors" "$logs/update.json"; then
 	warn=$((warn + 1)); printf 'warn  %-34s (needs the internet): %s\n' "update --json" "$logs/update.json"
 else
 	fail=$((fail + 1)); failed+=("update --json"); printf 'FAIL  %-34s %s\n' "update --json" "$logs/update.json"
