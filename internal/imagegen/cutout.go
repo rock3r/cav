@@ -50,6 +50,9 @@ func rembg(ctx context.Context, in string) (*Image, error) {
 	if err != nil {
 		return nil, err
 	}
+	if _, err := os.Stat(abs); err != nil {
+		return nil, err
+	}
 	tmp, err := os.MkdirTemp("", "cav-cutout")
 	if err != nil {
 		return nil, err

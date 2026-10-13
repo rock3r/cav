@@ -11,9 +11,11 @@ from rembg import new_session, remove
 
 def main():
     model, src, dst = sys.argv[1:4]
-    session = new_session(model)
+    # Decode the image first: a missing or broken file fails before the model download.
     with Image.open(src) as im:
-        out = remove(im.convert("RGB"), session=session)
+        rgb = im.convert("RGB")
+    session = new_session(model)
+    out = remove(rgb, session=session)
     out.convert("RGBA").save(dst, "PNG")
 
 
