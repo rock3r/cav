@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -22,7 +23,7 @@ func (s *stringList) Set(v string) error { *s = append(*s, v); return nil }
 func init() {
 	register(command{
 		name:    "gen",
-		args:    "image \"<prompt>\" [-o file] [--ref img]... [--aspect 16:9] [--alpha] [--vector] [--service S] [--model M] | vector <image> [-o file.svg] [--service S]",
+		args:    "image \"<prompt>\" [-o file] [--ref img]... [--aspect 16:9] [--alpha] [--vector] [--service S] [--model M] | vector <image> [-o file.svg] [--service S] | cutout <image> [-o file.png] [--service S]",
 		summary: "Generate a still or an asset (transparent PNG, SVG) with the configured image service.",
 		run:     cmdGen,
 	})
@@ -34,6 +35,11 @@ cav gen image "a paper-cut mountain range at dusk" -o assets/mountains.png
     --ref (repeatable) sends reference images for a consistent look.
 cav gen vector logo.png -o logo.svg
     traces a PNG into an SVG: recraft with a key, otherwise vtracer or potrace if installed.
+cav gen cutout photo.jpg -o fox.png
+    makes the background of an image transparent: recraft with a key, otherwise rembg
+    (BiRefNet, local through uv; the first run downloads the model, about 1 GB).
+    With rembg in the image.alpha order, cav gen image --alpha makes the image with the
+    image service, then cuts it out with rembg.
 Every result is recorded in .cav/manifest.json with the provider, model and prompt.
 Without an image key, cav gen image draws a greybox card with the prompt instead.`
 }
@@ -49,8 +55,10 @@ func cmdGen(a *app, args []string) error {
 		return genImage(a, args)
 	case "vector":
 		return genVector(a, args)
+	case "cutout":
+		return genCutout(a, args)
 	}
-	return usageErr("unknown gen command %q (image, vector)", sub)
+	return usageErr("unknown gen command %q (image, vector, cutout)", sub)
 }
 
 func genImage(a *app, args []string) error {
@@ -100,6 +108,13 @@ func genImage(a *app, args []string) error {
 		im = &imagegen.Image{Data: data, MIME: "image/png", Provider: "greybox"}
 	case "vtracer", "potrace":
 		return fail(exitError, ch.Service+" traces images but cannot make one from words", "make a PNG first, then: cav gen vector <png>")
+	case "rembg":
+		// rembg only cuts out: the image service makes the image, then rembg removes its
+		// background.
+		im, err = generateThenCutout(ctx, c, ch, imagegen.Request{Prompt: prompt, Refs: refs, Aspect: *aspect, Model: *model})
+		if err != nil {
+			return err
+		}
 	default:
 		im, err = imagegen.Generate(ctx, c, ch, imagegen.Request{Prompt: prompt, Refs: refs, Aspect: *aspect, Alpha: *alpha, Vector: *vector, Model: *model})
 		if err != nil {
@@ -146,6 +161,87 @@ func genVector(a *app, args []string) error {
 		path = strings.TrimSuffix(pos[0], filepath.Ext(pos[0])) + ".svg"
 	}
 	return saveGenerated(a, path, im, "vectorized "+pos[0], []string{pos[0]}, ch.Skipped)
+}
+
+// generateThenCutout makes an image with the first usable image service, then runs the
+// cutout service ch on it.
+func generateThenCutout(ctx context.Context, c *services.Config, ch *services.Choice, r imagegen.Request) (*imagegen.Image, error) {
+	gen, err := services.Pick(ctx, c, "image", "")
+	if err != nil {
+		return nil, fail(exitError, err.Error(), "see cav config")
+	}
+	if gen.Service == "greybox" {
+		return nil, fail(exitError, ch.Service+" cuts the background out of a generated image, but no image service can make one (only greybox is usable)",
+			"add an image key (cav config), or cut out an image you have: cav gen cutout <image>")
+	}
+	ch.Skipped = append(ch.Skipped, gen.Skipped...)
+	im, err := imagegen.Generate(ctx, c, gen, r)
+	if err != nil {
+		return nil, fail(exitError, err.Error(), "")
+	}
+	tmp, err := os.MkdirTemp("", "cav-gen")
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(tmp)
+	in := filepath.Join(tmp, "image"+im.Ext())
+	if err := os.WriteFile(in, im.Data, 0o644); err != nil {
+		return nil, err
+	}
+	cut, err := imagegen.RemoveBackground(ctx, ch, in)
+	if err != nil {
+		return nil, fail(exitError, err.Error(), "")
+	}
+	cut.Provider = im.Provider + " + " + cut.Provider
+	cut.Model = im.Model + " + " + cut.Model
+	return cut, nil
+}
+
+func genCutout(a *app, args []string) error {
+	fs := flag.NewFlagSet("gen cutout", flag.ContinueOnError)
+	out := fs.String("o", "", "output PNG (default: <input>-cutout.png next to the input)")
+	service := fs.String("service", "", "recraft or rembg")
+	pos, err := parseFlags(fs, args)
+	if err != nil {
+		return err
+	}
+	if len(pos) != 1 {
+		return usageErr("usage: cav gen cutout <image> [-o file.png]")
+	}
+	c, err := services.Load()
+	if err != nil {
+		return err
+	}
+	// Only the services that cut out an existing image, in the image.alpha order.
+	cc := *c
+	cc.Order = map[string][]string{}
+	for _, s := range c.OrderFor("image.alpha") {
+		if slices.Contains(imagegen.CutoutServices, s) {
+			cc.Order["image.alpha"] = append(cc.Order["image.alpha"], s)
+		}
+	}
+	if len(cc.Order["image.alpha"]) == 0 {
+		cc.Order["image.alpha"] = imagegen.CutoutServices
+	}
+	// The first run downloads the rembg model (about 1 GB).
+	ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
+	defer cancel()
+	ch, err := services.Pick(ctx, &cc, "image.alpha", *service)
+	if err != nil {
+		return fail(exitError, err.Error(), "install uv (https://docs.astral.sh/uv/) for rembg, or add a Recraft key")
+	}
+	if !slices.Contains(imagegen.CutoutServices, ch.Service) {
+		return fail(exitError, ch.Service+" makes transparent images only while it generates them", "use --service rembg or --service recraft")
+	}
+	im, err := imagegen.RemoveBackground(ctx, ch, pos[0])
+	if err != nil {
+		return fail(exitError, err.Error(), "")
+	}
+	path := *out
+	if path == "" {
+		path = strings.TrimSuffix(pos[0], filepath.Ext(pos[0])) + "-cutout.png"
+	}
+	return saveGenerated(a, path, im, "cut out "+pos[0], []string{pos[0]}, ch.Skipped)
 }
 
 func saveGenerated(a *app, path string, im *imagegen.Image, prompt string, refs []string, skipped []string) error {

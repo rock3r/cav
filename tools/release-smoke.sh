@@ -244,6 +244,17 @@ else
 	covered+="gen "
 	echo "skip  gen vector                         neither vtracer nor potrace is installed (brew install potrace)"
 fi
+# gen cutout makes the card's background transparent with rembg through uv (recraft
+# needs a key). The first run downloads the BiRefNet model (about 1 GB) into ~/.rembg.
+# Without uv it is a skip, not a pass.
+if command -v uv >/dev/null; then
+	step net "gen cutout (rembg)" gen cutout assets/card.png --service rembg -o assets/card-cutout.png
+	# Byte 25 of a PNG is its colour type: 6 is RGBA, so the file has an alpha channel.
+	# A network warning above leaves no file, and the step already reported it.
+	[[ -f assets/card-cutout.png ]] && check "gen cutout wrote an RGBA PNG" python3 -I -c 'import sys; d = open(sys.argv[1], "rb").read(26); sys.exit(d[1:4] != b"PNG" or d[25] != 6)' assets/card-cutout.png
+else
+	echo "skip  gen cutout                         uv is not installed (https://docs.astral.sh/uv/)"
+fi
 step ok "sfx add" sfx add click.wav --licence CC0-1.0 --author smoke
 step ok "sfx index" sfx index . --licence CC0-1.0
 step ok "sfx libraries" sfx libraries

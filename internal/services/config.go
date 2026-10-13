@@ -61,7 +61,7 @@ var JobHelp = map[string]string{
 // at all the free entries win.
 var DefaultOrder = map[string][]string{
 	"image":        {"gemini", "openai", "openrouter", "fal", "comfyui", "greybox"},
-	"image.alpha":  {"openai", "recraft"},
+	"image.alpha":  {"openai", "recraft", "rembg"},
 	"image.vector": {"recraft", "vtracer", "potrace"},
 	"video":        {"veo"},
 	"music":        {"elevenlabs", "stability", "lyria", "acestep", "yue2"},

@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- cav can make transparent images for free on this machine. The new `rembg` service runs
+  rembg 2.0.85 with the BiRefNet model (`birefnet-general`) through uv. Its first run
+  downloads the model, about 1 GB. `cav gen cutout <image>` removes the background of an
+  image you have. `cav gen image --alpha` uses rembg when there is no OpenAI or Recraft
+  key: the first image service makes the image, then rembg cuts it out. rembg is last in
+  the `image.alpha` order, because OpenAI and Recraft keep soft edges and shadows better.
+  The release smoke runs `cav gen cutout` when uv is installed.
 - `cav doctor` checks for a new release at most once an hour, not once a day. It also checks
   again when the cached answer is older than the running cav. Before, after you installed
   a new release, `cav doctor` could say for up to a day that it was newer than the latest

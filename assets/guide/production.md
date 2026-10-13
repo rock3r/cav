@@ -21,6 +21,10 @@ cav config set-key openai op://Private/OpenAI/api key    # or env:NAME, keychain
 Local models run on this machine. mflux runs open image models (default FLUX.2 klein 4B)
 through uv on Apple silicon; it is not in the default order because its first run
 downloads several GB, so ask for it: `--service mflux`, or `cav config order image ...`.
+rembg cuts the background out of an image with BiRefNet (`birefnet-general`), on any
+platform with uv. Its first run downloads the model, about 1 GB, into `~/.rembg`. It is
+last in the `image.alpha` order: OpenAI and Recraft make the transparency while they
+generate, which keeps soft edges and shadows, and they need no second step.
 ComfyUI, ACE-Step and YuE2 are servers the user runs:
 `cav config endpoint comfyui http://127.0.0.1:8188 <workflow-api.json>` (the workflow holds
 `{{prompt}}`, `"{{width}}"`, `"{{height}}"` and `"{{seed}}"`), and
@@ -48,7 +52,7 @@ key into the chat: ask them to run `cav config set-key` themselves.
 | Job | Free | With a key |
 |---|---|---|
 | `image` (frames, stills) | greybox cards; mflux (Apple silicon), comfyui (your server) | gemini, openai, openrouter, fal |
-| `image.alpha` (transparent PNG) | none | openai, recraft |
+| `image.alpha` (transparent PNG) | rembg (through uv): cuts out an image that an `image` service made | openai, recraft |
 | `image.vector` (SVG) | vtracer, potrace (if installed) | recraft |
 | `video` (moving animatic shots) | none (the animatic holds each frame) | veo |
 | `ref` (reference images) | openverse, wikimedia | pexels, unsplash |
@@ -120,7 +124,14 @@ cav gen image "paper-cut mountains at dusk" -o assets/mountains.png
 cav gen image "flat logo mark, a fox head" --alpha -o assets/fox.png     # transparent
 cav gen image "line icon of a rocket" --vector -o assets/rocket.svg       # SVG
 cav gen vector assets/fox.png -o assets/fox.svg                          # trace a PNG
+cav gen cutout photo.png -o assets/fox.png                               # remove a background
 ```
+
+`--alpha` with rembg works in two steps: the first usable `image` service (for example
+Gemini) makes the image, then rembg cuts it out on this machine. Ask for a plain,
+even background in the prompt; the cutout is cleaner. Without an image key there is
+nothing to cut out, so cav says so. `cav gen cutout` works on any image you have, with
+rembg or Recraft (OpenAI cannot cut out an image it did not make).
 
 Load an image into Cavalry with `cav.image('/abs/path.png', 'name')`. Turn an SVG into
 editable shapes with `api.convertSVGToLayers('/abs/path.svg')`, which returns the new
