@@ -375,7 +375,16 @@ func acestep(ctx context.Context, c *services.Config, key string, r Request) (*T
 		prompt += ". Structure: " + strings.Join(parts, "; ")
 	}
 	lyrics := strings.TrimSpace(r.Lyrics)
-	if lyrics == "" {
+	switch {
+	case lyrics == "" && len(r.Sections) > 0:
+		// An instrumental also gets its sections in the lyrics as structure tags, as the
+		// ACE-Step tutorial says. Tested on a real server on 2026-10-13 with cuts at 8 s and
+		// 16 s: with the tags, 7 of 8 takes changed near the first cut; with only the
+		// timeline in the prompt, 0 of 3 did. The timeline did not move a change to a cut at
+		// 4 s (0 of 3), but it keeps the timing in the request.
+		prompt += ", instrumental"
+		lyrics = acestepTags(r.Sections)
+	case lyrics == "":
 		prompt, lyrics = prompt+", instrumental", "[Instrumental]"
 	}
 	body := map[string]any{"prompt": prompt, "lyrics": lyrics, "audio_format": "wav",
@@ -476,6 +485,44 @@ func acestep(ctx context.Context, c *services.Config, key string, r Request) (*T
 		case <-time.After(2 * time.Second):
 		}
 	}
+}
+
+// acestepTags writes one structure tag per section, such as "[intro - logo fades in]",
+// within ACE-Step's 4096-character lyrics limit. Every section keeps a tag: when the tags
+// are too long, each one is cut to an equal share, so a long style shortens its own tag
+// and not the shots after it.
+func acestepTags(sections []Section) string {
+	if len(sections) == 0 {
+		return ""
+	}
+	clean := strings.NewReplacer("[", "(", "]", ")", "\n", " ")
+	tags := make([][]rune, len(sections))
+	total := -2 // the last tag has no blank line after it
+	for i, s := range sections {
+		tag := clean.Replace(strings.Replace(s.Name, ": ", " - ", 1))
+		if len(s.Styles) > 0 {
+			tag += ", " + clean.Replace(strings.Join(s.Styles, ", "))
+		}
+		tags[i] = []rune(tag)
+		total += len(tags[i]) + 4 // the brackets and the blank line
+	}
+	limit := MaxLyrics("acestep")
+	share := (limit+2)/len(tags) - 4
+	if total > limit && share <= 0 {
+		return "[Instrumental]" // too many shots for a tag each; the prompt still has the timeline
+	}
+	if total > limit {
+		for i, t := range tags {
+			if len(t) > share {
+				tags[i] = []rune(strings.TrimSpace(string(t[:share])))
+			}
+		}
+	}
+	parts := make([]string, len(tags))
+	for i, t := range tags {
+		parts[i] = "[" + string(t) + "]"
+	}
+	return strings.Join(parts, "\n\n")
 }
 
 // bpmIn finds "<n> BPM" in a prompt (cav music gen --board adds it).
