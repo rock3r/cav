@@ -40,6 +40,8 @@ type recorder struct {
 	n    atomic.Int64
 }
 
+// secretParams are query names to hide; names holding sig, token, credential, secret,
+// expires, accessid or key are hidden too (signed CDN addresses such as X-Amz-Signature).
 var secretParams = []string{"key", "token", "api_key", "apikey", "client_secret", "code", "access_token", "refresh_token", "md5"}
 
 func redactURL(u string) string {
@@ -50,9 +52,12 @@ func redactURL(u string) string {
 	parts := strings.Split(u[i+1:], "&")
 	for j, p := range parts {
 		k, _, _ := strings.Cut(p, "=")
+		lk := strings.ToLower(k)
 		for _, s := range secretParams {
-			if strings.EqualFold(k, s) {
+			if lk == s || strings.Contains(lk, "sig") || strings.Contains(lk, "token") || strings.Contains(lk, "credential") ||
+				strings.Contains(lk, "secret") || strings.Contains(lk, "expires") || strings.Contains(lk, "accessid") || strings.Contains(lk, "key") {
 				parts[j] = k + "=REDACTED"
+				break
 			}
 		}
 	}
