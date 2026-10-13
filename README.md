@@ -98,6 +98,20 @@ cav render -o out/title.mp4
 The [user guide](docs/user-guide.md) walks through a first animation, music sync and
 troubleshooting.
 
+## What it looks like
+
+Look at music you cannot hear: `cav spectrogram` draws bars, sections and accents.
+
+![cav spectrogram](docs/images/spectrogram.png)
+
+Plan shots on the beat: `cav board sheet` shows the storyboard.
+
+![cav board sheet](docs/images/board.png)
+
+Describe a symptom, get the fix: `cav guide --search "keys dropped"`.
+
+![cav guide --search](docs/images/guide-search.png)
+
 ## Commands
 
 | Command | What it does |
