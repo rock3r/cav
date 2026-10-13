@@ -247,3 +247,14 @@ func TestMfluxCommandPerModel(t *testing.T) {
 		}
 	}
 }
+
+func TestMfluxWarnsBeforeTheFirstDownload(t *testing.T) {
+	t.Setenv("HF_HUB_CACHE", t.TempDir())
+	note := mfluxDownloadNote("flux2-klein-4b")
+	if !strings.Contains(note, "first run downloads the flux2-klein-4b weights (about 16 GB)") {
+		t.Fatalf("got %q", note)
+	}
+	if note := mfluxDownloadNote("z-image-turbo"); note != "" {
+		t.Fatalf("unknown model: got %q", note)
+	}
+}

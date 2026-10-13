@@ -65,12 +65,13 @@ func TestPickSkipsUnusableServices(t *testing.T) {
 	t.Setenv("OPENAI_API_KEY", "")
 	t.Setenv("FAL_KEY", "")
 	t.Setenv("FAL_API_KEY", "")
+	t.Setenv("HF_HUB_CACHE", t.TempDir()) // no mflux weights
 	c := &Config{}
 	ch, err := Pick(context.Background(), c, "image", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ch.Service != "greybox" || len(ch.Skipped) != 5 {
+	if ch.Service != "greybox" || len(ch.Skipped) != 6 {
 		t.Fatalf("no keys: got %s, skipped %v", ch.Service, ch.Skipped)
 	}
 	t.Setenv("OPENAI_API_KEY", "sk-test")
