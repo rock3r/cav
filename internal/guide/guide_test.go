@@ -71,7 +71,9 @@ func TestSplitKeepsEveryGuideLine(t *testing.T) {
 			all.WriteString(s.Text + "\n")
 		}
 		text := all.String()
-		for i, l := range strings.Split(StripAliases(string(b)), "\n") {
+		// Windows checkouts may have CRLF line ends; Split drops the CR.
+		md := strings.ReplaceAll(StripAliases(string(b)), "\r\n", "\n")
+		for i, l := range strings.Split(md, "\n") {
 			if lv, _ := heading(l); lv > 0 || strings.TrimSpace(l) == "" {
 				continue
 			}
@@ -79,6 +81,22 @@ func TestSplitKeepsEveryGuideLine(t *testing.T) {
 				t.Errorf("%s line %d is in no section: %q", topic, i+1, l)
 			}
 		}
+	}
+}
+
+func TestSplitHandlesCRLF(t *testing.T) {
+	lf := Split("t", sample)
+	crlf := Split("t", strings.ReplaceAll(sample, "\n", "\r\n"))
+	if len(lf) != len(crlf) {
+		t.Fatalf("%d sections with LF, %d with CRLF", len(lf), len(crlf))
+	}
+	for i := range lf {
+		if lf[i].Text != crlf[i].Text || strings.Join(lf[i].Path, "/") != strings.Join(crlf[i].Path, "/") {
+			t.Errorf("section %d differs: %q vs %q", i, lf[i].Text, crlf[i].Text)
+		}
+	}
+	if got := StripAliases("| a <!-- aliases: x --> |\r\n"); got != "| a |\r\n" {
+		t.Errorf("StripAliases(CRLF) = %q", got)
 	}
 }
 
