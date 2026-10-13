@@ -131,7 +131,9 @@ cav gen cutout photo.png -o assets/fox.png                               # remov
 Gemini) makes the image, then rembg cuts it out on this machine. Ask for a plain,
 even background in the prompt; the cutout is cleaner. Without an image key there is
 nothing to cut out, so cav says so. `cav gen cutout` works on any image you have, with
-rembg or Recraft (OpenAI cannot cut out an image it did not make).
+rembg or Recraft (OpenAI cannot cut out an image it did not make). A cutout keeps the
+licence and credit of the image it came from. An image that is not in the manifest gives
+a cutout with an unknown licence, so `cav credits check` asks about it.
 
 Load an image into Cavalry with `cav.image('/abs/path.png', 'name')`. Turn an SVG into
 editable shapes with `api.convertSVGToLayers('/abs/path.svg')`, which returns the new

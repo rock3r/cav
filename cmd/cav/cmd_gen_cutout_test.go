@@ -49,20 +49,85 @@ func TestGenCutoutUsesRembgNotOpenAI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	found := false
-	for _, e := range m.Assets {
-		if strings.HasSuffix(e.Path, "in-cutout.png") && e.Generated != nil && e.Generated.Provider == "rembg" && e.Generated.Model == "birefnet-general" {
-			found = true
-		}
+	// in.png is not in the manifest, so cav cannot know its licence.
+	e := entryFor(m, "in-cutout.png")
+	if e == nil || e.Generated == nil || e.Generated.Provider != "rembg" || e.Generated.Model != "birefnet-general" || e.Licence != "unknown" || e.CommercialOK {
+		t.Errorf("cutout entry %+v", e)
 	}
-	if !found {
-		t.Errorf("no rembg entry in the manifest: %+v", m.Assets)
+	if !hasProblem(library.Check(library.Root(), m, &library.Project{}), "in-cutout.png", "unknown-licence") {
+		t.Error("credits check does not ask about the cutout of an unrecorded image")
 	}
 
 	err = cmdGen(&app{}, []string{"cutout", "in.png", "--service", "openai"})
 	var ce *cliError
 	if !errors.As(err, &ce) || !strings.Contains(ce.msg, "only while it generates") {
 		t.Errorf("--service openai: %v", err)
+	}
+}
+
+func entryFor(m *library.Manifest, path string) *library.Entry {
+	for i := range m.Assets {
+		if m.Assets[i].Path == path {
+			return &m.Assets[i]
+		}
+	}
+	return nil
+}
+
+func hasProblem(ps []library.Problem, path, kind string) bool {
+	for _, p := range ps {
+		if p.Path == path && p.Kind == kind {
+			return true
+		}
+	}
+	return false
+}
+
+// A cutout of a licensed image keeps that image's terms and credit, so credits check
+// still sees a non-commercial or no-derivatives licence. A cutout of a generated image
+// stays generated.
+func TestGenCutoutKeepsTheSourceLicence(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake uv is a shell script")
+	}
+	t.Setenv("CAV_HOME", t.TempDir())
+	t.Setenv("CAV_NO_KEYS", "1")
+	fakeUVOnPath(t, "#!/bin/sh\nprev=; last=; for a; do prev=$last; last=$a; done\ncp \"$prev\" \"$last\"\n")
+	t.Chdir(t.TempDir())
+	for _, f := range []string{"photo.png", "made.png"} {
+		if err := os.WriteFile(f, []byte("\x89PNG\r\n\x1a\nfake"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	root := library.Root()
+	m := &library.Manifest{}
+	m.Put(root, library.Entry{Path: "photo.png", Kind: "image", Source: "openverse", Licence: "CC BY-NC-ND 4.0",
+		Author: "Ann", AttributionRequired: true, Attribution: "Photo by Ann", NoDerivatives: true})
+	m.Put(root, library.Entry{Path: "made.png", Kind: "image", Source: "gemini", Licence: "generated", CommercialOK: true,
+		Generated: &library.Generated{Provider: "gemini"}})
+	if err := m.Save(root); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range []string{"photo.png", "made.png"} {
+		if err := cmdGen(&app{}, []string{"cutout", f}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	m, err := library.Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e := entryFor(m, "photo-cutout.png"); e == nil || e.Generated != nil || e.Licence != "CC BY-NC-ND 4.0" || e.CommercialOK || !e.NoDerivatives || e.Attribution != "Photo by Ann" {
+		t.Errorf("cutout of a licensed photo: %+v", e)
+	}
+	problems := library.Check(root, m, &library.Project{Licence: "commercial"})
+	for _, kind := range []string{"nc-in-commercial", "no-derivatives"} {
+		if !hasProblem(problems, "photo-cutout.png", kind) {
+			t.Errorf("credits check misses %s on the cutout: %+v", kind, problems)
+		}
+	}
+	if e := entryFor(m, "made-cutout.png"); e == nil || e.Generated == nil || e.Licence != "generated" || !e.CommercialOK {
+		t.Errorf("cutout of a generated image: %+v", e)
 	}
 }
 

@@ -241,10 +241,42 @@ func genCutout(a *app, args []string) error {
 	if path == "" {
 		path = strings.TrimSuffix(pos[0], filepath.Ext(pos[0])) + "-cutout.png"
 	}
-	return saveGenerated(a, path, im, "cut out "+pos[0], []string{pos[0]}, ch.Skipped)
+	return saveAsset(a, path, im, "cut out "+pos[0], []string{pos[0]}, ch.Skipped, pos[0])
 }
 
 func saveGenerated(a *app, path string, im *imagegen.Image, prompt string, refs []string, skipped []string) error {
+	return saveAsset(a, path, im, prompt, refs, skipped, "")
+}
+
+// cutoutTerms gives a cutout the licence of the image it was cut from, because a cutout is
+// a changed version of that image. An image that the manifest does not list gets an unknown
+// licence, so cav credits check asks about it.
+func cutoutTerms(m *library.Manifest, root, from string, e library.Entry) library.Entry {
+	rel := library.Rel(root, from)
+	for _, src := range m.Assets {
+		if src.Path != rel {
+			continue
+		}
+		if src.Generated != nil {
+			e.Licence, e.LicenceNote, e.CommercialOK = src.Licence, src.LicenceNote, src.CommercialOK
+			return e
+		}
+		// A licensed image: the cutout carries its terms and credit. It is not recorded as
+		// generated, because cav credits check skips generated assets.
+		e.Generated = nil
+		e.Title, e.Source, e.SourceID, e.URL = src.Title, src.Source, src.SourceID, src.URL
+		e.Licence, e.LicenceURL, e.LicenceNote = src.Licence, src.LicenceURL, src.LicenceNote
+		e.Author, e.AuthorURL, e.Attribution, e.AttributionRequired = src.Author, src.AuthorURL, src.Attribution, src.AttributionRequired
+		e.CommercialOK, e.ShareAlike, e.NoDerivatives = src.CommercialOK, src.ShareAlike, src.NoDerivatives
+		return e
+	}
+	e.Licence, e.CommercialOK = "unknown", false
+	return e
+}
+
+// saveAsset writes the image and records it in the manifest. from is the image a cutout
+// was made from, or "" for an image made from words.
+func saveAsset(a *app, path string, im *imagegen.Image, prompt string, refs []string, skipped []string, from string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
@@ -261,8 +293,12 @@ func saveGenerated(a *app, path string, im *imagegen.Image, prompt string, refs 
 	if strings.Contains(im.MIME, "svg") {
 		kind = "svg"
 	}
-	e := m.Put(root, library.Entry{Path: path, Kind: kind, Source: im.Provider, Licence: "generated", CommercialOK: true,
-		RetrievedAt: time.Now().UTC(), SHA256: sum, Generated: &library.Generated{Provider: im.Provider, Model: im.Model, Prompt: prompt, Refs: refs}})
+	e := library.Entry{Path: path, Kind: kind, Source: im.Provider, Licence: "generated", CommercialOK: true,
+		RetrievedAt: time.Now().UTC(), SHA256: sum, Generated: &library.Generated{Provider: im.Provider, Model: im.Model, Prompt: prompt, Refs: refs}}
+	if from != "" {
+		e = cutoutTerms(m, root, from, e)
+	}
+	e = m.Put(root, e)
 	if err := m.Save(root); err != nil {
 		return err
 	}
