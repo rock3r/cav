@@ -5,19 +5,32 @@
 # BiRefNet's general model (birefnet-general) is about 1 GB.
 import sys
 
-from PIL import Image, ImageOps
-from rembg import new_session, remove
+from PIL import Image, ImageChops, ImageOps
+
+
+def load(src):
+    """Opens the image upright (as its EXIF orientation says), as RGBA."""
+    with Image.open(src) as im:
+        return ImageOps.exif_transpose(im).convert("RGBA")
+
+
+def apply_mask(rgba, mask):
+    """Multiplies the image's own alpha by rembg's mask, so pixels that were already
+    transparent or partly transparent stay so."""
+    out = rgba.copy()
+    out.putalpha(ImageChops.multiply(rgba.getchannel("A"), mask.convert("L")))
+    return out
 
 
 def main():
     model, src, dst = sys.argv[1:4]
     # Decode the image first: a missing or broken file fails before the model download.
-    # Turn the pixels as the EXIF orientation says, so a phone photo stays upright.
-    with Image.open(src) as im:
-        rgb = ImageOps.exif_transpose(im).convert("RGB")
+    rgba = load(src)
+    from rembg import new_session, remove
+
     session = new_session(model)
-    out = remove(rgb, session=session)
-    out.convert("RGBA").save(dst, "PNG")
+    mask = remove(rgba.convert("RGB"), session=session, only_mask=True)
+    apply_mask(rgba, mask).save(dst, "PNG")
 
 
 if __name__ == "__main__":

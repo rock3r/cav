@@ -180,13 +180,16 @@ func generateThenCutout(ctx context.Context, c *services.Config, ch *services.Ch
 			"add an image key (cav config), or cut out an image you have: cav gen cutout <image>")
 	}
 	ch.Skipped = append(ch.Skipped, gen.Skipped...)
-	im, err := imagegen.Generate(ctx, c, gen, r)
-	if err != nil {
-		return nil, fail(exitError, err.Error(), "")
-	}
+	// Make the folder for the generated image before the image service runs, so a
+	// failure here cannot waste a paid call.
 	tmp, err := os.MkdirTemp("", "cav-gen")
 	if err != nil {
 		return nil, err
+	}
+	im, err := imagegen.Generate(ctx, c, gen, r)
+	if err != nil {
+		os.RemoveAll(tmp)
+		return nil, fail(exitError, err.Error(), "")
 	}
 	in := filepath.Join(tmp, "image"+im.Ext())
 	if err := os.WriteFile(in, im.Data, 0o644); err != nil {
