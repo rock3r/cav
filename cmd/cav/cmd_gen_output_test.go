@@ -298,3 +298,15 @@ func TestGenCutoutChecksTheOutputPathAsWritten(t *testing.T) {
 		t.Error("cav wrote linked.png in the working folder, not next to the link's target")
 	}
 }
+
+func TestRawDir(t *testing.T) {
+	cases := map[string]string{"x.png": ".", "/x.png": "/", "a/b/x.png": "a/b", "missing/../x.png": "missing/.."}
+	if runtime.GOOS == "windows" {
+		cases = map[string]string{`x.png`: ".", `C:\x.png`: `C:\`, `C:x.png`: "C:", `C:\a\x.png`: `C:\a`, `\\host\share\x.png`: `\\host\share\`}
+	}
+	for in, want := range cases {
+		if got := rawDir(in); got != want {
+			t.Errorf("rawDir(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

@@ -339,15 +339,20 @@ func checkOutput(path, example string) error {
 // filepath.Dir does. The system then follows the same folders, links and ".." for the
 // check as for the save: missing/../fox.png makes the folder missing, and
 // link/../fox.png stays next to the link's target.
+// A Windows volume keeps its root: C:\x.png gives C:\, and C:x.png gives C:.
 func rawDir(path string) string {
-	i := strings.LastIndexAny(path, "/"+string(filepath.Separator))
+	vol := filepath.VolumeName(path)
+	rest := path[len(vol):]
+	i := strings.LastIndexAny(rest, "/"+string(filepath.Separator))
 	switch {
-	case i < 0:
+	case i < 0 && vol == "":
 		return "."
+	case i < 0:
+		return vol
 	case i == 0:
-		return path[:1]
+		return vol + rest[:1]
 	}
-	return path[:i]
+	return vol + rest[:i]
 }
 
 // checkFolder makes dir and proves that cav can make a file in it, by making and
