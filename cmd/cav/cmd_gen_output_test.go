@@ -132,6 +132,7 @@ func TestGenRefusesAnOutputItCannotWrite(t *testing.T) {
 	readOnly(t, "assets")
 	readOnly(t, "old.png")
 	readOnly(t, "old.svg")
+	os.Symlink(filepath.Join("missing", "fox.png"), "dangling.png")
 
 	cases := []struct {
 		args []string
@@ -140,6 +141,7 @@ func TestGenRefusesAnOutputItCannotWrite(t *testing.T) {
 		{[]string{"image", "a fox", "-o", "locked/fox.png"}, "cannot write in locked"},
 		{[]string{"image", "a fox", "-o", "old.png"}, "cannot write old.png"},
 		{[]string{"image", "a fox"}, "cannot write in assets"},
+		{[]string{"image", "a fox", "-o", "dangling.png"}, "link to a file that does not exist"},
 		{[]string{"cutout", "in.png", "--service", "rembg", "-o", "locked/fox.png"}, "cannot write in locked"},
 		{[]string{"cutout", "in.png", "--service", "rembg", "-o", "old.png"}, "cannot write old.png"},
 		{[]string{"vector", "in.png", "--service", "vtracer", "-o", "locked/fox.svg"}, "cannot write in locked"},
@@ -229,4 +231,20 @@ func TestGenVectorKeepsTheImageWhenSavingFails(t *testing.T) {
 	fakeToolOnPath(t, "vtracer", "#!/bin/sh\nchmod 555 \"$LOCK\"\nlast=; for a; do last=$a; done\necho '<svg xmlns=\"http://www.w3.org/2000/svg\"/>' > \"$last\"\n")
 	err := cmdGen(&app{}, []string{"vector", "in.png", "--service", "vtracer", "-o", "out/fox.svg"})
 	keptAndRecorded(t, err, "fox.svg", "vtracer")
+}
+
+// When the manifest cannot be saved either, cav still says where the kept image is.
+func TestGenImageSaysWhereTheImageIsWhenTheManifestFails(t *testing.T) {
+	skipPermissionTests(t)
+	t.Chdir(t.TempDir())
+	os.Mkdir("out", 0o755)
+	os.Mkdir(".cav", 0o755)
+	os.WriteFile(filepath.Join(".cav", "manifest.json"), []byte("not json"), 0o644)
+	t.Cleanup(func() { os.Chmod("out", 0o755) })
+	comfyForTest(t, func() { os.Chmod("out", 0o555) })
+	err := cmdGen(&app{}, []string{"image", "a fox", "-o", "out/fox.png"})
+	wantCLIError(t, "manifest fails", err, "kept at fox.png", "recording it in the manifest failed")
+	if _, err := os.Stat("fox.png"); err != nil {
+		t.Fatal(err)
+	}
 }

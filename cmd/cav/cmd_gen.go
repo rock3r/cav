@@ -325,6 +325,11 @@ func checkOutput(path, example string) error {
 	if !errors.Is(err, os.ErrNotExist) {
 		return fail(exitError, "cannot write "+path+": "+err.Error(), "make it writable, or give another file with -o")
 	}
+	if _, lerr := os.Lstat(path); lerr == nil {
+		// A link to a file that does not exist: cav would write through it, somewhere
+		// this check cannot see.
+		return fail(exitError, path+" is a link to a file that does not exist", "remove the link, or give another file with -o")
+	}
 	return checkFolder(filepath.Dir(path))
 }
 
@@ -354,6 +359,10 @@ func saveOrKeep(a *app, path string, im *imagegen.Image, prompt string, refs []s
 	kept, kerr := freePath(strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)), im.Ext())
 	if kerr == nil {
 		kerr = saveAsset(a, kept, im, prompt, refs, skipped, from)
+		if kerr != nil && !errors.As(kerr, &we) {
+			// The image is written; only the manifest failed.
+			return fail(exitError, err.Error()+" (the image is kept at "+kept+", but recording it in the manifest failed: "+kerr.Error()+")", "")
+		}
 	}
 	if kerr != nil {
 		return fail(exitError, err.Error()+" (keeping the image in the working folder also failed: "+kerr.Error()+")", "")
