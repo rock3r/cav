@@ -257,3 +257,29 @@ func TestGenImageSaysWhereTheImageIsWhenTheManifestFails(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// An -o with a missing folder before ".." is checked and saved as the same cleaned path,
+// so the save does not fail on the missing folder after the call.
+func TestGenCutoutCleansTheOutputPath(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake uv is a shell script")
+	}
+	t.Setenv("CAV_HOME", t.TempDir())
+	t.Setenv("CAV_NO_KEYS", "1")
+	t.Chdir(t.TempDir())
+	os.WriteFile("in.png", []byte("\x89PNG\r\n\x1a\nfake"), 0o644)
+	fakeToolOnPath(t, "uv", "#!/bin/sh\nprev=; last=; for a; do prev=$last; last=$a; done\ncp \"$prev\" \"$last\"\n")
+	if err := cmdGen(&app{}, []string{"cutout", "in.png", "--service", "rembg", "-o", "missing/../fox.png"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat("fox.png"); err != nil {
+		t.Fatal(err)
+	}
+	m, err := library.Load(library.Root())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if entryFor(m, "fox.png") == nil {
+		t.Error("the manifest does not record fox.png")
+	}
+}
