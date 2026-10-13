@@ -188,15 +188,17 @@ func generateThenCutout(ctx context.Context, c *services.Config, ch *services.Ch
 	if err != nil {
 		return nil, err
 	}
-	defer os.RemoveAll(tmp)
 	in := filepath.Join(tmp, "image"+im.Ext())
 	if err := os.WriteFile(in, im.Data, 0o644); err != nil {
+		os.RemoveAll(tmp)
 		return nil, err
 	}
 	cut, err := imagegen.RemoveBackground(ctx, ch, in)
 	if err != nil {
-		return nil, fail(exitError, err.Error(), "")
+		// Keep the generated image, so a retry does not pay for it again.
+		return nil, fail(exitError, err.Error()+" (the generated image is kept at "+in+")", "cut it out again: cav gen cutout "+in+" -o <file.png>")
 	}
+	os.RemoveAll(tmp)
 	cut.Provider = im.Provider + " + " + cut.Provider
 	cut.Model = im.Model + " + " + cut.Model
 	return cut, nil
