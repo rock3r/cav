@@ -54,29 +54,43 @@ func mflux(ctx context.Context, model string, r Request) (*Image, error) {
 	}
 	defer os.RemoveAll(tmp)
 	out := filepath.Join(tmp, "out.png")
-	w, h := localSize(r.Aspect)
-	args := []string{"--python", "3.12", "--from", "mflux", mfluxCommand(model), "--model", model,
-		"--prompt", r.Prompt, "--width", strconv.Itoa(w), "--height", strconv.Itoa(h), "--output", out}
-	if steps := mfluxSteps[model]; steps > 0 {
-		args = append(args, "--steps", strconv.Itoa(steps))
-	}
-	if len(r.Refs) > 0 {
-		// mflux takes one starting image; the first reference sets the composition.
-		args = append(args, "--image-path", r.Refs[0], "--image-strength", "0.35")
-	}
-	cmd := exec.CommandContext(ctx, "uvx", args...)
+	command, args := mfluxArgs(model, r, out)
+	cmd := exec.CommandContext(ctx, "uvx", append([]string{"--python", "3.12", "--from", "mflux", command}, args...)...)
 	cmd.Stderr = os.Stderr // model downloads and steps report progress here
 	if err := cmd.Run(); err != nil {
 		if ctx.Err() != nil {
-			return nil, fmt.Errorf("%s stopped: %w (the first run downloads the model; run it again to resume)", mfluxCommand(model), ctx.Err())
+			return nil, fmt.Errorf("%s stopped: %w (the first run downloads the model; run it again to resume)", command, ctx.Err())
 		}
-		return nil, fmt.Errorf("%s: %w", mfluxCommand(model), err)
+		return nil, fmt.Errorf("%s: %w", command, err)
 	}
 	data, err := os.ReadFile(out)
 	if err != nil {
 		return nil, fmt.Errorf("mflux wrote no image: %w", err)
 	}
 	return &Image{Data: data, MIME: "image/png"}, nil
+}
+
+// mfluxArgs returns the mflux entry point and its arguments for one image written to out.
+func mfluxArgs(model string, r Request, out string) (string, []string) {
+	w, h := localSize(r.Aspect)
+	command := mfluxCommand(model)
+	args := []string{"--model", model, "--prompt", r.Prompt,
+		"--width", strconv.Itoa(w), "--height", strconv.Itoa(h), "--output", out}
+	if steps := mfluxSteps[model]; steps > 0 {
+		args = append(args, "--steps", strconv.Itoa(steps))
+	}
+	switch {
+	case len(r.Refs) == 0:
+	case strings.HasPrefix(model, "flux2-"):
+		// FLUX.2 edits from its references: the edit entry point keeps their look and
+		// layout and takes them all. A starting image at strength 0.35 kept little of it.
+		command += "-edit"
+		args = append(args, append([]string{"--image-paths"}, r.Refs...)...)
+	default:
+		// Other models take one starting image; the first reference sets the composition.
+		args = append(args, "--image-path", r.Refs[0], "--image-strength", "0.35")
+	}
+	return command, args
 }
 
 // mfluxCommand picks the mflux entry point for a model: each family has its own.

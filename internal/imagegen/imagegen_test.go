@@ -217,6 +217,23 @@ func TestComfyUIQueuesFillsAndFetches(t *testing.T) {
 	}
 }
 
+func TestMfluxArgsWithReferences(t *testing.T) {
+	r := Request{Prompt: "a fox", Aspect: "16:9", Refs: []string{"a.png", "b.png"}}
+	cmd, args := mfluxArgs("flux2-klein-4b", r, "out.png")
+	want := "--model flux2-klein-4b --prompt a fox --width 1024 --height 576 --output out.png --steps 4 --image-paths a.png b.png"
+	if cmd != "mflux-generate-flux2-edit" || strings.Join(args, " ") != want {
+		t.Fatalf("flux2 with refs: got %s %q", cmd, args)
+	}
+	cmd, args = mfluxArgs("flux2-klein-4b", Request{Prompt: "a fox", Aspect: "16:9"}, "out.png")
+	if cmd != "mflux-generate-flux2" || strings.Contains(strings.Join(args, " "), "--image") {
+		t.Fatalf("flux2 without refs: got %s %q", cmd, args)
+	}
+	cmd, args = mfluxArgs("schnell", r, "out.png")
+	if cmd != "mflux-generate" || !strings.HasSuffix(strings.Join(args, " "), "--image-path a.png --image-strength 0.35") {
+		t.Fatalf("schnell with refs: got %s %q", cmd, args)
+	}
+}
+
 func TestMfluxCommandPerModel(t *testing.T) {
 	for model, want := range map[string]string{
 		"flux2-klein-4b": "mflux-generate-flux2",

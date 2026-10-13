@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- `cav gen image --service mflux --ref` with a FLUX.2 model now uses mflux's edit command
+  and passes every reference. Before, cav passed only the first reference as a starting
+  image at strength 0.35, and the result kept little of its layout or look.
+
 - `cav doctor` checks for a new release at most once an hour, not once a day. It also checks
   again when the cached answer is older than the running cav. Before, after you installed
   a new release, `cav doctor` could say for up to a day that it was newer than the latest
