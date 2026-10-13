@@ -1,0 +1,42 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "inlineData": {
+              "data": "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQQEBQoHBwYIDAoMDAsKCwsNDhIQDQ4RDgsLEBYQERMUFRUVDA8XGBYUGBIUFRT/2wBDAQMEBAUEBQkFBQkUDQsNFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBT/wAARCAACAAIDAREAAhEBAxEB/8QAFAABAAAAAAAAAAAAAAAAAAAABv/EABQQAQAAAAAAAAAAAAAAAAAAAAD/xAAUAQEAAAAAAAAAAAAAAAAAAAAI/8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAwDAQACEQMRAD8AahEZb//Z",
+              "mimeType": "image/jpeg"
+            },
+            "thoughtSignature": "dGhvdWdodCBzaWduYXR1cmUsIHJlcGxhY2Vk"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "modelVersion": "gemini-3.1-flash-image",
+  "responseId": "OpTOaryVM8u_nsEPxNnAqQo",
+  "turnToken": "v1_ChdPcFRPYXJ5Vk04dV9uc0VQeE5uQXFRbxIXT3BUT2FyeVZNOHVfbnNFUHhObkFxUW8",
+  "usageMetadata": {
+    "candidatesTokenCount": 1462,
+    "candidatesTokensDetails": [
+      {
+        "modality": "IMAGE",
+        "tokenCount": 1120
+      }
+    ],
+    "promptTokenCount": 16,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 16
+      }
+    ],
+    "rawPromptTokenCount": 459,
+    "serviceTier": "standard",
+    "totalTokenCount": 1478
+  }
+}

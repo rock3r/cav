@@ -16,8 +16,9 @@ import (
 )
 
 // The openverse_* and wikimedia_* fixtures are real answers recorded with curl on
-// 2026-10-08. The Freesound, Pexels and Unsplash answers below are written from their API
-// documentation (no key was available), so they test the mapping, not the live shape.
+// 2026-10-08. The freesound_* fixtures are real answers from 2026-10-13 (#11); see
+// TestFreesoundRealAnswers. The Freesound, Pexels and Unsplash answers written inline below
+// come from their API documentation, so they test the mapping, not the live shape.
 
 type replay struct {
 	t      *testing.T
@@ -242,5 +243,81 @@ func TestArenaChannelRealAnswer(t *testing.T) {
 	}
 	if ArenaSlug("abstract-motion-design/") != "abstract-motion-design" {
 		t.Fatal("slug")
+	}
+}
+
+// testdata/freesound_search.json and freesound_sound.json are real answers from 2026-10-13
+// (#11), for cav sfx search whoosh --max-seconds 3 --limit 3 and cav sfx get
+// freesound:168045. The original came through a 302 to a signed CDN address; this fake
+// leaves out the signature. The real run saved it as .wav.
+func TestFreesoundRealAnswers(t *testing.T) {
+	const mp3, wav = "ID3 preview bytes", "RIFF original bytes"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		host, auth := r.Header.Get("X-Host"), r.Header.Get("Authorization")
+		switch host + r.URL.Path {
+		case "freesound.org/apiv2/search/text/":
+			want := "query=whoosh&page_size=6&fields=id,name,username,license,duration,previews,url,type,tags&filter=duration%3A%5B0+TO+3%5D"
+			if !strings.HasPrefix(r.URL.RawQuery, want) || auth != "Token fs-key" {
+				t.Errorf("search: query %q, auth %q", r.URL.RawQuery, auth)
+			}
+			w.Write(fixture(t, "freesound_search.json"))
+		case "freesound.org/apiv2/sounds/168045/":
+			if r.URL.RawQuery != "fields=id,name,username,license,duration,previews,url,type,tags" || auth != "Token fs-key" {
+				t.Errorf("sound: query %q, auth %q", r.URL.RawQuery, auth)
+			}
+			w.Write(fixture(t, "freesound_sound.json"))
+		case "cdn.freesound.org/previews/168/168045_2962530-hq.mp3":
+			w.Header().Set("Content-Type", "audio/mpeg")
+			w.Write([]byte(mp3))
+		case "freesound.org/apiv2/sounds/168045/download/":
+			if auth != "Bearer oauth-token" {
+				t.Errorf("download: auth %q", auth)
+			}
+			http.Redirect(w, r, "https://cdn.freesound.org/sounds/168/168045.wav?filename=168045__speedenza__whoosh-woow-a58cv5.wav", http.StatusFound)
+		case "cdn.freesound.org/sounds/168/168045.wav":
+			w.Header().Set("Content-Type", "application/octet-stream")
+			w.Write([]byte(wav))
+		default:
+			t.Errorf("unexpected %s%s", host, r.URL.Path)
+			w.WriteHeader(404)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	u, _ := url.Parse(srv.URL)
+	old := services.HTTPClient
+	services.HTTPClient = &http.Client{Transport: replay{t, u}}
+	t.Cleanup(func() { services.HTTPClient = old })
+
+	ctx, c := context.Background(), &services.Config{}
+	rs, err := Search(ctx, c, "freesound", "fs-key", Query{Text: "whoosh", Kind: "audio", Limit: 3, MaxSeconds: 3, Licence: "any"})
+	if err != nil || len(rs) != 6 {
+		t.Fatalf("search: %d results, %v", len(rs), err)
+	}
+	r := rs[0]
+	if r.Ref() != "freesound:168045" || r.Licence != "CC-BY-NC-4.0" || r.Terms.CommercialOK || r.Seconds != 0.865193 ||
+		r.Author != "Speedenza" || r.Preview != "https://cdn.freesound.org/previews/168/168045_2962530-hq.mp3" ||
+		!strings.Contains(r.Attribution, "“Whoosh woow a58cv5.wav” by Speedenza (freesound.org)") || len(r.Tags) != 8 {
+		t.Fatalf("first result %+v", r)
+	}
+	if rs, _ := Search(ctx, c, "freesound", "fs-key", Query{Text: "whoosh", Kind: "audio", Limit: 3, MaxSeconds: 3, Licence: "commercial"}); len(rs) != 0 {
+		t.Fatalf("commercial kept %d CC BY-NC sounds", len(rs))
+	}
+
+	r, err = Lookup(ctx, c, "freesound", "fs-key", "audio", "168045")
+	if err != nil || r.Title != "Whoosh woow a58cv5.wav" || r.Licence != "CC-BY-NC-4.0" {
+		t.Fatalf("lookup: %+v %v", r, err)
+	}
+	dir := t.TempDir()
+	e, err := Download(ctx, c, "fs-key", r, dir, false)
+	if err != nil || !e.Preview || filepath.Base(e.Path) != "freesound-168045-whoosh-woow-a58cv5-wav.mp3" {
+		t.Fatalf("preview: %+v %v", e, err)
+	}
+	if b, _ := os.ReadFile(filepath.Join(dir, filepath.Base(e.Path))); string(b) != mp3 {
+		t.Fatalf("preview bytes %q", b)
+	}
+	c = &services.Config{Keys: map[string]string{"freesound": "oauth"}}
+	e, err = Download(ctx, c, "oauth-token", r, dir, true)
+	if err != nil || e.Preview || filepath.Base(e.Path) != "freesound-168045-whoosh-woow-a58cv5-wav.wav" {
+		t.Fatalf("original: %+v %v", e, err)
 	}
 }

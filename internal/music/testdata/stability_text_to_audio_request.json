@@ -1,0 +1,6 @@
+{
+  "prompt": "warm synthwave, confident, builds to a drop, 120 BPM. Structure: intro: logo builds from shapes, calm at 0s (); drop: logo spins in, energy rises at 4s (); end: logo settles, warm ending at 12s (). Instrumental, no vocals.",
+  "duration": "16",
+  "model": "stable-audio-2.5",
+  "output_format": "mp3"
+}

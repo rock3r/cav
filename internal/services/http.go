@@ -6,7 +6,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
+	"mime/multipart"
 	"net/http"
+	"net/textproto"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -33,7 +38,7 @@ func (e *HTTPError) Error() string {
 	case 429:
 		msg += " (rate limited or out of credit)"
 	}
-	if b := bodyMessage(e.Body); b != "" {
+	if b := hideKeys(bodyMessage(e.Body)); b != "" {
 		if len(b) > 300 {
 			b = b[:300] + "…"
 		}
@@ -143,4 +148,32 @@ func hostOf(u string) string {
 		return u[:i]
 	}
 	return u
+}
+
+// FormFile adds a file part with a real Content-Type, from the bytes or, when they are not
+// recognised, the name's extension. multipart.Writer.CreateFormFile always says
+// application/octet-stream, which some services (OpenAI image edits) refuse.
+func FormFile(w *multipart.Writer, field, name string, data []byte) (io.Writer, error) {
+	// The bytes win over the name: an older cav saved Gemini's JPEG under a .png name.
+	ctype := http.DetectContentType(data)
+	if ctype == "application/octet-stream" || strings.HasPrefix(ctype, "text/plain") {
+		if byExt := mime.TypeByExtension(strings.ToLower(filepath.Ext(name))); byExt != "" {
+			ctype = byExt
+		}
+	}
+	h := make(textproto.MIMEHeader)
+	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`,
+		strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(field), strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(name)))
+	h.Set("Content-Type", ctype)
+	return w.CreatePart(h)
+}
+
+// keyLike matches the shapes services use for keys, whole or masked, for example
+// OpenAI's "sk-svcac***…xVQA" in its 401 answer.
+var keyLike = regexp.MustCompile(`\b(?:sk|pk|rk|sess|key)[-_][A-Za-z0-9_*-]{6,}`)
+
+// hideKeys replaces anything shaped like a key in a service's message, because cav never
+// prints a key, not even the masked part a service echoes back.
+func hideKeys(s string) string {
+	return keyLike.ReplaceAllString(s, "<key>")
 }

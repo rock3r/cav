@@ -116,9 +116,10 @@ var Catalog = map[string]*Def{
 		Jobs: []string{"image"}, EnvVars: []string{"OPENROUTER_API_KEY"},
 		Signup: "https://openrouter.ai/keys",
 		Check: func(ctx context.Context, _ *Config, key string) (string, error) {
+			// The answer's label is the start and end of the key itself, so cav does not
+			// print it.
 			var r struct {
 				Data struct {
-					Label string   `json:"label"`
 					Limit *float64 `json:"limit_remaining"`
 				} `json:"data"`
 			}
@@ -126,9 +127,9 @@ var Catalog = map[string]*Def{
 				return "", err
 			}
 			if r.Data.Limit != nil {
-				return fmt.Sprintf("key %q, %.2f credit left", r.Data.Label, *r.Data.Limit), nil
+				return fmt.Sprintf("key accepted, %.2f credit left", *r.Data.Limit), nil
 			}
-			return fmt.Sprintf("key %q", r.Data.Label), nil
+			return "key accepted", nil
 		}},
 	"recraft": {Title: "Recraft (native SVG, background removal)", Kind: KindKey,
 		Jobs: []string{"image.vector", "image.alpha", "image"}, EnvVars: []string{"RECRAFT_API_TOKEN", "RECRAFT_API_KEY"},
@@ -504,7 +505,7 @@ func Probe(ctx context.Context, c *Config, name string) Status {
 		var he *HTTPError
 		switch {
 		case errors.As(err, &he) && he.KeyRefused() && d.Kind == KindKey:
-			st.Detail = redact(fmt.Sprintf("the key was refused (HTTP %d): %s", he.Status, bodyMessage(he.Body)), key)
+			st.Detail = redact(fmt.Sprintf("the key was refused (HTTP %d): %s", he.Status, hideKeys(bodyMessage(he.Body))), key)
 			st.Fix = "check the key, then cav config set-key " + name + " <source>"
 		case strings.Contains(err.Error(), "x509") || strings.Contains(err.Error(), "certificate"):
 			st.Fix = "a sandbox may block certificate checks: run cav outside the sandbox, or allow it to reach " + name

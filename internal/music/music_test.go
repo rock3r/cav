@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -27,25 +28,68 @@ func (r redirect) RoundTrip(req *http.Request) (*http.Response, error) {
 	return http.DefaultTransport.RoundTrip(req)
 }
 
+// The plan the real run on 2026-10-13 (#11) sent: a storyboard of three shots, none with
+// its own music styles.
+var realPlan = Request{Prompt: "warm synthwave, confident, builds to a drop, 120 BPM", Seconds: 16, Sections: []Section{
+	{ID: "intro", Name: "intro: logo builds from shapes, calm", Seconds: 4},
+	{ID: "drop", Name: "drop: logo spins in, energy rises", Seconds: 8},
+	{ID: "end", Name: "end: logo settles, warm ending", Seconds: 4},
+}}
+
+// sameJSON fails when body is not the same JSON as testdata/name.
+func sameJSON(t *testing.T, body []byte, name string) {
+	t.Helper()
+	var got, want any
+	if err := json.Unmarshal(body, &got); err != nil {
+		t.Errorf("request is not JSON: %v", err)
+		return
+	}
+	if err := json.Unmarshal(fixture(t, name), &want); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("request differs from %s, which the real service accepted:\n%s", name, body)
+	}
+}
+
+// testdata/elevenlabs_music_request.json and stability_text_to_audio_request.json are the
+// requests ElevenLabs and Stable Audio accepted on 2026-10-13 (#11) for realPlan. Both
+// answered audio/mpeg.
 func TestElevenLabsPlanAndStableAudio(t *testing.T) {
 	var plan map[string]any
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/v1/music":
-			if r.Header.Get("xi-api-key") != "el" || r.URL.Query().Get("output_format") == "" {
+			if r.Header.Get("xi-api-key") != "el" || r.URL.Query().Get("output_format") != "mp3_48000_192" {
 				t.Errorf("elevenlabs headers or query")
 			}
+			b, _ := io.ReadAll(r.Body)
 			var body map[string]any
-			json.NewDecoder(r.Body).Decode(&body)
+			json.Unmarshal(b, &body)
 			plan, _ = body["composition_plan"].(map[string]any)
+			if secs, _ := plan["sections"].([]any); len(secs) == 3 {
+				sameJSON(t, b, "elevenlabs_music_request.json")
+			}
 			w.Header().Set("Content-Type", "audio/mpeg")
 			w.Write([]byte("ID3fake"))
 		case "/v2beta/audio/stable-audio-2/text-to-audio":
 			if err := r.ParseMultipartForm(1 << 20); err != nil {
 				t.Fatal(err)
 			}
-			if r.FormValue("duration") != "17" || r.Header.Get("Accept") != "audio/*" {
-				t.Errorf("stability form: duration %q accept %q", r.FormValue("duration"), r.Header.Get("Accept"))
+			if r.Header.Get("Accept") != "audio/*" || r.Header.Get("Authorization") != "Bearer st" {
+				t.Errorf("stability headers: accept %q", r.Header.Get("Accept"))
+			}
+			var want map[string]string
+			json.Unmarshal(fixture(t, "stability_text_to_audio_request.json"), &want)
+			// The real request had "()" after each section with no styles; cav now leaves it out.
+			want["prompt"] = strings.ReplaceAll(want["prompt"], " ()", "")
+			if len(r.MultipartForm.Value) != len(want) {
+				t.Errorf("stability form fields: %v", r.MultipartForm.Value)
+			}
+			for k, v := range want {
+				if r.FormValue(k) != v {
+					t.Errorf("stability %s: got %q, want %q", k, r.FormValue(k), v)
+				}
 			}
 			w.Header().Set("Content-Type", "audio/mpeg")
 			w.Write([]byte("ID3fake"))
@@ -59,26 +103,61 @@ func TestElevenLabsPlanAndStableAudio(t *testing.T) {
 	services.HTTPClient = &http.Client{Transport: redirect{u}}
 	defer func() { services.HTTPClient = old }()
 
+	tr, err := Generate(context.Background(), &services.Config{}, &services.Choice{Service: "elevenlabs", Key: "el"}, realPlan)
+	if err != nil || string(tr.Data) != "ID3fake" || tr.Model != "music_v1" {
+		t.Fatalf("elevenlabs: %v", err)
+	}
 	req := Request{Prompt: "synthwave", Seconds: 16, Sections: []Section{{ID: "act:1", Name: "act:1: intro", Seconds: 4}, {ID: "s2", Name: "s2: drop", Seconds: 12}}}
-	tr, err := Generate(context.Background(), &services.Config{}, &services.Choice{Service: "elevenlabs", Key: "el"}, req)
-	if err != nil || string(tr.Data) != "ID3fake" {
+	if _, err := Generate(context.Background(), &services.Config{}, &services.Choice{Service: "elevenlabs", Key: "el"}, req); err != nil {
 		t.Fatalf("elevenlabs: %v", err)
 	}
 	secs, _ := plan["sections"].([]any)
 	if len(secs) != 2 || secs[1].(map[string]any)["duration_ms"].(float64) != 12000 || secs[0].(map[string]any)["section_name"] != "act:1" || secs[1].(map[string]any)["section_name"] != "s2" {
 		t.Fatalf("plan sections: %v", plan)
 	}
-	if _, err := Generate(context.Background(), &services.Config{}, &services.Choice{Service: "stability", Key: "st"}, Request{Prompt: "x", Seconds: 16.2}); err != nil {
+	if _, err := Generate(context.Background(), &services.Config{}, &services.Choice{Service: "stability", Key: "st"}, realPlan); err != nil {
 		t.Fatalf("stability: %v", err)
 	}
 }
 
+func TestStableAudioPromptKeepsSectionStyles(t *testing.T) {
+	var prompt string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.ParseMultipartForm(1 << 20)
+		prompt = r.FormValue("prompt")
+		w.Header().Set("Content-Type", "audio/mpeg")
+		w.Write([]byte("ID3"))
+	}))
+	defer srv.Close()
+	u, _ := url.Parse(srv.URL)
+	old := services.HTTPClient
+	services.HTTPClient = &http.Client{Transport: redirect{u}}
+	defer func() { services.HTTPClient = old }()
+	req := Request{Prompt: "synthwave", Seconds: 8, Sections: []Section{{Name: "a", Seconds: 4, Styles: []string{"soft pads", "no drums"}}, {Name: "b", Seconds: 4}}}
+	if _, err := Generate(context.Background(), &services.Config{}, &services.Choice{Service: "stability", Key: "st"}, req); err != nil {
+		t.Fatal(err)
+	}
+	if prompt != "synthwave. Structure: a at 0s (soft pads, no drums); b at 4s. Instrumental, no vocals." {
+		t.Fatalf("prompt %q", prompt)
+	}
+}
+
+// testdata/elevenlabs_sfx_request.json is the request ElevenLabs accepted on 2026-10-13
+// (#11) for cav sfx gen "a short soft whoosh into a click" --seconds 1.5.
 func TestSoundEffectRequest(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/sound-generation" || r.URL.Query().Get("output_format") != "mp3_44100_128" || r.Header.Get("xi-api-key") != "k" {
+			t.Errorf("request %s %s", r.URL.Path, r.URL.RawQuery)
+		}
+		b, _ := io.ReadAll(r.Body)
 		var body map[string]any
-		json.NewDecoder(r.Body).Decode(&body)
-		if r.URL.Path != "/v1/sound-generation" || body["text"] != "whoosh" || body["duration_seconds"].(float64) != 30 || body["loop"] != true {
-			t.Errorf("request %s %v", r.URL.Path, body)
+		json.Unmarshal(b, &body)
+		if body["text"] == "whoosh" {
+			if body["duration_seconds"].(float64) != 30 || body["loop"] != true {
+				t.Errorf("request %v", body)
+			}
+		} else {
+			sameJSON(t, b, "elevenlabs_sfx_request.json")
 		}
 		w.Header().Set("Content-Type", "audio/mpeg")
 		w.Write([]byte("ID3"))
@@ -88,6 +167,9 @@ func TestSoundEffectRequest(t *testing.T) {
 	old := services.HTTPClient
 	services.HTTPClient = &http.Client{Transport: redirect{u}}
 	defer func() { services.HTTPClient = old }()
+	if _, err := SoundEffect(context.Background(), "k", "a short soft whoosh into a click", 1.5, false); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := SoundEffect(context.Background(), "k", "whoosh", 45, true); err != nil {
 		t.Fatal(err)
 	}

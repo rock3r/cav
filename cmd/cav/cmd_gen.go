@@ -424,7 +424,12 @@ func (e *writeError) Unwrap() error { return e.err }
 // create, so a kept image never replaces another file, even one that another cav run
 // makes at the same moment. If the write fails, it removes the file it made.
 func writeFree(base string, im *imagegen.Image) (string, error) {
-	ext := im.Ext()
+	return writeFreeData(base, im.Ext(), im.Data)
+}
+
+// writeFreeData writes data to base+ext, or to base-2+ext, base-3+ext and so on: the
+// first name it can create, so it never replaces another file.
+func writeFreeData(base, ext string, data []byte) (string, error) {
 	p := base + ext
 	for n := 2; ; n++ {
 		beforeReserve(p)
@@ -436,7 +441,7 @@ func writeFree(base string, im *imagegen.Image) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		_, err = f.Write(im.Data)
+		_, err = f.Write(data)
 		if cerr := f.Close(); err == nil {
 			err = cerr
 		}
@@ -505,6 +510,14 @@ func saveAsset(a *app, path string, im *imagegen.Image, prompt string, refs []st
 
 // storeAsset writes the image and records it in the manifest, without printing anything.
 func storeAsset(path string, im *imagegen.Image, prompt string, refs []string, from string) (library.Entry, error) {
+	// A .png name gets PNG bytes, even when the service answered JPEG (Gemini does).
+	if strings.EqualFold(filepath.Ext(path), ".png") && !strings.Contains(im.MIME, "png") && !strings.Contains(im.MIME, "svg") {
+		conv, err := imagegen.ToPNG(im)
+		if err != nil {
+			return library.Entry{}, fmt.Errorf("converting the %s image to PNG: %w", im.MIME, err)
+		}
+		*im = *conv
+	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return library.Entry{}, &writeError{err}
 	}

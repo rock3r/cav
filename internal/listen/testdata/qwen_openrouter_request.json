@@ -1,0 +1,21 @@
+{
+  "messages": [
+    {
+      "content": [
+        {
+          "input_audio": {
+            "data": "bXAz",
+            "format": "mp3"
+          },
+          "type": "input_audio"
+        },
+        {
+          "text": "You are reviewing a music track made for a motion-graphics piece. Listen to the whole track.\n\nMeasured facts (trust these numbers over your own estimates):\nlength 16.01 s; tempo 119.8 BPM; 2 sections starting at 0.0s (quiet), 4.0s (loud); loudness -12.9 LUFS integrated, true peak -1.5 dBFS, range 10.1 LU\n\nAnswer in plain English, in this order:\n1. What you hear: genre, instruments, mood, and how the energy moves, with timestamps (m:ss.s).\n2. Against the brief: what fits and what does not.\n3. Moments a picture edit can hit: drops, hits, risers that land, breaks — each with a timestamp.\n4. Problems: clipping, harsh frequencies, muddy low end, abrupt or unfinished ending, artefacts typical of AI-generated audio, vocals where none were wanted.\n5. The three changes that would help most.\nKeep it under 350 words. Do not invent timestamps you cannot hear.",
+          "type": "text"
+        }
+      ],
+      "role": "user"
+    }
+  ],
+  "model": "qwen/qwen3.8-omni-flash"
+}

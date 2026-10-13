@@ -1,0 +1,19 @@
+{
+  "contents": [
+    {
+      "parts": [
+        {
+          "text": "a flat geometric fox head logo, orange and white on a plain light grey background"
+        }
+      ]
+    }
+  ],
+  "generationConfig": {
+    "imageConfig": {
+      "aspectRatio": "16:9"
+    },
+    "responseModalities": [
+      "IMAGE"
+    ]
+  }
+}

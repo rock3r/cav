@@ -26,7 +26,7 @@ var CutoutServices = []string{"recraft", "rembg"}
 
 // RemoveBackground makes the background of the image at in transparent with the chosen
 // service: recraft (API) or rembg (local, through uv).
-func RemoveBackground(ctx context.Context, ch *services.Choice, in string) (*Image, error) {
+func removeBackground(ctx context.Context, ch *services.Choice, in string) (*Image, error) {
 	switch ch.Service {
 	case "recraft":
 		data, err := os.ReadFile(in)
@@ -72,4 +72,9 @@ func rembg(ctx context.Context, in string) (*Image, error) {
 		return nil, fmt.Errorf("rembg wrote no image: %w", err)
 	}
 	return &Image{Data: data, MIME: "image/png", Provider: "rembg", Model: RembgModel}, nil
+}
+
+// RemoveBackground cuts the background out of the image at in.
+func RemoveBackground(ctx context.Context, ch *services.Choice, in string) (*Image, error) {
+	return normalized(removeBackground(ctx, ch, in))
 }

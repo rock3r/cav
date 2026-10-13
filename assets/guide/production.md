@@ -62,6 +62,15 @@ SDXL checkpoint suits those sizes better.
 }
 ```
 
+Qwen3-Omni for the `ears` job also runs on OpenRouter (tested on 2026-10-13). Set the
+server, then give `qwen-omni` the source of your OpenRouter key. One critique cost less
+than 0.1 cent.
+
+```bash
+cav config endpoint qwen-omni https://openrouter.ai/api/v1 qwen/qwen3.8-omni-flash
+cav config set-key qwen-omni <source of your OpenRouter key>
+```
+
 Veo (video) and Lyria (music) use the Gemini key, so `cav config set-key gemini ...` sets
 all three. Give one of them its own key with `cav config set-key veo <source>`.
 
@@ -87,7 +96,7 @@ key into the chat: ask them to run `cav config set-key` themselves.
 | `ref` (reference images) | openverse, wikimedia | pexels, unsplash |
 | `sfx` (sound search) | openverse, indexed folders | freesound |
 | `music` | `cav music render` (a written score); acestep, yue2 (your servers); search with `cav sfx` | elevenlabs, stability, lyria |
-| `ears` (critique of a track) | none | gemini, qwen-omni (your server) |
+| `ears` (critique of a track) | none | gemini, qwen-omni (your server, or OpenRouter) |
 
 ## 2. Licences come first
 
@@ -163,6 +172,10 @@ only greybox can make an image, there is nothing to cut out, so cav says so. `ca
 rembg or Recraft (OpenAI cannot cut out an image it did not make). A cutout or a traced
 SVG keeps the licence and credit of the image it came from. An image that is not in the
 manifest gives it an unknown licence, so `cav credits check` asks about it.
+
+Some services send another format than you ask for: Gemini sends JPEG, and Recraft sends
+WebP for a cutout. cav saves a `.png` name as a real PNG, and a WebP cutout keeps its
+transparency.
 
 Load an image into Cavalry with `cav.image('/abs/path.png', 'name')`. Turn an SVG into
 editable shapes with `api.convertSVGToLayers('/abs/path.svg')`, which returns the new

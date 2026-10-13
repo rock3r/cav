@@ -1,0 +1,36 @@
+{
+  "composition_plan": {
+    "negative_global_styles": [
+      "vocals",
+      "singing"
+    ],
+    "positive_global_styles": [
+      "warm synthwave, confident, builds to a drop, 120 BPM",
+      "instrumental"
+    ],
+    "sections": [
+      {
+        "duration_ms": 4000,
+        "lines": [],
+        "negative_local_styles": [],
+        "positive_local_styles": [],
+        "section_name": "intro"
+      },
+      {
+        "duration_ms": 8000,
+        "lines": [],
+        "negative_local_styles": [],
+        "positive_local_styles": [],
+        "section_name": "drop"
+      },
+      {
+        "duration_ms": 4000,
+        "lines": [],
+        "negative_local_styles": [],
+        "positive_local_styles": [],
+        "section_name": "end"
+      }
+    ]
+  },
+  "model_id": "music_v1"
+}

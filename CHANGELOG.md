@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+- Every paid service was called for real once, with real keys (#11). Five problems came
+  out of it, and they are fixed:
+  - `cav gen image --service openai --ref` failed with "unsupported mimetype". cav sent
+    each reference as `application/octet-stream`; it now sends its real image type. Stable
+    Audio references get their real audio type too.
+  - Some services send another format than the name says. Gemini sends JPEG, and Recraft
+    sends WebP for `--alpha` and `cav gen cutout`. cav now turns WebP into PNG and keeps
+    its transparency. A JPEG saved under a `.png` name becomes a PNG.
+  - A second `cav music gen` with the same prompt replaced the first take without a word,
+    for example a Stable Audio take over an ElevenLabs take. A new take now gets the next
+    free name (`-2`, `-3`, …).
+  - `cav listen --ears <service>` said "no audio model" when the service failed, for
+    example when 1Password did not answer. It now says why.
+  - `cav config check` printed the start and end of the OpenRouter key, and an OpenAI
+    error showed the masked key that OpenAI sends back. cav now hides both.
+- Qwen3-Omni for `cav listen` works through OpenRouter: `cav config endpoint qwen-omni
+  https://openrouter.ai/api/v1 qwen/qwen3.8-omni-flash`, then `cav config set-key
+  qwen-omni <source>` with your OpenRouter key.
+- The tests now replay the real answers from that run, with the secrets and account data
+  taken out: Gemini, OpenAI, OpenRouter and Recraft images, Recraft cutouts and traces,
+  Freesound search and downloads, the Gemini and Qwen critiques, and the free `config
+  check` calls. They also check that cav sends the requests the services accepted.
+- The Stable Audio prompt no longer has an empty "()" after a storyboard section with no
+  music styles. The real request showed it.
+- `tools/release-smoke.sh --keyed` also runs `cav gen image --alpha`, a Recraft cutout and
+  trace when Recraft works, a Freesound search and preview when Freesound works, and
+  `cav listen` with qwen-omni when its server is set.
+
 - Two cav commands that record an asset at the same moment no longer lose an entry in
   `.cav/manifest.json`. Before, the second save could drop the first command's entry, so
   `cav credits check` did not see that asset. cav now holds a lock file,

@@ -1,0 +1,8 @@
+{
+  "error": {
+    "code": "unsupported_file_mimetype",
+    "message": "Invalid file 'image[0]': unsupported mimetype ('application/octet-stream'). Supported file formats are 'image/jpeg', 'image/png', and 'image/webp'.",
+    "param": "image[0]",
+    "type": "invalid_request_error"
+  }
+}

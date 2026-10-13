@@ -20,7 +20,7 @@ import (
 
 // Vectorize traces a raster image into SVG with the chosen service: recraft (API),
 // vtracer (colour, local) or potrace (one colour, local, through ffmpeg for the bitmap).
-func Vectorize(ctx context.Context, ch *services.Choice, in string) (*Image, error) {
+func vectorize(ctx context.Context, ch *services.Choice, in string) (*Image, error) {
 	switch ch.Service {
 	case "recraft":
 		data, err := os.ReadFile(in)
@@ -166,4 +166,9 @@ func wrap(s string, n int) []string {
 		out = append(out, cur)
 	}
 	return out
+}
+
+// Vectorize traces the image at in to SVG.
+func Vectorize(ctx context.Context, ch *services.Choice, in string) (*Image, error) {
+	return normalized(vectorize(ctx, ch, in))
 }

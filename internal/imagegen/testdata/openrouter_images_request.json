@@ -1,0 +1,7 @@
+{
+  "aspect_ratio": "16:9",
+  "model": "google/gemini-2.5-flash-image",
+  "n": 1,
+  "output_format": "png",
+  "prompt": "a flat geometric fox head logo, orange and white on a plain light grey background"
+}

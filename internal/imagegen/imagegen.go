@@ -2,8 +2,9 @@
 // whichever service the config picks: Gemini, OpenAI, OpenRouter, fal.ai, Recraft, or local
 // tools.
 //
-// Request shapes follow each vendor's documentation as read on 2026-10-08. They are tested
-// against recorded shapes, not against the live services (no keys were available).
+// Request shapes follow each vendor's documentation as read on 2026-10-08. Gemini, OpenAI,
+// OpenRouter and Recraft accepted them in real calls on 2026-10-13 (#11); the tests replay
+// those answers.
 package imagegen
 
 import (
@@ -73,7 +74,7 @@ func model(c *services.Config, service string, r Request) string {
 }
 
 // Generate makes the image with the chosen service.
-func Generate(ctx context.Context, c *services.Config, ch *services.Choice, r Request) (*Image, error) {
+func generate(ctx context.Context, c *services.Config, ch *services.Choice, r Request) (*Image, error) {
 	if r.Aspect == "" {
 		r.Aspect = "16:9"
 	}
@@ -197,7 +198,8 @@ func openai(ctx context.Context, key, model string, r Request) (*Image, error) {
 		if err != nil {
 			return nil, err
 		}
-		fw, _ := w.CreateFormFile("image[]", filepath.Base(p))
+		// OpenAI refuses a file part without an image type (application/octet-stream).
+		fw, _ := services.FormFile(w, "image[]", filepath.Base(p), data)
 		fw.Write(data)
 	}
 	w.Close()
@@ -255,7 +257,7 @@ func recraft(ctx context.Context, key, model string, r Request) (*Image, error) 
 func RecraftEdit(ctx context.Context, key, tool string, img []byte) (*Image, error) {
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
-	fw, _ := w.CreateFormFile("image", "image.png")
+	fw, _ := services.FormFile(w, "image", "image"+(&Image{Data: img, MIME: http.DetectContentType(img)}).Ext(), img)
 	fw.Write(img)
 	w.WriteField("response_format", "b64_json")
 	w.Close()
@@ -372,4 +374,9 @@ func clip(s string, n int) string {
 		return s[:n] + "…"
 	}
 	return s
+}
+
+// Generate makes an image with the chosen service.
+func Generate(ctx context.Context, c *services.Config, ch *services.Choice, r Request) (*Image, error) {
+	return normalized(generate(ctx, c, ch, r))
 }
