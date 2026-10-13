@@ -210,6 +210,9 @@ func generateThenCutout(ctx context.Context, c *services.Config, ch *services.Ch
 	in := filepath.Join(tmp, "image"+im.Ext())
 	if err := os.WriteFile(in, im.Data, 0o644); err != nil {
 		os.RemoveAll(tmp)
+		if kept, kerr := keep(im, gen.Skipped); kerr == nil {
+			return nil, fail(exitError, err.Error()+" (the generated image is kept at "+kept+")", "cut it out: cav gen cutout "+shellArg(kept)+" -o <file.png>")
+		}
 		return nil, err
 	}
 	cut, err := imagegen.RemoveBackground(ctx, ch, in)
@@ -277,7 +280,7 @@ func genCutout(a *app, args []string) error {
 		path = strings.TrimSuffix(pos[0], filepath.Ext(pos[0])) + "-cutout.png"
 	}
 	// Check the output before the cutout runs, so a bad -o cannot waste a paid call.
-	if fi, err := os.Stat(path); err == nil && fi.IsDir() {
+	if fi, err := os.Stat(path); strings.HasSuffix(path, "/") || strings.HasSuffix(path, string(filepath.Separator)) || err == nil && fi.IsDir() {
 		return fail(exitError, path+" is a folder", "give a file name: -o "+filepath.Join(path, "cutout.png"))
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

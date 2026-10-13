@@ -254,10 +254,12 @@ func TestGenCutoutRefusesAFolderOutput(t *testing.T) {
 	t.Chdir(t.TempDir())
 	os.WriteFile("in.png", []byte("\x89PNG\r\n\x1a\nfake"), 0o644)
 	os.Mkdir("assets", 0o755)
-	err := cmdGen(&app{}, []string{"cutout", "in.png", "--service", "rembg", "-o", "assets"})
-	var ce *cliError
-	if !errors.As(err, &ce) || !strings.Contains(ce.msg, "is a folder") {
-		t.Fatalf("got %v", err)
+	for _, o := range []string{"assets", "assets/new/"} {
+		err := cmdGen(&app{}, []string{"cutout", "in.png", "--service", "rembg", "-o", o})
+		var ce *cliError
+		if !errors.As(err, &ce) || !strings.Contains(ce.msg, "is a folder") {
+			t.Fatalf("-o %s: got %v", o, err)
+		}
 	}
 	if _, err := os.Stat(filepath.Join(os.Getenv("CAV_HOME"), "ran")); err == nil {
 		t.Fatal("the cutout service ran before the output was checked")
