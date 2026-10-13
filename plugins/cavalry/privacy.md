@@ -14,7 +14,7 @@ Your coding agent and its model provider handle prompts, tool results, and files
 
 Cavalry is a separate application. Its data handling is governed by Cavalry's own settings and privacy policy. This policy covers only the Cav plugin.
 
-Installation and updates download public releases and checksums from GitHub. `cav doctor` asks GitHub for the latest release at most once a day, to tell you about updates. It sends no information about you or your projects. Set `CAV_NO_UPDATE_CHECK=1` to turn this off. Setup can download public Cavalry documentation for offline use. The services serving these downloads may process ordinary request information under their own policies.
+Installation and updates download public releases and checksums from GitHub. `cav doctor` asks GitHub for the latest release at most once an hour, to tell you about updates. It sends no information about you or your projects. Set `CAV_NO_UPDATE_CHECK=1` to turn this off. Setup can download public Cavalry documentation for offline use. The services serving these downloads may process ordinary request information under their own policies.
 
 ## Support
 

@@ -31,7 +31,7 @@ func fakeReleases(t *testing.T, tag string, status int) *int {
 	return &hits
 }
 
-func TestDoctorReportsANewerReleaseOncePerDay(t *testing.T) {
+func TestDoctorReportsANewerReleaseOncePerHour(t *testing.T) {
 	old := version
 	version = "1.5.0"
 	defer func() { version = old }()
@@ -41,13 +41,31 @@ func TestDoctorReportsANewerReleaseOncePerDay(t *testing.T) {
 	if c.OK || !c.Optional || c.Fix != "cav update" || !strings.Contains(c.Detail, "cav 1.6.0 is available (this is 1.5.0)") {
 		t.Fatalf("newer release: %+v", c)
 	}
-	// The answer is cached for a day.
-	if c2 := updateCheck(now.Add(23 * time.Hour)); c2 != c || *hits != 1 {
+	// The answer is cached for an hour.
+	if c2 := updateCheck(now.Add(59 * time.Minute)); c2 != c || *hits != 1 {
 		t.Fatalf("cached check: %+v after %d requests", c2, *hits)
 	}
-	updateCheck(now.Add(25 * time.Hour))
+	updateCheck(now.Add(61 * time.Minute))
 	if *hits != 2 {
-		t.Fatalf("a day later: %d requests, want 2", *hits)
+		t.Fatalf("an hour later: %d requests, want 2", *hits)
+	}
+}
+
+func TestDoctorIgnoresACacheOlderThanTheRunningRelease(t *testing.T) {
+	old := version
+	version = "1.6.0"
+	defer func() { version = old }()
+	hits := fakeReleases(t, "v1.6.0", 200)
+	now := time.Now()
+	// The cache was written a minute ago, before cav 1.6.0 was installed.
+	cache := fmt.Sprintf(`{"checkedAt":%q,"repo":%q,"latest":"1.5.0","url":"x"}`,
+		now.Add(-time.Minute).Format(time.RFC3339Nano), repo())
+	if err := os.WriteFile(updateCachePath(), []byte(cache), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	c := updateCheck(now)
+	if *hits != 1 || !strings.Contains(c.Detail, "1.6.0 is the latest release") {
+		t.Fatalf("stale cache: %+v after %d requests", c, *hits)
 	}
 }
 

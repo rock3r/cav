@@ -10,12 +10,13 @@ import (
 	"github.com/rock3r/cav/internal/config"
 )
 
-// cav doctor asks GitHub for the latest release at most once a day, so an agent that runs
-// doctor learns about an update. A failed check is remembered for an hour, so an offline
-// machine or a firewall does not slow down every doctor run. CAV_NO_UPDATE_CHECK=1 turns
+// cav doctor asks GitHub for the latest release at most once an hour, so an agent that runs
+// doctor learns about an update. A failed check is also remembered for an hour, so an
+// offline machine or a firewall does not slow down every doctor run. A cached answer older
+// than the running cav (it was saved before this release came out) does not count. CAV_NO_UPDATE_CHECK=1 turns
 // the check off. The check never makes doctor fail.
 const (
-	updateCheckEvery      = 24 * time.Hour
+	updateCheckEvery      = time.Hour
 	updateCheckRetryAfter = time.Hour
 	updateCheckTimeout    = 3 * time.Second
 )
@@ -45,8 +46,11 @@ func updateCheck(now time.Time) check {
 	}
 	fresh := cache.Error == "" && now.Sub(cache.CheckedAt) < updateCheckEvery ||
 		cache.Error != "" && now.Sub(cache.CheckedAt) < updateCheckRetryAfter
+	// A release build newer than the cached latest means the cache predates this release.
+	// Dev builds are often ahead of the latest release, so they keep the cache.
+	stale := cache.Latest != "" && !strings.HasSuffix(version, "-dev") && versionLess(cache.Latest, version)
 	// A cache for another CAV_REPO, or from the future, does not count.
-	if !fresh || cache.Repo != repo() || cache.CheckedAt.After(now) {
+	if !fresh || stale || cache.Repo != repo() || cache.CheckedAt.After(now) {
 		cache = updateCache{CheckedAt: now, Repo: repo()}
 		if r, err := fetchReleaseWithin("", updateCheckTimeout); err != nil {
 			cache.Error = err.Error()
