@@ -1,7 +1,13 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
+	"image"
+	"image/png"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -177,5 +183,57 @@ func TestGenImageAlphaWithRembgNeedsAnImageService(t *testing.T) {
 	var ce *cliError
 	if !errors.As(err, &ce) || !strings.Contains(ce.msg, "only greybox is usable") || !strings.Contains(ce.hint, "cav gen cutout") {
 		t.Fatalf("got %v", err)
+	}
+}
+
+// When rembg fails after an image service made the image, cav keeps that image next to
+// the output and records it as generated. cav gen cutout on it then keeps its licence.
+func TestGenImageAlphaKeepsAndRecordsTheImageWhenTheCutoutFails(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake uv is a shell script")
+	}
+	var pic bytes.Buffer
+	png.Encode(&pic, image.NewRGBA(image.Rect(0, 0, 2, 2)))
+	const id = "d86e5d8c-e3c5-419c-b328-e9fca3048d2f"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/prompt":
+			w.Write([]byte(`{"prompt_id": "` + id + `", "number": 1, "node_errors": {}}`))
+		case "/history/" + id:
+			w.Write([]byte(`{"` + id + `": {"outputs": {"9": {"images": [{"filename": "cav_1.png", "subfolder": "", "type": "output"}]}}}}`))
+		case "/view":
+			w.Header().Set("Content-Type", "image/png")
+			w.Write(pic.Bytes())
+		default:
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+	home := t.TempDir()
+	t.Setenv("CAV_HOME", home)
+	t.Setenv("CAV_NO_KEYS", "1")
+	dir := t.TempDir()
+	wf := filepath.Join(dir, "workflow.json")
+	os.WriteFile(wf, []byte(`{"6": {"inputs": {"text": "{{prompt}}"}}}`), 0o644)
+	cfg, _ := json.Marshal(services.Config{
+		Order:     map[string][]string{"image": {"comfyui"}, "image.alpha": {"rembg"}},
+		Endpoints: map[string]services.Endpoint{"comfyui": {BaseURL: srv.URL, Model: wf}},
+	})
+	if err := os.WriteFile(services.Path(), cfg, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	fakeUVOnPath(t, "#!/bin/sh\nexit 1\n")
+	t.Chdir(dir)
+	err := cmdGen(&app{}, []string{"image", "a fox", "--alpha", "-o", "fox.png"})
+	var ce *cliError
+	if !errors.As(err, &ce) || !strings.Contains(ce.msg, "kept at fox-uncut.png") || !strings.Contains(ce.hint, "cav gen cutout fox-uncut.png") {
+		t.Fatalf("got %v", err)
+	}
+	m, err := library.Load(library.Root())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e := entryFor(m, "fox-uncut.png"); e == nil || e.Generated == nil || e.Generated.Provider != "comfyui" {
+		t.Fatalf("kept image entry %+v", e)
 	}
 }
