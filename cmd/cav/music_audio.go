@@ -112,13 +112,42 @@ func audioSeconds(ctx context.Context, path string) (float64, error) {
 
 // flacToWAV converts a FLAC take to 24-bit WAV next to it and removes the FLAC. It needs
 // ffmpeg.
-func flacToWAV(ctx context.Context, path string) (string, error) {
-	wav := strings.TrimSuffix(path, filepath.Ext(path)) + ".wav"
+func flacToWAV(ctx context.Context, path, wav string) error {
 	if b, err := exec.CommandContext(ctx, "ffmpeg", "-v", "error", "-y", "-i", path, "-vn", "-c:a", "pcm_s24le", wav).CombinedOutput(); err != nil {
-		os.Remove(wav)
-		return "", fmt.Errorf("ffmpeg: %v: %s", err, strings.TrimSpace(string(b)))
+		return fmt.Errorf("ffmpeg: %v: %s", err, strings.TrimSpace(string(b)))
 	}
-	return wav, os.Remove(path)
+	return nil
+}
+
+// saveFLACTake reserves base.wav (or base-2.wav, …), converts the FLAC into it, and
+// returns its path. When the conversion fails, it keeps the FLAC under a free name instead
+// and says so in the note.
+func saveFLACTake(ctx context.Context, base string, data []byte) (path, note string, err error) {
+	wav, err := writeFreeData(base, ".wav", nil)
+	if err != nil {
+		return "", "", err
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(base), ".take-*.flac")
+	if err != nil {
+		os.Remove(wav)
+		return "", "", err
+	}
+	_, err = tmp.Write(data)
+	if cerr := tmp.Close(); err == nil {
+		err = cerr
+	}
+	defer os.Remove(tmp.Name())
+	if err == nil {
+		if err = flacToWAV(ctx, tmp.Name(), wav); err == nil {
+			return wav, "", nil
+		}
+	}
+	os.Remove(wav)
+	flac, ferr := writeFreeData(strings.TrimSuffix(wav, ".wav"), ".flac", data)
+	if ferr != nil {
+		return "", "", ferr
+	}
+	return flac, "kept as FLAC (" + err.Error() + ")", nil
 }
 
 // takeFade is how many seconds of fade-out cav puts at the end of a take it cuts.

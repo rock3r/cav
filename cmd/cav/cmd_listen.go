@@ -645,18 +645,18 @@ func saveTake(ctx context.Context, root, dir, name string, tr *music.Track, prom
 	}
 	// A take never replaces an earlier one: the same prompt with another service, or a
 	// second run, gets name-2, name-3 and so on.
-	path, err := writeFreeData(filepath.Join(dir, name), tr.Ext, tr.Data)
+	note := ""
+	var path string
+	var err error
+	if tr.Ext == ".flac" {
+		// YuE2 sends FLAC; Cavalry and most editors take WAV. Reserve the WAV name, the one
+		// the take ends up with, so a later take cannot convert over it.
+		path, note, err = saveFLACTake(ctx, filepath.Join(dir, name), tr.Data)
+	} else {
+		path, err = writeFreeData(filepath.Join(dir, name), tr.Ext, tr.Data)
+	}
 	if err != nil {
 		return "", "", err
-	}
-	note := ""
-	if tr.Ext == ".flac" {
-		// YuE2 sends FLAC; Cavalry and most editors take WAV.
-		if wav, err := flacToWAV(ctx, path); err != nil {
-			note = "kept as FLAC (" + err.Error() + ")"
-		} else {
-			path = wav
-		}
 	}
 	if tr.Length > 0 {
 		if err := cutAndFade(ctx, path, tr.Length, takeFade); err != nil {
