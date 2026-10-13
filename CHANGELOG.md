@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.6.0
 
 - `cav music gen --lyrics` refuses a named service that cannot sing before it reads that
   service's key. Before, `--service lyria` read the Gemini key first, which could open a
