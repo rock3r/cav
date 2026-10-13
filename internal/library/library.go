@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -101,7 +102,7 @@ func readJSON(path string, v any) error {
 
 // writeJSON writes through a temporary file in the same folder and then renames it over the
 // old file, so a crash never leaves half a file. Each write has its own temporary name, so two
-// writers never share one.
+// writers never share one. A new file gets 0644 less the umask; an old file keeps its mode.
 func writeJSON(path string, v any) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
@@ -110,7 +111,13 @@ func writeJSON(path string, v any) error {
 	if err != nil {
 		return err
 	}
-	f, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".*.tmp")
+	var f *os.File
+	for range 10 {
+		f, err = os.OpenFile(path+"."+randomHex()+".tmp", os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+		if !errors.Is(err, fs.ErrExist) {
+			break
+		}
+	}
 	if err != nil {
 		return err
 	}
@@ -122,8 +129,8 @@ func writeJSON(path string, v any) error {
 	if cerr := f.Close(); err == nil {
 		err = cerr
 	}
-	if err == nil {
-		err = os.Chmod(tmp, 0o644) // CreateTemp makes the file readable by its owner only
+	if old, serr := os.Stat(path); err == nil && serr == nil {
+		err = os.Chmod(tmp, old.Mode().Perm())
 	}
 	if err == nil {
 		err = rename(tmp, path)

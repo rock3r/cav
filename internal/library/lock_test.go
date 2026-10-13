@@ -65,6 +65,9 @@ func TestUpdateRemovesAStaleLock(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := os.Stat(LockPath(root) + ".break"); !os.IsNotExist(err) {
+		t.Fatalf("the break lock is still there: %v", err)
+	}
 	if d := time.Since(start); d > 5*time.Second {
 		t.Fatalf("Update waited %s for a stale lock", d)
 	}
@@ -140,11 +143,11 @@ func TestUpdateGivesUpOnAHeldLock(t *testing.T) {
 	defer func(w time.Duration) { lockWait = w }(lockWait)
 	lockWait = 100 * time.Millisecond
 	root := t.TempDir()
-	unlock, err := lock(LockPath(root))
+	l, err := lock(LockPath(root))
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer unlock()
+	defer l.unlock()
 	called := false
 	err = Update(root, func(*Manifest) error { called = true; return nil })
 	if err == nil || !strings.Contains(err.Error(), "another cav command") {
@@ -201,6 +204,45 @@ func TestSaveWritesThroughATemporaryFile(t *testing.T) {
 		t.Fatal(err)
 	} else if os.PathSeparator == '/' && info.Mode().Perm() != 0o644 {
 		t.Fatalf("the manifest has mode %v, want 0644", info.Mode().Perm())
+	}
+}
+
+func TestSaveKeepsTheModeOfTheOldFile(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows has no Unix file modes")
+	}
+	root := t.TempDir()
+	m := &Manifest{}
+	if err := m.save(root); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(ManifestPath(root), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.save(root); err != nil {
+		t.Fatal(err)
+	}
+	if info, err := os.Stat(ManifestPath(root)); err != nil || info.Mode().Perm() != 0o600 {
+		t.Fatalf("got %v, %v; want mode 0600", info.Mode().Perm(), err)
+	}
+}
+
+func TestUpdateDoesNotSaveAfterItLostTheLock(t *testing.T) {
+	root := t.TempDir()
+	err := Update(root, func(m *Manifest) error {
+		m.Put(root, Entry{Path: "late.png"})
+		// Another command removes this lock as stale and makes its own.
+		os.Remove(LockPath(root))
+		return os.WriteFile(LockPath(root), []byte("other\n"), 0o644)
+	})
+	if err == nil || !strings.Contains(err.Error(), "took over") {
+		t.Fatalf("want an error about the lost lock, got %v", err)
+	}
+	if b, _ := os.ReadFile(LockPath(root)); string(b) != "other\n" {
+		t.Fatal("unlock removed the other command's lock")
+	}
+	if m, _ := Load(root); len(m.Assets) != 0 {
+		t.Fatalf("saved without the lock: %+v", m.Assets)
 	}
 }
 
