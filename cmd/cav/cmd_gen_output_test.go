@@ -193,8 +193,17 @@ func TestGenImageKeepsTheImageWhenSavingFails(t *testing.T) {
 	comfyForTest(t, func() { os.Chmod("out", 0o555) })
 	// A file already named fox.png is left alone.
 	os.WriteFile("fox.png", []byte("mine"), 0o644)
-	err := cmdGen(&app{}, []string{"image", "a fox", "-o", "out/fox.png"})
+	// With --json, the fallback prints no success result: the command fails, and
+	// app.finish prints the only result.
+	stdout, _ := os.Create(filepath.Join(t.TempDir(), "stdout"))
+	real := os.Stdout
+	os.Stdout = stdout
+	err := cmdGen(&app{json: true}, []string{"image", "a fox", "-o", "out/fox.png"})
+	os.Stdout = real
 	keptAndRecorded(t, err, "fox-2.png", "comfyui")
+	if b, _ := os.ReadFile(stdout.Name()); len(b) > 0 {
+		t.Errorf("printed a result before the error: %s", b)
+	}
 	if b, _ := os.ReadFile("fox.png"); string(b) != "mine" {
 		t.Fatal("the kept image replaced an existing file")
 	}

@@ -139,7 +139,9 @@ func genImage(a *app, args []string) error {
 			if err != nil {
 				return "", err
 			}
-			return p, saveGenerated(a, p, gen, prompt, refs, skipped)
+			// Record it without printing a result: the command still fails.
+			_, err = storeAsset(p, gen, prompt, refs, "")
+			return p, err
 		}
 		im, err = generateThenCutout(ctx, pickConfig, ch, imagegen.Request{Prompt: prompt, Refs: refs, Aspect: *aspect, Model: *model}, keep)
 		if err != nil {
@@ -358,7 +360,9 @@ func saveOrKeep(a *app, path string, im *imagegen.Image, prompt string, refs []s
 	}
 	kept, kerr := freePath(strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)), im.Ext())
 	if kerr == nil {
-		kerr = saveAsset(a, kept, im, prompt, refs, skipped, from)
+		// Record it without printing a result: the command still fails, and --json must
+		// print one result only.
+		_, kerr = storeAsset(kept, im, prompt, refs, from)
 		if kerr != nil && !errors.As(kerr, &we) {
 			// The image is written; only the manifest failed.
 			return fail(exitError, err.Error()+" (the image is kept at "+kept+", but recording it in the manifest failed: "+kerr.Error()+")", "")
@@ -429,29 +433,8 @@ func cutoutTerms(m *library.Manifest, root, from string, e library.Entry) librar
 // saveAsset writes the image and records it in the manifest. from is the image a cutout
 // was made from, or "" for an image made from words.
 func saveAsset(a *app, path string, im *imagegen.Image, prompt string, refs []string, skipped []string, from string) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return &writeError{err}
-	}
-	if err := os.WriteFile(path, im.Data, 0o644); err != nil {
-		return &writeError{err}
-	}
-	root := library.Root()
-	m, err := library.Load(root)
+	e, err := storeAsset(path, im, prompt, refs, from)
 	if err != nil {
-		return err
-	}
-	sum, _ := fileSHA(path)
-	kind := "image"
-	if strings.Contains(im.MIME, "svg") {
-		kind = "svg"
-	}
-	e := library.Entry{Path: path, Kind: kind, Source: im.Provider, Licence: "generated", CommercialOK: true,
-		RetrievedAt: time.Now().UTC(), SHA256: sum, Generated: &library.Generated{Provider: im.Provider, Model: im.Model, Prompt: prompt, Refs: refs}}
-	if from != "" {
-		e = cutoutTerms(m, root, from, e)
-	}
-	e = m.Put(root, e)
-	if err := m.Save(root); err != nil {
 		return err
 	}
 	a.emit(map[string]any{"file": path, "provider": im.Provider, "model": im.Model, "asset": e, "skipped": skipped}, func() {
@@ -465,6 +448,36 @@ func saveAsset(a *app, path string, im *imagegen.Image, prompt string, refs []st
 		fmt.Printf("%s: made with %s%s\n", path, im.Provider, model)
 	})
 	return nil
+}
+
+// storeAsset writes the image and records it in the manifest, without printing anything.
+func storeAsset(path string, im *imagegen.Image, prompt string, refs []string, from string) (library.Entry, error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return library.Entry{}, &writeError{err}
+	}
+	if err := os.WriteFile(path, im.Data, 0o644); err != nil {
+		return library.Entry{}, &writeError{err}
+	}
+	root := library.Root()
+	m, err := library.Load(root)
+	if err != nil {
+		return library.Entry{}, err
+	}
+	sum, _ := fileSHA(path)
+	kind := "image"
+	if strings.Contains(im.MIME, "svg") {
+		kind = "svg"
+	}
+	e := library.Entry{Path: path, Kind: kind, Source: im.Provider, Licence: "generated", CommercialOK: true,
+		RetrievedAt: time.Now().UTC(), SHA256: sum, Generated: &library.Generated{Provider: im.Provider, Model: im.Model, Prompt: prompt, Refs: refs}}
+	if from != "" {
+		e = cutoutTerms(m, root, from, e)
+	}
+	e = m.Put(root, e)
+	if err := m.Save(root); err != nil {
+		return library.Entry{}, err
+	}
+	return e, nil
 }
 
 func safeSlug(s string) string {
