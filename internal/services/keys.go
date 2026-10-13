@@ -80,6 +80,11 @@ func Resolve(ctx context.Context, service, source string) (string, error) {
 	if source == "" {
 		return "", nil
 	}
+	// CAV_NO_KEYS makes every key missing without reading it: no environment variable, no
+	// keychain, no 1Password prompt, no OAuth. The release smoke uses it, so only free paths run.
+	if os.Getenv("CAV_NO_KEYS") != "" {
+		return "", &KeyError{Msg: "no key: CAV_NO_KEYS is set", Missing: true, Fix: "unset CAV_NO_KEYS"}
+	}
 	src, err := ParseSource(source)
 	if err != nil {
 		return "", &KeyError{Msg: err.Error(), Fix: "cav config set-key " + service + " <source>"}

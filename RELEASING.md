@@ -96,6 +96,18 @@ cav run assets/helpers/test/live-native.js  # expect "fail": 0
 `live.js` warns once that the font "Definitely Not A Font" is not installed. That warning
 is expected: a check uses a missing font on purpose.
 
+Then run the command smoke with the same cav. It runs every command once in a new scratch
+scene and a temporary folder, and fails when `cav help` lists a command it does not run:
+
+```bash
+tools/release-smoke.sh <path to cav>        # expect "0 failed"
+```
+
+It starts its scene without `--force`, so save or close the open scene first. It reads no
+key (`CAV_NO_KEYS=1`) and uses only free services, so it costs nothing and never asks
+1Password. A `warn` line is a step that needs the internet. With the maintainer at the
+keyboard, `--keyed` adds one call to each keyed service after it lists them and asks.
+
 ### 5. Tag and publish
 
 Write the release notes from the version's section of `CHANGELOG.md`, without the heading.

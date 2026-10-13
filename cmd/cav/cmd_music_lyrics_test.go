@@ -32,6 +32,32 @@ func TestMusicLyricsPicksOnlySingers(t *testing.T) {
 	}
 }
 
+// A named service that cannot sing is refused before cav reads its key, so a key in
+// 1Password is never asked for. Here Lyria has no key at all: a key lookup would fail
+// with "no key" instead of the refusal.
+func TestMusicLyricsRefusesANonSingerBeforeItsKey(t *testing.T) {
+	t.Setenv("CAV_HOME", t.TempDir())
+	for _, v := range []string{"GEMINI_API_KEY", "GOOGLE_API_KEY"} {
+		t.Setenv(v, "")
+	}
+	song := filepath.Join(t.TempDir(), "song.txt")
+	if err := os.WriteFile(song, []byte("[Verse]\nla la"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	err := cmdMusic(&app{}, []string{"gen", "pop", "--lyrics", song, "--service", "lyria"})
+	var ce *cliError
+	if !errors.As(err, &ce) || !strings.Contains(ce.msg, "lyria makes only instrumentals") {
+		t.Fatalf("got %v", err)
+	}
+	// An unknown name, or a service for another job, gets services.Pick's own error.
+	for _, name := range []string{"lyriaa", "openai"} {
+		err = cmdMusic(&app{}, []string{"gen", "pop", "--lyrics", song, "--service", name})
+		if !errors.As(err, &ce) || strings.Contains(ce.msg, "makes only instrumentals") {
+			t.Fatalf("--service %s: %v", name, err)
+		}
+	}
+}
+
 // The manifest keeps the words of a take, so a song can be made again from its record.
 func TestSaveTakeRecordsTheLyrics(t *testing.T) {
 	root := t.TempDir()
