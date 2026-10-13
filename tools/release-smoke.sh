@@ -232,8 +232,12 @@ step refuse="name the shots to animate" "board motion: no shots named" board mot
 step ok "gen image (greybox)" gen image "a smoke test card" --service greybox -o assets/card.png
 # gen vector traces with vtracer or potrace (recraft needs a key). Install one, for example
 # `brew install potrace`, so the smoke covers it; without both it is a skip, not a pass.
-if command -v vtracer >/dev/null || command -v potrace >/dev/null; then
-	step ok "gen vector (local)" gen vector assets/card.png -o assets/card.svg
+# The tracer is named, so a custom image.vector order in services.json does not matter.
+tracer=
+command -v potrace >/dev/null && tracer=potrace
+command -v vtracer >/dev/null && tracer=vtracer
+if [[ -n "$tracer" ]]; then
+	step ok "gen vector ($tracer)" gen vector assets/card.png --service "$tracer" -o assets/card.svg
 	check "gen vector wrote an SVG with a path" grep -q "<path" assets/card.svg
 	step ok "SVG imports into Cavalry" run -e "var ids = api.convertSVGToLayers('$work/assets/card.svg'); if (!ids.length) throw new Error('no layers'); return ids.length"
 else
