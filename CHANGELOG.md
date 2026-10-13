@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- `cav gen vector` with potrace or vtracer has tests now. CI traces a real image with potrace
+  on Linux, and a test checks the exact potrace and vtracer commands with fake programs.
+  The release smoke also traces a card and imports the SVG into Cavalry when a tracer is
+  installed.
+
 ## 1.6.0
 
 - `cav music gen --lyrics` refuses a named service that cannot sing before it reads that
