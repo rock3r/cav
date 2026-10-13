@@ -103,7 +103,9 @@ scene and a temporary folder, and fails when `cav help` lists a command it does 
 tools/release-smoke.sh <path to cav>        # expect "0 failed"
 ```
 
-It starts its scene without `--force`, so save or close the open scene first. It reads no
+It starts its scene without `--force`, so save or close the open scene first. Install
+potrace (`brew install potrace`) so it also covers `cav gen vector`; without a tracer that
+step is skipped. It reads no
 key (`CAV_NO_KEYS=1`) and uses only free services, so it costs nothing and never asks
 1Password. A `warn` line is a step that needs the internet. With the maintainer at the
 keyboard, `--keyed` adds one call to each keyed service after it lists them and asks.

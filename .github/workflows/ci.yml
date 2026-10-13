@@ -61,7 +61,14 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '22'
+      - name: Tracers for the vector tests
+        # internal/imagegen traces a real image with potrace (ffmpeg makes the bitmap).
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y potrace ffmpeg
       - name: Go race tests and static checks
+        env:
+          # Where the tracers are installed, their test must not skip.
+          CAV_REQUIRE_TRACERS: ${{ matrix.os == 'ubuntu-latest' && '1' || '' }}
         run: |
           go test -race ./...
           go vet ./...
