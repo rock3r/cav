@@ -95,6 +95,10 @@ type Track struct {
 	// Cover is true when the take plays the melody of Request.Ref (YuE2 through SheetSage2):
 	// the song still belongs to whoever wrote it.
 	Cover bool
+	// Length, when it is not 0, is how many seconds the take should last. The service made
+	// a longer take on purpose (ACE-Step, see acestepPad), and the caller cuts the take to
+	// this length and fades out the end.
+	Length float64
 }
 
 func Generate(ctx context.Context, c *services.Config, ch *services.Choice, r Request) (*Track, error) {
@@ -349,6 +353,12 @@ func mmss(sec float64) string {
 	return fmt.Sprintf("%d:%02d", n/60, n%60)
 }
 
+// acestepPad is how many seconds more than the storyboard cav asks ACE-Step for. ACE-Step
+// 1.5 ends its takes early: on a real server on 2026-10-13, every 24 s take went silent 2 to
+// 5.5 s before the end. The file had the right length, but the end was silence. Asked for
+// 30 s, one of 3 takes went silent 6 s before the end, so cav asks for 8 s more.
+const acestepPad = 8.0
+
 // acestep runs text2music on an ACE-Step 1.5 API server: submit the task, ask for its
 // result until it is done, then download the audio. API docs (docs/en/API.md) read on
 // 2026-10-08. Lyrics go in its "lyrics" field (re-read on 2026-10-11) and keep the length
@@ -387,8 +397,16 @@ func acestep(ctx context.Context, c *services.Config, key string, r Request) (*T
 	case lyrics == "":
 		prompt, lyrics = prompt+", instrumental", "[Instrumental]"
 	}
+	// An instrumental asks for acestepPad seconds more, and the caller cuts it back. A song
+	// keeps its length: ACE-Step fits the lyrics to audio_duration, so a cut could lose the
+	// last line.
+	length := math.Max(10, math.Min(600, r.Seconds))
+	duration := length
+	if strings.TrimSpace(r.Lyrics) == "" {
+		duration = math.Min(600, length+acestepPad)
+	}
 	body := map[string]any{"prompt": prompt, "lyrics": lyrics, "audio_format": "wav",
-		"audio_duration": math.Max(10, math.Min(600, r.Seconds)), "batch_size": 1, "thinking": true}
+		"audio_duration": duration, "batch_size": 1, "thinking": true}
 	if bpm := bpmIn(r.Prompt); bpm > 0 {
 		body["bpm"] = bpm
 	}
@@ -477,7 +495,11 @@ func acestep(ctx context.Context, c *services.Config, key string, r Request) (*T
 			if m == "" {
 				m = model
 			}
-			return &Track{Data: data, Ext: ".wav", Provider: "acestep", Model: m}, nil
+			tr := &Track{Data: data, Ext: ".wav", Provider: "acestep", Model: m}
+			if duration > length {
+				tr.Length = length
+			}
+			return tr, nil
 		}
 		select {
 		case <-ctx.Done():

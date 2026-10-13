@@ -653,6 +653,11 @@ func saveTake(ctx context.Context, root, dir, name string, tr *music.Track, prom
 			path = wav
 		}
 	}
+	if tr.Length > 0 {
+		if err := cutAndFade(ctx, path, tr.Length, takeFade); err != nil {
+			note = strings.TrimPrefix(note+"; ", "; ") + fmt.Sprintf("not cut to %.1f s (%s): %s made it longer on purpose, so trim and fade the end yourself", tr.Length, err, tr.Provider)
+		}
+	}
 	if level {
 		gain, err := addHeadroom(ctx, path)
 		switch {

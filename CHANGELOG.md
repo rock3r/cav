@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- `cav music gen --service acestep` no longer ends an instrumental in silence. ACE-Step
+  1.5 stops its music 2 to 6 seconds before the end of the file. cav now asks it for 8
+  seconds more, then cuts the take to the length you asked for and fades out the last
+  2 seconds. On a real server, 4 of 4 takes of 24 s had music up to the end. Songs with
+  `--lyrics` are not changed, because a cut could lose the last line.
 - mflux is in the default `image` order on Apple silicon, after the keyed services and
   before comfyui and greybox. cav uses it only when its model is already in the Hugging
   Face cache (`HF_HUB_CACHE`, `HF_HOME` and `XDG_CACHE_HOME` are respected), because the
