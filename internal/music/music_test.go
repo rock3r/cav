@@ -158,6 +158,14 @@ func TestACEStepTags(t *testing.T) {
 	if n := utf8.RuneCountInString(tags); n > 4096 || strings.Count(tags, "[") != 60 {
 		t.Fatalf("%d characters, %d tags", n, strings.Count(tags, "["))
 	}
+	// Too many shots for a tag each.
+	many := make([]Section, 1000)
+	for i := range many {
+		many[i].Name = fmt.Sprintf("s%d: cut", i)
+	}
+	if got := acestepTags(many); got != "[Instrumental]" {
+		t.Fatalf("1000 shots: %q", got[:40])
+	}
 	// A long style on the first shot shortens only that tag.
 	tags = acestepTags([]Section{{Name: "a: one", Styles: []string{strings.Repeat("x", 5000)}}, {Name: "b: two"}, {Name: "c: three"}})
 	if n := utf8.RuneCountInString(tags); n > 4096 || !strings.HasSuffix(tags, "]\n\n[b - two]\n\n[c - three]") {

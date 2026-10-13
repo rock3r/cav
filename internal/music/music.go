@@ -507,7 +507,11 @@ func acestepTags(sections []Section) string {
 		total += len(tags[i]) + 4 // the brackets and the blank line
 	}
 	limit := MaxLyrics("acestep")
-	if share := (limit+2)/len(tags) - 4; total > limit && share > 0 {
+	share := (limit+2)/len(tags) - 4
+	if total > limit && share <= 0 {
+		return "[Instrumental]" // too many shots for a tag each; the prompt still has the timeline
+	}
+	if total > limit {
 		for i, t := range tags {
 			if len(t) > share {
 				tags[i] = []rune(strings.TrimSpace(string(t[:share])))
