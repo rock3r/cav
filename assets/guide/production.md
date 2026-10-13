@@ -19,8 +19,11 @@ cav config set-key openai op://Private/OpenAI/api key    # or env:NAME, keychain
 ```
 
 Local models run on this machine. mflux runs open image models (default FLUX.2 klein 4B)
-through uv on Apple silicon; it is not in the default order because its first run
-downloads several GB, so ask for it: `--service mflux`, or `cav config order image ...`.
+through uv on Apple silicon, in about 20 s per 16:9 still. Its first run downloads about
+16 GB, so the default `image` order uses mflux only once the model is in the Hugging Face
+cache: after the keyed services, before comfyui and greybox. Run
+`cav gen image "<prompt>" --service mflux` once to download it (ask the user first).
+With `--ref`, mflux edits from all the reference images.
 rembg cuts the background out of an image with BiRefNet (`birefnet-general`), on any
 platform with uv. Its first run downloads the model, about 1 GB, into `~/.rembg`. It is
 last in the `image.alpha` order: OpenAI and Recraft make the transparency while they
@@ -128,9 +131,9 @@ cav gen cutout photo.png -o assets/fox.png                               # remov
 ```
 
 `--alpha` with rembg works in two steps: the first usable `image` service (for example
-Gemini) makes the image, then rembg cuts it out on this machine. Ask for a plain,
-even background in the prompt; the cutout is cleaner. Without an image key there is
-nothing to cut out, so cav says so. `cav gen cutout` works on any image you have, with
+Gemini, or mflux once its model is downloaded) makes the image, then rembg cuts it out on
+this machine. Ask for a plain, even background in the prompt; the cutout is cleaner. When
+only greybox can make an image, there is nothing to cut out, so cav says so. `cav gen cutout` works on any image you have, with
 rembg or Recraft (OpenAI cannot cut out an image it did not make). A cutout keeps the
 licence and credit of the image it came from. An image that is not in the manifest gives
 a cutout with an unknown licence, so `cav credits check` asks about it.

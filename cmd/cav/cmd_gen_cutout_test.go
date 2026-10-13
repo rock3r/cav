@@ -161,6 +161,10 @@ func TestGenImageAlphaWithRembgNeedsAnImageService(t *testing.T) {
 	}
 	t.Setenv("CAV_HOME", t.TempDir())
 	t.Setenv("CAV_NO_KEYS", "1")
+	// An empty Hugging Face cache, so a downloaded mflux model does not make an image.
+	for _, v := range []string{"HF_HUB_CACHE", "HF_HOME", "XDG_CACHE_HOME"} {
+		t.Setenv(v, t.TempDir())
+	}
 	fakeUVOnPath(t, "#!/bin/sh\nexit 1\n")
 	t.Chdir(t.TempDir())
 	err := cmdGen(&app{}, []string{"image", "a fox", "--alpha"})

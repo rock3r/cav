@@ -35,6 +35,9 @@ type Def struct {
 	// KeyFrom names another service whose configured key this one shares when it has none
 	// of its own (Veo and Lyria use the Gemini key).
 	KeyFrom string
+	// Ready reports whether a local service can run now without a large first download.
+	// Pick skips a service that is not ready when it walks an order; --service runs it.
+	Ready func(c *Config) error
 	// Check makes one free call that proves the key works. key is "" for free services.
 	Check func(ctx context.Context, c *Config, key string) (string, error)
 }
@@ -280,7 +283,8 @@ var Catalog = map[string]*Def{
 			return fmt.Sprintf("%d models at %s", len(r.Data), hostOf(ep.BaseURL)), nil
 		}},
 	"mflux": {Title: "mflux: FLUX.2 klein and other open models on Apple silicon, through uv (first run downloads the model)", Kind: KindLocal,
-		Jobs: []string{"image"}, Binary: "uv", OnlyOn: "darwin/arm64", Signup: "Apple silicon Mac and uv: https://docs.astral.sh/uv/"},
+		Jobs: []string{"image"}, Binary: "uv", OnlyOn: "darwin/arm64", Signup: "Apple silicon Mac and uv: https://docs.astral.sh/uv/",
+		Ready: mfluxReady},
 	"comfyui": {Title: "ComfyUI server you run, with an API-format workflow you choose", Kind: KindEndpoint,
 		Jobs: []string{"image"},
 		Check: func(ctx context.Context, c *Config, _ string) (string, error) {
@@ -450,6 +454,11 @@ func Probe(ctx context.Context, c *Config, name string) Status {
 			return st
 		}
 		st.State, st.Detail = "ok", p
+		if d.Ready != nil {
+			if err := d.Ready(c); err != nil {
+				st.Detail += "; " + err.Error()
+			}
+		}
 		return st
 	}
 	key := ""
@@ -565,6 +574,12 @@ func Pick(ctx context.Context, c *Config, job string, only string) (*Choice, err
 			if _, err := lookPath(d.Binary); err != nil {
 				ch.Skipped = append(ch.Skipped, name+": "+d.Binary+" not installed")
 				continue
+			}
+			if d.Ready != nil && only == "" {
+				if err := d.Ready(c); err != nil {
+					ch.Skipped = append(ch.Skipped, name+": "+err.Error())
+					continue
+				}
 			}
 			ch.Service = name
 			return ch, nil
