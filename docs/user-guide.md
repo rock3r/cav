@@ -521,7 +521,9 @@ Environment variables:
 Use `cav check --quick --json` for cheap structural performance warnings. Add `--profile`
 for measured sampling, or `--profile-render` to time low-resolution PNG calls too. Default
 checks are bounded; inspect `failures`, `skipped`, `complete` and `clean` before treating a
-scene as reviewed. Blank heads/tails still need a sheet review.
+scene as reviewed. Blank heads/tails still need a sheet review. When a finding is a known trap (a missing font,
+a layer hidden by stacking order, a redeclared SkSL input, a simulation), `cav check` also
+prints the guide section that explains it, so you do not have to look it up.
 
 Quick structural checks include referenced pre-comps and report their composition paths.
 For slow later regions, use `cav check --profile-frames 840,1560,1908 --max-warmup 2000

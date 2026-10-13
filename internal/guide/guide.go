@@ -240,6 +240,26 @@ func New(sections []Section) *Index {
 	return &Index{Sections: sections, ix: search.New(docs)}
 }
 
+// Find returns the sections of a topic whose path has the given length and whose path
+// elements start with the given prefixes, in guide order. It looks sections up by name,
+// for links that must not depend on ranking.
+func (ix *Index) Find(topic string, prefixes ...string) []Section {
+	var out []Section
+	for _, s := range ix.Sections {
+		if s.Topic != topic || len(s.Path) != len(prefixes) {
+			continue
+		}
+		ok := true
+		for i, p := range prefixes {
+			ok = ok && strings.HasPrefix(s.Path[i], p)
+		}
+		if ok {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
 // Hit is a ranked section.
 type Hit struct {
 	Section
