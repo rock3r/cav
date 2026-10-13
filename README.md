@@ -104,6 +104,7 @@ troubleshooting.
 |---|---|
 | `cav setup` / `cav doctor` | Install or check everything: token, bridge script, Cavalry, ffmpeg, docs, running bridge |
 | `cav guide [topic]` | How to work: workflow, design recipes, music sync, traps, native features |
+| `cav guide --search <words>` | The best guide sections for a symptom, when you do not know the topic (offline) |
 | `cav status` | Existing bridge state; no scene work is queued |
 | `cav scene new\|comp\|open\|save` | New scene (refuses to discard unsaved work), change the comp, open, save |
 | `cav run <file.js>... \| -e <code>` | Run JavaScript in Cavalry with the helper library loaded; prints the return value |

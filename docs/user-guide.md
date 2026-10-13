@@ -143,6 +143,7 @@ not resume a render. Keep the original scene and inputs unchanged during recover
 | Find a layer type id | `cav types gradient` |
 | Search the docs | `cav docs stagger` |
 | Read how to work, or motion recipes | `cav guide`, `cav guide design` |
+| Find the guide section for a symptom | `cav guide --search "rotation keys ignored"` |
 
 Every command accepts `--json` for machine-readable output.
 
@@ -355,7 +356,9 @@ the prefix `cavalry_cav`. The skill does not depend on the tool names.
 `cav guide` prints the workflow, the traps, and recipes for motion design (entrances,
 impacts, kinetic type, transitions, beat sync), so any agent with a shell can learn `cav` from
 `cav` itself. The `cavalry` skill is a short entry point: it tells the agent when to use
-`cav`, how to check the setup, and to read `cav guide`. Install it in Claude Code:
+`cav`, how to check the setup, and to read `cav guide`. When something fails silently,
+`cav guide --search <symptom>` prints the matching sections of every guide (at most about
+4 KB), so the agent does not need to know which guide covers it. Install it in Claude Code:
 
 ```text
 /plugin marketplace add rock3r/cav

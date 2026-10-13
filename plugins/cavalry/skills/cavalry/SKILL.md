@@ -24,6 +24,8 @@ The `cav` CLI does the work and carries its own guides. This skill only gets you
    Read `cav guide design` before a creative task and `cav guide music` when there is music
    (it covers `cav spectrogram` and `cav sync`, which let you look at music you cannot hear).
    `cav helpers` lists the script library; `cav help <command>` explains each command.
+   When something does nothing or looks wrong, search the guides for the symptom:
+   `cav guide --search "rotation keys ignored"`.
 3. Work only in new scenes (`cav scene new`). Never use `--force` on the user's own work.
 4. You cannot see Cavalry: look at `cav sheet` images after every change, use
    `cav onion <start-end>` to see how one move travels, and run `cav check` before you render.

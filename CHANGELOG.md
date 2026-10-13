@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- `cav guide --search <words>` searches every guide and prints the best 3 sections (`-n`
+  changes the number), each with its topic and heading path. Describe the symptom when you
+  do not know the topic: `cav guide --search "keys dropped"` finds the `rotation.z` trap.
+  Each table row is its own result, so a trap comes back with its symptom and fix and not
+  the whole table. The output is capped at about 4 KB, and a cut section says which guide
+  has the rest. The search uses the same offline ranker as `cav api`, needs no bridge, and
+  supports `--json`. `cav guide <topic>` prints the same text as before.
+- The trap rows in `cav guide traps` have alias comments with symptom words that the
+  text does not use (for example "spin" and "keys dropped"). `cav guide` does not print them.
 - The review hook writes render paths as Markdown code with a fence longer than any run of
   backticks in the path. Before, a backtick in a path from a review file could end the code
   span, and the rest of the name showed as plain text in the agent's message.

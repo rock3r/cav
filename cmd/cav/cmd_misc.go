@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/rock3r/cav/assets"
 	"github.com/rock3r/cav/internal/config"
+	"github.com/rock3r/cav/internal/guide"
 
 	"github.com/rock3r/cav/internal/bridge"
 )
@@ -80,7 +82,7 @@ var guideTopics = []string{"workflow", "design", "music", "traps", "native", "pr
 func init() {
 	register(command{
 		name:    "guide",
-		args:    "[workflow|design|music|traps|native|production]",
+		args:    "[workflow|design|music|traps|native|production] | --search <words> [-n 3]",
 		summary: "Print how to make motion graphics with cav: workflow, design, music, traps.",
 		run:     cmdGuide,
 	})
@@ -93,20 +95,84 @@ Without a topic, prints the workflow guide. Read it before your first build.
   traps     Cavalry scripting behaviours that fail silently, and how cav avoids them
   native    duplicators, stagger, text effects, filters, 2.5D, particles and other nodes
   production  services and keys, licences, storyboards, assets, music, listening, review
+
+cav guide --search <words> [-n 3]
+  Search every guide and print the best sections, with their topic and heading. Describe
+  the symptom when you do not know the topic: cav guide --search "rotation keys ignored".
+  Table rows (each trap) come back one by one. The output is capped at about 4 KB.
 `
 }
 
+// Search output limits: one long section, and all hits together.
+const (
+	guideHitBytes   = 1500
+	guideTotalBytes = 4000
+)
+
 func cmdGuide(a *app, args []string) error {
+	fs := flag.NewFlagSet("guide", flag.ContinueOnError)
+	query := fs.String("search", "", "search all guides")
+	n := fs.Int("n", 3, "number of sections")
+	pos, err := parseFlags(fs, args)
+	if err != nil {
+		return err
+	}
+	if flagSet(fs, "search") {
+		return guideSearch(a, strings.TrimSpace(strings.Join(append([]string{*query}, pos...), " ")), *n)
+	}
 	topic := "workflow"
-	if len(args) > 0 {
-		topic = strings.ToLower(args[0])
+	if len(pos) > 0 {
+		topic = strings.ToLower(pos[0])
 	}
 	b, err := assets.Guide.ReadFile("guide/" + topic + ".md")
 	if err != nil {
 		return fmt.Errorf("unknown guide %q: choose one of %s", topic, strings.Join(guideTopics, ", "))
 	}
-	a.emit(map[string]any{"topic": topic, "topics": guideTopics, "text": string(b)}, func() {
-		fmt.Print(string(b))
+	text := guide.StripAliases(string(b))
+	a.emit(map[string]any{"topic": topic, "topics": guideTopics, "text": text}, func() {
+		fmt.Print(text)
+	})
+	return nil
+}
+
+func flagSet(fs *flag.FlagSet, name string) bool {
+	set := false
+	fs.Visit(func(f *flag.Flag) { set = set || f.Name == name })
+	return set
+}
+
+func guideSearch(a *app, q string, n int) error {
+	if q == "" {
+		return usageErr("usage: cav guide --search <words>, for example: cav guide --search \"rotation keys ignored\"")
+	}
+	if n < 1 {
+		n = 1
+	}
+	ix, err := guide.Load(assets.Guide, "guide", guideTopics)
+	if err != nil {
+		return err
+	}
+	hits, dropped := guide.Cap(ix.Search(q, n), guideHitBytes, guideTotalBytes)
+	if hits == nil {
+		hits = []guide.Hit{}
+	}
+	apiHint := "For API functions and their notes, try `cav api " + q + "`."
+	data := map[string]any{"query": q, "results": hits, "topics": guideTopics, "hint": apiHint}
+	if dropped > 0 {
+		data["omitted"] = dropped
+	}
+	a.emit(data, func() {
+		if len(hits) == 0 {
+			fmt.Printf("no guide section matches. Topics: %s. %s\n", strings.Join(guideTopics, ", "), apiHint)
+			return
+		}
+		for _, h := range hits {
+			fmt.Printf("== %s  (cav guide %s)\n%s\n\n", strings.Join(append([]string{h.Topic}, h.Path...), " › "), h.Topic, h.Text)
+		}
+		if dropped > 0 {
+			fmt.Printf("(%d more sections did not fit; search with more specific words)\n", dropped)
+		}
+		fmt.Println(apiHint)
 	})
 	return nil
 }

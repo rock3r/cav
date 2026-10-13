@@ -45,7 +45,7 @@ Main limits today:
 | cav-bridge | `assets/bridge/cav-bridge.js` | Cavalry JavaScript (UI script) | Listens on `127.0.0.1:8723`, runs jobs, publishes their state and result. |
 | Helper library | `assets/helpers/cav-helpers.js` | Cavalry JavaScript | The global `cav` inside jobs: creation, keys, easing, motion recipes, native features. |
 | API reference | `assets/apiref/*.json`, `tools/build_apiref.py`, `tools/api-notes.json` | JSON | Offline data for `cav api` and `cav types`. |
-| Guides | `assets/guide/*.md` | Markdown | What `cav guide` prints: workflow, design recipes, music sync, traps, native features. |
+| Guides | `assets/guide/*.md` | Markdown | What `cav guide` prints: workflow, design recipes, music sync, traps, native features. `internal/guide` splits them by heading and table row for `cav guide --search`; `<!-- aliases: … -->` comments add search words and are not printed. |
 | Skill | `plugins/cavalry/skills/cavalry` | Markdown | A short entry point: when to use `cav`, setup checks, and a pointer to `cav guide`. |
 | Plugin packaging | `plugins/cavalry/*plugin.json`, `.claude-plugin/`, `.agents/plugins/` | JSON | Claude Code, Agent Plugins and Codex manifests and marketplace entries. |
 | Installers | `install.sh`, `install.ps1` | shell, PowerShell | Download a release, verify its checksum, run `cav setup`. |
