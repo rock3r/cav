@@ -14,6 +14,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/rock3r/cav/internal/imagegen"
 	"github.com/rock3r/cav/internal/library"
 	"github.com/rock3r/cav/internal/services"
 )
@@ -266,14 +267,41 @@ func TestGenCutoutRefusesAFolderOutput(t *testing.T) {
 	}
 }
 
-func TestFreePathReportsErrors(t *testing.T) {
+func TestWriteFreeReportsErrors(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("permissions")
 	}
 	dir := filepath.Join(t.TempDir(), "locked")
 	os.Mkdir(dir, 0o000)
 	t.Cleanup(func() { os.Chmod(dir, 0o755) })
-	if _, err := freePath(filepath.Join(dir, "fox-uncut"), ".png"); err == nil && os.Geteuid() != 0 {
+	if _, err := writeFree(filepath.Join(dir, "fox-uncut"), &imagegen.Image{Data: []byte("x"), MIME: "image/png"}); err == nil && os.Geteuid() != 0 {
 		t.Fatal("no error for a folder cav cannot search")
+	}
+}
+
+// When another cav run takes the first free name between the check and the write, the
+// kept image goes to the next name and the other file is left alone.
+func TestWriteFreeTakesTheNextNameWhenTheFirstIsTaken(t *testing.T) {
+	t.Chdir(t.TempDir())
+	taken := false
+	beforeReserve = func(p string) {
+		if p == "fox-uncut.png" && !taken {
+			taken = true
+			os.WriteFile(p, []byte("theirs"), 0o644)
+		}
+	}
+	t.Cleanup(func() { beforeReserve = func(string) {} })
+	p, err := writeFree("fox-uncut", &imagegen.Image{Data: []byte("mine"), MIME: "image/png"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p != "fox-uncut-2.png" {
+		t.Fatalf("kept at %s", p)
+	}
+	if b, _ := os.ReadFile("fox-uncut.png"); string(b) != "theirs" {
+		t.Errorf("the kept image replaced the other run's file: %q", b)
+	}
+	if b, _ := os.ReadFile(p); string(b) != "mine" {
+		t.Errorf("%s holds %q", p, b)
 	}
 }
