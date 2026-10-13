@@ -222,7 +222,12 @@ func genCutout(a *app, args []string) error {
 	}
 	if len(cc.Order["image.alpha"]) == 0 && *service == "" {
 		return fail(exitError, "the image.alpha order has no service that cuts out an image (recraft, rembg)",
-			"name one with --service rembg, or add it: cav config order image.alpha "+strings.Join(append(c.OrderFor("image.alpha"), "rembg"), ","))
+			"name one with --service rembg, or add it: cav config order image.alpha "+strings.Join(slices.Concat(c.OrderFor("image.alpha"), []string{"rembg"}), ","))
+	}
+	// Refuse a known service that cannot cut out before Pick reads its key, so a key in
+	// 1Password is never asked for.
+	if d, ok := services.Catalog[*service]; ok && slices.Contains(d.Jobs, "image.alpha") && !slices.Contains(imagegen.CutoutServices, *service) {
+		return fail(exitError, *service+" makes transparent images only while it generates them", "use --service rembg or --service recraft")
 	}
 	// The first run downloads the rembg model (about 1 GB).
 	ctx, cancel := context.WithTimeout(context.Background(), time.Hour)

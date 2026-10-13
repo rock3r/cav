@@ -59,6 +59,9 @@ func TestGenCutoutUsesRembgNotOpenAI(t *testing.T) {
 		t.Error("credits check does not ask about the cutout of an unrecorded image")
 	}
 
+	// OpenAI is refused before cav reads its key: with keys off, a key lookup would fail
+	// with "no key" instead.
+	t.Setenv("CAV_NO_KEYS", "1")
 	err = cmdGen(&app{}, []string{"cutout", "in.png", "--service", "openai"})
 	var ce *cliError
 	if !errors.As(err, &ce) || !strings.Contains(ce.msg, "only while it generates") {
