@@ -256,3 +256,12 @@ func TestNoKeysDoesNotLookAtKeyVariables(t *testing.T) {
 		t.Fatalf("with CAV_NO_KEYS: %s", got)
 	}
 }
+
+// OpenAI's real 401 answer (2026-10-13, #11) echoes the start and end of the key.
+func TestHTTPErrorHidesEchoedKeys(t *testing.T) {
+	e := &HTTPError{Status: 401, Body: `{"error":{"message":"Incorrect API key provided: sk-svcac*****************xVQA. You can find your API key at https://platform.openai.com/account/api-keys.","type":"invalid_request_error","code":"invalid_api_key"}}`}
+	got := e.Error()
+	if strings.Contains(got, "sk-") || strings.Contains(got, "xVQA") || !strings.Contains(got, "Incorrect API key provided: <key>.") {
+		t.Fatalf("got %q", got)
+	}
+}

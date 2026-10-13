@@ -114,3 +114,33 @@ func TestMusicLyricsSkipsASingerWithTooSmallALimit(t *testing.T) {
 		t.Fatalf("got %v", err)
 	}
 }
+
+// In the paid check for #11, a Stable Audio take replaced an ElevenLabs take made from
+// the same prompt. A second take with the same name now gets name-2.
+func TestSaveTakeKeepsAnEarlierTake(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "music")
+	first := &music.Track{Data: []byte("ID3elevenlabs"), Ext: ".mp3", Provider: "elevenlabs"}
+	second := &music.Track{Data: []byte("ID3stability"), Ext: ".mp3", Provider: "stability"}
+	p1, _, err := saveTake(context.Background(), root, dir, "synthwave", first, "synthwave", "", "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p2, _, err := saveTake(context.Background(), root, dir, "synthwave", second, "synthwave", "", "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filepath.Base(p1) != "synthwave.mp3" || filepath.Base(p2) != "synthwave-2.mp3" {
+		t.Fatalf("paths %s, %s", p1, p2)
+	}
+	if b, _ := os.ReadFile(p1); string(b) != "ID3elevenlabs" {
+		t.Fatal("the first take was replaced")
+	}
+	m, err := library.Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(m.Assets) != 2 {
+		t.Fatalf("manifest has %d entries, want 2", len(m.Assets))
+	}
+}

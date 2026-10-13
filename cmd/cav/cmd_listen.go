@@ -320,7 +320,10 @@ func askEars(ctx context.Context, track, only, prompt string) (string, string, s
 	}
 	ch, err := services.Pick(ctx, c, "ears", only)
 	if err != nil {
-		return "", "", "no audio model: add a Gemini key or a qwen-omni server (cav config)"
+		if only != "" {
+			return "", "", err.Error()
+		}
+		return "", "", "no audio model: add a Gemini key or a qwen-omni server (cav config): " + err.Error()
 	}
 	audio, err := listen.Compact(ctx, track)
 	if err != nil {
@@ -637,11 +640,13 @@ func cmdMusic(a *app, args []string) error {
 // saveTake writes one take into dir, lowers its level when it would clip (level), and
 // records it in the manifest. The note says what cav did to the level.
 func saveTake(ctx context.Context, root, dir, name string, tr *music.Track, prompt, lyrics, ref string, level bool) (string, string, error) {
-	path := filepath.Join(dir, name+tr.Ext)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", "", err
 	}
-	if err := os.WriteFile(path, tr.Data, 0o644); err != nil {
+	// A take never replaces an earlier one: the same prompt with another service, or a
+	// second run, gets name-2, name-3 and so on.
+	path, err := writeFreeData(filepath.Join(dir, name), tr.Ext, tr.Data)
+	if err != nil {
 		return "", "", err
 	}
 	note := ""
@@ -680,7 +685,7 @@ func saveTake(ctx context.Context, root, dir, name string, tr *music.Track, prom
 		library.CoverTerms(tr.Provider, ref).Apply(&e)
 		e.Attribution = library.DefaultAttribution(e)
 	}
-	err := library.Update(root, func(m *library.Manifest) error {
+	err = library.Update(root, func(m *library.Manifest) error {
 		m.Put(root, e)
 		return nil
 	})

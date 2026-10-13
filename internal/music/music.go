@@ -196,7 +196,7 @@ func attach(w *multipart.Writer, field, path string) error {
 	if err != nil {
 		return fmt.Errorf("reference track: %w", err)
 	}
-	part, err := w.CreateFormFile(field, filepath.Base(path))
+	part, err := services.FormFile(w, field, filepath.Base(path), data)
 	if err != nil {
 		return err
 	}
