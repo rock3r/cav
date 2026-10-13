@@ -111,7 +111,7 @@ func TestGenCutoutKeepsTheSourceLicence(t *testing.T) {
 	t.Setenv("CAV_NO_KEYS", "1")
 	fakeUVOnPath(t, "#!/bin/sh\nprev=; last=; for a; do prev=$last; last=$a; done\ncp \"$prev\" \"$last\"\n")
 	t.Chdir(t.TempDir())
-	for _, f := range []string{"photo.png", "made.png"} {
+	for _, f := range []string{"photo.png", "made.png", "mood.png"} {
 		if err := os.WriteFile(f, []byte("\x89PNG\r\n\x1a\nfake"), 0o644); err != nil {
 			t.Fatal(err)
 		}
@@ -122,10 +122,11 @@ func TestGenCutoutKeepsTheSourceLicence(t *testing.T) {
 		Author: "Ann", AttributionRequired: true, Attribution: "Photo by Ann", NoDerivatives: true})
 	m.Put(root, library.Entry{Path: "made.png", Kind: "image", Source: "gemini", Licence: "generated", CommercialOK: true,
 		Generated: &library.Generated{Provider: "gemini"}})
+	m.Put(root, library.Entry{Path: "mood.png", Kind: "image", Source: "arena", Licence: "reference-only"})
 	if err := m.Save(root); err != nil {
 		t.Fatal(err)
 	}
-	for _, f := range []string{"photo.png", "made.png"} {
+	for _, f := range []string{"photo.png", "made.png", "mood.png"} {
 		if err := cmdGen(&app{}, []string{"cutout", f}); err != nil {
 			t.Fatal(err)
 		}
@@ -142,6 +143,10 @@ func TestGenCutoutKeepsTheSourceLicence(t *testing.T) {
 		if !hasProblem(problems, "photo-cutout.png", kind) {
 			t.Errorf("credits check misses %s on the cutout: %+v", kind, problems)
 		}
+	}
+	// A mood-board reference has no licence for use; its cutout is meant for the piece.
+	if !hasProblem(problems, "mood-cutout.png", "unknown-licence") {
+		t.Errorf("credits check skips the cutout of a reference-only image: %+v", problems)
 	}
 	if e := entryFor(m, "made-cutout.png"); e == nil || e.Generated == nil || e.Licence != "generated" || !e.CommercialOK {
 		t.Errorf("cutout of a generated image: %+v", e)

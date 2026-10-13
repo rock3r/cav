@@ -274,6 +274,10 @@ func cutoutTerms(m *library.Manifest, root, from string, e library.Entry) librar
 		e.Licence, e.LicenceURL, e.LicenceNote = src.Licence, src.LicenceURL, src.LicenceNote
 		e.Author, e.AuthorURL, e.Attribution, e.AttributionRequired = src.Author, src.AuthorURL, src.Attribution, src.AttributionRequired
 		e.CommercialOK, e.ShareAlike, e.NoDerivatives = src.CommercialOK, src.ShareAlike, src.NoDerivatives
+		if src.Licence == "reference-only" {
+			// credits check skips mood-board references, but a cutout is meant for the piece.
+			e.Licence, e.CommercialOK = "unknown", false
+		}
 		return e
 	}
 	e.Licence, e.CommercialOK = "unknown", false
