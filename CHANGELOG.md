@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- mflux is in the default `image` order on Apple silicon, after the keyed services and
+  before comfyui and greybox. cav uses it only when its model is already in the Hugging
+  Face cache (`HF_HUB_CACHE`, `HF_HOME` and `XDG_CACHE_HOME` are respected), because the
+  first run downloads about 16 GB. `--service mflux` still runs it without the model, and
+  it now says before it starts that the first run downloads about 16 GB. FLUX.2 klein 4B
+  makes a 16:9 still in about 21 s on an M1 Max. `--quantize 4` and `8` were slower there.
+- When an mflux run stops, the message no longer says that the download resumes. A new
+  huggingface_hub version can start a partly downloaded file again; only finished files
+  are always kept.
+- `cav gen image --service mflux --ref` with a FLUX.2 model now uses mflux's edit command
+  and passes every reference. Before, cav passed only the first reference as a starting
+  image at strength 0.35, and the result kept little of its layout or look.
 - `cav doctor` checks for a new release at most once an hour, not once a day. It also checks
   again when the cached answer is older than the running cav. Before, after you installed
   a new release, `cav doctor` could say for up to a day that it was newer than the latest

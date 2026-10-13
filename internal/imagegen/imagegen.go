@@ -59,7 +59,7 @@ var DefaultModels = map[string]string{
 	"openrouter": "google/gemini-2.5-flash-image",
 	"fal":        "fal-ai/flux-2",
 	"recraft":    "recraftv4_1",
-	"mflux":      "flux2-klein-4b",
+	"mflux":      services.MfluxDefaultModel,
 }
 
 func model(c *services.Config, service string, r Request) string {

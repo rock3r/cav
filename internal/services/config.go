@@ -58,9 +58,10 @@ var JobHelp = map[string]string{
 
 // DefaultOrder is the order cav uses when the config does not set one: services with a
 // key first, then free and local ones. A service without a key is skipped, so with no keys
-// at all the free entries win.
+// at all the free entries win. mflux runs only on Apple silicon, and only once its model is
+// downloaded (cav gen image --service mflux, once).
 var DefaultOrder = map[string][]string{
-	"image":        {"gemini", "openai", "openrouter", "fal", "comfyui", "greybox"},
+	"image":        {"gemini", "openai", "openrouter", "fal", "mflux", "comfyui", "greybox"},
 	"image.alpha":  {"openai", "recraft"},
 	"image.vector": {"recraft", "vtracer", "potrace"},
 	"video":        {"veo"},
@@ -102,6 +103,18 @@ func (c *Config) Save() error {
 		return err
 	}
 	return os.Rename(tmp, Path())
+}
+
+// WithModel returns a copy of the config in which service uses model, for one command's
+// --model. Pick then checks that model's readiness (mflux weights), not the configured one.
+func (c *Config) WithModel(service, model string) *Config {
+	cc := *c
+	cc.Models = map[string]string{}
+	for k, v := range c.Models {
+		cc.Models[k] = v
+	}
+	cc.Models[service] = model
+	return &cc
 }
 
 // OrderFor returns the effective order for a job.

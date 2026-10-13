@@ -19,8 +19,11 @@ cav config set-key openai op://Private/OpenAI/api key    # or env:NAME, keychain
 ```
 
 Local models run on this machine. mflux runs open image models (default FLUX.2 klein 4B)
-through uv on Apple silicon; it is not in the default order because its first run
-downloads several GB, so ask for it: `--service mflux`, or `cav config order image ...`.
+through uv on Apple silicon, in about 20 s per 16:9 still. Its first run downloads about
+16 GB, so the default `image` order uses mflux only once the model is in the Hugging Face
+cache: after the keyed services, before comfyui and greybox. Run
+`cav gen image "<prompt>" --service mflux` once to download it (ask the user first).
+With `--ref`, mflux edits from all the reference images.
 ComfyUI, ACE-Step and YuE2 are servers the user runs:
 `cav config endpoint comfyui http://127.0.0.1:8188 <workflow-api.json>` (the workflow holds
 `{{prompt}}`, `"{{width}}"`, `"{{height}}"` and `"{{seed}}"`), and

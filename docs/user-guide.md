@@ -240,9 +240,10 @@ cav board place                                  # frames as placeholder layers 
 ```
 
 **Assets.** `cav gen image "<prompt>"` makes a still; `--alpha` a transparent PNG, `--vector`
-an SVG. `cav gen vector logo.png` traces a PNG. Without a key, `--service mflux` runs an open
-model on an Apple silicon Mac (the first run downloads several GB), and a ComfyUI server
-runs a workflow you choose (`cav config endpoint comfyui`).
+an SVG. `cav gen vector logo.png` traces a PNG. On an Apple silicon Mac, mflux runs an open
+model (FLUX.2 klein 4B) without a key. Its first run downloads about 16 GB, so cav uses it
+by default only after you run `--service mflux` once; then it comes after the keyed
+services. A ComfyUI server runs a workflow you choose (`cav config endpoint comfyui`).
 
 **Music and sound.** `cav sfx search whoosh` finds free sounds, `cav sfx get <ref>` downloads
 one with its credit, `cav sfx index <folder>` adds a library you own (for example a Sonniss
