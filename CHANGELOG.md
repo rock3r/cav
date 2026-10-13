@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- `cav doctor` checks for a new release at most once an hour, not once a day. It also checks
+  again when the cached answer is older than the running cav. Before, after you installed
+  a new release, `cav doctor` could say for up to a day that it was newer than the latest
+  release.
 - `cav gen vector` with potrace or vtracer has tests now. CI traces a real image with potrace
   on Linux, and a test checks the exact potrace and vtracer commands with fake programs.
   The release smoke also traces a card and imports the SVG into Cavalry when a tracer is

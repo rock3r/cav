@@ -471,7 +471,7 @@ cav update                # shows the release, asks, installs, then runs cav set
 ```
 
 `cav doctor` also tells you, and the agent, when a newer release exists: its `update` line
-is a warning with the fix `cav update`. It asks GitHub at most once a day (once an hour after
+is a warning with the fix `cav update`. It asks GitHub at most once an hour (also once an hour after
 a failed check) and keeps the answer in `~/.cav/update-check.json`. A failed check never
 makes `cav doctor` fail. Set `CAV_NO_UPDATE_CHECK=1` to turn it off.
 
