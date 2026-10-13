@@ -14,6 +14,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/rock3r/cav/internal/services"
 )
@@ -103,15 +104,15 @@ func TestACEStepSubmitsQueriesAndDownloads(t *testing.T) {
 			var body map[string]any
 			json.NewDecoder(r.Body).Decode(&body)
 			if body["bpm"] != float64(120) || body["audio_duration"] != float64(24) || body["thinking"] != true ||
-				body["prompt"] != "warm synthwave, 120 BPM, instrumental" ||
-				body["lyrics"] != "[intro - logo fades in]\n\n[build - cards slide in, neon]\n\n[drop - big reveal]" {
+				body["prompt"] != "warm synthwave, confident, builds to a drop, 120 BPM. Structure: intro: logo fades in at 0s; build: cards slide in at 8s; drop: big reveal at 16s, instrumental" ||
+				body["lyrics"] != "[intro - logo fades in]\n\n[build - cards slide in]\n\n[drop - big reveal]" {
 				t.Errorf("release_task body: %v", body)
 			}
 			w.Write(fixture(t, "acestep_release_task.json"))
 		case "/query_result":
 			var body map[string][]string
 			json.NewDecoder(r.Body).Decode(&body)
-			if len(body["task_id_list"]) != 1 || body["task_id_list"][0] != "8a889fe9-5aea-4f27-bb1f-b170abff7511" {
+			if len(body["task_id_list"]) != 1 || body["task_id_list"][0] != "4558d4eb-8fe8-4c43-b2fe-bbfa2c796135" {
 				t.Errorf("query_result body: %v", body)
 			}
 			queries++
@@ -121,7 +122,7 @@ func TestACEStepSubmitsQueriesAndDownloads(t *testing.T) {
 			}
 			w.Write(fixture(t, "acestep_query_done.json"))
 		case "/v1/audio":
-			if p := r.URL.Query().Get("path"); p != "/srv/ace-step/.cache/acestep/tmp/api_audio/37a6c0c4-c074-05f5-037f-a69bdb2f9a34.wav" {
+			if p := r.URL.Query().Get("path"); p != "/srv/ace-step/.cache/acestep/tmp/api_audio/4cb84793-e58b-1f71-58f3-d3f77b6a7235.wav" {
 				t.Errorf("audio path %q", p)
 			}
 			w.Write([]byte("RIFFwav"))
@@ -131,10 +132,30 @@ func TestACEStepSubmitsQueriesAndDownloads(t *testing.T) {
 	}))
 	defer srv.Close()
 	c := &services.Config{Endpoints: map[string]services.Endpoint{"acestep": {BaseURL: srv.URL}}}
-	tr, err := Generate(context.Background(), c, &services.Choice{Service: "acestep"}, Request{Prompt: "warm synthwave, 120 BPM", Seconds: 24,
-		Sections: []Section{{Name: "intro: logo fades in", Seconds: 8}, {Name: "build: cards slide in", Seconds: 8, Styles: []string{"neon"}}, {Name: "drop: big reveal", Seconds: 8}}})
+	tr, err := Generate(context.Background(), c, &services.Choice{Service: "acestep"}, Request{Prompt: "warm synthwave, confident, builds to a drop, 120 BPM", Seconds: 24,
+		Sections: []Section{{Name: "intro: logo fades in", Seconds: 8}, {Name: "build: cards slide in", Seconds: 8}, {Name: "drop: big reveal", Seconds: 8}}})
 	if err != nil || string(tr.Data) != "RIFFwav" || tr.Model != "acestep-v15-turbo" || tr.Ext != ".wav" || queries != 2 {
 		t.Fatalf("got %+v, %v after %d queries", tr, err, queries)
+	}
+}
+
+func TestACEStepTags(t *testing.T) {
+	got := acestepTags([]Section{{Name: "intro: logo [v2]", Styles: []string{"neon", "warm"}}, {Name: "outro: line\nbreak"}})
+	if got != "[intro - logo (v2), neon, warm]\n\n[outro - line break]" {
+		t.Fatalf("tags: %q", got)
+	}
+	// The limit is 4096 characters, not bytes: 30 tags of 100 three-byte characters fit.
+	var long []Section
+	for i := 0; i < 30; i++ {
+		long = append(long, Section{Name: strings.Repeat("音", 100)})
+	}
+	if n := strings.Count(acestepTags(long), "["); n != 30 {
+		t.Fatalf("kept %d of 30 tags", n)
+	}
+	long = append(long, long...)
+	tags := acestepTags(long)
+	if n := utf8.RuneCountInString(tags); n > 4096 || n < 4096-110 {
+		t.Fatalf("%d characters", n)
 	}
 }
 

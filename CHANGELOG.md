@@ -10,10 +10,11 @@
   on Linux, and a test checks the exact potrace and vtracer commands with fake programs.
   The release smoke also traces a card and imports the SVG into Cavalry when a tracer is
   installed.
-- `cav music gen --service acestep --board` puts the storyboard's shots in the lyrics of an
-  instrumental, as one tag per shot (for example `[build - cards slide in]`). Before, the
-  shots went into the prompt as a timeline. On a real ACE-Step 1.5 server, no take with
-  the timeline changed at the first cut, and every take with the tags changed near it.
+- `cav music gen --service acestep --board` also puts the storyboard's shots in the lyrics
+  of an instrumental, as one tag per shot (for example `[build - cards slide in]`). The
+  prompt keeps the timeline of the shots. On a real ACE-Step 1.5 server, no take with only
+  the timeline changed at the first cut, and 7 of 8 takes with the tags changed near it.
+  ACE-Step keeps its own 4-bar phrases: a cut at 4 s was ignored in 3 of 3 takes.
   Songs with `--lyrics` are not changed.
 - `cav gen image --service comfyui` says why ComfyUI refused a workflow, for example
   "node 4 (CheckpointLoaderSimple): ckpt_name: 'x.safetensors' not in [...]". It also says
