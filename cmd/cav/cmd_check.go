@@ -45,6 +45,10 @@ Whole-comp stillness conclusions are skipped when motion inspection is incomplet
 Blank-run duration requires a sheet review and is skipped in this bounded pass.
 Findings do not change the exit code; timeout returns 3 with partial results and an
 operation ID to resume. Use --json for agents.
+A finding whose kind a guide explains (offframe, hidden, font, sksl-input-redeclared,
+group-filter, perf-sampled-keys, perf-keyframe-volume, perf-copy-javascript,
+perf-simulation) names that guide section, and the sections are printed once after the
+findings ("guide" in JSON, at most about 4 KB).
 --min-text (28) and --max-still (1.5 seconds) tune visual findings.`
 }
 
@@ -60,6 +64,8 @@ type finding struct {
 	Evidence        any      `json:"evidence,omitempty"`
 	EstimatedCopies *float64 `json:"estimatedCopies,omitempty"`
 	Attribution     string   `json:"attribution,omitempty"`
+	// Guide lists the guide sections that explain this kind of finding (topic › heading).
+	Guide []string `json:"guide,omitempty"`
 }
 
 const checkJS = `
@@ -558,7 +564,11 @@ func (a *app) partialCheck(out []finding, failures, skipped []map[string]any, me
 		failures = append(failures, map[string]any{"inspection": "interrupted", "error": cause.Error()})
 	}
 	complete := len(failures) == 0 && len(skipped) == 0
+	related := guideForFindings(out)
 	data := map[string]any{"findings": out, "count": len(out), "complete": complete, "clean": complete && len(out) == 0, "failures": failures, "skipped": skipped, "profile": measured}
+	if len(related) > 0 {
+		data["guide"] = related
+	}
 	var warmup *profileWarmup
 	if len(warmups) > 0 {
 		warmup = warmups[0]
@@ -584,6 +594,15 @@ func (a *app) partialCheck(out []finding, failures, skipped []map[string]any, me
 				location = " in " + strings.Join(f.CompPath, " > ")
 			}
 			fmt.Printf("%s %s %q%s: %s\n  fix: %s\n", f.Kind, f.Layer, f.Name, location, f.Detail, f.Fix)
+			for _, g := range f.Guide {
+				fmt.Printf("  guide: %s\n", g)
+			}
+		}
+		if len(related) > 0 {
+			fmt.Println("\nGuide sections for these findings:")
+			for _, h := range related {
+				fmt.Printf("== %s\n%s\n\n", strings.Join(append([]string{h.Topic}, h.Path...), " › "), h.Text)
+			}
 		}
 		if warmup != nil {
 			fmt.Printf("profile warm-up: %d/%d frames, %d ms (separate from sample timings)\n", warmup.Frames, warmup.Planned, warmup.MS)

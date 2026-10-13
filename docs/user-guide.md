@@ -143,6 +143,7 @@ not resume a render. Keep the original scene and inputs unchanged during recover
 | Find a layer type id | `cav types gradient` |
 | Search the docs | `cav docs stagger` |
 | Read how to work, or motion recipes | `cav guide`, `cav guide design` |
+| Find the guide section for a symptom | `cav guide --search "rotation keys ignored"` |
 
 Every command accepts `--json` for machine-readable output.
 
@@ -355,7 +356,9 @@ the prefix `cavalry_cav`. The skill does not depend on the tool names.
 `cav guide` prints the workflow, the traps, and recipes for motion design (entrances,
 impacts, kinetic type, transitions, beat sync), so any agent with a shell can learn `cav` from
 `cav` itself. The `cavalry` skill is a short entry point: it tells the agent when to use
-`cav`, how to check the setup, and to read `cav guide`. Install it in Claude Code:
+`cav`, how to check the setup, and to read `cav guide`. When something fails silently,
+`cav guide --search <symptom>` prints the matching sections of every guide (at most about
+4 KB), so the agent does not need to know which guide covers it. Install it in Claude Code:
 
 ```text
 /plugin marketplace add rock3r/cav
@@ -518,7 +521,9 @@ Environment variables:
 Use `cav check --quick --json` for cheap structural performance warnings. Add `--profile`
 for measured sampling, or `--profile-render` to time low-resolution PNG calls too. Default
 checks are bounded; inspect `failures`, `skipped`, `complete` and `clean` before treating a
-scene as reviewed. Blank heads/tails still need a sheet review.
+scene as reviewed. Blank heads/tails still need a sheet review. When a finding is a known trap (a missing font,
+a layer hidden by stacking order, a redeclared SkSL input, a simulation), `cav check` also
+prints the guide section that explains it, so you do not have to look it up.
 
 Quick structural checks include referenced pre-comps and report their composition paths.
 For slow later regions, use `cav check --profile-frames 840,1560,1908 --max-warmup 2000
