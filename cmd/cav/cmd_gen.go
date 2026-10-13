@@ -203,7 +203,7 @@ func genVector(a *app, args []string) error {
 	if err != nil {
 		return fail(exitError, err.Error(), "")
 	}
-	return saveOrKeep(a, path, im, "vectorized "+pos[0], []string{pos[0]}, ch.Skipped, "")
+	return saveOrKeep(a, path, im, "vectorized "+pos[0], []string{pos[0]}, ch.Skipped, pos[0])
 }
 
 // generateThenCutout makes an image with the first usable image service, then runs the
@@ -452,10 +452,10 @@ func writeFree(base string, im *imagegen.Image) (string, error) {
 // name first, as another cav run could.
 var beforeReserve = func(string) {}
 
-// cutoutTerms gives a cutout the licence of the image it was cut from, because a cutout is
-// a changed version of that image. An image that the manifest does not list gets an unknown
-// licence, so cav credits check asks about it.
-func cutoutTerms(m *library.Manifest, root, from string, e library.Entry) library.Entry {
+// derivedTerms gives a cutout or a trace the licence of the image it was made from,
+// because it is a changed version of that image. An image that the manifest does not list
+// gets an unknown licence, so cav credits check asks about it.
+func derivedTerms(m *library.Manifest, root, from string, e library.Entry) library.Entry {
 	rel := library.Rel(root, from)
 	for _, src := range m.Assets {
 		if src.Path != rel {
@@ -465,15 +465,16 @@ func cutoutTerms(m *library.Manifest, root, from string, e library.Entry) librar
 			e.Licence, e.LicenceNote, e.CommercialOK = src.Licence, src.LicenceNote, src.CommercialOK
 			return e
 		}
-		// A licensed image: the cutout carries its terms and credit. It is not recorded as
-		// generated, because cav credits check skips generated assets.
+		// A licensed image: the cutout or trace carries its terms and credit. It is not
+		// recorded as generated, because cav credits check skips generated assets.
 		e.Generated = nil
 		e.Title, e.Source, e.SourceID, e.URL = src.Title, src.Source, src.SourceID, src.URL
 		e.Licence, e.LicenceURL, e.LicenceNote = src.Licence, src.LicenceURL, src.LicenceNote
 		e.Author, e.AuthorURL, e.Attribution, e.AttributionRequired = src.Author, src.AuthorURL, src.Attribution, src.AttributionRequired
 		e.CommercialOK, e.ShareAlike, e.NoDerivatives = src.CommercialOK, src.ShareAlike, src.NoDerivatives
 		if src.Licence == "reference-only" {
-			// credits check skips mood-board references, but a cutout is meant for the piece.
+			// credits check skips mood-board references, but a cutout or trace is meant for
+			// the piece.
 			e.Licence, e.CommercialOK = "unknown", false
 		}
 		return e
@@ -482,8 +483,8 @@ func cutoutTerms(m *library.Manifest, root, from string, e library.Entry) librar
 	return e
 }
 
-// saveAsset writes the image and records it in the manifest. from is the image a cutout
-// was made from, or "" for an image made from words.
+// saveAsset writes the image and records it in the manifest. from is the image that a
+// cutout or a trace was made from, or "" for an image made from words.
 func saveAsset(a *app, path string, im *imagegen.Image, prompt string, refs []string, skipped []string, from string) error {
 	e, err := storeAsset(path, im, prompt, refs, from)
 	if err != nil {
@@ -528,7 +529,7 @@ func recordAsset(path string, im *imagegen.Image, prompt string, refs []string, 
 	e := library.Entry{Path: path, Kind: kind, Source: im.Provider, Licence: "generated", CommercialOK: true,
 		RetrievedAt: time.Now().UTC(), SHA256: sum, Generated: &library.Generated{Provider: im.Provider, Model: im.Model, Prompt: prompt, Refs: refs}}
 	if from != "" {
-		e = cutoutTerms(m, root, from, e)
+		e = derivedTerms(m, root, from, e)
 	}
 	e = m.Put(root, e)
 	if err := m.Save(root); err != nil {

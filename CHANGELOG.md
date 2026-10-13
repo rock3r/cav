@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- `cav gen vector <image>` now records the SVG as a changed version of the image it
+  traced, like `cav gen cutout` does. The SVG keeps that image's licence and credit.
+  Before, cav recorded every trace as generated, so `cav credits check` skipped it: a
+  trace of a CC BY, non-commercial, share-alike or no-derivatives image passed with no
+  problem. An image that is not in the manifest, or that is a `reference-only` mood-board
+  image, gives the SVG an unknown licence, so `cav credits check` asks about it.
 - `cav gen image`, `cav gen cutout` and `cav gen vector` check that they can write the
   output before they call a service or read a key. A read-only folder or a read-only
   existing file now stops the command before a paid call. This also works for a path
