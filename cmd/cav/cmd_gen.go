@@ -87,6 +87,17 @@ func genImage(a *app, args []string) error {
 	case *alpha:
 		job = "image.alpha"
 	}
+	// Check the output before Pick reads a key (which can ask 1Password) and before a
+	// paid call. Without -o the file type is known only after the call, so cav checks
+	// the folder.
+	if *out != "" {
+		err = checkOutput(*out, "image.png")
+	} else {
+		err = checkFolder("assets")
+	}
+	if err != nil {
+		return err
+	}
 	c, err := services.Load()
 	if err != nil {
 		return err
@@ -144,7 +155,7 @@ func genImage(a *app, args []string) error {
 	if path == "" {
 		path = filepath.Join("assets", safeSlug(prompt)+im.Ext())
 	}
-	return saveGenerated(a, path, im, prompt, refs, ch.Skipped)
+	return saveOrKeep(a, path, im, prompt, refs, ch.Skipped, "")
 }
 
 func genVector(a *app, args []string) error {
@@ -157,6 +168,18 @@ func genVector(a *app, args []string) error {
 	}
 	if len(pos) != 1 {
 		return usageErr("usage: cav gen vector <image> [-o file.svg]")
+	}
+	// Check the input and the output before Pick reads a key (which can ask 1Password)
+	// and before a paid call.
+	if _, err := os.Stat(pos[0]); err != nil {
+		return fail(exitError, err.Error(), "")
+	}
+	path := *out
+	if path == "" {
+		path = strings.TrimSuffix(pos[0], filepath.Ext(pos[0])) + ".svg"
+	}
+	if err := checkOutput(path, "image.svg"); err != nil {
+		return err
 	}
 	c, err := services.Load()
 	if err != nil {
@@ -175,11 +198,7 @@ func genVector(a *app, args []string) error {
 	if err != nil {
 		return fail(exitError, err.Error(), "")
 	}
-	path := *out
-	if path == "" {
-		path = strings.TrimSuffix(pos[0], filepath.Ext(pos[0])) + ".svg"
-	}
-	return saveGenerated(a, path, im, "vectorized "+pos[0], []string{pos[0]}, ch.Skipped)
+	return saveOrKeep(a, path, im, "vectorized "+pos[0], []string{pos[0]}, ch.Skipped, "")
 }
 
 // generateThenCutout makes an image with the first usable image service, then runs the
@@ -250,11 +269,8 @@ func genCutout(a *app, args []string) error {
 	}
 	// Check the output before Pick reads a key (which can ask 1Password) and before the
 	// cutout runs, so a bad -o cannot waste a paid call.
-	if fi, err := os.Stat(path); strings.HasSuffix(path, "/") || strings.HasSuffix(path, string(filepath.Separator)) || err == nil && fi.IsDir() {
-		return fail(exitError, path+" is a folder", "give a file name: -o "+filepath.Join(path, "cutout.png"))
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return fail(exitError, err.Error(), "")
+	if err := checkOutput(path, "cutout.png"); err != nil {
+		return err
 	}
 	c, err := services.Load()
 	if err != nil {
@@ -291,8 +307,65 @@ func genCutout(a *app, args []string) error {
 	if err != nil {
 		return fail(exitError, err.Error(), "")
 	}
-	return saveAsset(a, path, im, "cut out "+pos[0], []string{pos[0]}, ch.Skipped, pos[0])
+	return saveOrKeep(a, path, im, "cut out "+pos[0], []string{pos[0]}, ch.Skipped, pos[0])
 }
+
+// checkOutput proves that cav can write path, before a paid call. It refuses a folder,
+// makes the parent folder, and checks that an existing file opens for writing (without
+// changing it) or that a new file can be made in the folder. example is the file name in
+// the hint for a folder.
+func checkOutput(path, example string) error {
+	if fi, err := os.Stat(path); strings.HasSuffix(path, "/") || strings.HasSuffix(path, string(filepath.Separator)) || err == nil && fi.IsDir() {
+		return fail(exitError, path+" is a folder", "give a file name: -o "+filepath.Join(path, example))
+	}
+	f, err := os.OpenFile(path, os.O_WRONLY, 0)
+	if err == nil {
+		return f.Close()
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		return fail(exitError, "cannot write "+path+": "+err.Error(), "make it writable, or give another file with -o")
+	}
+	return checkFolder(filepath.Dir(path))
+}
+
+// checkFolder makes dir and proves that cav can make a file in it, by making and
+// removing an empty temporary file.
+func checkFolder(dir string) error {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fail(exitError, err.Error(), "")
+	}
+	f, err := os.CreateTemp(dir, ".cav-write-check-*")
+	if err != nil {
+		return fail(exitError, "cannot write in "+dir+": "+err.Error(), "make the folder writable, or give a file in another folder with -o")
+	}
+	f.Close()
+	return os.Remove(f.Name())
+}
+
+// saveOrKeep saves the image like saveAsset. When cav cannot write path (after a paid
+// call), it keeps the image under a free name in the working folder, records it there,
+// and says where it is, so the image is not lost.
+func saveOrKeep(a *app, path string, im *imagegen.Image, prompt string, refs []string, skipped []string, from string) error {
+	err := saveAsset(a, path, im, prompt, refs, skipped, from)
+	var we *writeError
+	if !errors.As(err, &we) {
+		return err
+	}
+	kept, kerr := freePath(strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)), im.Ext())
+	if kerr == nil {
+		kerr = saveAsset(a, kept, im, prompt, refs, skipped, from)
+	}
+	if kerr != nil {
+		return fail(exitError, err.Error()+" (keeping the image in the working folder also failed: "+kerr.Error()+")", "")
+	}
+	return fail(exitError, err.Error()+" (the image is kept at "+kept+")", "the manifest records it there; make "+path+" writable for the next run")
+}
+
+// writeError is a failure to write the image file itself, not the manifest.
+type writeError struct{ err error }
+
+func (e *writeError) Error() string { return e.err.Error() }
+func (e *writeError) Unwrap() error { return e.err }
 
 // freePath returns base+ext, or base-2+ext, base-3+ext and so on, whichever file does
 // not exist yet, so a kept image never replaces another file.
@@ -348,10 +421,10 @@ func cutoutTerms(m *library.Manifest, root, from string, e library.Entry) librar
 // was made from, or "" for an image made from words.
 func saveAsset(a *app, path string, im *imagegen.Image, prompt string, refs []string, skipped []string, from string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
+		return &writeError{err}
 	}
 	if err := os.WriteFile(path, im.Data, 0o644); err != nil {
-		return err
+		return &writeError{err}
 	}
 	root := library.Root()
 	m, err := library.Load(root)
