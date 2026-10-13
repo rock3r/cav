@@ -72,9 +72,9 @@ func bodyForRecord(b []byte, ctype string) any {
 			return redactJSON(v)
 		}
 		if len(b) > 20000 {
-			return string(b[:20000]) + "…"
+			b = b[:20000]
 		}
-		return string(b)
+		return hideKeys(string(b))
 	}
 	return fmt.Sprintf("<%d bytes of %s>", len(b), ctype)
 }
@@ -99,6 +99,8 @@ func redactJSON(v any) any {
 		if len(x) > 2000 {
 			return fmt.Sprintf("<%d characters>", len(x))
 		}
+		// Error messages can echo a key, whole or masked.
+		return hideKeys(x)
 	}
 	return v
 }
