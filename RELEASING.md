@@ -113,6 +113,8 @@ keyboard, `--keyed` adds one call to each keyed service after it lists them and 
 ### 5. Tag and publish
 
 Write the release notes from the version's section of `CHANGELOG.md`, without the heading.
+The changelog keeps the full detail. The release notes are for users, so rewrite them
+short (see [Release notes](#release-notes) below).
 Then tag the merge commit and publish the archives from step 3:
 
 ```bash
@@ -162,3 +164,23 @@ through the current installer so that the full bundle survives.
 The optional bridgeSession field and completed-ID deduplication retain protocol-1 request
 and result compatibility. They add capability for new bridges while the operation ledger
 also works with older running protocol-1 bridges. No tag or release is created by builds.
+
+## Release notes
+
+Write release notes for the people who use cav, not for the people who build it.
+
+- Start with one line that says what the release gives the user.
+- Then add short `## What's new` and `## Fixes` sections. Leave out a section that is empty.
+  A small patch release can be one line and two or three bullets.
+- Each bullet says what the user can do now, or what problem is gone. Do not explain how it
+  works inside.
+- Use plain, simple English for readers who are not native speakers: short sentences,
+  common words, no idioms or slang.
+- Be concise. Keep the long detail in `CHANGELOG.md`.
+- Keep upgrade steps (for example `cav setup`, reopen **Scripts > cav-bridge**) when the
+  user must do something.
+- Add an image only when it really helps, for example a new visual feature. Use output
+  from real runs, and upload images as release assets.
+- Never put spaces around a slash: write `a/b`, not `a / b`.
+- Describe only what shipped. No history, no plans, no non-goals.
+
