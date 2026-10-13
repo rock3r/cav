@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Two cav commands that record an asset at the same moment no longer lose an entry in
+  `.cav/manifest.json`. Before, the second save could drop the first command's entry, so
+  `cav credits check` did not see that asset. cav now holds a lock file,
+  `.cav/manifest.json.lock`, while it reads, changes and saves the manifest. A command waits
+  up to 60 s for the lock. cav removes a lock that is older than 30 s, because a cav command
+  that stopped left it behind. cav also writes the manifest and `.cav/project.json` through
+  a temporary file with its own name and then renames it, so a crash never leaves half a file.
 - `cav gen vector <image>` now records the SVG as a changed version of the image it
   traced, like `cav gen cutout` does. The SVG keeps that image's licence and credit.
   Before, cav recorded every trace as generated, so `cav credits check` skipped it: a

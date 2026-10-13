@@ -217,8 +217,8 @@ func boardFrames(a *app, args []string) error {
 		want[id] = true
 	}
 	root := library.Root()
-	m, err := library.Load(root)
-	if err != nil {
+	// A broken manifest stops the run before the first paid call.
+	if _, err := library.Load(root); err != nil {
 		return err
 	}
 	type made struct {
@@ -273,18 +273,21 @@ func boardFrames(a *app, args []string) error {
 		// A clip starts from the frame it was made from: a new frame makes it stale.
 		dropped := s.Clip
 		s.Clip = ""
-		if im.Provider != "greybox" {
-			sum, _ := fileSHA(out)
-			m.Put(root, library.Entry{Path: out, Kind: "image", Title: "storyboard " + s.ID, Source: im.Provider,
-				Licence: "generated", CommercialOK: true, RetrievedAt: time.Now().UTC(), SHA256: sum,
-				Generated: &library.Generated{Provider: im.Provider, Model: im.Model, Prompt: prompt, Refs: sb.Style.Refs}})
-		}
 		// Save after every frame, so an interrupted run keeps what it made.
 		if err := sb.Save(path); err != nil {
 			return err
 		}
-		if err := m.Save(root); err != nil {
-			return err
+		if im.Provider != "greybox" {
+			sum, _ := fileSHA(out)
+			e := library.Entry{Path: out, Kind: "image", Title: "storyboard " + s.ID, Source: im.Provider,
+				Licence: "generated", CommercialOK: true, RetrievedAt: time.Now().UTC(), SHA256: sum,
+				Generated: &library.Generated{Provider: im.Provider, Model: im.Model, Prompt: prompt, Refs: sb.Style.Refs}}
+			if err := library.Update(root, func(m *library.Manifest) error {
+				m.Put(root, e)
+				return nil
+			}); err != nil {
+				return err
+			}
 		}
 		done = append(done, made{Shot: s.ID, Frame: rel, Source: im.Provider, DroppedClip: dropped})
 	}
@@ -376,8 +379,8 @@ func boardMotion(a *app, args []string) error {
 		aspect = "9:16"
 	}
 	root := library.Root()
-	m, err := library.Load(root)
-	if err != nil {
+	// A broken manifest stops the run before the first paid call.
+	if _, err := library.Load(root); err != nil {
 		return err
 	}
 	type made struct {
@@ -419,14 +422,17 @@ func boardMotion(a *app, args []string) error {
 		}
 		s.Clip = rel
 		sum, _ := fileSHA(out)
-		m.Put(root, library.Entry{Path: out, Kind: "video", Title: "storyboard " + s.ID + " (moving)", Source: cl.Provider,
+		e := library.Entry{Path: out, Kind: "video", Title: "storyboard " + s.ID + " (moving)", Source: cl.Provider,
 			Licence: "generated", CommercialOK: true, RetrievedAt: time.Now().UTC(), SHA256: sum,
-			Generated: &library.Generated{Provider: cl.Provider, Model: cl.Model, Prompt: prompt, Refs: []string{s.Frame}}})
+			Generated: &library.Generated{Provider: cl.Provider, Model: cl.Model, Prompt: prompt, Refs: []string{s.Frame}}}
 		// Save after every clip, so an interrupted run keeps what it made.
 		if err := sb.Save(path); err != nil {
 			return err
 		}
-		if err := m.Save(root); err != nil {
+		if err := library.Update(root, func(m *library.Manifest) error {
+			m.Put(root, e)
+			return nil
+		}); err != nil {
 			return err
 		}
 		done = append(done, made{Shot: s.ID, Clip: rel, Seconds: cl.Seconds})

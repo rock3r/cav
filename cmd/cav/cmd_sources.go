@@ -281,12 +281,10 @@ func sourcesGet(a *app, cmd, kind, defaultDir, root string, args []string) error
 }
 
 func recordAndReport(a *app, root string, e library.Entry) error {
-	m, err := library.Load(root)
-	if err != nil {
-		return err
-	}
-	e = m.Put(root, e)
-	if err := m.Save(root); err != nil {
+	if err := library.Update(root, func(m *library.Manifest) error {
+		e = m.Put(root, e)
+		return nil
+	}); err != nil {
 		return err
 	}
 	p, _ := library.LoadProject(root)
@@ -394,21 +392,25 @@ func refArena(a *app, root, dir string, args []string) error {
 	if err != nil {
 		return fail(exitError, err.Error(), "")
 	}
-	m, err := library.Load(root)
-	if err != nil {
+	if _, err := library.Load(root); err != nil {
 		return err
 	}
 	var saved, failed []string
+	var got []library.Entry
 	for _, r := range rs {
 		e, err := sources.Download(ctx, c, key, r, *out, true)
 		if err != nil {
 			failed = append(failed, r.Ref()+": "+err.Error())
 			continue
 		}
-		e = m.Put(root, e)
-		saved = append(saved, e.Path)
+		got = append(got, e)
 	}
-	if err := m.Save(root); err != nil {
+	if err := library.Update(root, func(m *library.Manifest) error {
+		for _, e := range got {
+			saved = append(saved, m.Put(root, e).Path)
+		}
+		return nil
+	}); err != nil {
 		return err
 	}
 	a.emit(map[string]any{"channel": sources.ArenaSlug(pos[0]), "saved": saved, "failed": failed}, func() {

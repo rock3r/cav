@@ -517,10 +517,6 @@ func storeAsset(path string, im *imagegen.Image, prompt string, refs []string, f
 // recordAsset records the image that is already written at path in the manifest.
 func recordAsset(path string, im *imagegen.Image, prompt string, refs []string, from string) (library.Entry, error) {
 	root := library.Root()
-	m, err := library.Load(root)
-	if err != nil {
-		return library.Entry{}, err
-	}
 	sum, _ := fileSHA(path)
 	kind := "image"
 	if strings.Contains(im.MIME, "svg") {
@@ -528,11 +524,14 @@ func recordAsset(path string, im *imagegen.Image, prompt string, refs []string, 
 	}
 	e := library.Entry{Path: path, Kind: kind, Source: im.Provider, Licence: "generated", CommercialOK: true,
 		RetrievedAt: time.Now().UTC(), SHA256: sum, Generated: &library.Generated{Provider: im.Provider, Model: im.Model, Prompt: prompt, Refs: refs}}
-	if from != "" {
-		e = derivedTerms(m, root, from, e)
-	}
-	e = m.Put(root, e)
-	if err := m.Save(root); err != nil {
+	err := library.Update(root, func(m *library.Manifest) error {
+		if from != "" {
+			e = derivedTerms(m, root, from, e)
+		}
+		e = m.Put(root, e)
+		return nil
+	})
+	if err != nil {
 		return library.Entry{}, err
 	}
 	return e, nil

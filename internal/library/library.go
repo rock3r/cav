@@ -7,8 +7,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -98,6 +100,9 @@ func readJSON(path string, v any) error {
 	return nil
 }
 
+// writeJSON writes through a temporary file in the same folder and then renames it over the
+// old file, so a crash never leaves half a file. Each write has its own temporary name, so two
+// writers never share one. A new file gets 0644 less the umask; an old file keeps its mode.
 func writeJSON(path string, v any) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
@@ -106,11 +111,45 @@ func writeJSON(path string, v any) error {
 	if err != nil {
 		return err
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, append(b, '\n'), 0o644); err != nil {
+	var f *os.File
+	for range 10 {
+		f, err = os.OpenFile(path+"."+randomHex()+".tmp", os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+		if !errors.Is(err, fs.ErrExist) {
+			break
+		}
+	}
+	if err != nil {
 		return err
 	}
-	return os.Rename(tmp, path)
+	tmp := f.Name()
+	_, err = f.Write(append(b, '\n'))
+	if err == nil {
+		err = f.Sync()
+	}
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if old, serr := os.Stat(path); err == nil && serr == nil {
+		err = os.Chmod(tmp, old.Mode().Perm())
+	}
+	if err == nil {
+		err = rename(tmp, path)
+	}
+	if err != nil {
+		os.Remove(tmp)
+	}
+	return err
+}
+
+// rename replaces newpath with oldpath. On Windows a rename fails while another process
+// reads newpath, so it tries again for up to a second.
+func rename(oldpath, newpath string) error {
+	err := os.Rename(oldpath, newpath)
+	for i := 0; err != nil && runtime.GOOS == "windows" && i < 20; i++ {
+		time.Sleep(50 * time.Millisecond)
+		err = os.Rename(oldpath, newpath)
+	}
+	return err
 }
 
 func LoadProject(root string) (*Project, error) {
@@ -125,6 +164,7 @@ func SaveProject(root string, p *Project) error {
 	return writeJSON(ProjectPath(root), p)
 }
 
+// Load reads the manifest. Use it only to read; to change the manifest, use Update.
 func Load(root string) (*Manifest, error) {
 	m := &Manifest{}
 	if err := readJSON(ManifestPath(root), m); err != nil {
@@ -133,7 +173,9 @@ func Load(root string) (*Manifest, error) {
 	return m, nil
 }
 
-func (m *Manifest) Save(root string) error {
+// save writes the manifest. Only Update calls it, under the lock: a load, change and save
+// without the lock can drop an entry that another cav command saved in between.
+func (m *Manifest) save(root string) error {
 	sort.SliceStable(m.Assets, func(i, j int) bool { return m.Assets[i].Path < m.Assets[j].Path })
 	return writeJSON(ManifestPath(root), m)
 }
