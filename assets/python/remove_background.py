@@ -5,15 +5,16 @@
 # BiRefNet's general model (birefnet-general) is about 1 GB.
 import sys
 
-from PIL import Image
+from PIL import Image, ImageOps
 from rembg import new_session, remove
 
 
 def main():
     model, src, dst = sys.argv[1:4]
     # Decode the image first: a missing or broken file fails before the model download.
+    # Turn the pixels as the EXIF orientation says, so a phone photo stays upright.
     with Image.open(src) as im:
-        rgb = im.convert("RGB")
+        rgb = ImageOps.exif_transpose(im).convert("RGB")
     session = new_session(model)
     out = remove(rgb, session=session)
     out.convert("RGBA").save(dst, "PNG")

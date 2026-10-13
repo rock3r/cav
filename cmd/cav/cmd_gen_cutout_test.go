@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/rock3r/cav/internal/library"
+	"github.com/rock3r/cav/internal/services"
 )
 
 // fakeUVOnPath puts a shell script named uv first on PATH.
@@ -62,6 +63,19 @@ func TestGenCutoutUsesRembgNotOpenAI(t *testing.T) {
 	var ce *cliError
 	if !errors.As(err, &ce) || !strings.Contains(ce.msg, "only while it generates") {
 		t.Errorf("--service openai: %v", err)
+	}
+
+	// An order without a cutout service is respected: cav does not add one back.
+	c := &services.Config{Order: map[string][]string{"image.alpha": {"openai"}}}
+	if err := c.Save(); err != nil {
+		t.Fatal(err)
+	}
+	err = cmdGen(&app{}, []string{"cutout", "in.png"})
+	if !errors.As(err, &ce) || !strings.Contains(ce.msg, "no service that cuts out") || !strings.Contains(ce.hint, "openai,rembg") {
+		t.Errorf("order without a cutout service: %v", err)
+	}
+	if err := cmdGen(&app{}, []string{"cutout", "in.png", "--service", "rembg"}); err != nil {
+		t.Errorf("--service rembg with that order: %v", err)
 	}
 }
 

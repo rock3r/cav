@@ -220,8 +220,9 @@ func genCutout(a *app, args []string) error {
 			cc.Order["image.alpha"] = append(cc.Order["image.alpha"], s)
 		}
 	}
-	if len(cc.Order["image.alpha"]) == 0 {
-		cc.Order["image.alpha"] = imagegen.CutoutServices
+	if len(cc.Order["image.alpha"]) == 0 && *service == "" {
+		return fail(exitError, "the image.alpha order has no service that cuts out an image (recraft, rembg)",
+			"name one with --service rembg, or add it: cav config order image.alpha "+strings.Join(append(c.OrderFor("image.alpha"), "rembg"), ","))
 	}
 	// The first run downloads the rembg model (about 1 GB).
 	ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
