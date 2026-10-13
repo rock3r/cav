@@ -310,3 +310,22 @@ func TestRawDir(t *testing.T) {
 		}
 	}
 }
+
+// Making the folders can change what -o names: missing/../old.png names old.png only
+// once missing exists. cav checks the file again, and refuses a read-only old.png before
+// the service runs.
+func TestGenChecksTheOutputAgainAfterMakingItsFolders(t *testing.T) {
+	skipPermissionTests(t)
+	t.Chdir(t.TempDir())
+	hits := comfyForTest(t, nil)
+	os.WriteFile("old.png", []byte("mine"), 0o644)
+	readOnly(t, "old.png")
+	err := cmdGen(&app{}, []string{"image", "a fox", "-o", "missing/../old.png"})
+	wantCLIError(t, "-o missing/../old.png", err, "cannot write missing/../old.png")
+	if n := hits.Load(); n != 0 {
+		t.Errorf("the image service got %d requests", n)
+	}
+	if b, _ := os.ReadFile("old.png"); string(b) != "mine" {
+		t.Error("the check changed old.png")
+	}
+}

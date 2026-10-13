@@ -135,12 +135,15 @@ func genImage(a *app, args []string) error {
 			if p == "" {
 				p = filepath.Join("assets", safeSlug(prompt)+".png")
 			}
-			p, err := freePath(strings.TrimSuffix(p, filepath.Ext(p))+"-uncut", gen.Ext())
+			if err := os.MkdirAll(rawDir(p), 0o755); err != nil {
+				return "", err
+			}
+			p, err := writeFree(strings.TrimSuffix(p, filepath.Ext(p))+"-uncut", gen)
 			if err != nil {
 				return "", err
 			}
 			// Record it without printing a result: the command still fails.
-			_, err = storeAsset(p, gen, prompt, refs, "")
+			_, err = recordAsset(p, gen, prompt, refs, "")
 			return p, err
 		}
 		im, err = generateThenCutout(ctx, pickConfig, ch, imagegen.Request{Prompt: prompt, Refs: refs, Aspect: *aspect, Model: *model}, keep)
@@ -317,22 +320,38 @@ func genCutout(a *app, args []string) error {
 // changing it) or that a new file can be made in the folder. example is the file name in
 // the hint for a folder.
 func checkOutput(path, example string) error {
+	missing, err := checkFile(path, example)
+	if err != nil || !missing {
+		return err
+	}
+	if err := checkFolder(rawDir(path)); err != nil {
+		return err
+	}
+	// Making the folders can change what path names: missing/../old.png names old.png
+	// only once missing exists. So check the file again.
+	_, err = checkFile(path, example)
+	return err
+}
+
+// checkFile refuses a folder and checks that an existing file opens for writing, without
+// changing it. It says whether the file is missing.
+func checkFile(path, example string) (missing bool, err error) {
 	if fi, err := os.Stat(path); strings.HasSuffix(path, "/") || strings.HasSuffix(path, string(filepath.Separator)) || err == nil && fi.IsDir() {
-		return fail(exitError, path+" is a folder", "give a file name: -o "+filepath.Join(path, example))
+		return false, fail(exitError, path+" is a folder", "give a file name: -o "+filepath.Join(path, example))
 	}
 	f, err := os.OpenFile(path, os.O_WRONLY, 0)
 	if err == nil {
-		return f.Close()
+		return false, f.Close()
 	}
 	if !errors.Is(err, os.ErrNotExist) {
-		return fail(exitError, "cannot write "+path+": "+err.Error(), "make it writable, or give another file with -o")
+		return false, fail(exitError, "cannot write "+path+": "+err.Error(), "make it writable, or give another file with -o")
 	}
 	if _, lerr := os.Lstat(path); lerr == nil {
 		// A link to a file that does not exist: cav would write through it, somewhere
 		// this check cannot see.
-		return fail(exitError, path+" is a link to a file that does not exist", "remove the link, or give another file with -o")
+		return false, fail(exitError, path+" is a link to a file that does not exist", "remove the link, or give another file with -o")
 	}
-	return checkFolder(rawDir(path))
+	return true, nil
 }
 
 // rawDir returns the folder part of path as written, without cleaning it like
@@ -378,12 +397,12 @@ func saveOrKeep(a *app, path string, im *imagegen.Image, prompt string, refs []s
 	if !errors.As(err, &we) {
 		return err
 	}
-	kept, kerr := freePath(strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)), im.Ext())
+	kept, kerr := writeFree(strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)), im)
 	if kerr == nil {
 		// Record it without printing a result: the command still fails, and --json must
 		// print one result only.
-		_, kerr = storeAsset(kept, im, prompt, refs, from)
-		if kerr != nil && !errors.As(kerr, &we) {
+		_, kerr = recordAsset(kept, im, prompt, refs, from)
+		if kerr != nil {
 			// The image is written; only the manifest failed.
 			return fail(exitError, err.Error()+" (the image is kept at "+kept+", but recording it in the manifest failed: "+kerr.Error()+")", "")
 		}
@@ -400,21 +419,38 @@ type writeError struct{ err error }
 func (e *writeError) Error() string { return e.err.Error() }
 func (e *writeError) Unwrap() error { return e.err }
 
-// freePath returns base+ext, or base-2+ext, base-3+ext and so on, whichever file does
-// not exist yet, so a kept image never replaces another file.
-func freePath(base, ext string) (string, error) {
+// writeFree writes the image to base+ext, or base-2+ext, base-3+ext and so on, whichever
+// file does not exist yet, and returns that path. It makes the file with an exclusive
+// create, so a kept image never replaces another file, even one that another cav run
+// makes at the same moment. If the write fails, it removes the file it made.
+func writeFree(base string, im *imagegen.Image) (string, error) {
+	ext := im.Ext()
 	p := base + ext
 	for n := 2; ; n++ {
-		_, err := os.Lstat(p)
-		if errors.Is(err, os.ErrNotExist) {
-			return p, nil
+		beforeReserve(p)
+		f, err := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+		if errors.Is(err, os.ErrExist) {
+			p = fmt.Sprintf("%s-%d%s", base, n, ext)
+			continue
 		}
 		if err != nil {
 			return "", err
 		}
-		p = fmt.Sprintf("%s-%d%s", base, n, ext)
+		_, err = f.Write(im.Data)
+		if cerr := f.Close(); err == nil {
+			err = cerr
+		}
+		if err != nil {
+			os.Remove(p)
+			return "", err
+		}
+		return p, nil
 	}
 }
+
+// beforeReserve runs just before writeFree tries a name. A test uses it to take the
+// name first, as another cav run could.
+var beforeReserve = func(string) {}
 
 // cutoutTerms gives a cutout the licence of the image it was cut from, because a cutout is
 // a changed version of that image. An image that the manifest does not list gets an unknown
@@ -474,6 +510,11 @@ func storeAsset(path string, im *imagegen.Image, prompt string, refs []string, f
 	if err := os.WriteFile(path, im.Data, 0o644); err != nil {
 		return library.Entry{}, &writeError{err}
 	}
+	return recordAsset(path, im, prompt, refs, from)
+}
+
+// recordAsset records the image that is already written at path in the manifest.
+func recordAsset(path string, im *imagegen.Image, prompt string, refs []string, from string) (library.Entry, error) {
 	root := library.Root()
 	m, err := library.Load(root)
 	if err != nil {
