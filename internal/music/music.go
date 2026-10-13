@@ -8,8 +8,9 @@
 //
 // Request shapes: ElevenLabs from its API reference read on 2026-10-08; Lyria from the Gemini
 // API music generation guide read on 2026-10-08; Stable Audio (stable-audio-2 text-to-audio
-// and audio-to-audio) from Stability's OpenAPI spec read on 2026-10-09. None was run against
-// the live service.
+// and audio-to-audio) from Stability's OpenAPI spec read on 2026-10-09. ElevenLabs music and
+// sound effects and Stable Audio text-to-audio were accepted in real calls on 2026-10-13
+// (#11); the tests compare cav's requests with those.
 //
 // A reference track (Request.Ref) goes to the services that take audio: Stable Audio
 // (audio-to-audio) and ACE-Step (its reference_audio style input). Lyria takes only text and
@@ -218,7 +219,12 @@ func stability(ctx context.Context, c *services.Config, key string, r Request) (
 		var parts []string
 		at := 0.0
 		for _, s := range r.Sections {
-			parts = append(parts, fmt.Sprintf("%s at %.0fs (%s)", s.Name, at, strings.Join(s.Styles, ", ")))
+			part := fmt.Sprintf("%s at %.0fs", s.Name, at)
+			if len(s.Styles) > 0 {
+				// A section with no styles got "()" until #11 showed it in a real request.
+				part += " (" + strings.Join(s.Styles, ", ") + ")"
+			}
+			parts = append(parts, part)
 			at += s.Seconds
 		}
 		prompt += ". Structure: " + strings.Join(parts, "; ")

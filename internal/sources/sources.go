@@ -157,7 +157,9 @@ func Download(ctx context.Context, c *services.Config, key string, r Result, dir
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 2000))
 		return library.Entry{}, &services.HTTPError{Status: resp.StatusCode, Body: string(b)}
 	}
-	name := fileName(r, resp.Header.Get("Content-Type"), resp.Header.Get("Content-Disposition"), src)
+	// The extension comes from the address that answered: a Freesound original's download
+	// address redirects to the file on its CDN, and only that address ends in .wav.
+	name := fileName(r, resp.Header.Get("Content-Type"), resp.Header.Get("Content-Disposition"), resp.Request.URL.String())
 	out := filepath.Join(dir, name)
 	tmp := out + ".part"
 	f, err := os.Create(tmp)

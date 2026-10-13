@@ -13,14 +13,15 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/rock3r/cav/internal/services"
 )
 
-// These tests check that each request matches the vendor documentation (read 2026-10-08)
-// and that each documented answer shape is read. They do not reach the live services.
+// These tests do not reach the live services. Gemini, OpenAI, OpenRouter and Recraft are
+// checked against real answers from 2026-10-13 (#11); fal against its documentation.
 
 type redirect struct{ target *url.URL }
 
@@ -52,108 +53,248 @@ func refFile(t *testing.T) string {
 	return p
 }
 
+// The fixtures named below are real answers from 2026-10-13 (#11), when every paid service
+// was called once with real keys. The *_request.json fixtures are the requests those
+// services accepted. Only the base64 images were replaced with tiny ones of the same type
+// (Gemini sends JPEG, Recraft's cutout WebP, its vectors SVG); thoughtSignature lost its
+// value too.
+
+// sameJSON fails when body is not the same JSON as testdata/name, a request that the real
+// service accepted.
+func sameJSON(t *testing.T, body []byte, name string) {
+	t.Helper()
+	var got, want any
+	if err := json.Unmarshal(body, &got); err != nil {
+		t.Errorf("request is not JSON: %v", err)
+		return
+	}
+	if err := json.Unmarshal(fixture(t, name), &want); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("request differs from %s, which the real service accepted:\n%s", name, body)
+	}
+}
+
+// answerData is the base64 image in a fixture, decoded.
+func answerData(t *testing.T, name string, path ...any) []byte {
+	t.Helper()
+	var v any
+	if err := json.Unmarshal(fixture(t, name), &v); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range path {
+		switch k := p.(type) {
+		case string:
+			v = v.(map[string]any)[k]
+		case int:
+			v = v.([]any)[k]
+		}
+	}
+	b, err := base64.StdEncoding.DecodeString(v.(string))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
+const foxPrompt = "a flat geometric fox head logo, orange and white on a plain light grey background"
+
+// testdata/gemini_image.json: Gemini answers JPEG, next to a thoughtSignature.
 func TestGeminiRequestAndAnswer(t *testing.T) {
-	b64 := base64.StdEncoding.EncodeToString(tinyPNG())
+	refs := false
 	serve(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("X-Host") != "generativelanguage.googleapis.com" || r.URL.Path != "/v1beta/models/gemini-3.1-flash-image:generateContent" || r.Header.Get("x-goog-api-key") != "g-key" {
 			t.Errorf("unexpected request %s %s", r.Header.Get("X-Host"), r.URL.Path)
 		}
-		var body struct {
-			Contents []struct {
-				Parts []map[string]any `json:"parts"`
-			} `json:"contents"`
-			GenerationConfig struct {
-				ResponseModalities []string          `json:"responseModalities"`
-				ImageConfig        map[string]string `json:"imageConfig"`
-			} `json:"generationConfig"`
+		b, _ := io.ReadAll(r.Body)
+		if !refs {
+			sameJSON(t, b, "gemini_image_request.json")
+		} else {
+			var body struct {
+				Contents []struct {
+					Parts []map[string]any `json:"parts"`
+				} `json:"contents"`
+			}
+			json.Unmarshal(b, &body)
+			parts := body.Contents[0].Parts
+			if len(parts) != 2 || parts[0]["text"] == nil || parts[1]["inline_data"] == nil {
+				t.Errorf("parts: %v", parts)
+			}
 		}
-		json.NewDecoder(r.Body).Decode(&body)
-		parts := body.Contents[0].Parts
-		if len(parts) != 2 || parts[0]["text"] == nil || parts[1]["inline_data"] == nil {
-			t.Errorf("parts: %v", parts)
-		}
-		if body.GenerationConfig.ImageConfig["aspectRatio"] != "16:9" || body.GenerationConfig.ResponseModalities[0] != "IMAGE" {
-			t.Errorf("config: %+v", body.GenerationConfig)
-		}
-		w.Write([]byte(`{"candidates":[{"content":{"parts":[{"text":"here"},{"inlineData":{"mimeType":"image/png","data":"` + b64 + `"}}]}}]}`))
+		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+		w.Write(fixture(t, "gemini_image.json"))
 	})
-	im, err := Generate(context.Background(), &services.Config{}, &services.Choice{Service: "gemini", Key: "g-key"}, Request{Prompt: "a frame", Refs: []string{refFile(t)}})
-	if err != nil || im.MIME != "image/png" || !bytes.Equal(im.Data, tinyPNG()) || im.Model != "gemini-3.1-flash-image" {
+	ch := &services.Choice{Service: "gemini", Key: "g-key"}
+	im, err := Generate(context.Background(), &services.Config{}, ch, Request{Prompt: foxPrompt})
+	want := answerData(t, "gemini_image.json", "candidates", 0, "content", "parts", 0, "inlineData", "data")
+	if err != nil || im.MIME != "image/jpeg" || im.Ext() != ".jpg" || !bytes.Equal(im.Data, want) || im.Model != "gemini-3.1-flash-image" {
 		t.Fatalf("got %+v, %v", im, err)
+	}
+	refs = true
+	if _, err := Generate(context.Background(), &services.Config{}, ch, Request{Prompt: "a frame", Refs: []string{refFile(t)}}); err != nil {
+		t.Fatal(err)
 	}
 }
 
+// testdata/openai_generations.json (with --alpha), openai_edits.json (with --ref) and
+// openai_edits_octet_stream.json: what OpenAI said when cav sent a reference as
+// application/octet-stream. This fake says the same, so the test fails if cav does again.
 func TestOpenAIGenerationsAndEdits(t *testing.T) {
-	b64 := base64.StdEncoding.EncodeToString(tinyPNG())
 	serve(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer o-key" {
+			t.Errorf("auth header %q", r.Header.Get("Authorization"))
+		}
 		switch r.URL.Path {
 		case "/v1/images/generations":
-			var body map[string]any
-			json.NewDecoder(r.Body).Decode(&body)
-			if body["background"] != "transparent" || body["size"] != "1536x864" || body["model"] != "gpt-image-2.5-flare" {
-				t.Errorf("generations body: %v", body)
-			}
+			b, _ := io.ReadAll(r.Body)
+			sameJSON(t, b, "openai_generations_request.json")
+			w.Write(fixture(t, "openai_generations.json"))
 		case "/v1/images/edits":
 			if err := r.ParseMultipartForm(1 << 20); err != nil {
 				t.Fatal(err)
 			}
-			if len(r.MultipartForm.File["image[]"]) != 1 || r.FormValue("prompt") == "" {
+			files := r.MultipartForm.File["image[]"]
+			if len(files) != 1 || r.FormValue("prompt") != foxPrompt || r.FormValue("model") != "gpt-image-2.5-flare" ||
+				r.FormValue("size") != "1536x864" || r.FormValue("n") != "1" || r.FormValue("output_format") != "png" {
 				t.Errorf("edits form: %v", r.MultipartForm.Value)
 			}
+			if len(files) == 1 && files[0].Header.Get("Content-Type") != "image/png" {
+				w.WriteHeader(http.StatusBadRequest)
+				w.Write(fixture(t, "openai_edits_octet_stream.json"))
+				return
+			}
+			w.Write(fixture(t, "openai_edits.json"))
 		default:
 			t.Errorf("path %s", r.URL.Path)
 		}
-		w.Write([]byte(`{"data":[{"b64_json":"` + b64 + `"}]}`))
 	})
 	ch := &services.Choice{Service: "openai", Key: "o-key"}
-	if _, err := Generate(context.Background(), &services.Config{}, ch, Request{Prompt: "logo", Alpha: true}); err != nil {
-		t.Fatal(err)
+	im, err := Generate(context.Background(), &services.Config{}, ch, Request{Prompt: foxPrompt, Alpha: true})
+	if err != nil || !bytes.Equal(im.Data, answerData(t, "openai_generations.json", "data", 0, "b64_json")) || im.MIME != "image/png" {
+		t.Fatalf("generations: %+v, %v", im, err)
 	}
-	if _, err := Generate(context.Background(), &services.Config{}, ch, Request{Prompt: "logo", Refs: []string{refFile(t)}}); err != nil {
-		t.Fatal(err)
+	im, err = Generate(context.Background(), &services.Config{}, ch, Request{Prompt: foxPrompt, Refs: []string{refFile(t)}})
+	if err != nil || !bytes.Equal(im.Data, answerData(t, "openai_edits.json", "data", 0, "b64_json")) {
+		t.Fatalf("edits: %+v, %v", im, err)
 	}
 }
 
+// testdata/openrouter_images.json and the recraft_*.json fixtures. With --alpha, Recraft
+// makes a PNG and removeBackground turns it into a WebP; cav saves a PNG with alpha.
 func TestOpenRouterAndRecraft(t *testing.T) {
-	b64 := base64.StdEncoding.EncodeToString(tinyPNG())
 	var removed bool
+	refs := false
 	serve(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer k" {
+			t.Errorf("auth header %q", r.Header.Get("Authorization"))
+		}
 		switch r.Header.Get("X-Host") + r.URL.Path {
 		case "openrouter.ai/api/v1/images":
-			var body map[string]any
-			json.NewDecoder(r.Body).Decode(&body)
-			refs, _ := body["input_references"].([]any)
-			if body["aspect_ratio"] != "1:1" || len(refs) != 1 {
-				t.Errorf("openrouter body: %v", body)
+			b, _ := io.ReadAll(r.Body)
+			if !refs {
+				sameJSON(t, b, "openrouter_images_request.json")
+			} else {
+				var body map[string]any
+				json.Unmarshal(b, &body)
+				if in, _ := body["input_references"].([]any); body["aspect_ratio"] != "1:1" || len(in) != 1 {
+					t.Errorf("openrouter body: %v", body)
+				}
 			}
-			w.Write([]byte(`{"data":[{"b64_json":"` + b64 + `","media_type":"image/png"}]}`))
+			w.Write(fixture(t, "openrouter_images.json"))
 		case "external.api.recraft.ai/v1/images/generations":
-			var body map[string]any
-			json.NewDecoder(r.Body).Decode(&body)
-			if body["response_format"] != "b64_json" {
-				t.Errorf("recraft body: %v", body)
+			b, _ := io.ReadAll(r.Body)
+			if strings.Contains(string(b), "_vector") {
+				sameJSON(t, b, "recraft_vector_request.json")
+				w.Write(fixture(t, "recraft_vector.json"))
+				return
 			}
-			w.Write([]byte(`{"data":[{"b64_json":"` + b64 + `"}]}`))
+			sameJSON(t, b, "recraft_generations_request.json")
+			w.Write(fixture(t, "recraft_generations.json"))
 		case "external.api.recraft.ai/v1/images/removeBackground":
 			removed = true
-			b, _ := io.ReadAll(r.Body)
-			if !strings.Contains(string(b), `name="image"`) {
-				t.Error("removeBackground did not send the image field")
+			if err := r.ParseMultipartForm(1 << 20); err != nil {
+				t.Fatal(err)
 			}
-			w.Write([]byte(`{"image":{"b64_json":"` + b64 + `"}}`))
+			f := r.MultipartForm.File["image"]
+			if len(f) != 1 || f[0].Header.Get("Content-Type") != "image/png" || r.FormValue("response_format") != "b64_json" {
+				t.Errorf("removeBackground form: %v %v", r.MultipartForm.File, r.MultipartForm.Value)
+			}
+			w.Write(fixture(t, "recraft_remove_background.json"))
 		default:
 			t.Errorf("unexpected %s%s", r.Header.Get("X-Host"), r.URL.Path)
 		}
 	})
-	if _, err := Generate(context.Background(), &services.Config{}, &services.Choice{Service: "openrouter", Key: "k"}, Request{Prompt: "x", Aspect: "1:1", Refs: []string{refFile(t)}}); err != nil {
+	ch := &services.Choice{Service: "openrouter", Key: "k"}
+	im, err := Generate(context.Background(), &services.Config{}, ch, Request{Prompt: foxPrompt})
+	if err != nil || im.MIME != "image/png" || !bytes.Equal(im.Data, answerData(t, "openrouter_images.json", "data", 0, "b64_json")) {
+		t.Fatalf("openrouter: %+v, %v", im, err)
+	}
+	refs = true
+	if _, err := Generate(context.Background(), &services.Config{}, ch, Request{Prompt: "x", Aspect: "1:1", Refs: []string{refFile(t)}}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Generate(context.Background(), &services.Config{}, &services.Choice{Service: "recraft", Key: "k"}, Request{Prompt: "x", Alpha: true}); err != nil {
+	ch = &services.Choice{Service: "recraft", Key: "k"}
+	im, err = Generate(context.Background(), &services.Config{}, ch, Request{Prompt: foxPrompt, Alpha: true})
+	if err != nil {
 		t.Fatal(err)
 	}
 	if !removed {
 		t.Fatal("--alpha with Recraft must remove the background")
 	}
+	if im.MIME != "image/png" || http.DetectContentType(im.Data) != "image/png" || !hasTransparency(t, im.Data) {
+		t.Fatalf("cutout: %s, sniffed %s", im.MIME, http.DetectContentType(im.Data))
+	}
+	im, err = Generate(context.Background(), &services.Config{}, ch, Request{Prompt: foxPrompt, Vector: true})
+	if err != nil || im.MIME != "image/svg+xml" || im.Ext() != ".svg" || im.Model != "recraftv3_vector" {
+		t.Fatalf("vector: %+v, %v", im, err)
+	}
+}
+
+// testdata/recraft_vectorize.json (cav gen vector --service recraft) and
+// recraft_remove_background.json (cav gen cutout --service recraft).
+func TestRecraftVectorizeAndCutout(t *testing.T) {
+	serve(t, func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseMultipartForm(1 << 20); err != nil {
+			t.Fatal(err)
+		}
+		if f := r.MultipartForm.File["image"]; len(f) != 1 || f[0].Header.Get("Content-Type") != "image/png" {
+			t.Errorf("%s: image part %v", r.URL.Path, r.MultipartForm.File)
+		}
+		switch r.URL.Path {
+		case "/v1/images/vectorize":
+			w.Write(fixture(t, "recraft_vectorize.json"))
+		case "/v1/images/removeBackground":
+			w.Write(fixture(t, "recraft_remove_background.json"))
+		default:
+			t.Errorf("unexpected %s", r.URL.Path)
+		}
+	})
+	im, err := RecraftEdit(context.Background(), "k", "vectorize", tinyPNG())
+	if err != nil || im.MIME != "image/svg+xml" || !bytes.Contains(im.Data, []byte("<path")) || im.Model != "vectorize" {
+		t.Fatalf("vectorize: %+v, %v", im, err)
+	}
+	im, err = RemoveBackground(context.Background(), &services.Choice{Service: "recraft", Key: "k"}, refFile(t))
+	if err != nil || im.MIME != "image/png" || !hasTransparency(t, im.Data) {
+		t.Fatalf("cutout: %+v, %v", im, err)
+	}
+}
+
+func hasTransparency(t *testing.T, data []byte) bool {
+	t.Helper()
+	img, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := img.Bounds()
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			if _, _, _, a := img.At(x, y).RGBA(); a == 0 {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func TestFindImageReportsTextAnswers(t *testing.T) {

@@ -1,0 +1,54 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "1. What you hear: progressive house, a synth arpeggio, then a four-on-the-floor drop at 0:04.0.\n(The recording kept only the length of the real answer, 2353 characters; this text stands in for it.)",
+        "reasoning": "The user wants me to review a music track for a motion-graphics piece. Let me analyze the audio carefully and respond in the specified format.\n\nLet me listen to the track:\n- 0:00-0:04: A synth arpeggio/melody plays, relatively quiet, building up. It sounds like a plucky synth with some reverb. There's a rising filter sweep or white noise riser building tension.\n- 0:04: The beat drops in - four-on-the-floor kick drum, sidechained bass, hi-hats, and the synth melody continues but now with full energy. This is clearly an EDM/house track.\n- 0:04-0:16: Full energy section with driving beat, synth lead, sidechained elements.\n- 0:16: Abrupt cut/ending.\n\nGenre: Progressive house / EDM / electronic dance music\nInstruments: Synth arpeggio/lead, four-on-the-floor kick, hi-hats, sidechained bass/pad, white noise riser\nMood: Energetic, uplifting, driving\nEnergy: Quiet build (0:00-0:04) → loud drop (0:04-0:16) → abrupt end\n\nMeasured facts confirm: 16.01s, 119.8 BPM, 2 sections (quiet at 0.0s, loud at 4.0s), -12.9 LUFS, true peak -1.5 dBFS, range 10.1 LU.\n\nNow let me structure my response:\n\n1. What I hear\n2. Against the brief (motion-graphics piece)\n3. Moments for picture edit\n4. Problems\n5. Three changes\n\nLet me keep it under 350 words.",
+        "reasoning_details": [
+          {
+            "format": "unknown",
+            "index": 0,
+            "text": "The user wants me to review a music track for a motion-graphics piece. Let me analyze the audio carefully and respond in the specified format.\n\nLet me listen to the track:\n- 0:00-0:04: A synth arpeggio/melody plays, relatively quiet, building up. It sounds like a plucky synth with some reverb. There's a rising filter sweep or white noise riser building tension.\n- 0:04: The beat drops in - four-on-the-floor kick drum, sidechained bass, hi-hats, and the synth melody continues but now with full energy. This is clearly an EDM/house track.\n- 0:04-0:16: Full energy section with driving beat, synth lead, sidechained elements.\n- 0:16: Abrupt cut/ending.\n\nGenre: Progressive house / EDM / electronic dance music\nInstruments: Synth arpeggio/lead, four-on-the-floor kick, hi-hats, sidechained bass/pad, white noise riser\nMood: Energetic, uplifting, driving\nEnergy: Quiet build (0:00-0:04) → loud drop (0:04-0:16) → abrupt end\n\nMeasured facts confirm: 16.01s, 119.8 BPM, 2 sections (quiet at 0.0s, loud at 4.0s), -12.9 LUFS, true peak -1.5 dBFS, range 10.1 LU.\n\nNow let me structure my response:\n\n1. What I hear\n2. Against the brief (motion-graphics piece)\n3. Moments for picture edit\n4. Problems\n5. Three changes\n\nLet me keep it under 350 words.",
+            "type": "reasoning.text"
+          }
+        ],
+        "refusal": null,
+        "role": "assistant"
+      },
+      "native_finish_reason": "stop"
+    }
+  ],
+  "created": 1791923432,
+  "id": "gen-1791923432-FRMqVHw8Kp8wkfdNKgPg",
+  "model": "qwen/qwen3.8-omni-flash",
+  "object": "chat.completion",
+  "provider": "Alibaba",
+  "service_tier": null,
+  "system_fingerprint": null,
+  "usage": {
+    "completion_tokens": 1050,
+    "completion_tokens_details": {
+      "audio_tokens": 0,
+      "image_tokens": 0,
+      "reasoning_tokens": 389
+    },
+    "cost": 0.00055395,
+    "cost_details": {
+      "upstream_inference_completions_cost": 0.0004935,
+      "upstream_inference_cost": 0.00055395,
+      "upstream_inference_prompt_cost": 6.045e-05
+    },
+    "is_byok": false,
+    "prompt_tokens": 403,
+    "prompt_tokens_details": {
+      "audio_tokens": 0,
+      "cache_write_tokens": 0,
+      "cached_tokens": 0,
+      "video_tokens": 0
+    },
+    "total_tokens": 1453
+  }
+}

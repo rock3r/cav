@@ -2,8 +2,9 @@
 // whichever service the config picks: Gemini, OpenAI, OpenRouter, fal.ai, Recraft, or local
 // tools.
 //
-// Request shapes follow each vendor's documentation as read on 2026-10-08. They are tested
-// against recorded shapes, not against the live services (no keys were available).
+// Request shapes follow each vendor's documentation as read on 2026-10-08. Gemini, OpenAI,
+// OpenRouter and Recraft accepted them in real calls on 2026-10-13 (#11); the tests replay
+// those answers.
 package imagegen
 
 import (

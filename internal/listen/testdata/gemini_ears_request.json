@@ -1,0 +1,17 @@
+{
+  "contents": [
+    {
+      "parts": [
+        {
+          "inline_data": {
+            "data": "bXAz",
+            "mime_type": "audio/mp3"
+          }
+        },
+        {
+          "text": "You are reviewing a music track made for a motion-graphics piece. Listen to the whole track.\n\nThe brief for the music:\ncalm intro, energy rises at the cut to the drop, warm ending\n\nMeasured facts (trust these numbers over your own estimates):\nlength 16.01 s; tempo 119.8 BPM; 2 sections starting at 0.0s (quiet), 4.0s (loud); loudness -12.9 LUFS integrated, true peak -1.5 dBFS, range 10.1 LU\nThe picture cuts to: intro at 0.00s: logo builds from shapes, calm; drop at 4.00s: logo spins in, energy rises; end at 12.00s: logo settles, warm ending\n\nAnswer in plain English, in this order:\n1. What you hear: genre, instruments, mood, and how the energy moves, with timestamps (m:ss.s).\n2. Against the brief: what fits and what does not.\n3. Moments a picture edit can hit: drops, hits, risers that land, breaks — each with a timestamp.\n4. Problems: clipping, harsh frequencies, muddy low end, abrupt or unfinished ending, artefacts typical of AI-generated audio, vocals where none were wanted.\n5. The three changes that would help most.\nKeep it under 350 words. Do not invent timestamps you cannot hear."
+        }
+      ]
+    }
+  ]
+}

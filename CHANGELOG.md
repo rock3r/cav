@@ -19,6 +19,15 @@
     error showed the masked key that OpenAI sends back. cav now hides both.
 - Qwen3-Omni for `cav listen` works through OpenRouter: `cav config endpoint qwen-omni
   https://openrouter.ai/api/v1 qwen/qwen3.8-omni-flash` with your OpenRouter key.
+- The tests now replay the real answers from that run, with the secrets and account data
+  taken out: Gemini, OpenAI, OpenRouter and Recraft images, Recraft cutouts and traces,
+  Freesound search and downloads, the Gemini and Qwen critiques, and the free `config
+  check` calls. They also check that cav sends the requests the services accepted.
+- The Stable Audio prompt no longer has an empty "()" after a storyboard section with no
+  music styles. The real request showed it.
+- `tools/release-smoke.sh --keyed` also runs `cav gen image --alpha`, a Recraft cutout and
+  trace when Recraft works, a Freesound search and preview when Freesound works, and
+  `cav listen` with qwen-omni when its server is set.
 
 - Two cav commands that record an asset at the same moment no longer lose an entry in
   `.cav/manifest.json`. Before, the second save could drop the first command's entry, so

@@ -264,9 +264,11 @@ the song, and with `--ref` YuE2 sings them to the melody of the track.
 `cav music render score.json` plays a score written as notes on a beat
 grid, with built-in synths and drums, samples or VST3/AU instruments, and masters it.
 `cav listen <track> --board storyboard.json` reports length, tempo, loudness, the cuts
-against the downbeats, a picture and, with a Gemini key, a written critique. `--score` adds
-local quality scores; several tracks are compared side by side. `cav score` writes a REAPER
-project to finish the music by ear.
+against the downbeats, a picture and a written critique. The critique needs a Gemini key,
+or Qwen3-Omni through OpenRouter with your OpenRouter key:
+`cav config endpoint qwen-omni https://openrouter.ai/api/v1 qwen/qwen3.8-omni-flash`.
+`--score` adds local quality scores; several tracks are compared side by side. `cav score`
+writes a REAPER project to finish the music by ear.
 
 **Review.** `cav review renders/final.mp4` serves a page on http://127.0.0.1:8790. Step
 frames with the arrow keys, shuttle with J/K/L, set a range with I and O, draw on the frame,

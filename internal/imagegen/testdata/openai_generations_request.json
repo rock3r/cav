@@ -1,0 +1,8 @@
+{
+  "background": "transparent",
+  "model": "gpt-image-2.5-flare",
+  "n": 1,
+  "output_format": "png",
+  "prompt": "a flat geometric fox head logo, orange and white on a plain light grey background",
+  "size": "1536x864"
+}

@@ -336,17 +336,50 @@ if [[ -n "$keyed" ]]; then
 	echo "and can ask 1Password:"
 	echo "  cav config check                one free call per service with a key"
 	echo "  cav gen image                   one still (a few cents)"
+	echo "  cav gen image --alpha           one transparent still (a few cents)"
+	echo "  cav gen cutout, gen vector      with a Recraft key: one cutout and one trace"
+	echo "                                  (10 Recraft credits each, about 1 cent)"
 	echo "  cav sfx gen --seconds 1         one sound effect"
+	echo "  cav sfx search, sfx get         with a Freesound key: one search, one preview (free)"
 	echo "  cav music gen --seconds 10      one short track"
-	echo "  cav listen (with ears)          one audio critique"
+	echo "  cav listen (with ears)          one audio critique, and one more with qwen-omni"
+	echo "                                  when its server is set (under 1 cent on OpenRouter)"
 	read -r -p "Run them? [y/N] " answer
 	if [[ "$answer" == [yY]* ]]; then
 		unset CAV_NO_KEYS
 		step ok "keyed: config check" config check
+		checks="$(lastlog)"
+		# usable SERVICE: config check said "ok" for it, so its key or server works.
+		usable() { grep -qE "^ok +$1 " "$checks"; }
+		# rgba FILE: byte 25 of a PNG is its colour type, and 6 is RGBA.
+		rgba() { python3 -I -c 'import sys; d = open(sys.argv[1], "rb").read(26); sys.exit(d[1:4] != b"PNG" or d[25] != 6)' "$1"; }
 		step ok "keyed: gen image" gen image "a smoke test card, flat colours" -o assets/keyed.png
+		step ok "keyed: gen image --alpha" gen image "a flat orange fox head logo on a plain grey background" --alpha -o assets/keyed-alpha.png
+		[[ -f assets/keyed-alpha.png ]] && check "keyed: --alpha wrote an RGBA PNG" rgba assets/keyed-alpha.png
+		if usable recraft && [[ -f assets/keyed.png ]]; then
+			step ok "keyed: gen cutout (recraft)" gen cutout assets/keyed.png --service recraft -o assets/keyed-cutout.png
+			[[ -f assets/keyed-cutout.png ]] && check "keyed: recraft cutout is an RGBA PNG" rgba assets/keyed-cutout.png
+			step ok "keyed: gen vector (recraft)" gen vector assets/keyed.png --service recraft -o assets/keyed.svg
+			check "keyed: recraft trace has a path" grep -q "<path" assets/keyed.svg
+		else
+			echo "skip  keyed: recraft cutout and trace    no working Recraft key, or no keyed.png"
+		fi
 		step ok "keyed: sfx gen" sfx gen "a short soft click" --seconds 1
+		if usable freesound; then
+			step ok "keyed: sfx search (freesound)" sfx search whoosh --service freesound --max-seconds 3 --limit 1 --json
+			fsref="$(json "$(lastlog)" 'd["results"][0]["service"] + ":" + d["results"][0]["id"]' 2>/dev/null)"
+			step ok "keyed: sfx get (freesound preview)" sfx get "$fsref" -o sfx-keyed
+			check "keyed: sfx get saved an MP3 preview" test -n "$(ls sfx-keyed/freesound-*.mp3 2>/dev/null)"
+		else
+			echo "skip  keyed: freesound search and get   no working Freesound key"
+		fi
 		step ok "keyed: music gen" music gen "calm piano, ten seconds" --seconds 10 -o music
 		step ok "keyed: listen with ears" listen click.wav --seconds 4 --fps 30 -o listen-ears.png
+		if usable qwen-omni; then
+			step ok "keyed: listen (qwen-omni)" listen click.wav --ears qwen-omni --seconds 4 --fps 30 -o listen-qwen.png
+		else
+			echo "skip  keyed: listen (qwen-omni)          no qwen-omni server set (cav config endpoint qwen-omni)"
+		fi
 		export CAV_NO_KEYS=1
 	else
 		echo "keyed services skipped"
