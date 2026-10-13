@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -123,7 +124,7 @@ func genImage(a *app, args []string) error {
 			if p == "" {
 				p = filepath.Join("assets", safeSlug(prompt)+".png")
 			}
-			p = strings.TrimSuffix(p, filepath.Ext(p)) + "-uncut" + gen.Ext()
+			p = freePath(strings.TrimSuffix(p, filepath.Ext(p))+"-uncut", gen.Ext())
 			return p, saveGenerated(a, p, gen, prompt, refs, skipped)
 		}
 		im, err = generateThenCutout(ctx, pickConfig, ch, imagegen.Request{Prompt: prompt, Refs: refs, Aspect: *aspect, Model: *model}, keep)
@@ -268,15 +269,31 @@ func genCutout(a *app, args []string) error {
 	if !slices.Contains(imagegen.CutoutServices, ch.Service) {
 		return fail(exitError, ch.Service+" makes transparent images only while it generates them", "use --service rembg or --service recraft")
 	}
-	im, err := imagegen.RemoveBackground(ctx, ch, pos[0])
-	if err != nil {
-		return fail(exitError, err.Error(), "")
-	}
 	path := *out
 	if path == "" {
 		path = strings.TrimSuffix(pos[0], filepath.Ext(pos[0])) + "-cutout.png"
 	}
+	// Make the output folder before the cutout runs, so a bad -o cannot waste a paid call.
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fail(exitError, err.Error(), "")
+	}
+	im, err := imagegen.RemoveBackground(ctx, ch, pos[0])
+	if err != nil {
+		return fail(exitError, err.Error(), "")
+	}
 	return saveAsset(a, path, im, "cut out "+pos[0], []string{pos[0]}, ch.Skipped, pos[0])
+}
+
+// freePath returns base+ext, or base-2+ext, base-3+ext and so on, whichever file does
+// not exist yet, so a kept image never replaces another file.
+func freePath(base, ext string) string {
+	p := base + ext
+	for n := 2; ; n++ {
+		if _, err := os.Lstat(p); errors.Is(err, os.ErrNotExist) {
+			return p
+		}
+		p = fmt.Sprintf("%s-%d%s", base, n, ext)
+	}
 }
 
 func saveGenerated(a *app, path string, im *imagegen.Image, prompt string, refs []string, skipped []string) error {

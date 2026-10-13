@@ -224,16 +224,21 @@ func TestGenImageAlphaKeepsAndRecordsTheImageWhenTheCutoutFails(t *testing.T) {
 	}
 	fakeUVOnPath(t, "#!/bin/sh\nexit 1\n")
 	t.Chdir(dir)
+	// A file already named fox-uncut.png is left alone.
+	os.WriteFile("fox-uncut.png", []byte("mine"), 0o644)
 	err := cmdGen(&app{}, []string{"image", "a fox", "--alpha", "-o", "fox.png"})
 	var ce *cliError
-	if !errors.As(err, &ce) || !strings.Contains(ce.msg, "kept at fox-uncut.png") || !strings.Contains(ce.hint, "cav gen cutout fox-uncut.png") {
+	if !errors.As(err, &ce) || !strings.Contains(ce.msg, "kept at fox-uncut-2.png") || !strings.Contains(ce.hint, "cav gen cutout fox-uncut-2.png") {
 		t.Fatalf("got %v", err)
+	}
+	if b, _ := os.ReadFile("fox-uncut.png"); string(b) != "mine" {
+		t.Fatal("the kept image replaced an existing file")
 	}
 	m, err := library.Load(library.Root())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if e := entryFor(m, "fox-uncut.png"); e == nil || e.Generated == nil || e.Generated.Provider != "comfyui" {
+	if e := entryFor(m, "fox-uncut-2.png"); e == nil || e.Generated == nil || e.Generated.Provider != "comfyui" {
 		t.Fatalf("kept image entry %+v", e)
 	}
 }
