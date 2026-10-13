@@ -116,7 +116,17 @@ func genImage(a *app, args []string) error {
 	case "rembg":
 		// rembg only cuts out: the image service makes the image, then rembg removes its
 		// background.
-		im, err = generateThenCutout(ctx, pickConfig, ch, imagegen.Request{Prompt: prompt, Refs: refs, Aspect: *aspect, Model: *model})
+		// If the cutout fails, keep the paid image next to the output and record it in
+		// the manifest, so cav gen cutout on it keeps its generated provenance.
+		keep := func(gen *imagegen.Image, skipped []string) (string, error) {
+			p := *out
+			if p == "" {
+				p = filepath.Join("assets", safeSlug(prompt)+".png")
+			}
+			p = strings.TrimSuffix(p, filepath.Ext(p)) + "-uncut" + gen.Ext()
+			return p, saveGenerated(a, p, gen, prompt, refs, skipped)
+		}
+		im, err = generateThenCutout(ctx, pickConfig, ch, imagegen.Request{Prompt: prompt, Refs: refs, Aspect: *aspect, Model: *model}, keep)
 		if err != nil {
 			return err
 		}
@@ -169,8 +179,10 @@ func genVector(a *app, args []string) error {
 }
 
 // generateThenCutout makes an image with the first usable image service, then runs the
-// cutout service ch on it.
-func generateThenCutout(ctx context.Context, c *services.Config, ch *services.Choice, r imagegen.Request) (*imagegen.Image, error) {
+// cutout service ch on it. When the cutout fails, keep saves the generated image and
+// returns its path, so a retry does not pay for the image again.
+func generateThenCutout(ctx context.Context, c *services.Config, ch *services.Choice, r imagegen.Request,
+	keep func(*imagegen.Image, []string) (string, error)) (*imagegen.Image, error) {
 	gen, err := services.Pick(ctx, c, "image", "")
 	if err != nil {
 		return nil, fail(exitError, err.Error(), "see cav config")
@@ -197,11 +209,14 @@ func generateThenCutout(ctx context.Context, c *services.Config, ch *services.Ch
 		return nil, err
 	}
 	cut, err := imagegen.RemoveBackground(ctx, ch, in)
-	if err != nil {
-		// Keep the generated image, so a retry does not pay for it again.
-		return nil, fail(exitError, err.Error()+" (the generated image is kept at "+in+")", "cut it out again: cav gen cutout "+in+" -o <file.png>")
-	}
 	os.RemoveAll(tmp)
+	if err != nil {
+		kept, kerr := keep(im, gen.Skipped)
+		if kerr != nil {
+			return nil, fail(exitError, err.Error()+" (saving the generated image also failed: "+kerr.Error()+")", "")
+		}
+		return nil, fail(exitError, err.Error()+" (the generated image is kept at "+kept+")", "cut it out again: cav gen cutout "+kept+" -o <file.png>")
+	}
 	cut.Provider = im.Provider + " + " + cut.Provider
 	cut.Model = im.Model + " + " + cut.Model
 	return cut, nil
