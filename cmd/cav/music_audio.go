@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -120,6 +121,36 @@ func flacToWAV(ctx context.Context, path string) (string, error) {
 	return wav, os.Remove(path)
 }
 
+// takeFade is how many seconds of fade-out cav puts at the end of a take it cuts.
+const takeFade = 2.0
+
+// cutAndFade cuts a take to seconds and fades out its last fade seconds, in place. cav does
+// this to an ACE-Step take, which it asks for longer than needed because ACE-Step ends its
+// takes early (see music.Track.Length). It keeps the format of the file. It needs ffmpeg.
+func cutAndFade(ctx context.Context, path string, seconds, fade float64) error {
+	fade = math.Min(fade, seconds)
+	ext := strings.ToLower(filepath.Ext(path))
+	tmp := strings.TrimSuffix(path, filepath.Ext(path)) + ".cut" + ext
+	args := []string{"-v", "error", "-y", "-i", path, "-vn", "-t", strconv.FormatFloat(seconds, 'f', 3, 64),
+		"-af", fmt.Sprintf("afade=t=out:st=%.3f:d=%.3f", seconds-fade, fade)}
+	if b, err := exec.CommandContext(ctx, "ffmpeg", append(append(args, takeCodec(ext)...), tmp)...).CombinedOutput(); err != nil {
+		os.Remove(tmp)
+		return fmt.Errorf("ffmpeg: %v: %s", err, strings.TrimSpace(string(b)))
+	}
+	return os.Rename(tmp, path)
+}
+
+// takeCodec is the ffmpeg codec cav writes a take of this extension with.
+func takeCodec(ext string) []string {
+	switch ext {
+	case ".wav":
+		return []string{"-c:a", "pcm_s24le"}
+	case ".flac":
+		return []string{"-c:a", "flac"}
+	}
+	return []string{"-c:a", "libmp3lame", "-b:a", "320k"}
+}
+
 // Takes from every music service came back with true peaks above 0 dBFS in tests on
 // 2026-10-09, so they can clip once encoded again. cav lowers the gain of such a take to
 // headroomTarget (below the -1 dBTP that cav listen asks for, to leave room for the MP3
@@ -138,15 +169,8 @@ func addHeadroom(ctx context.Context, path string) (float64, error) {
 	}
 	gain := headroomTarget - l.TruePeak
 	ext := strings.ToLower(filepath.Ext(path))
-	codec := []string{"-c:a", "libmp3lame", "-b:a", "320k"}
-	switch ext {
-	case ".wav":
-		codec = []string{"-c:a", "pcm_s24le"}
-	case ".flac":
-		codec = []string{"-c:a", "flac"}
-	}
 	tmp := strings.TrimSuffix(path, filepath.Ext(path)) + ".level" + ext
-	args := append([]string{"-v", "error", "-y", "-i", path, "-vn", "-af", fmt.Sprintf("volume=%.2fdB", gain)}, codec...)
+	args := append([]string{"-v", "error", "-y", "-i", path, "-vn", "-af", fmt.Sprintf("volume=%.2fdB", gain)}, takeCodec(ext)...)
 	if b, err := exec.CommandContext(ctx, "ffmpeg", append(args, tmp)...).CombinedOutput(); err != nil {
 		os.Remove(tmp)
 		return 0, fmt.Errorf("ffmpeg: %v: %s", err, strings.TrimSpace(string(b)))

@@ -36,6 +36,32 @@ in its repository; MIT licence, so its music can be used commercially), and
 `cav config endpoint yue2 http://127.0.0.1:8002` for YuE2 (the server in cav's
 `tools/yue2-server`; see "YuE2" below for setup and its licence).
 
+ACE-Step downloads its models on the first request, so the first take can take many
+minutes. It picks the planner model by memory, and on a Mac with 64 GB it picks the 4B
+one (8.4 GB more). To keep the download smaller, start it with
+`ACESTEP_LM_MODEL_PATH=acestep-5Hz-lm-1.7B uv run acestep-api --lm-model-path acestep-5Hz-lm-1.7B`
+(about 9.5 GB of models in all). On an M1 Max a 24 s take then took about 20 s.
+
+A ComfyUI workflow that works: text to image with a Stable Diffusion 1.5 checkpoint. Put
+`v1-5-pruned-emaonly-fp16.safetensors` (2.1 GB, from Hugging Face
+`Comfy-Org/stable-diffusion-v1-5-archive`) in ComfyUI's `models/checkpoints`, save this as
+`sd15.json` and run `cav config endpoint comfyui http://127.0.0.1:8188 sd15.json`. Change
+`ckpt_name` for another checkpoint. On an M1 Max a 1024x576 image took about 1 minute.
+SD 1.5 was trained at 512 px, so at cav's sizes it can repeat or stretch the subject; an
+SDXL checkpoint suits those sizes better.
+
+```json
+{
+  "4": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": "v1-5-pruned-emaonly-fp16.safetensors"}},
+  "5": {"class_type": "EmptyLatentImage", "inputs": {"width": "{{width}}", "height": "{{height}}", "batch_size": 1}},
+  "6": {"class_type": "CLIPTextEncode", "inputs": {"text": "{{prompt}}", "clip": ["4", 1]}},
+  "7": {"class_type": "CLIPTextEncode", "inputs": {"text": "blurry, low quality, text, watermark", "clip": ["4", 1]}},
+  "3": {"class_type": "KSampler", "inputs": {"seed": "{{seed}}", "steps": 20, "cfg": 7, "sampler_name": "euler", "scheduler": "normal", "denoise": 1, "model": ["4", 0], "positive": ["6", 0], "negative": ["7", 0], "latent_image": ["5", 0]}},
+  "8": {"class_type": "VAEDecode", "inputs": {"samples": ["3", 0], "vae": ["4", 2]}},
+  "9": {"class_type": "SaveImage", "inputs": {"filename_prefix": "cav", "images": ["8", 0]}}
+}
+```
+
 Veo (video) and Lyria (music) use the Gemini key, so `cav config set-key gemini ...` sets
 all three. Give one of them its own key with `cav config set-key veo <source>`.
 
@@ -191,7 +217,7 @@ observations, not guarantees.
 | Stable Audio | exact (matched the storyboard) | sections go into the prompt; with `--ref`, the reference's arc wins over the plan | sent as audio: MP3 or WAV, 6-190 s (cav converts and cuts) | follows the reference's arc, not the storyboard's: a reference with a quiet intro gives a take with no early hit |
 | Lyria | a prompt hint only (3 s too long) | one `[m:ss - m:ss]` line per shot; the drop landed on its cut | described in words | sends MP3 unless asked for WAV; cav asks, and the WAV came as 24-bit 48 kHz |
 | ElevenLabs | not kept (7 s too long with music_v1) | composition plan; section names are the shot ids only | described in words | music needs a paid plan (HTTP 402 on free); an API key can have its own credit cap below the plan's (HTTP 401 "exceeds your API key quota"); moderation refuses a plan or prompt that names a brand, product or artist |
-| ACE-Step | `audio_duration` | sections go into the prompt | sent as audio, as a style reference; `--keep` does nothing | a server you run |
+| ACE-Step | exact: ACE-Step ends its takes 2-6 s early, so for an instrumental cav asks for 8 s more, then cuts the take to length and fades out the last 2 s (tested 2026-10-13) | the prompt gets a timeline, and an instrumental also gets one `[shot - what]` tag per shot in its lyrics; with 8 s shots at 120 BPM, 7 of 8 takes changed near the first cut, but a cut at 4 s was ignored: it keeps its own 4-bar phrases | sent as audio, as a style reference; `--keep` does nothing | a server you run; a song with `--lyrics` is not cut, so listen to its end |
 | YuE2 | no length setting: cav, or its server, cuts the planned score at a phrase (see "YuE2" below) | not used: YuE2 knows only its own section names | a cover of its melody (see "YuE2 covers" below); in words when the server cannot transcribe | a server you run; the music is non-commercial for a company (see below) |
 
 How `--keep` behaved on one 74 s reference (one take each): 0.2 drifted to its own tempo

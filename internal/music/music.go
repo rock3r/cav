@@ -95,6 +95,10 @@ type Track struct {
 	// Cover is true when the take plays the melody of Request.Ref (YuE2 through SheetSage2):
 	// the song still belongs to whoever wrote it.
 	Cover bool
+	// Length, when it is not 0, is how many seconds the take should last. The service made
+	// a longer take on purpose (ACE-Step, see acestepPad), and the caller cuts the take to
+	// this length and fades out the end.
+	Length float64
 }
 
 func Generate(ctx context.Context, c *services.Config, ch *services.Choice, r Request) (*Track, error) {
@@ -349,6 +353,12 @@ func mmss(sec float64) string {
 	return fmt.Sprintf("%d:%02d", n/60, n%60)
 }
 
+// acestepPad is how many seconds more than the storyboard cav asks ACE-Step for. ACE-Step
+// 1.5 ends its takes early: on a real server on 2026-10-13, every 24 s take went silent 2 to
+// 5.5 s before the end. The file had the right length, but the end was silence. Asked for
+// 30 s, one of 3 takes went silent 6 s before the end, so cav asks for 8 s more.
+const acestepPad = 8.0
+
 // acestep runs text2music on an ACE-Step 1.5 API server: submit the task, ask for its
 // result until it is done, then download the audio. API docs (docs/en/API.md) read on
 // 2026-10-08. Lyrics go in its "lyrics" field (re-read on 2026-10-11) and keep the length
@@ -375,11 +385,28 @@ func acestep(ctx context.Context, c *services.Config, key string, r Request) (*T
 		prompt += ". Structure: " + strings.Join(parts, "; ")
 	}
 	lyrics := strings.TrimSpace(r.Lyrics)
-	if lyrics == "" {
+	switch {
+	case lyrics == "" && len(r.Sections) > 0:
+		// An instrumental also gets its sections in the lyrics as structure tags, as the
+		// ACE-Step tutorial says. Tested on a real server on 2026-10-13 with cuts at 8 s and
+		// 16 s: with the tags, 7 of 8 takes changed near the first cut; with only the
+		// timeline in the prompt, 0 of 3 did. The timeline did not move a change to a cut at
+		// 4 s (0 of 3), but it keeps the timing in the request.
+		prompt += ", instrumental"
+		lyrics = acestepTags(r.Sections)
+	case lyrics == "":
 		prompt, lyrics = prompt+", instrumental", "[Instrumental]"
 	}
+	// An instrumental asks for acestepPad seconds more, and the caller cuts it back. A song
+	// keeps its length: ACE-Step fits the lyrics to audio_duration, so a cut could lose the
+	// last line.
+	length := math.Max(10, math.Min(600, r.Seconds))
+	duration := length
+	if strings.TrimSpace(r.Lyrics) == "" {
+		duration = math.Min(600, length+acestepPad)
+	}
 	body := map[string]any{"prompt": prompt, "lyrics": lyrics, "audio_format": "wav",
-		"audio_duration": math.Max(10, math.Min(600, r.Seconds)), "batch_size": 1, "thinking": true}
+		"audio_duration": duration, "batch_size": 1, "thinking": true}
 	if bpm := bpmIn(r.Prompt); bpm > 0 {
 		body["bpm"] = bpm
 	}
@@ -468,7 +495,15 @@ func acestep(ctx context.Context, c *services.Config, key string, r Request) (*T
 			if m == "" {
 				m = model
 			}
-			return &Track{Data: data, Ext: ".wav", Provider: "acestep", Model: m}, nil
+			tr := &Track{Data: data, Ext: ".wav", Provider: "acestep", Model: m}
+			if duration > length {
+				tr.Length = length
+			}
+			if strings.TrimSpace(r.Lyrics) == "" && duration-length < acestepPad {
+				// ACE-Step takes at most 600 s, so a take this long has less room or none.
+				tr.Notes = append(tr.Notes, fmt.Sprintf("ACE-Step takes at most 600 s, so cav could not ask for %g s more than %.0f s; the end of the take can be silent", acestepPad, length))
+			}
+			return tr, nil
 		}
 		select {
 		case <-ctx.Done():
@@ -476,6 +511,44 @@ func acestep(ctx context.Context, c *services.Config, key string, r Request) (*T
 		case <-time.After(2 * time.Second):
 		}
 	}
+}
+
+// acestepTags writes one structure tag per section, such as "[intro - logo fades in]",
+// within ACE-Step's 4096-character lyrics limit. Every section keeps a tag: when the tags
+// are too long, each one is cut to an equal share, so a long style shortens its own tag
+// and not the shots after it.
+func acestepTags(sections []Section) string {
+	if len(sections) == 0 {
+		return ""
+	}
+	clean := strings.NewReplacer("[", "(", "]", ")", "\n", " ")
+	tags := make([][]rune, len(sections))
+	total := -2 // the last tag has no blank line after it
+	for i, s := range sections {
+		tag := clean.Replace(strings.Replace(s.Name, ": ", " - ", 1))
+		if len(s.Styles) > 0 {
+			tag += ", " + clean.Replace(strings.Join(s.Styles, ", "))
+		}
+		tags[i] = []rune(tag)
+		total += len(tags[i]) + 4 // the brackets and the blank line
+	}
+	limit := MaxLyrics("acestep")
+	share := (limit+2)/len(tags) - 4
+	if total > limit && share <= 0 {
+		return "[Instrumental]" // too many shots for a tag each; the prompt still has the timeline
+	}
+	if total > limit {
+		for i, t := range tags {
+			if len(t) > share {
+				tags[i] = []rune(strings.TrimSpace(string(t[:share])))
+			}
+		}
+	}
+	parts := make([]string, len(tags))
+	for i, t := range tags {
+		parts[i] = "[" + string(t) + "]"
+	}
+	return strings.Join(parts, "\n\n")
 }
 
 // bpmIn finds "<n> BPM" in a prompt (cav music gen --board adds it).
