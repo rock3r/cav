@@ -60,11 +60,7 @@ func lock(path string) (unlock func(), err error) {
 		if !busy(err) {
 			return nil, fmt.Errorf("lock the manifest: %w", err)
 		}
-		if info, serr := os.Stat(path); serr == nil && time.Since(info.ModTime()) > lockStale {
-			// A left-over lock. Two waiters can both see it as stale, and the second could then
-			// remove a lock the first just made. That needs a crashed command plus two waiters
-			// in the same few milliseconds, so cav accepts it.
-			os.Remove(path)
+		if info, serr := os.Stat(path); serr == nil && time.Since(info.ModTime()) > lockStale && breakStale(path, info) {
 			continue
 		}
 		if time.Now().After(deadline) {
@@ -72,6 +68,32 @@ func lock(path string) (unlock func(), err error) {
 		}
 		time.Sleep(lockPoll + rand.N(lockPoll))
 	}
+}
+
+// breakStale removes a left-over lock and tells whether it did. It holds a second lock file,
+// path+".break", while it checks the lock again: only the same old lock that the caller saw is
+// removed. Without that, two commands that both saw the old lock could remove a new lock that
+// one of them, or a third command, has just made.
+func breakStale(path string, seen fs.FileInfo) bool {
+	guard := path + ".break"
+	g, err := os.OpenFile(guard, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+	if err != nil {
+		if info, serr := os.Stat(guard); serr == nil && time.Since(info.ModTime()) > lockStale {
+			os.Remove(guard) // left by a command that stopped while it removed a lock
+		}
+		return false
+	}
+	g.Close()
+	defer os.Remove(guard)
+	now, err := os.Stat(path)
+	if err != nil {
+		return errors.Is(err, fs.ErrNotExist) // already gone: try to lock again at once
+	}
+	// A new lock has a new time, so the same old time means the same old lock.
+	if !now.ModTime().Equal(seen.ModTime()) || time.Since(now.ModTime()) <= lockStale {
+		return false
+	}
+	return os.Remove(path) == nil
 }
 
 // busy tells whether the lock file could not be made because another process has it. On

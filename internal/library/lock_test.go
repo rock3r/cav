@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -66,6 +67,72 @@ func TestUpdateRemovesAStaleLock(t *testing.T) {
 	}
 	if d := time.Since(start); d > 5*time.Second {
 		t.Fatalf("Update waited %s for a stale lock", d)
+	}
+}
+
+func TestBreakStaleKeepsANewLock(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(dir(root), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path := LockPath(root)
+	if err := os.WriteFile(path, []byte("1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	old := time.Now().Add(-2 * lockStale)
+	if err := os.Chtimes(path, old, old); err != nil {
+		t.Fatal(err)
+	}
+	seen, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Another command removes the old lock and makes its own before this one gets to it.
+	os.Remove(path)
+	if err := os.WriteFile(path, []byte("2\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if breakStale(path, seen) {
+		t.Fatal("breakStale removed a new lock")
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("the new lock is gone: %v", err)
+	}
+	if _, err := os.Stat(path + ".break"); !os.IsNotExist(err) {
+		t.Fatalf("the break lock is still there: %v", err)
+	}
+}
+
+func TestUpdateStopsWhenAStaleLockCannotBeRemoved(t *testing.T) {
+	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+		t.Skip("needs a folder that the test cannot write to")
+	}
+	defer func(w time.Duration) { lockWait = w }(lockWait)
+	lockWait = 200 * time.Millisecond
+	root := t.TempDir()
+	if err := os.MkdirAll(dir(root), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(LockPath(root), []byte("1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	old := time.Now().Add(-2 * lockStale)
+	if err := os.Chtimes(LockPath(root), old, old); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(dir(root), 0o555); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chmod(dir(root), 0o755)
+	done := make(chan error, 1)
+	go func() { done <- Update(root, func(*Manifest) error { return nil }) }()
+	select {
+	case err := <-done:
+		if err == nil || !strings.Contains(err.Error(), "another cav command") {
+			t.Fatalf("want the lock error, got %v", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("Update did not give up")
 	}
 }
 
