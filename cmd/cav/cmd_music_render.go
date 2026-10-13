@@ -132,14 +132,13 @@ func cmdMusicRender(a *app, args []string) error {
 	}
 	r.Out = *out
 	root := library.Root()
-	m, err := library.Load(root)
-	if err != nil {
-		return err
-	}
 	sum, _ := fileSHA(*out)
-	m.Put(root, library.Entry{Path: *out, Kind: "audio", Source: "cav music render", Licence: "generated", CommercialOK: true,
-		RetrievedAt: time.Now().UTC(), SHA256: sum, Generated: &library.Generated{Provider: "local", Model: "render_music.py", Prompt: scorePath}})
-	if err := m.Save(root); err != nil {
+	e := library.Entry{Path: *out, Kind: "audio", Source: "cav music render", Licence: "generated", CommercialOK: true,
+		RetrievedAt: time.Now().UTC(), SHA256: sum, Generated: &library.Generated{Provider: "local", Model: "render_music.py", Prompt: scorePath}}
+	if err := library.Update(root, func(m *library.Manifest) error {
+		m.Put(root, e)
+		return nil
+	}); err != nil {
 		return err
 	}
 	result := map[string]any{"out": r.Out, "seconds": r.Seconds, "lufs": r.LUFS, "peak": r.Peak, "stems": r.Stems}

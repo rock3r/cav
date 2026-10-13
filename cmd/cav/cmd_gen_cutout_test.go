@@ -130,13 +130,15 @@ func TestGenCutoutKeepsTheSourceLicence(t *testing.T) {
 		}
 	}
 	root := library.Root()
-	m := &library.Manifest{}
-	m.Put(root, library.Entry{Path: "photo.png", Kind: "image", Source: "openverse", Licence: "CC BY-NC-ND 4.0",
-		Author: "Ann", AttributionRequired: true, Attribution: "Photo by Ann", NoDerivatives: true})
-	m.Put(root, library.Entry{Path: "made.png", Kind: "image", Source: "gemini", Licence: "generated", CommercialOK: true,
-		Generated: &library.Generated{Provider: "gemini"}})
-	m.Put(root, library.Entry{Path: "mood.png", Kind: "image", Source: "arena", Licence: "reference-only"})
-	if err := m.Save(root); err != nil {
+	err := library.Update(root, func(m *library.Manifest) error {
+		m.Put(root, library.Entry{Path: "photo.png", Kind: "image", Source: "openverse", Licence: "CC BY-NC-ND 4.0",
+			Author: "Ann", AttributionRequired: true, Attribution: "Photo by Ann", NoDerivatives: true})
+		m.Put(root, library.Entry{Path: "made.png", Kind: "image", Source: "gemini", Licence: "generated", CommercialOK: true,
+			Generated: &library.Generated{Provider: "gemini"}})
+		m.Put(root, library.Entry{Path: "mood.png", Kind: "image", Source: "arena", Licence: "reference-only"})
+		return nil
+	})
+	if err != nil {
 		t.Fatal(err)
 	}
 	for _, f := range []string{"photo.png", "made.png", "mood.png"} {

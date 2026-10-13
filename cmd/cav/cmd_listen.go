@@ -667,10 +667,6 @@ func saveTake(ctx context.Context, root, dir, name string, tr *music.Track, prom
 			note = strings.TrimPrefix(note+"; ", "; ") + fmt.Sprintf("the true peak was above %g dBTP, so cav lowered the level by %.1f dB (--raw-level keeps it)", headroomPeak, -gain)
 		}
 	}
-	m, err := library.Load(root)
-	if err != nil {
-		return "", "", err
-	}
 	sum, _ := fileSHA(path)
 	var refs []string
 	if ref != "" {
@@ -684,8 +680,11 @@ func saveTake(ctx context.Context, root, dir, name string, tr *music.Track, prom
 		library.CoverTerms(tr.Provider, ref).Apply(&e)
 		e.Attribution = library.DefaultAttribution(e)
 	}
-	m.Put(root, e)
-	return path, note, m.Save(root)
+	err := library.Update(root, func(m *library.Manifest) error {
+		m.Put(root, e)
+		return nil
+	})
+	return path, note, err
 }
 
 type takeScore struct {
