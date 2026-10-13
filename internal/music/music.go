@@ -488,27 +488,37 @@ func acestep(ctx context.Context, c *services.Config, key string, r Request) (*T
 }
 
 // acestepTags writes one structure tag per section, such as "[intro - logo fades in]",
-// within ACE-Step's 4096-character lyrics limit.
+// within ACE-Step's 4096-character lyrics limit. Every section keeps a tag: when the tags
+// are too long, each one is cut to an equal share, so a long style shortens its own tag
+// and not the shots after it.
 func acestepTags(sections []Section) string {
+	if len(sections) == 0 {
+		return ""
+	}
 	clean := strings.NewReplacer("[", "(", "]", ")", "\n", " ")
-	var b strings.Builder
-	n := 0 // characters, not bytes
-	for _, s := range sections {
+	tags := make([][]rune, len(sections))
+	total := -2 // the last tag has no blank line after it
+	for i, s := range sections {
 		tag := clean.Replace(strings.Replace(s.Name, ": ", " - ", 1))
 		if len(s.Styles) > 0 {
 			tag += ", " + clean.Replace(strings.Join(s.Styles, ", "))
 		}
-		tag = "[" + tag + "]"
-		if b.Len() > 0 {
-			tag = "\n\n" + tag
-		}
-		if n+utf8.RuneCountInString(tag) > MaxLyrics("acestep") {
-			break
-		}
-		n += utf8.RuneCountInString(tag)
-		b.WriteString(tag)
+		tags[i] = []rune(tag)
+		total += len(tags[i]) + 4 // the brackets and the blank line
 	}
-	return b.String()
+	limit := MaxLyrics("acestep")
+	if share := (limit+2)/len(tags) - 4; total > limit && share > 0 {
+		for i, t := range tags {
+			if len(t) > share {
+				tags[i] = []rune(strings.TrimSpace(string(t[:share])))
+			}
+		}
+	}
+	parts := make([]string, len(tags))
+	for i, t := range tags {
+		parts[i] = "[" + string(t) + "]"
+	}
+	return strings.Join(parts, "\n\n")
 }
 
 // bpmIn finds "<n> BPM" in a prompt (cav music gen --board adds it).
