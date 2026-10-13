@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- `cav gen image`, `cav gen cutout` and `cav gen vector` check that they can write the
+  output before they call a service or read a key. A read-only folder or a read-only
+  existing file now stops the command before a paid call. If saving still fails after
+  the call, cav keeps the image under a free name in the working folder, records it in
+  `.cav/manifest.json` and says where it is. Before, the image was lost.
 - `cav music gen --service acestep` no longer ends an instrumental in silence. ACE-Step
   1.5 stops its music 2 to 6 seconds before the end of the file. cav now asks it for 8
   seconds more, then cuts the take to the length you asked for and fades out the last
