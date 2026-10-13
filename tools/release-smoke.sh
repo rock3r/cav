@@ -11,8 +11,8 @@
 # By default it uses only free paths and reads no key at all: it sets CAV_NO_KEYS=1, so
 # cav treats every key as missing without asking the environment, the keychain or
 # 1Password. Generators run with --service greybox or another free service. Steps marked
-# "net" need the internet: they warn instead of failing. A step marked "refuse" must
-# exit with an error (it checks an error path).
+# "net" need the internet: they warn on a network error. A step marked "refuse=TEXT"
+# must exit with an error whose output matches TEXT (it checks an error path).
 #
 # --keyed adds the services that need your keys. Each of those calls can cost money and
 # can ask 1Password, so --keyed works only at a terminal: it lists the calls and asks
@@ -57,9 +57,14 @@ covered=" "
 failed=()
 
 # step KIND NAME cav-args...
-# KIND: ok (exit 0), net (exit 0, or a warning), refuse (a non-zero exit).
+# KIND: ok (exit 0), net (exit 0, or a warning on a network error), or refuse=TEXT (a
+# non-zero exit whose output matches the extended regular expression TEXT).
 step() {
-	local kind=$1 name=$2
+	local kind=$1 name=$2 expect=
+	if [[ "$kind" == refuse=* ]]; then
+		expect=${kind#refuse=}
+		kind=refuse
+	fi
 	shift 2
 	covered+="$1 "
 	n=$((n + 1))
@@ -73,7 +78,9 @@ step() {
 	case "$kind:$rc" in
 	ok:0 | net:0) verdict=pass ;;
 	refuse:0) verdict=fail ;;
-	refuse:*) verdict=pass ;;
+	refuse:*)
+		if grep -qE "$expect" "$log"; then verdict=pass; else verdict=fail; fi
+		;;
 	net:*)
 		# Only a network error is a warning; any other failure of a net step fails.
 		if grep -qiE "$net_errors" "$log"; then verdict=warn; else verdict=fail; fi
@@ -164,7 +171,7 @@ step ok "operation resume" operation resume "$op" --timeout 2m
 step ok "operation status" operation status "$op"
 step ok "scene save" scene save --timeout 2m smoke.cv
 check "scene saved to smoke.cv" test -s smoke.cv
-step refuse "scene save: unknown flag" scene save --bogus smoke.cv
+step refuse="flag provided but not defined: -bogus" "scene save: unknown flag" scene save --bogus smoke.cv
 step ok "scene open" scene open smoke.cv --timeout 5m
 step ok "tree" tree --depth 2
 box="$("$cav" tree --json 2>/dev/null | python3 -I -c 'import json,sys
@@ -211,9 +218,9 @@ cat >score.json <<'EOF'
 EOF
 step net "music render" music render score.json -o music/score.wav
 printf '[Verse]\nla la\n' >song.txt
-step refuse "music gen: lyrics on lyria" music gen "test" --lyrics song.txt --service lyria
-step refuse "music gen: no key" music gen "test" --seconds 5 --service elevenlabs
-step refuse "sfx gen: no key" sfx gen "a click" --seconds 1
+step refuse="lyria makes only instrumentals" "music gen: lyrics on lyria" music gen "test" --lyrics song.txt --service lyria
+step refuse="elevenlabs: no key: CAV_NO_KEYS is set" "music gen: no key" music gen "test" --seconds 5 --service elevenlabs
+step refuse="elevenlabs: no key: CAV_NO_KEYS is set" "sfx gen: no key" sfx gen "a click" --seconds 1
 
 # --- Storyboard, assets, credits ----------------------------------------------------
 step ok "board init" board init --bpm 120 --fps 30 --seconds 4 --shots 2 -o storyboard.json
@@ -221,7 +228,7 @@ step ok "board frames (greybox)" board frames storyboard.json --service greybox
 step ok "board sheet" board sheet storyboard.json -o renders/board.png
 step ok "board animatic" board animatic storyboard.json --audio click.wav -o renders/animatic.mp4
 step ok "board place" board place storyboard.json
-step refuse "board motion: no shots named" board motion storyboard.json
+step refuse="name the shots to animate" "board motion: no shots named" board motion storyboard.json
 step ok "gen image (greybox)" gen image "a smoke test card" --service greybox -o assets/card.png
 if command -v vtracer >/dev/null || command -v potrace >/dev/null; then
 	step ok "gen vector (local)" gen vector assets/card.png -o assets/card.svg
@@ -287,7 +294,7 @@ for topic in workflow design music traps native production; do
 done
 step ok "guide --search" guide --search "keys dropped" -n 2
 check "guide --search finds the rotation trap" grep -q "rotation" "$(lastlog)"
-step refuse "guide --search: no words" guide --search
+step refuse="flag needs an argument: -search" "guide --search: no words" guide --search
 
 # --- Update (never installs here) ---------------------------------------------------
 # With --json and without --yes, cav update refuses to install; when cav is current it
