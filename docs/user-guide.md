@@ -265,8 +265,10 @@ the song, and with `--ref` YuE2 sings them to the melody of the track.
 grid, with built-in synths and drums, samples or VST3/AU instruments, and masters it.
 `cav listen <track> --board storyboard.json` reports length, tempo, loudness, the cuts
 against the downbeats, a picture and a written critique. The critique needs a Gemini key,
-or Qwen3-Omni through OpenRouter with your OpenRouter key:
-`cav config endpoint qwen-omni https://openrouter.ai/api/v1 qwen/qwen3.8-omni-flash`.
+or Qwen3-Omni through OpenRouter:
+`cav config endpoint qwen-omni https://openrouter.ai/api/v1 qwen/qwen3.8-omni-flash`, then
+`cav config set-key qwen-omni <source>` with your OpenRouter key (qwen-omni does not use
+the openrouter key on its own).
 `--score` adds local quality scores; several tracks are compared side by side. `cav score`
 writes a REAPER project to finish the music by ear.
 

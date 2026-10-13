@@ -18,7 +18,8 @@
   - `cav config check` printed the start and end of the OpenRouter key, and an OpenAI
     error showed the masked key that OpenAI sends back. cav now hides both.
 - Qwen3-Omni for `cav listen` works through OpenRouter: `cav config endpoint qwen-omni
-  https://openrouter.ai/api/v1 qwen/qwen3.8-omni-flash` with your OpenRouter key.
+  https://openrouter.ai/api/v1 qwen/qwen3.8-omni-flash`, then `cav config set-key
+  qwen-omni <source>` with your OpenRouter key.
 - The tests now replay the real answers from that run, with the secrets and account data
   taken out: Gemini, OpenAI, OpenRouter and Recraft images, Recraft cutouts and traces,
   Freesound search and downloads, the Gemini and Qwen critiques, and the free `config
