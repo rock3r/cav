@@ -126,9 +126,12 @@ func (c *Config) KeySource(service string) string {
 		}
 	}
 	if ok && len(d.EnvVars) > 0 {
-		for _, v := range d.EnvVars {
-			if os.Getenv(v) != "" {
-				return "env:" + v
+		// With CAV_NO_KEYS, cav does not even look at which variable is set.
+		if os.Getenv("CAV_NO_KEYS") == "" {
+			for _, v := range d.EnvVars {
+				if os.Getenv(v) != "" {
+					return "env:" + v
+				}
 			}
 		}
 		return "env:" + d.EnvVars[0]

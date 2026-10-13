@@ -242,3 +242,16 @@ func TestNoKeysReadsNothing(t *testing.T) {
 		}
 	}
 }
+
+func TestNoKeysDoesNotLookAtKeyVariables(t *testing.T) {
+	t.Setenv("GEMINI_API_KEY", "")
+	t.Setenv("GOOGLE_API_KEY", "set")
+	c := &Config{}
+	if got := c.KeySource("gemini"); got != "env:GOOGLE_API_KEY" {
+		t.Fatalf("without CAV_NO_KEYS: %s", got)
+	}
+	t.Setenv("CAV_NO_KEYS", "1")
+	if got := c.KeySource("gemini"); got != "env:GEMINI_API_KEY" {
+		t.Fatalf("with CAV_NO_KEYS: %s", got)
+	}
+}

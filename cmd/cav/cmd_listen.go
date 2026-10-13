@@ -17,6 +17,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -446,7 +447,8 @@ func cmdMusic(a *app, args []string) error {
 		c.Order["music"] = singers
 	}
 	// Refuse before services.Pick, which reads the key (and may ask 1Password).
-	if lyrics != "" && *service != "" && !music.SingsLyrics(*service) {
+	// Only for a known music service: services.Pick explains an unknown name or another job.
+	if d, known := services.Catalog[*service]; lyrics != "" && known && slices.Contains(d.Jobs, "music") && !music.SingsLyrics(*service) {
 		return fail(exitError, *service+" makes only instrumentals, so it cannot sing --lyrics",
 			"use a service that sings: --service yue2 or --service acestep (a server you run; cav config)")
 	}

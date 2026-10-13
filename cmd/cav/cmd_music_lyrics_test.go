@@ -49,6 +49,13 @@ func TestMusicLyricsRefusesANonSingerBeforeItsKey(t *testing.T) {
 	if !errors.As(err, &ce) || !strings.Contains(ce.msg, "lyria makes only instrumentals") {
 		t.Fatalf("got %v", err)
 	}
+	// An unknown name, or a service for another job, gets services.Pick's own error.
+	for _, name := range []string{"lyriaa", "openai"} {
+		err = cmdMusic(&app{}, []string{"gen", "pop", "--lyrics", song, "--service", name})
+		if !errors.As(err, &ce) || strings.Contains(ce.msg, "makes only instrumentals") {
+			t.Fatalf("--service %s: %v", name, err)
+		}
+	}
 }
 
 // The manifest keeps the words of a take, so a song can be made again from its record.
