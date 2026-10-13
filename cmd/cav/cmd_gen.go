@@ -213,6 +213,10 @@ func genCutout(a *app, args []string) error {
 	if len(pos) != 1 {
 		return usageErr("usage: cav gen cutout <image> [-o file.png]")
 	}
+	// Check the input before Pick reads a key, which can ask 1Password.
+	if _, err := os.Stat(pos[0]); err != nil {
+		return fail(exitError, err.Error(), "")
+	}
 	c, err := services.Load()
 	if err != nil {
 		return err

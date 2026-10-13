@@ -68,6 +68,12 @@ func TestGenCutoutUsesRembgNotOpenAI(t *testing.T) {
 		t.Errorf("--service openai: %v", err)
 	}
 
+	// A missing input fails before cav picks a service (and reads its key).
+	err = cmdGen(&app{}, []string{"cutout", "nothere.png", "--service", "recraft"})
+	if !errors.As(err, &ce) || !strings.Contains(ce.msg, "nothere.png") {
+		t.Errorf("missing input: %v", err)
+	}
+
 	// An order without a cutout service is respected: cav does not add one back.
 	c := &services.Config{Order: map[string][]string{"image.alpha": {"openai"}}}
 	if err := c.Save(); err != nil {
