@@ -95,6 +95,45 @@ func TestAddHeadroomLowersOnlyHotTakes(t *testing.T) {
 	}
 }
 
+func TestCutAndFadeEndsTheTakeOnTime(t *testing.T) {
+	needFFmpeg(t)
+	ctx, dir := context.Background(), t.TempDir()
+	take := filepath.Join(dir, "take.wav")
+	tone(t, take, 30, "0dB")
+	if err := cutAndFade(ctx, take, 24, takeFade); err != nil {
+		t.Fatal(err)
+	}
+	if d, err := audioSeconds(ctx, take); err != nil || d < 23.99 || d > 24.01 {
+		t.Fatalf("the take lasts %.3f s: %v", d, err)
+	}
+	// peak is the loudest sample from `from` to one second later, in dBFS.
+	peak := func(from float64) float64 {
+		t.Helper()
+		out, err := exec.Command("ffmpeg", "-v", "info", "-ss", strconv.FormatFloat(from, 'f', 2, 64), "-t", "1", "-i", take,
+			"-af", "volumedetect", "-f", "null", "-").CombinedOutput()
+		if err != nil {
+			t.Fatalf("ffmpeg: %v: %s", err, out)
+		}
+		for _, line := range strings.Split(string(out), "\n") {
+			if _, v, ok := strings.Cut(line, "max_volume: "); ok {
+				if f, err := strconv.ParseFloat(strings.TrimSuffix(strings.TrimSpace(v), " dB"), 64); err == nil {
+					return f
+				}
+			}
+		}
+		t.Fatalf("no max_volume in %s", out)
+		return 0
+	}
+	// The tone peaks at -18 dBFS until the fade starts, 2 s before the end. In the last
+	// second it is at most half as loud (about -24 dBFS); a cut with no fade stays at -18.
+	if p := peak(20); p < -18.5 {
+		t.Errorf("before the fade the peak is %.1f dBFS", p)
+	}
+	if p := peak(23); p > -23 {
+		t.Errorf("in the last second the peak is %.1f dBFS: no fade", p)
+	}
+}
+
 func TestRefNamesAreDistinct(t *testing.T) {
 	got := refNames([]string{"a/pixel.wav", "b/pixel.mp3", "c/Pixel!.wav", "bell.wav"})
 	want := []string{"pixel", "pixel-2", "pixel-3", "bell"}

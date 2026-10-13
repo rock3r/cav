@@ -103,7 +103,7 @@ func TestACEStepSubmitsQueriesAndDownloads(t *testing.T) {
 		case "/release_task":
 			var body map[string]any
 			json.NewDecoder(r.Body).Decode(&body)
-			if body["bpm"] != float64(120) || body["audio_duration"] != float64(24) || body["thinking"] != true ||
+			if body["bpm"] != float64(120) || body["audio_duration"] != float64(32) || body["thinking"] != true ||
 				body["prompt"] != "warm synthwave, confident, builds to a drop, 120 BPM. Structure: intro: logo fades in at 0s; build: cards slide in at 8s; drop: big reveal at 16s, instrumental" ||
 				body["lyrics"] != "[intro - logo fades in]\n\n[build - cards slide in]\n\n[drop - big reveal]" {
 				t.Errorf("release_task body: %v", body)
@@ -134,7 +134,9 @@ func TestACEStepSubmitsQueriesAndDownloads(t *testing.T) {
 	c := &services.Config{Endpoints: map[string]services.Endpoint{"acestep": {BaseURL: srv.URL}}}
 	tr, err := Generate(context.Background(), c, &services.Choice{Service: "acestep"}, Request{Prompt: "warm synthwave, confident, builds to a drop, 120 BPM", Seconds: 24,
 		Sections: []Section{{Name: "intro: logo fades in", Seconds: 8}, {Name: "build: cards slide in", Seconds: 8}, {Name: "drop: big reveal", Seconds: 8}}})
-	if err != nil || string(tr.Data) != "RIFFwav" || tr.Model != "acestep-v15-turbo" || tr.Ext != ".wav" || queries != 2 {
+	// cav asks for 8 s more, because ACE-Step ends its takes early, and the caller cuts the
+	// take back to 24 s.
+	if err != nil || string(tr.Data) != "RIFFwav" || tr.Model != "acestep-v15-turbo" || tr.Ext != ".wav" || queries != 2 || tr.Length != 24 {
 		t.Fatalf("got %+v, %v after %d queries", tr, err, queries)
 	}
 }
@@ -272,7 +274,7 @@ func TestReferenceTrackGoesUpAsAudio(t *testing.T) {
 			if got := upload(r, "reference_audio"); got != "pixel-pop-a.mp3:ID3ref" {
 				t.Errorf("acestep reference %q", got)
 			}
-			if r.FormValue("thinking") != "true" || r.FormValue("audio_duration") != "20" || r.FormValue("lyrics") != "[Instrumental]" {
+			if r.FormValue("thinking") != "true" || r.FormValue("audio_duration") != "28" || r.FormValue("lyrics") != "[Instrumental]" {
 				t.Errorf("acestep form: %v", r.MultipartForm.Value)
 			}
 			w.Write([]byte(`{"data":{"task_id":"t1"},"code":200,"error":null}`))
@@ -598,6 +600,38 @@ func TestYuE2SingsLyrics(t *testing.T) {
 	}
 }
 
+// ACE-Step takes at most 600 s. Near that, cav cannot ask for the whole pad, and says so.
+func TestACEStepNotesAShortPadAtTheLimit(t *testing.T) {
+	var asked []float64
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/release_task":
+			var body map[string]any
+			json.NewDecoder(r.Body).Decode(&body)
+			asked = append(asked, body["audio_duration"].(float64))
+			w.Write([]byte(`{"data":{"task_id":"t1"},"code":200}`))
+		case "/query_result":
+			w.Write([]byte(`{"data":[{"task_id":"t1","status":1,"result":"[{\"file\":\"/v1/audio?path=a.wav\"}]"}],"code":200}`))
+		case "/v1/audio":
+			w.Write([]byte("RIFF"))
+		}
+	}))
+	defer srv.Close()
+	c := &services.Config{Endpoints: map[string]services.Endpoint{"acestep": {BaseURL: srv.URL}}}
+	for _, tc := range []struct {
+		seconds, length float64
+		note            bool
+	}{{592, 592, false}, {596, 596, true}, {600, 0, true}} {
+		tr, err := Generate(context.Background(), c, &services.Choice{Service: "acestep"}, Request{Prompt: "ambient", Seconds: tc.seconds})
+		if err != nil || tr.Length != tc.length || (len(tr.Notes) > 0) != tc.note {
+			t.Errorf("%g s: length %g, notes %q, %v", tc.seconds, tr.Length, tr.Notes, err)
+		}
+	}
+	if len(asked) != 3 || asked[0] != 600 || asked[1] != 600 || asked[2] != 600 {
+		t.Errorf("asked for %v", asked)
+	}
+}
+
 func TestACEStepSingsLyrics(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -619,7 +653,8 @@ func TestACEStepSingsLyrics(t *testing.T) {
 	defer srv.Close()
 	c := &services.Config{Endpoints: map[string]services.Endpoint{"acestep": {BaseURL: srv.URL}}}
 	tr, err := Generate(context.Background(), c, &services.Choice{Service: "acestep"}, Request{Prompt: "pop", Seconds: 40, Lyrics: "[verse]\nhello"})
-	if err != nil || string(tr.Data) != "RIFFsong" {
+	// A song keeps its length, so the last line is not cut.
+	if err != nil || string(tr.Data) != "RIFFsong" || tr.Length != 0 {
 		t.Fatalf("got %+v, %v", tr, err)
 	}
 	// ACE-Step takes at most 4096 characters; cav refuses more before it calls the server.
