@@ -223,3 +223,22 @@ func TestNewServiceChecks(t *testing.T) {
 		t.Fatalf("lyria: %+v", st)
 	}
 }
+
+func TestNoKeysReadsNothing(t *testing.T) {
+	t.Setenv("CAV_NO_KEYS", "1")
+	t.Setenv("CAV_TEST_KEY", "secret-value")
+	oldRun, oldLook := runCmd, lookPath
+	defer func() { runCmd, lookPath = oldRun, oldLook }()
+	lookPath = func(string) (string, error) { return "/usr/local/bin/op", nil }
+	runCmd = func(_ context.Context, name string, args ...string) ([]byte, []byte, error) {
+		t.Fatalf("CAV_NO_KEYS ran %s %v", name, args)
+		return nil, nil, nil
+	}
+	for _, src := range []string{"env:CAV_TEST_KEY", "op://Private/OpenAI/key", "keychain:cav/openai", "oauth"} {
+		v, err := Resolve(context.Background(), "openai", src)
+		var ke *KeyError
+		if v != "" || !errors.As(err, &ke) || !ke.Missing {
+			t.Errorf("%s: got %q, %v", src, v, err)
+		}
+	}
+}

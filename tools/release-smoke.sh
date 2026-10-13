@@ -1,0 +1,339 @@
+#!/bin/bash
+# Release smoke: run every cav command once against the running Cavalry, in a new
+# scratch scene and a temporary project folder.
+#
+#   tools/release-smoke.sh <path to cav> [--keep] [--keyed]
+#
+# Needs Cavalry open with the cav-bridge window, ffmpeg and ffprobe, and python3.
+# The open scene must have no unsaved changes: the smoke starts a new scene without
+# --force, so it never throws work away.
+#
+# By default it uses only free paths and reads no key at all: it sets CAV_NO_KEYS=1, so
+# cav treats every key as missing without asking the environment, the keychain or
+# 1Password. Generators run with --service greybox or another free service. Steps marked
+# "net" need the internet: they warn instead of failing. A step marked "refuse" must
+# exit with an error (it checks an error path).
+#
+# --keyed adds the services that need your keys. Each of those calls can cost money and
+# can ask 1Password, so --keyed works only at a terminal: it lists the calls and asks
+# before it runs them.
+#
+# The smoke fails when a step fails, or when `cav help` lists a command that has no
+# step here. Add a step for every new command.
+set -uo pipefail
+
+[[ $# -ge 1 ]] || { echo "usage: $0 <path to cav> [--keep] [--keyed]" >&2; exit 64; }
+cav="$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
+shift
+keep= keyed=
+for a in "$@"; do
+	case $a in
+	--keep) keep=--keep ;;
+	--keyed) keyed=1 ;;
+	*) echo "unknown option $a" >&2; exit 64 ;;
+	esac
+done
+if [[ -n "$keyed" ]] && ! [[ -t 0 && -t 1 ]]; then
+	echo "--keyed needs a terminal: its calls can cost money and ask 1Password" >&2
+	exit 64
+fi
+export CAV_NO_KEYS=1
+[[ -x "$cav" ]] || { echo "not executable: $cav" >&2; exit 64; }
+for tool in ffmpeg ffprobe python3; do
+	command -v "$tool" >/dev/null || { echo "missing $tool" >&2; exit 69; }
+done
+
+work="$(mktemp -d "${TMPDIR:-/tmp}/cav-smoke.XXXXXX")"
+logs="$work/logs"
+mkdir -p "$logs" "$work/.cav"
+cd "$work" || exit 70
+if [[ "$keep" != --keep ]]; then
+	trap 'rm -rf "$work"' EXIT
+fi
+
+pass=0 fail=0 warn=0 n=0
+covered=" "
+failed=()
+
+# step KIND NAME cav-args...
+# KIND: ok (exit 0), net (exit 0, or a warning), refuse (a non-zero exit).
+step() {
+	local kind=$1 name=$2
+	shift 2
+	covered+="$1 "
+	n=$((n + 1))
+	local log
+	log="$logs/$(printf '%02d' "$n")-${name// /_}.log"
+	local start=$SECONDS rc
+	"$cav" "$@" >"$log" 2>&1
+	rc=$?
+	local took=$((SECONDS - start))
+	local verdict
+	case "$kind:$rc" in
+	ok:0 | net:0) verdict=pass ;;
+	refuse:0) verdict=fail ;;
+	refuse:*) verdict=pass ;;
+	net:*) verdict=warn ;;
+	*) verdict=fail ;;
+	esac
+	case $verdict in
+	pass) pass=$((pass + 1)); printf 'ok    %-34s %3ss\n' "$name" "$took" ;;
+	warn) warn=$((warn + 1)); printf 'warn  %-34s %3ss  exit %s (needs the internet): %s\n' "$name" "$took" "$rc" "$log" ;;
+	fail)
+		fail=$((fail + 1))
+		failed+=("$name")
+		printf 'FAIL  %-34s %3ss  exit %s: %s\n' "$name" "$took" "$rc" "$log"
+		tail -5 "$log" | sed 's/^/      /'
+		;;
+	esac
+	return 0
+}
+
+# check NAME CONDITION... : a plain shell assertion about a step's output.
+check() {
+	local name=$1
+	shift
+	n=$((n + 1))
+	if "$@" >/dev/null 2>&1; then
+		pass=$((pass + 1))
+		printf 'ok    %-34s\n' "$name"
+	else
+		fail=$((fail + 1))
+		failed+=("$name")
+		printf 'FAIL  %-34s\n' "$name"
+	fi
+}
+
+json() { python3 -I -c 'import json,sys; d=json.load(open(sys.argv[1])); print(eval(sys.argv[2], {"d": d}))' "$@"; }
+lastlog() { ls "$logs"/[0-9]*.log | tail -1; }
+
+echo "cav: $("$cav" version | head -1)"
+echo "work: $work"
+echo
+
+# --- Set-up and state ---------------------------------------------------------------
+step ok "version" version
+step net "version --check" version --check
+step ok "setup" setup --no-docs
+step ok "doctor" doctor
+step ok "status" status
+step ok "config" config
+step ok "config check greybox" config check greybox
+
+# --- Scene --------------------------------------------------------------------------
+step ok "scene new" scene new --width 640 --height 360 --fps 30 --seconds 4 --bg '#101014'
+if ! grep -q '640x360' "$(lastlog)"; then
+	echo
+	echo "cav scene new did not start a scratch scene. Save or close the open scene, then run again."
+	exit 1
+fi
+step ok "scene comp" scene comp --motion-blur
+step ok "scene info" scene info
+cat >build.js <<'EOF'
+var g = cav.group('Card')
+var r = cav.rect('Box', 160, 100, {parent: g, fill: '#3366ff', radius: 12})
+cav.key(r, 'x', [[0, -200], [45, 200, 'SlowOut']])
+cav.key(r, 'fill', [[0, undefined], [45, '#ff6633']])
+var t = cav.text('Title', 'Smoke', 48, {y: 120})
+cav.key(t, 'opacity', [[0, 0], [15, 100], [60, 100], [61, 0]])
+var dot = cav.circle('Dot', 20, {x: 0, y: -120, fill: '#ffffff'})
+cav.key(dot, 'scale', [[30, 1], [32, 1.6], [40, 1]])
+return api.getCompLayers(false).length
+EOF
+step ok "run file" run build.js
+step ok "run -e" run -e 'return cav.comp().width'
+echo 'return 1 + 1' >stdin.js
+covered+="run "
+n=$((n + 1))
+if out="$("$cav" run - <stdin.js 2>"$logs/stdin.err")" && [[ "$out" == 2 ]]; then
+	pass=$((pass + 1)); printf 'ok    %-34s\n' "run - (stdin)"
+else
+	fail=$((fail + 1)); failed+=("run - (stdin)"); printf 'FAIL  %-34s %s\n' "run - (stdin)" "$out"
+fi
+step ok "run --async" run --async -e 'return 7' --json
+async="$(lastlog)"
+job="$(json "$async" 'd["job"]' 2>/dev/null)"
+op="$(json "$async" 'd["operation"]' 2>/dev/null)"
+step ok "job wait" job wait "$job" --timeout 2m
+step ok "job status" job status "$job"
+step ok "operation resume" operation resume "$op" --timeout 2m
+step ok "operation status" operation status "$op"
+step ok "scene save" scene save --timeout 2m smoke.cv
+check "scene saved to smoke.cv" test -s smoke.cv
+step refuse "scene save: unknown flag" scene save --bogus smoke.cv
+step ok "scene open" scene open smoke.cv --timeout 5m
+step ok "tree" tree --depth 2
+box="$("$cav" tree --json 2>/dev/null | python3 -I -c 'import json,sys
+def walk(ls):
+    for l in ls:
+        yield l
+        yield from walk(l.get("children", []))
+print(next(l["id"] for l in walk(json.load(sys.stdin)["layers"]) if l["name"] == "Box"))')"
+step ok "layer" layer "$box" --attrs --frame 20
+step ok "types" types rect
+step ok "helpers" helpers key
+
+# --- Looking at the scene -----------------------------------------------------------
+step ok "frame" frame 0 30 --scale 25 -o frames
+check "frame wrote PNGs" test -s frames/f30.png -o -n "$(ls frames/*.png 2>/dev/null)"
+step ok "sheet" sheet --count 4 --scale 20 -o sheet.png
+check "sheet.png exists" test -s sheet.png
+step ok "onion" onion 0-45 --count 4 --scale 25 -o onion.png
+check "onion.png exists" test -s onion.png
+step ok "frames" frames 0-20 --keep-every 10 -o sim
+step ok "check --quick" check --quick
+step ok "check" check --timeout 10m
+step ok "render" render -o renders/smoke.mp4 --scale 50 --timeout 15m
+check "render has 120 frames" test "$(ffprobe -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames -of csv=p=0 renders/smoke.mp4)" = 120
+step ok "seams --video" seams --video renders/smoke.mp4
+step ok "seams" seams --max-boundaries 4
+
+# --- Audio and music ----------------------------------------------------------------
+# A 120 BPM click track: a decaying 60 Hz thump every half second.
+ffmpeg -v error -y -f lavfi -i "aevalsrc='0.8*sin(2*PI*60*t)*exp(-30*mod(t,0.5))':s=48000:d=4" -c:a pcm_s16le click.wav
+step ok "beats" beats click.wav --fps 30 -o grid.json
+check "beats found about 120 BPM" python3 -I -c 'import json,sys; b=json.load(open("grid.json")); bpm=b.get("bpm") or b.get("tempo"); sys.exit(0 if bpm and 110 <= float(bpm) <= 130 else 1)'
+step ok "beats --bpm" beats --bpm 120 --seconds 4 --fps 30
+step ok "spectrogram" spectrogram click.wav --fps 30 -o spectrogram.png
+step ok "render --audio" render -o renders/smoke-audio.mp4 --audio click.wav --scale 50 --timeout 15m
+step ok "sync" sync renders/smoke-audio.mp4 -o sync.png
+step ok "listen --no-ears" listen click.wav --no-ears --seconds 4 --fps 30 -o listen.png
+cat >score.json <<'EOF'
+{"bpm": 120, "beats": 8,
+ "tracks": [
+  {"name": "kick", "instrument": "kick", "hits": [0, 1, 2, 3, 4, 5, 6, 7]},
+  {"name": "bass", "instrument": "bass", "notes": [[0, 2, 45, 0.8], [4, 2, 43, 0.8]], "duck": true}],
+ "master": {"lufs": -16}}
+EOF
+step net "music render" music render score.json -o music/score.wav
+printf '[Verse]\nla la\n' >song.txt
+step refuse "music gen: lyrics on lyria" music gen "test" --lyrics song.txt --service lyria
+step refuse "music gen: no key" music gen "test" --seconds 5 --service elevenlabs
+step refuse "sfx gen: no key" sfx gen "a click" --seconds 1
+
+# --- Storyboard, assets, credits ----------------------------------------------------
+step ok "board init" board init --bpm 120 --fps 30 --seconds 4 --shots 2 -o storyboard.json
+step ok "board frames (greybox)" board frames storyboard.json --service greybox
+step ok "board sheet" board sheet storyboard.json -o renders/board.png
+step ok "board animatic" board animatic storyboard.json --audio click.wav -o renders/animatic.mp4
+step ok "board place" board place storyboard.json
+step refuse "board motion: no shots named" board motion storyboard.json
+step ok "gen image (greybox)" gen image "a smoke test card" --service greybox -o assets/card.png
+if command -v vtracer >/dev/null || command -v potrace >/dev/null; then
+	step ok "gen vector (local)" gen vector assets/card.png -o assets/card.svg
+else
+	covered+="gen "
+	echo "skip  gen vector                         neither vtracer nor potrace is installed"
+fi
+step ok "sfx add" sfx add click.wav --licence CC0-1.0 --author smoke
+step ok "sfx index" sfx index . --licence CC0-1.0
+step ok "sfx libraries" sfx libraries
+step net "sfx search (openverse)" sfx search whoosh --service openverse --limit 2
+mkdir -p moodboard && cp assets/card.png moodboard/
+step ok "ref add" ref add moodboard/card.png --licence CC0-1.0 --author smoke
+step net "ref search (openverse)" ref search "paper texture" --service openverse --limit 2
+step ok "board mood" board mood moodboard -o renders/moodboard.png
+step ok "credits" credits --all
+step ok "credits list" credits list
+step ok "credits licence" credits licence nc-ok
+step ok "credits check" credits check
+step ok "score" score storyboard.json --video renders/smoke.mp4 --audio click.wav -o score/project.rpp
+check "score wrote a REAPER project" grep -q REAPER_PROJECT score/project.rpp
+
+# --- Review, MCP, relay -------------------------------------------------------------
+covered+="review "
+port=$((20000 + RANDOM % 20000))
+"$cav" review renders/smoke.mp4 --port "$port" >"$logs/review-serve.log" 2>&1 &
+review_pid=$!
+up=
+for _ in $(seq 1 60); do
+	if curl -fsS "http://127.0.0.1:$port/api/state" -o review-state.json 2>/dev/null; then up=1; break; fi
+	sleep 1
+done
+kill "$review_pid" 2>/dev/null; wait "$review_pid" 2>/dev/null
+check "review serves its page" test -n "$up"
+step ok "review export" review export renders/smoke.mp4
+covered+="mcp "
+n=$((n + 1))
+mcp_out="$( (printf '%s\n' \
+	'{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"smoke","version":"1"}}}' \
+	'{"jsonrpc":"2.0","method":"notifications/initialized"}' \
+	'{"jsonrpc":"2.0","id":2,"method":"tools/list"}'; sleep 2) | "$cav" mcp 2>"$logs/mcp.err")"
+if grep -q show_review <<<"$mcp_out" && grep -q review_notes <<<"$mcp_out"; then
+	pass=$((pass + 1)); printf 'ok    %-34s\n' "mcp tools/list"
+else
+	fail=$((fail + 1)); failed+=("mcp tools/list"); printf 'FAIL  %-34s\n' "mcp tools/list"
+fi
+covered+="relay "
+mkdir -p spool
+CAV_SPOOL="$work/spool" "$cav" run -e 'return "via relay"' --timeout 1m >"$logs/relay-run.log" 2>&1 &
+relay_run=$!
+sleep 1
+step ok "relay --once" relay --spool "$work/spool" --once
+wait "$relay_run"
+check "a spooled run went through the relay" grep -q 'via relay' "$logs/relay-run.log"
+
+# --- Docs and guides ----------------------------------------------------------------
+step ok "api" api keyframe -n 3
+step ok "docs" docs duplicator -n 2
+for topic in workflow design music traps native production; do
+	step ok "guide $topic" guide "$topic"
+done
+step ok "guide --search" guide --search "keys dropped" -n 2
+check "guide --search finds the rotation trap" grep -q "rotation" "$(lastlog)"
+step refuse "guide --search: no words" guide --search
+
+# --- Update (never installs here) ---------------------------------------------------
+# With --json and without --yes, cav update refuses to install; when cav is current it
+# only says so.
+covered+="update "
+n=$((n + 1))
+"$cav" update --json >"$logs/update.json" 2>&1
+if grep -q '"updated": false\|needs confirmation' "$logs/update.json"; then
+	pass=$((pass + 1)); printf 'ok    %-34s\n' "update --json (installs nothing)"
+elif grep -q 'update check failed' "$logs/update.json"; then
+	warn=$((warn + 1)); printf 'warn  %-34s (needs the internet): %s\n' "update --json" "$logs/update.json"
+else
+	fail=$((fail + 1)); failed+=("update --json"); printf 'FAIL  %-34s %s\n' "update --json" "$logs/update.json"
+fi
+
+# --- Keyed services (opt-in, at a terminal) ------------------------------------------
+if [[ -n "$keyed" ]]; then
+	echo
+	echo "--keyed: these calls use your configured services and keys. They can cost money"
+	echo "and can ask 1Password:"
+	echo "  cav config check                one free call per service with a key"
+	echo "  cav gen image                   one still (a few cents)"
+	echo "  cav sfx gen --seconds 1         one sound effect"
+	echo "  cav music gen --seconds 10      one short track"
+	echo "  cav listen (with ears)          one audio critique"
+	read -r -p "Run them? [y/N] " answer
+	if [[ "$answer" == [yY]* ]]; then
+		unset CAV_NO_KEYS
+		step ok "keyed: config check" config check
+		step ok "keyed: gen image" gen image "a smoke test card, flat colours" -o assets/keyed.png
+		step ok "keyed: sfx gen" sfx gen "a short soft click" --seconds 1
+		step ok "keyed: music gen" music gen "calm piano, ten seconds" --seconds 10 -o music
+		step ok "keyed: listen with ears" listen click.wav --seconds 4 --fps 30 -o listen-ears.png
+		export CAV_NO_KEYS=1
+	else
+		echo "keyed services skipped"
+	fi
+fi
+
+# --- Coverage -----------------------------------------------------------------------
+missing=()
+for c in $("$cav" help | awk '/^Commands:/{on=1; next} on && /^  [a-z]/{print $1} on && /^$/{exit}'); do
+	[[ "$covered" == *" $c "* ]] || missing+=("$c")
+done
+echo
+if ((${#missing[@]})); then
+	echo "FAIL  commands with no smoke step: ${missing[*]}"
+	fail=$((fail + 1))
+fi
+echo "$pass passed, $warn warnings, $fail failed (logs: $logs)"
+[[ "$keep" == --keep ]] || echo "run with --keep to keep $work"
+if ((fail)); then
+	printf 'failed: %s\n' "${failed[@]}"
+	exit 1
+fi

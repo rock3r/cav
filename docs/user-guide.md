@@ -516,6 +516,7 @@ Environment variables:
 | `CAV_OUT_DIR` | Default folder for sheets and frames (default `renders`). |
 | `CAV_BRIDGE_PORT` | The bridge port (default 8723). |
 | `CAV_SCRIPTS_DIR` | Cavalry's Scripts folder, if it is not in the usual place. |
+| `CAV_NO_KEYS` | Any value makes every key missing: cav reads no environment variable, keychain entry or 1Password item, and uses only free services. |
 | `CAV_NO_UPDATE_CHECK` | Any value stops `cav doctor` from asking GitHub for a newer release. |
 
 Use `cav check --quick --json` for cheap structural performance warnings. Add `--profile`

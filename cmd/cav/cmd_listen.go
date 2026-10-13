@@ -445,6 +445,11 @@ func cmdMusic(a *app, args []string) error {
 		}
 		c.Order["music"] = singers
 	}
+	// Refuse before services.Pick, which reads the key (and may ask 1Password).
+	if lyrics != "" && *service != "" && !music.SingsLyrics(*service) {
+		return fail(exitError, *service+" makes only instrumentals, so it cannot sing --lyrics",
+			"use a service that sings: --service yue2 or --service acestep (a server you run; cav config)")
+	}
 	ch, err := services.Pick(ctx, c, "music", *service)
 	if err != nil {
 		if lyrics != "" {

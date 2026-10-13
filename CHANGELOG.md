@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- `cav music gen --lyrics` refuses a named service that cannot sing before it reads that
+  service's key. Before, `--service lyria` read the Gemini key first, which could open a
+  1Password prompt for a command that was going to fail.
+- `CAV_NO_KEYS=1` makes cav treat every key as missing. It reads no environment variable,
+  keychain entry or 1Password item, so only free services run.
+- `tools/release-smoke.sh` runs every cav command once against Cavalry, in a scratch scene
+  and a temporary folder. It reads no key and uses only free services. It fails when a
+  command has no step, so a new command needs one. `--keyed` adds the keyed services, at a
+  terminal and after a confirmation. The release steps now include it.
 - `cav guide --search <words>` searches every guide and prints the best 3 sections (`-n`
   changes the number), each with its topic and heading path. Describe the symptom when you
   do not know the topic: `cav guide --search "keys dropped"` finds the `rotation.z` trap.
