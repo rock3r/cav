@@ -244,6 +244,18 @@ func genCutout(a *app, args []string) error {
 	if _, err := os.Stat(pos[0]); err != nil {
 		return fail(exitError, err.Error(), "")
 	}
+	path := *out
+	if path == "" {
+		path = strings.TrimSuffix(pos[0], filepath.Ext(pos[0])) + "-cutout.png"
+	}
+	// Check the output before Pick reads a key (which can ask 1Password) and before the
+	// cutout runs, so a bad -o cannot waste a paid call.
+	if fi, err := os.Stat(path); strings.HasSuffix(path, "/") || strings.HasSuffix(path, string(filepath.Separator)) || err == nil && fi.IsDir() {
+		return fail(exitError, path+" is a folder", "give a file name: -o "+filepath.Join(path, "cutout.png"))
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fail(exitError, err.Error(), "")
+	}
 	c, err := services.Load()
 	if err != nil {
 		return err
@@ -274,17 +286,6 @@ func genCutout(a *app, args []string) error {
 	}
 	if !slices.Contains(imagegen.CutoutServices, ch.Service) {
 		return fail(exitError, ch.Service+" makes transparent images only while it generates them", "use --service rembg or --service recraft")
-	}
-	path := *out
-	if path == "" {
-		path = strings.TrimSuffix(pos[0], filepath.Ext(pos[0])) + "-cutout.png"
-	}
-	// Check the output before the cutout runs, so a bad -o cannot waste a paid call.
-	if fi, err := os.Stat(path); strings.HasSuffix(path, "/") || strings.HasSuffix(path, string(filepath.Separator)) || err == nil && fi.IsDir() {
-		return fail(exitError, path+" is a folder", "give a file name: -o "+filepath.Join(path, "cutout.png"))
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return fail(exitError, err.Error(), "")
 	}
 	im, err := imagegen.RemoveBackground(ctx, ch, pos[0])
 	if err != nil {
