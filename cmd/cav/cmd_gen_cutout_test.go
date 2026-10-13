@@ -168,6 +168,79 @@ func TestGenCutoutKeepsTheSourceLicence(t *testing.T) {
 	}
 }
 
+// cav gen vector records a trace like a cutout: it keeps the licence and credit of the
+// image it was traced from, and an unrecorded or reference-only image gives an unknown
+// licence. Fake vtracer and potrace (with a fake ffmpeg) write the SVG.
+func TestGenVectorKeepsTheSourceLicence(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake tools are shell scripts")
+	}
+	t.Setenv("CAV_HOME", t.TempDir())
+	t.Setenv("CAV_NO_KEYS", "1")
+	svg := "echo '<svg xmlns=\"http://www.w3.org/2000/svg\"/>' > \"$last\"\n"
+	fakeToolOnPath(t, "vtracer", "#!/bin/sh\nlast=; for a; do last=$a; done\n"+svg)
+	fakeToolOnPath(t, "potrace", "#!/bin/sh\nlast=; for a; do last=$a; done\n"+svg)
+	fakeToolOnPath(t, "ffmpeg", "#!/bin/sh\nlast=; for a; do last=$a; done\n: > \"$last\"\n")
+	t.Chdir(t.TempDir())
+	for _, f := range []string{"photo.png", "made.png", "mood.png", "loose.png", "logo.png"} {
+		if err := os.WriteFile(f, []byte("\x89PNG\r\n\x1a\nfake"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	root := library.Root()
+	err := library.Update(root, func(m *library.Manifest) error {
+		m.Put(root, library.Entry{Path: "photo.png", Kind: "image", Source: "openverse", Licence: "CC BY-SA 4.0",
+			Author: "Ann", AttributionRequired: true, Attribution: "Photo by Ann", CommercialOK: true, ShareAlike: true})
+		m.Put(root, library.Entry{Path: "logo.png", Kind: "image", Source: "openverse", Licence: "CC BY-NC-ND 4.0",
+			Author: "Bo", AttributionRequired: true, Attribution: "Logo by Bo", NoDerivatives: true})
+		m.Put(root, library.Entry{Path: "made.png", Kind: "image", Source: "gemini", Licence: "generated", CommercialOK: true,
+			Generated: &library.Generated{Provider: "gemini"}})
+		m.Put(root, library.Entry{Path: "mood.png", Kind: "image", Source: "arena", Licence: "reference-only"})
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range []string{"photo.png", "made.png", "mood.png", "loose.png"} {
+		if err := cmdGen(&app{}, []string{"vector", f, "--service", "vtracer"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := cmdGen(&app{}, []string{"vector", "logo.png", "--service", "potrace"}); err != nil {
+		t.Fatal(err)
+	}
+	m, err := library.Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e := entryFor(m, "photo.svg"); e == nil || e.Kind != "svg" || e.Generated != nil || e.Licence != "CC BY-SA 4.0" || !e.ShareAlike || e.Attribution != "Photo by Ann" || e.Author != "Ann" {
+		t.Errorf("trace of a licensed photo: %+v", e)
+	}
+	if e := entryFor(m, "logo.svg"); e == nil || e.Generated != nil || e.Licence != "CC BY-NC-ND 4.0" || e.CommercialOK || !e.NoDerivatives || e.Attribution != "Logo by Bo" {
+		t.Errorf("potrace trace of a licensed logo: %+v", e)
+	}
+	if e := entryFor(m, "made.svg"); e == nil || e.Generated == nil || e.Licence != "generated" || !e.CommercialOK {
+		t.Errorf("trace of a generated image: %+v", e)
+	}
+	problems := library.Check(root, m, &library.Project{Licence: "commercial"})
+	for _, want := range []struct{ path, kind string }{
+		{"photo.svg", "share-alike"},
+		{"logo.svg", "nc-in-commercial"},
+		{"logo.svg", "no-derivatives"},
+		{"mood.svg", "unknown-licence"},
+		{"loose.svg", "unknown-licence"},
+	} {
+		if !hasProblem(problems, want.path, want.kind) {
+			t.Errorf("credits check misses %s on %s: %+v", want.kind, want.path, problems)
+		}
+	}
+	for _, p := range problems {
+		if p.Path == "made.svg" {
+			t.Errorf("credits check flags the trace of a generated image: %+v", p)
+		}
+	}
+}
+
 // With rembg picked for --alpha, cav needs an image service to make the image first.
 // With only greybox usable, it says so instead of cutting out a placeholder card.
 func TestGenImageAlphaWithRembgNeedsAnImageService(t *testing.T) {
