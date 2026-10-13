@@ -600,6 +600,38 @@ func TestYuE2SingsLyrics(t *testing.T) {
 	}
 }
 
+// ACE-Step takes at most 600 s. Near that, cav cannot ask for the whole pad, and says so.
+func TestACEStepNotesAShortPadAtTheLimit(t *testing.T) {
+	var asked []float64
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/release_task":
+			var body map[string]any
+			json.NewDecoder(r.Body).Decode(&body)
+			asked = append(asked, body["audio_duration"].(float64))
+			w.Write([]byte(`{"data":{"task_id":"t1"},"code":200}`))
+		case "/query_result":
+			w.Write([]byte(`{"data":[{"task_id":"t1","status":1,"result":"[{\"file\":\"/v1/audio?path=a.wav\"}]"}],"code":200}`))
+		case "/v1/audio":
+			w.Write([]byte("RIFF"))
+		}
+	}))
+	defer srv.Close()
+	c := &services.Config{Endpoints: map[string]services.Endpoint{"acestep": {BaseURL: srv.URL}}}
+	for _, tc := range []struct {
+		seconds, length float64
+		note            bool
+	}{{592, 592, false}, {596, 596, true}, {600, 0, true}} {
+		tr, err := Generate(context.Background(), c, &services.Choice{Service: "acestep"}, Request{Prompt: "ambient", Seconds: tc.seconds})
+		if err != nil || tr.Length != tc.length || (len(tr.Notes) > 0) != tc.note {
+			t.Errorf("%g s: length %g, notes %q, %v", tc.seconds, tr.Length, tr.Notes, err)
+		}
+	}
+	if len(asked) != 3 || asked[0] != 600 || asked[1] != 600 || asked[2] != 600 {
+		t.Errorf("asked for %v", asked)
+	}
+}
+
 func TestACEStepSingsLyrics(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {

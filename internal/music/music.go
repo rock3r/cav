@@ -499,6 +499,10 @@ func acestep(ctx context.Context, c *services.Config, key string, r Request) (*T
 			if duration > length {
 				tr.Length = length
 			}
+			if strings.TrimSpace(r.Lyrics) == "" && duration-length < acestepPad {
+				// ACE-Step takes at most 600 s, so a take this long has less room or none.
+				tr.Notes = append(tr.Notes, fmt.Sprintf("ACE-Step takes at most 600 s, so cav could not ask for %g s more than %.0f s; the end of the take can be silent", acestepPad, length))
+			}
 			return tr, nil
 		}
 		select {
