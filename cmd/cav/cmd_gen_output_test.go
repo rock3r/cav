@@ -258,9 +258,10 @@ func TestGenImageSaysWhereTheImageIsWhenTheManifestFails(t *testing.T) {
 	}
 }
 
-// An -o with a missing folder before ".." is checked and saved as the same cleaned path,
-// so the save does not fail on the missing folder after the call.
-func TestGenCutoutCleansTheOutputPath(t *testing.T) {
+// The check follows the same folders, links and ".." as the save. An -o with a missing
+// folder before ".." does not fail after the call, and link/../x.png is written next to
+// the link's target, not in the working folder.
+func TestGenCutoutChecksTheOutputPathAsWritten(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("the fake uv is a shell script")
 	}
@@ -279,7 +280,21 @@ func TestGenCutoutCleansTheOutputPath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if entryFor(m, "fox.png") == nil {
-		t.Error("the manifest does not record fox.png")
+	if entryFor(m, "fox.png") == nil && entryFor(m, "missing/../fox.png") == nil {
+		t.Errorf("the manifest does not record fox.png: %+v", m.Assets)
+	}
+
+	os.MkdirAll(filepath.Join("sub", "inner"), 0o755)
+	if err := os.Symlink(filepath.Join("sub", "inner"), "link"); err != nil {
+		t.Fatal(err)
+	}
+	if err := cmdGen(&app{}, []string{"cutout", "in.png", "--service", "rembg", "-o", "link/../linked.png"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join("sub", "linked.png")); err != nil {
+		t.Error(err)
+	}
+	if _, err := os.Stat("linked.png"); err == nil {
+		t.Error("cav wrote linked.png in the working folder, not next to the link's target")
 	}
 }

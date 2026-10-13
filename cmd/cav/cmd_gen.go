@@ -91,7 +91,7 @@ func genImage(a *app, args []string) error {
 	// paid call. Without -o the file type is known only after the call, so cav checks
 	// the folder.
 	if *out != "" {
-		*out, err = checkOutput(*out, "image.png")
+		err = checkOutput(*out, "image.png")
 	} else {
 		err = checkFolder("assets")
 	}
@@ -180,7 +180,7 @@ func genVector(a *app, args []string) error {
 	if path == "" {
 		path = strings.TrimSuffix(pos[0], filepath.Ext(pos[0])) + ".svg"
 	}
-	if path, err = checkOutput(path, "image.svg"); err != nil {
+	if err := checkOutput(path, "image.svg"); err != nil {
 		return err
 	}
 	c, err := services.Load()
@@ -271,7 +271,7 @@ func genCutout(a *app, args []string) error {
 	}
 	// Check the output before Pick reads a key (which can ask 1Password) and before the
 	// cutout runs, so a bad -o cannot waste a paid call.
-	if path, err = checkOutput(path, "cutout.png"); err != nil {
+	if err := checkOutput(path, "cutout.png"); err != nil {
 		return err
 	}
 	c, err := services.Load()
@@ -315,26 +315,39 @@ func genCutout(a *app, args []string) error {
 // checkOutput proves that cav can write path, before a paid call. It refuses a folder,
 // makes the parent folder, and checks that an existing file opens for writing (without
 // changing it) or that a new file can be made in the folder. example is the file name in
-// the hint for a folder. It returns the cleaned path, which the caller must save to, so
-// the check and the save use the same path (missing/../fox.png is fox.png for both).
-func checkOutput(path, example string) (string, error) {
+// the hint for a folder.
+func checkOutput(path, example string) error {
 	if fi, err := os.Stat(path); strings.HasSuffix(path, "/") || strings.HasSuffix(path, string(filepath.Separator)) || err == nil && fi.IsDir() {
-		return "", fail(exitError, path+" is a folder", "give a file name: -o "+filepath.Join(path, example))
+		return fail(exitError, path+" is a folder", "give a file name: -o "+filepath.Join(path, example))
 	}
-	path = filepath.Clean(path)
 	f, err := os.OpenFile(path, os.O_WRONLY, 0)
 	if err == nil {
-		return path, f.Close()
+		return f.Close()
 	}
 	if !errors.Is(err, os.ErrNotExist) {
-		return "", fail(exitError, "cannot write "+path+": "+err.Error(), "make it writable, or give another file with -o")
+		return fail(exitError, "cannot write "+path+": "+err.Error(), "make it writable, or give another file with -o")
 	}
 	if _, lerr := os.Lstat(path); lerr == nil {
 		// A link to a file that does not exist: cav would write through it, somewhere
 		// this check cannot see.
-		return "", fail(exitError, path+" is a link to a file that does not exist", "remove the link, or give another file with -o")
+		return fail(exitError, path+" is a link to a file that does not exist", "remove the link, or give another file with -o")
 	}
-	return path, checkFolder(filepath.Dir(path))
+	return checkFolder(rawDir(path))
+}
+
+// rawDir returns the folder part of path as written, without cleaning it like
+// filepath.Dir does. The system then follows the same folders, links and ".." for the
+// check as for the save: missing/../fox.png makes the folder missing, and
+// link/../fox.png stays next to the link's target.
+func rawDir(path string) string {
+	i := strings.LastIndexAny(path, "/"+string(filepath.Separator))
+	switch {
+	case i < 0:
+		return "."
+	case i == 0:
+		return path[:1]
+	}
+	return path[:i]
 }
 
 // checkFolder makes dir and proves that cav can make a file in it, by making and
