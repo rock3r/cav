@@ -52,6 +52,7 @@ if [[ "$keep" != --keep ]]; then
 fi
 
 pass=0 fail=0 warn=0 n=0
+net_errors='deadline exceeded|timed? ?out|timeout|no such host|connection (refused|reset)|network is unreachable|dial tcp|tls|certificate|HTTP 5[0-9][0-9]|answered HTTP (429|5)|temporary failure|could not resolve|failed to fetch|failed to download'
 covered=" "
 failed=()
 
@@ -73,7 +74,10 @@ step() {
 	ok:0 | net:0) verdict=pass ;;
 	refuse:0) verdict=fail ;;
 	refuse:*) verdict=pass ;;
-	net:*) verdict=warn ;;
+	net:*)
+		# Only a network error is a warning; any other failure of a net step fails.
+		if grep -qiE "$net_errors" "$log"; then verdict=warn; else verdict=fail; fi
+		;;
 	*) verdict=fail ;;
 	esac
 	case $verdict in
@@ -246,7 +250,7 @@ port=$((20000 + RANDOM % 20000))
 "$cav" review renders/smoke.mp4 --port "$port" >"$logs/review-serve.log" 2>&1 &
 review_pid=$!
 up=
-for _ in $(seq 1 60); do
+for ((i = 0; i < 60; i++)); do
 	if curl -fsS "http://127.0.0.1:$port/api/state" -o review-state.json 2>/dev/null; then up=1; break; fi
 	sleep 1
 done
