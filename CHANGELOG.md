@@ -10,6 +10,18 @@
   on Linux, and a test checks the exact potrace and vtracer commands with fake programs.
   The release smoke also traces a card and imports the SVG into Cavalry when a tracer is
   installed.
+- `cav music gen --service acestep --board` puts the storyboard's shots in the lyrics of an
+  instrumental, as one tag per shot (for example `[build - cards slide in]`). Before, the
+  shots went into the prompt as a timeline. On a real ACE-Step 1.5 server, no take with
+  the timeline changed at the first cut, and every take with the tags changed near it.
+  Songs with `--lyrics` are not changed.
+- `cav gen image --service comfyui` says why ComfyUI refused a workflow, for example
+  "node 4 (CheckpointLoaderSimple): ckpt_name: 'x.safetensors' not in [...]". It also says
+  why a queued job failed or was interrupted. Before, it said only "Prompt outputs failed
+  validation", or "finished the workflow without an image output".
+- `cav guide production` has a ComfyUI workflow that works, for a Stable Diffusion 1.5
+  checkpoint. It also says how to keep the ACE-Step model download smaller. Both clients
+  were tested against real servers, and their tests now use the real answers.
 
 ## 1.6.0
 

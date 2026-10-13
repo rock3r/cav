@@ -92,6 +92,9 @@ func TestSoundEffectRequest(t *testing.T) {
 	}
 }
 
+// The acestep_*.json fixtures are real answers from an ACE-Step 1.5 API server (cloned on
+// 2026-10-13, acestep-v15-turbo with the 1.7B LM) to the request this test checks. Only the
+// server's folder in the audio path was replaced with /srv/ace-step.
 func TestACEStepSubmitsQueriesAndDownloads(t *testing.T) {
 	queries := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -99,21 +102,27 @@ func TestACEStepSubmitsQueriesAndDownloads(t *testing.T) {
 		case "/release_task":
 			var body map[string]any
 			json.NewDecoder(r.Body).Decode(&body)
-			if body["bpm"] != float64(112) || body["audio_duration"] != float64(24) || body["thinking"] != true || !strings.Contains(body["prompt"].(string), "s1: open at 0s") {
+			if body["bpm"] != float64(120) || body["audio_duration"] != float64(24) || body["thinking"] != true ||
+				body["prompt"] != "warm synthwave, 120 BPM, instrumental" ||
+				body["lyrics"] != "[intro - logo fades in]\n\n[build - cards slide in, neon]\n\n[drop - big reveal]" {
 				t.Errorf("release_task body: %v", body)
 			}
-			w.Write([]byte(`{"data":{"task_id":"t1","status":"queued"},"code":200,"error":null}`))
+			w.Write(fixture(t, "acestep_release_task.json"))
 		case "/query_result":
-			queries++
-			status, result := 0, ""
-			if queries > 1 {
-				status, result = 1, `[{"file":"/v1/audio?path=%2Ftmp%2Fa.wav","status":1,"dit_model":"acestep-v15-turbo"}]`
+			var body map[string][]string
+			json.NewDecoder(r.Body).Decode(&body)
+			if len(body["task_id_list"]) != 1 || body["task_id_list"][0] != "8a889fe9-5aea-4f27-bb1f-b170abff7511" {
+				t.Errorf("query_result body: %v", body)
 			}
-			b, _ := json.Marshal(map[string]any{"data": []any{map[string]any{"task_id": "t1", "status": status, "result": result}}, "code": 200})
-			w.Write(b)
+			queries++
+			if queries == 1 {
+				w.Write(fixture(t, "acestep_query_running.json"))
+				return
+			}
+			w.Write(fixture(t, "acestep_query_done.json"))
 		case "/v1/audio":
-			if r.URL.Query().Get("path") != "/tmp/a.wav" {
-				t.Errorf("audio path %q", r.URL.Query().Get("path"))
+			if p := r.URL.Query().Get("path"); p != "/srv/ace-step/.cache/acestep/tmp/api_audio/37a6c0c4-c074-05f5-037f-a69bdb2f9a34.wav" {
+				t.Errorf("audio path %q", p)
 			}
 			w.Write([]byte("RIFFwav"))
 		default:
@@ -122,11 +131,20 @@ func TestACEStepSubmitsQueriesAndDownloads(t *testing.T) {
 	}))
 	defer srv.Close()
 	c := &services.Config{Endpoints: map[string]services.Endpoint{"acestep": {BaseURL: srv.URL}}}
-	tr, err := Generate(context.Background(), c, &services.Choice{Service: "acestep"}, Request{Prompt: "warm synthwave, 112 BPM", Seconds: 24,
-		Sections: []Section{{Name: "s1: open", Seconds: 12}, {Name: "s2: drop", Seconds: 12}}})
-	if err != nil || string(tr.Data) != "RIFFwav" || tr.Model != "acestep-v15-turbo" || tr.Ext != ".wav" {
-		t.Fatalf("got %+v, %v", tr, err)
+	tr, err := Generate(context.Background(), c, &services.Choice{Service: "acestep"}, Request{Prompt: "warm synthwave, 120 BPM", Seconds: 24,
+		Sections: []Section{{Name: "intro: logo fades in", Seconds: 8}, {Name: "build: cards slide in", Seconds: 8, Styles: []string{"neon"}}, {Name: "drop: big reveal", Seconds: 8}}})
+	if err != nil || string(tr.Data) != "RIFFwav" || tr.Model != "acestep-v15-turbo" || tr.Ext != ".wav" || queries != 2 {
+		t.Fatalf("got %+v, %v after %d queries", tr, err, queries)
 	}
+}
+
+func fixture(t *testing.T, name string) []byte {
+	t.Helper()
+	b, err := os.ReadFile("testdata/" + name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
 }
 
 // The Lyria fixture follows the Gemini API music guide (read 2026-10-08): audio is the

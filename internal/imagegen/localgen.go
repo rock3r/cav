@@ -3,12 +3,14 @@ package imagegen
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -134,6 +136,12 @@ func comfyui(ctx context.Context, ep services.Endpoint, r Request) (*Image, erro
 		ID string `json:"prompt_id"`
 	}
 	if err := services.Do(ctx, "POST", base+"/prompt", nil, map[string]any{"prompt": workflow, "client_id": "cav"}, &queued); err != nil {
+		var he *services.HTTPError
+		if errors.As(err, &he) {
+			if why := comfyNodeErrors(he.Body); why != "" {
+				return nil, fmt.Errorf("comfyui: the server refused the workflow: %s", why)
+			}
+		}
 		return nil, fmt.Errorf("comfyui: %w", err)
 	}
 	// ComfyUI runs the job on its own queue; ask for its history until the outputs appear.
@@ -146,11 +154,18 @@ func comfyui(ctx context.Context, ep services.Endpoint, r Request) (*Image, erro
 					Type      string `json:"type"`
 				} `json:"images"`
 			} `json:"outputs"`
+			Status struct {
+				Str      string            `json:"status_str"`
+				Messages []json.RawMessage `json:"messages"`
+			} `json:"status"`
 		}
 		if err := services.Do(ctx, "GET", base+"/history/"+queued.ID, nil, nil, &hist); err != nil {
 			return nil, fmt.Errorf("comfyui: %w", err)
 		}
 		if job, ok := hist[queued.ID]; ok {
+			if job.Status.Str == "error" {
+				return nil, fmt.Errorf("comfyui: the workflow failed: %s", comfyFailure(job.Status.Messages))
+			}
 			for _, out := range job.Outputs {
 				for _, im := range out.Images {
 					q := url.Values{"filename": {im.Filename}, "subfolder": {im.Subfolder}, "type": {im.Type}}
@@ -172,4 +187,69 @@ func comfyui(ctx context.Context, ep services.Endpoint, r Request) (*Image, erro
 		case <-time.After(time.Second):
 		}
 	}
+}
+
+// comfyNodeErrors turns the node_errors of a refused /prompt into one line, for example
+// "node 4 (CheckpointLoaderSimple): ckpt_name: 'x.safetensors' not in [...]". It returns ""
+// when the body has none.
+func comfyNodeErrors(body string) string {
+	var v struct {
+		NodeErrors map[string]struct {
+			ClassType string `json:"class_type"`
+			Errors    []struct {
+				Message string `json:"message"`
+				Details string `json:"details"`
+			} `json:"errors"`
+		} `json:"node_errors"`
+	}
+	if json.Unmarshal([]byte(body), &v) != nil {
+		return ""
+	}
+	ids := make([]string, 0, len(v.NodeErrors))
+	for id := range v.NodeErrors {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	var parts []string
+	for _, id := range ids {
+		n := v.NodeErrors[id]
+		for _, e := range n.Errors {
+			msg := e.Details
+			if msg == "" {
+				msg = e.Message
+			}
+			parts = append(parts, fmt.Sprintf("node %s (%s): %s", id, n.ClassType, msg))
+		}
+	}
+	s := strings.Join(parts, "; ")
+	if len(s) > 500 {
+		s = s[:500] + "…"
+	}
+	return s
+}
+
+// comfyFailure finds why a job failed in the status messages of its /history entry. Each
+// message is a [kind, data] pair.
+func comfyFailure(messages []json.RawMessage) string {
+	for _, raw := range messages {
+		var m []json.RawMessage
+		if json.Unmarshal(raw, &m) != nil || len(m) != 2 {
+			continue
+		}
+		var kind string
+		var data struct {
+			NodeID  string `json:"node_id"`
+			Type    string `json:"node_type"`
+			Message string `json:"exception_message"`
+		}
+		json.Unmarshal(m[0], &kind)
+		json.Unmarshal(m[1], &data)
+		switch kind {
+		case "execution_error":
+			return fmt.Sprintf("node %s (%s): %s", data.NodeID, data.Type, strings.TrimSpace(data.Message))
+		case "execution_interrupted":
+			return fmt.Sprintf("it was interrupted at node %s (%s)", data.NodeID, data.Type)
+		}
+	}
+	return "no reason given; see the ComfyUI server log"
 }

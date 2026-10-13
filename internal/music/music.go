@@ -365,7 +365,18 @@ func acestep(ctx context.Context, c *services.Config, key string, r Request) (*T
 		model = ep.Model
 	}
 	prompt := r.Prompt
-	if len(r.Sections) > 0 {
+	lyrics := strings.TrimSpace(r.Lyrics)
+	switch {
+	case lyrics == "" && len(r.Sections) > 0:
+		// An instrumental's sections go in the lyrics as structure tags, as the ACE-Step
+		// tutorial says. Tested on a real server on 2026-10-13: with the tags, 3 of 3 takes
+		// changed near the first cut; with a timeline in the prompt, 0 of 3 did.
+		prompt += ", instrumental"
+		lyrics = acestepTags(r.Sections)
+	case lyrics == "":
+		prompt, lyrics = prompt+", instrumental", "[Instrumental]"
+	case len(r.Sections) > 0:
+		// Sung lyrics carry their own tags; the sections only give the timing.
 		var parts []string
 		at := 0.0
 		for _, s := range r.Sections {
@@ -373,10 +384,6 @@ func acestep(ctx context.Context, c *services.Config, key string, r Request) (*T
 			at += s.Seconds
 		}
 		prompt += ". Structure: " + strings.Join(parts, "; ")
-	}
-	lyrics := strings.TrimSpace(r.Lyrics)
-	if lyrics == "" {
-		prompt, lyrics = prompt+", instrumental", "[Instrumental]"
 	}
 	body := map[string]any{"prompt": prompt, "lyrics": lyrics, "audio_format": "wav",
 		"audio_duration": math.Max(10, math.Min(600, r.Seconds)), "batch_size": 1, "thinking": true}
@@ -476,6 +483,28 @@ func acestep(ctx context.Context, c *services.Config, key string, r Request) (*T
 		case <-time.After(2 * time.Second):
 		}
 	}
+}
+
+// acestepTags writes one structure tag per section, such as "[intro - logo fades in]",
+// within ACE-Step's 4096-character lyrics limit.
+func acestepTags(sections []Section) string {
+	clean := strings.NewReplacer("[", "(", "]", ")", "\n", " ")
+	var b strings.Builder
+	for _, s := range sections {
+		tag := clean.Replace(strings.Replace(s.Name, ": ", " - ", 1))
+		if len(s.Styles) > 0 {
+			tag += ", " + clean.Replace(strings.Join(s.Styles, ", "))
+		}
+		tag = "[" + tag + "]"
+		if b.Len() > 0 {
+			tag = "\n\n" + tag
+		}
+		if b.Len()+len(tag) > 4096 {
+			break
+		}
+		b.WriteString(tag)
+	}
+	return b.String()
 }
 
 // bpmIn finds "<n> BPM" in a prompt (cav music gen --board adds it).

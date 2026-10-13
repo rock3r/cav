@@ -178,6 +178,61 @@ func TestGreyboxCard(t *testing.T) {
 	}
 }
 
+// The comfyui_*.json fixtures are real answers from ComfyUI 0.39.0 (commit 8010b48) running
+// comfyui_sd15_workflow.json, the sample workflow in cav guide production, on 2026-10-13.
+const comfyID = "d86e5d8c-e3c5-419c-b328-e9fca3048d2f"
+
+func comfyConfig(t *testing.T) *services.Config {
+	wf, err := filepath.Abs("testdata/comfyui_sd15_workflow.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &services.Config{Endpoints: map[string]services.Endpoint{"comfyui": {BaseURL: "http://127.0.0.1:8188", Model: wf}}}
+}
+
+func TestComfyUIShowsWhyTheServerRefusedTheWorkflow(t *testing.T) {
+	serve(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write(fixture(t, "comfyui_prompt_invalid.json"))
+	})
+	_, err := Generate(context.Background(), comfyConfig(t), &services.Choice{Service: "comfyui"}, Request{Prompt: "fox"})
+	if err == nil || !strings.Contains(err.Error(), "node 4 (CheckpointLoaderSimple): ckpt_name: 'missing.safetensors' not in") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestComfyUISaysWhyTheJobFailed(t *testing.T) {
+	const id = "746d83e3-9863-4204-9d38-f7b05c00653a"
+	serve(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/prompt":
+			w.Write([]byte(`{"prompt_id": "` + id + `", "number": 3, "node_errors": {}}`))
+		case "/history/" + id:
+			w.Write(fixture(t, "comfyui_history_interrupted.json"))
+		default:
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+		}
+	})
+	_, err := Generate(context.Background(), comfyConfig(t), &services.Choice{Service: "comfyui"}, Request{Prompt: "fox"})
+	if err == nil || !strings.Contains(err.Error(), "interrupted at node 3 (KSampler)") {
+		t.Fatalf("got %v", err)
+	}
+	if got := comfyFailure([]json.RawMessage{json.RawMessage(`["execution_error", {"node_id": "8", "node_type": "VAEDecode", "exception_message": "out of memory\n"}]`)}); got != "node 8 (VAEDecode): out of memory" {
+		t.Fatalf("execution_error: %q", got)
+	}
+}
+
+// The sample workflow in cav guide production must stay the one the fixtures came from.
+func TestGuideHasTheComfyUISampleWorkflow(t *testing.T) {
+	guide, err := os.ReadFile("../../assets/guide/production.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(guide), strings.TrimSpace(string(fixture(t, "comfyui_sd15_workflow.json")))) {
+		t.Fatal("cav guide production does not hold testdata/comfyui_sd15_workflow.json")
+	}
+}
+
 func TestComfyUIQueuesFillsAndFetches(t *testing.T) {
 	png := tinyPNG()
 	var queued map[string]any
@@ -186,26 +241,23 @@ func TestComfyUIQueuesFillsAndFetches(t *testing.T) {
 		switch {
 		case r.Method == "POST" && r.URL.Path == "/prompt":
 			json.NewDecoder(r.Body).Decode(&queued)
-			w.Write([]byte(`{"prompt_id":"p1"}`))
-		case r.URL.Path == "/history/p1":
+			w.Write(fixture(t, "comfyui_prompt.json"))
+		case r.URL.Path == "/history/"+comfyID:
 			polls++
 			if polls < 2 {
-				w.Write([]byte(`{}`)) // still running
+				w.Write([]byte(`{}`)) // still running: the real server answers {}
 				return
 			}
-			w.Write([]byte(`{"p1":{"outputs":{"9":{"images":[{"filename":"cav_0001.png","subfolder":"","type":"output"}]}}}}`))
-		case r.URL.Path == "/view" && r.URL.Query().Get("filename") == "cav_0001.png":
+			w.Write(fixture(t, "comfyui_history_success.json"))
+		case r.URL.Path == "/view" && r.URL.Query().Get("filename") == "cav_00002_.png" && r.URL.Query().Get("type") == "output":
 			w.Header().Set("Content-Type", "image/png")
 			w.Write(png)
 		default:
 			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
 		}
 	})
-	wf := filepath.Join(t.TempDir(), "wf.json")
-	os.WriteFile(wf, []byte(`{"3":{"class_type":"KSampler","inputs":{"seed":"{{seed}}"}},"6":{"class_type":"CLIPTextEncode","inputs":{"text":"{{prompt}}"}},"5":{"class_type":"EmptyLatentImage","inputs":{"width":"{{width}}","height":"{{height}}"}}}`), 0o644)
-	c := &services.Config{Endpoints: map[string]services.Endpoint{"comfyui": {BaseURL: "http://127.0.0.1:8188", Model: wf}}}
-	im, err := Generate(context.Background(), c, &services.Choice{Service: "comfyui"}, Request{Prompt: `a "quoted" fox`, Aspect: "1:1"})
-	if err != nil || !bytes.Equal(im.Data, png) || im.Model != "wf.json" {
+	im, err := Generate(context.Background(), comfyConfig(t), &services.Choice{Service: "comfyui"}, Request{Prompt: `a "quoted" fox`, Aspect: "1:1"})
+	if err != nil || !bytes.Equal(im.Data, png) || im.Model != "comfyui_sd15_workflow.json" {
 		t.Fatalf("got %+v, %v", im, err)
 	}
 	nodes := queued["prompt"].(map[string]any)
@@ -214,6 +266,9 @@ func TestComfyUIQueuesFillsAndFetches(t *testing.T) {
 	}
 	if nodes["5"].(map[string]any)["inputs"].(map[string]any)["width"].(float64) != 1024 {
 		t.Fatalf("width not filled as a number: %v", nodes["5"])
+	}
+	if _, ok := nodes["3"].(map[string]any)["inputs"].(map[string]any)["seed"].(float64); !ok {
+		t.Fatalf("seed not filled as a number: %v", nodes["3"])
 	}
 }
 
