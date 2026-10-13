@@ -249,9 +249,11 @@ covered+="review "
 port=$((20000 + RANDOM % 20000))
 "$cav" review renders/smoke.mp4 --port "$port" >"$logs/review-serve.log" 2>&1 &
 review_pid=$!
+# review moves to the next free port when this one is taken: read the URL it prints.
 up=
 for ((i = 0; i < 60; i++)); do
-	if curl -fsS "http://127.0.0.1:$port/api/state" -o review-state.json 2>/dev/null; then up=1; break; fi
+	url="$(sed -n 's/^review: \(http:[^ ]*\)$/\1/p' "$logs/review-serve.log" | head -1)"
+	if [[ -n "$url" ]] && curl -fsS "${url}api/state" -o review-state.json 2>/dev/null; then up=1; break; fi
 	sleep 1
 done
 kill "$review_pid" 2>/dev/null; wait "$review_pid" 2>/dev/null
@@ -327,7 +329,13 @@ fi
 
 # --- Coverage -----------------------------------------------------------------------
 missing=()
-for c in $("$cav" help | awk '/^Commands:/{on=1; next} on && /^  [a-z]/{print $1} on && /^$/{exit}'); do
+commands="$("$cav" help | awk '/^Commands:/{on=1; next} on && /^  [a-z]/{print $1} on && /^$/{exit}')"
+if (($(wc -w <<<"$commands") < 30)); then
+	echo
+	echo "FAIL  could not read the command list from cav help, so coverage is unknown"
+	fail=$((fail + 1))
+fi
+for c in $commands; do
 	[[ "$covered" == *" $c "* ]] || missing+=("$c")
 done
 echo
