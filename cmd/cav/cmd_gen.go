@@ -116,7 +116,7 @@ func genImage(a *app, args []string) error {
 	case "rembg":
 		// rembg only cuts out: the image service makes the image, then rembg removes its
 		// background.
-		im, err = generateThenCutout(ctx, c, ch, imagegen.Request{Prompt: prompt, Refs: refs, Aspect: *aspect, Model: *model})
+		im, err = generateThenCutout(ctx, pickConfig, ch, imagegen.Request{Prompt: prompt, Refs: refs, Aspect: *aspect, Model: *model})
 		if err != nil {
 			return err
 		}
