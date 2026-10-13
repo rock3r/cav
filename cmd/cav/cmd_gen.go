@@ -124,7 +124,10 @@ func genImage(a *app, args []string) error {
 			if p == "" {
 				p = filepath.Join("assets", safeSlug(prompt)+".png")
 			}
-			p = freePath(strings.TrimSuffix(p, filepath.Ext(p))+"-uncut", gen.Ext())
+			p, err := freePath(strings.TrimSuffix(p, filepath.Ext(p))+"-uncut", gen.Ext())
+			if err != nil {
+				return "", err
+			}
 			return p, saveGenerated(a, p, gen, prompt, refs, skipped)
 		}
 		im, err = generateThenCutout(ctx, pickConfig, ch, imagegen.Request{Prompt: prompt, Refs: refs, Aspect: *aspect, Model: *model}, keep)
@@ -216,7 +219,7 @@ func generateThenCutout(ctx context.Context, c *services.Config, ch *services.Ch
 		if kerr != nil {
 			return nil, fail(exitError, err.Error()+" (saving the generated image also failed: "+kerr.Error()+")", "")
 		}
-		return nil, fail(exitError, err.Error()+" (the generated image is kept at "+kept+")", "cut it out again: cav gen cutout "+kept+" -o <file.png>")
+		return nil, fail(exitError, err.Error()+" (the generated image is kept at "+kept+")", "cut it out again: cav gen cutout "+shellArg(kept)+" -o <file.png>")
 	}
 	cut.Provider = im.Provider + " + " + cut.Provider
 	cut.Model = im.Model + " + " + cut.Model
@@ -273,7 +276,10 @@ func genCutout(a *app, args []string) error {
 	if path == "" {
 		path = strings.TrimSuffix(pos[0], filepath.Ext(pos[0])) + "-cutout.png"
 	}
-	// Make the output folder before the cutout runs, so a bad -o cannot waste a paid call.
+	// Check the output before the cutout runs, so a bad -o cannot waste a paid call.
+	if fi, err := os.Stat(path); err == nil && fi.IsDir() {
+		return fail(exitError, path+" is a folder", "give a file name: -o "+filepath.Join(path, "cutout.png"))
+	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return fail(exitError, err.Error(), "")
 	}
@@ -286,11 +292,15 @@ func genCutout(a *app, args []string) error {
 
 // freePath returns base+ext, or base-2+ext, base-3+ext and so on, whichever file does
 // not exist yet, so a kept image never replaces another file.
-func freePath(base, ext string) string {
+func freePath(base, ext string) (string, error) {
 	p := base + ext
 	for n := 2; ; n++ {
-		if _, err := os.Lstat(p); errors.Is(err, os.ErrNotExist) {
-			return p
+		_, err := os.Lstat(p)
+		if errors.Is(err, os.ErrNotExist) {
+			return p, nil
+		}
+		if err != nil {
+			return "", err
 		}
 		p = fmt.Sprintf("%s-%d%s", base, n, ext)
 	}

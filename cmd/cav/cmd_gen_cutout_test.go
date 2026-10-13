@@ -228,7 +228,7 @@ func TestGenImageAlphaKeepsAndRecordsTheImageWhenTheCutoutFails(t *testing.T) {
 	os.WriteFile("fox-uncut.png", []byte("mine"), 0o644)
 	err := cmdGen(&app{}, []string{"image", "a fox", "--alpha", "-o", "fox.png"})
 	var ce *cliError
-	if !errors.As(err, &ce) || !strings.Contains(ce.msg, "kept at fox-uncut-2.png") || !strings.Contains(ce.hint, "cav gen cutout fox-uncut-2.png") {
+	if !errors.As(err, &ce) || !strings.Contains(ce.msg, "kept at fox-uncut-2.png") || !strings.Contains(ce.hint, "cav gen cutout 'fox-uncut-2.png'") {
 		t.Fatalf("got %v", err)
 	}
 	if b, _ := os.ReadFile("fox-uncut.png"); string(b) != "mine" {
@@ -240,5 +240,38 @@ func TestGenImageAlphaKeepsAndRecordsTheImageWhenTheCutoutFails(t *testing.T) {
 	}
 	if e := entryFor(m, "fox-uncut-2.png"); e == nil || e.Generated == nil || e.Generated.Provider != "comfyui" {
 		t.Fatalf("kept image entry %+v", e)
+	}
+}
+
+// cav gen cutout refuses a folder as -o before it runs a service.
+func TestGenCutoutRefusesAFolderOutput(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake uv is a shell script")
+	}
+	t.Setenv("CAV_HOME", t.TempDir())
+	t.Setenv("CAV_NO_KEYS", "1")
+	fakeUVOnPath(t, "#!/bin/sh\necho ran > \"$CAV_HOME/ran\"\nexit 1\n")
+	t.Chdir(t.TempDir())
+	os.WriteFile("in.png", []byte("\x89PNG\r\n\x1a\nfake"), 0o644)
+	os.Mkdir("assets", 0o755)
+	err := cmdGen(&app{}, []string{"cutout", "in.png", "--service", "rembg", "-o", "assets"})
+	var ce *cliError
+	if !errors.As(err, &ce) || !strings.Contains(ce.msg, "is a folder") {
+		t.Fatalf("got %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(os.Getenv("CAV_HOME"), "ran")); err == nil {
+		t.Fatal("the cutout service ran before the output was checked")
+	}
+}
+
+func TestFreePathReportsErrors(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("permissions")
+	}
+	dir := filepath.Join(t.TempDir(), "locked")
+	os.Mkdir(dir, 0o000)
+	t.Cleanup(func() { os.Chmod(dir, 0o755) })
+	if _, err := freePath(filepath.Join(dir, "fox-uncut"), ".png"); err == nil && os.Geteuid() != 0 {
+		t.Fatal("no error for a folder cav cannot search")
 	}
 }
