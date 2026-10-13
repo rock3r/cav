@@ -1,8 +1,10 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -108,7 +110,8 @@ func TestProbeReportsRefusedKeyWithoutLeakingIt(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("X-Original-Host") == "api.openai.com" {
 			w.WriteHeader(401)
-			w.Write([]byte(`{"error":{"message":"Incorrect API key provided: sk-test-0123456789"}}`))
+			// OpenAI echoes a masked key, not the exact one (real answer, #11).
+			w.Write([]byte(`{"error":{"message":"Incorrect API key provided: sk-test*****6789. You can find your API key at https://platform.openai.com/account/api-keys."}}`))
 			return
 		}
 		w.Write([]byte(`{"result_count": 7}`))
@@ -124,7 +127,7 @@ func TestProbeReportsRefusedKeyWithoutLeakingIt(t *testing.T) {
 	if st.State != "fail" || !strings.Contains(st.Detail, "refused") || st.Fix == "" {
 		t.Fatalf("openai: %+v", st)
 	}
-	if strings.Contains(st.Detail, "sk-test-0123456789") {
+	if strings.Contains(st.Detail, "sk-") || strings.Contains(st.Detail, "6789") {
 		t.Fatalf("key leaked into the report: %s", st.Detail)
 	}
 	st = Probe(context.Background(), &Config{}, "openverse")
@@ -313,6 +316,32 @@ func TestChecksReadRealAnswers(t *testing.T) {
 		}
 		if strings.Contains(st.Detail, "KEY-") || strings.Contains(st.Detail, "REMOVED") {
 			t.Errorf("%s printed account data: %s", service, st.Detail)
+		}
+	}
+}
+
+// The bytes decide a file part's type; the name only helps when they are not recognised.
+func TestFormFileTrustsTheBytes(t *testing.T) {
+	jpeg := []byte("\xff\xd8\xff\xe0\x00\x10JFIF\x00")
+	for _, c := range []struct {
+		name string
+		data []byte
+		want string
+	}{
+		{"old-gemini.png", jpeg, "image/jpeg"},
+		{"ref.mp3", []byte{0x00, 0x01, 0x02}, "audio/mpeg"},
+	} {
+		var buf bytes.Buffer
+		w := multipart.NewWriter(&buf)
+		FormFile(w, "image[]", c.name, c.data)
+		w.Close()
+		r := multipart.NewReader(&buf, w.Boundary())
+		p, err := r.NextPart()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := p.Header.Get("Content-Type"); got != c.want {
+			t.Errorf("%s: got %s, want %s", c.name, got, c.want)
 		}
 	}
 }

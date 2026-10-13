@@ -150,13 +150,16 @@ func hostOf(u string) string {
 	return u
 }
 
-// FormFile adds a file part with a real Content-Type, from the name's extension or the
-// bytes. multipart.Writer.CreateFormFile always says application/octet-stream, which
-// some services (OpenAI image edits) refuse.
+// FormFile adds a file part with a real Content-Type, from the bytes or, when they are not
+// recognised, the name's extension. multipart.Writer.CreateFormFile always says
+// application/octet-stream, which some services (OpenAI image edits) refuse.
 func FormFile(w *multipart.Writer, field, name string, data []byte) (io.Writer, error) {
-	ctype := mime.TypeByExtension(strings.ToLower(filepath.Ext(name)))
-	if ctype == "" || ctype == "application/octet-stream" {
-		ctype = http.DetectContentType(data)
+	// The bytes win over the name: an older cav saved Gemini's JPEG under a .png name.
+	ctype := http.DetectContentType(data)
+	if ctype == "application/octet-stream" || strings.HasPrefix(ctype, "text/plain") {
+		if byExt := mime.TypeByExtension(strings.ToLower(filepath.Ext(name))); byExt != "" {
+			ctype = byExt
+		}
 	}
 	h := make(textproto.MIMEHeader)
 	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`,

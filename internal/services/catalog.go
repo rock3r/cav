@@ -505,7 +505,7 @@ func Probe(ctx context.Context, c *Config, name string) Status {
 		var he *HTTPError
 		switch {
 		case errors.As(err, &he) && he.KeyRefused() && d.Kind == KindKey:
-			st.Detail = redact(fmt.Sprintf("the key was refused (HTTP %d): %s", he.Status, bodyMessage(he.Body)), key)
+			st.Detail = redact(fmt.Sprintf("the key was refused (HTTP %d): %s", he.Status, hideKeys(bodyMessage(he.Body))), key)
 			st.Fix = "check the key, then cav config set-key " + name + " <source>"
 		case strings.Contains(err.Error(), "x509") || strings.Contains(err.Error(), "certificate"):
 			st.Fix = "a sandbox may block certificate checks: run cav outside the sandbox, or allow it to reach " + name
