@@ -377,6 +377,8 @@ var Catalog = map[string]*Def{
 			}
 			return "YuE2-Turbo ready at " + hostOf(ep.BaseURL) + turbo, nil
 		}},
+	"rembg": {Title: "rembg with BiRefNet: cuts the background out of an image, locally through uv (the first run downloads the model, about 1 GB)", Kind: KindLocal,
+		Jobs: []string{"image.alpha"}, Binary: "uv", Signup: "uv: https://docs.astral.sh/uv/"},
 	"vtracer": {Title: "vtracer (trace PNG to SVG, local)", Kind: KindLocal, Jobs: []string{"image.vector"}, Binary: "vtracer",
 		Signup: "cargo install vtracer, or https://github.com/visioncortex/vtracer/releases"},
 	"potrace": {Title: "potrace (trace PNG to SVG in one colour, local)", Kind: KindLocal, Jobs: []string{"image.vector"}, Binary: "potrace",

@@ -76,12 +76,12 @@ jobs:
         run: node --test assets/helpers/test/*.test.js assets/diagnostics/test/*.test.js assets/bridge/test/*.test.js assets/board/test/*.test.js
       - uses: astral-sh/setup-uv@v6
         if: matrix.os == 'ubuntu-latest'
-      - name: Music renderer (Python)
+      - name: Python helpers (music renderer, background removal)
         # The plugin tests need a VST3 instrument (CAV_TEST_VST3), so they skip here.
         if: matrix.os == 'ubuntu-latest'
         run: >-
           uv run --no-project --python 3.12 --with numpy --with pedalboard --with pyloudnorm
-          --with mido --with matchering python -m unittest discover -s assets/python/test
+          --with mido --with matchering --with pillow python -m unittest discover -s assets/python/test
       - name: YuE2 server (Python, fake pipeline)
         if: matrix.os == 'ubuntu-latest'
         run: uv run --no-project --python 3.12 python -m unittest discover -s tools/yue2-server

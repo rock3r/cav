@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -22,7 +24,7 @@ func (s *stringList) Set(v string) error { *s = append(*s, v); return nil }
 func init() {
 	register(command{
 		name:    "gen",
-		args:    "image \"<prompt>\" [-o file] [--ref img]... [--aspect 16:9] [--alpha] [--vector] [--service S] [--model M] | vector <image> [-o file.svg] [--service S]",
+		args:    "image \"<prompt>\" [-o file] [--ref img]... [--aspect 16:9] [--alpha] [--vector] [--service S] [--model M] | vector <image> [-o file.svg] [--service S] | cutout <image> [-o file.png] [--service S]",
 		summary: "Generate a still or an asset (transparent PNG, SVG) with the configured image service.",
 		run:     cmdGen,
 	})
@@ -34,6 +36,11 @@ cav gen image "a paper-cut mountain range at dusk" -o assets/mountains.png
     --ref (repeatable) sends reference images for a consistent look.
 cav gen vector logo.png -o logo.svg
     traces a PNG into an SVG: recraft with a key, otherwise vtracer or potrace if installed.
+cav gen cutout photo.jpg -o fox.png
+    makes the background of an image transparent: recraft with a key, otherwise rembg
+    (BiRefNet, local through uv; the first run downloads the model, about 1 GB).
+    With rembg in the image.alpha order, cav gen image --alpha makes the image with the
+    image service, then cuts it out with rembg.
 Every result is recorded in .cav/manifest.json with the provider, model and prompt.
 Without an image key, cav gen image draws a greybox card with the prompt instead.`
 }
@@ -49,8 +56,10 @@ func cmdGen(a *app, args []string) error {
 		return genImage(a, args)
 	case "vector":
 		return genVector(a, args)
+	case "cutout":
+		return genCutout(a, args)
 	}
-	return usageErr("unknown gen command %q (image, vector)", sub)
+	return usageErr("unknown gen command %q (image, vector, cutout)", sub)
 }
 
 func genImage(a *app, args []string) error {
@@ -105,6 +114,26 @@ func genImage(a *app, args []string) error {
 		im = &imagegen.Image{Data: data, MIME: "image/png", Provider: "greybox"}
 	case "vtracer", "potrace":
 		return fail(exitError, ch.Service+" traces images but cannot make one from words", "make a PNG first, then: cav gen vector <png>")
+	case "rembg":
+		// rembg only cuts out: the image service makes the image, then rembg removes its
+		// background.
+		// If the cutout fails, keep the paid image next to the output and record it in
+		// the manifest, so cav gen cutout on it keeps its generated provenance.
+		keep := func(gen *imagegen.Image, skipped []string) (string, error) {
+			p := *out
+			if p == "" {
+				p = filepath.Join("assets", safeSlug(prompt)+".png")
+			}
+			p, err := freePath(strings.TrimSuffix(p, filepath.Ext(p))+"-uncut", gen.Ext())
+			if err != nil {
+				return "", err
+			}
+			return p, saveGenerated(a, p, gen, prompt, refs, skipped)
+		}
+		im, err = generateThenCutout(ctx, pickConfig, ch, imagegen.Request{Prompt: prompt, Refs: refs, Aspect: *aspect, Model: *model}, keep)
+		if err != nil {
+			return err
+		}
 	default:
 		im, err = imagegen.Generate(ctx, c, ch, imagegen.Request{Prompt: prompt, Refs: refs, Aspect: *aspect, Alpha: *alpha, Vector: *vector, Model: *model})
 		if err != nil {
@@ -153,7 +182,171 @@ func genVector(a *app, args []string) error {
 	return saveGenerated(a, path, im, "vectorized "+pos[0], []string{pos[0]}, ch.Skipped)
 }
 
+// generateThenCutout makes an image with the first usable image service, then runs the
+// cutout service ch on it. When the cutout fails, keep saves the generated image and
+// returns its path, so a retry does not pay for the image again.
+func generateThenCutout(ctx context.Context, c *services.Config, ch *services.Choice, r imagegen.Request,
+	keep func(*imagegen.Image, []string) (string, error)) (*imagegen.Image, error) {
+	gen, err := services.Pick(ctx, c, "image", "")
+	if err != nil {
+		return nil, fail(exitError, err.Error(), "see cav config")
+	}
+	if gen.Service == "greybox" {
+		return nil, fail(exitError, ch.Service+" cuts the background out of a generated image, but no image service can make one (only greybox is usable)",
+			"add an image key (cav config), or cut out an image you have: cav gen cutout <image>")
+	}
+	ch.Skipped = append(ch.Skipped, gen.Skipped...)
+	// Make the folder for the generated image before the image service runs, so a
+	// failure here cannot waste a paid call.
+	tmp, err := os.MkdirTemp("", "cav-gen")
+	if err != nil {
+		return nil, err
+	}
+	im, err := imagegen.Generate(ctx, c, gen, r)
+	if err != nil {
+		os.RemoveAll(tmp)
+		return nil, fail(exitError, err.Error(), "")
+	}
+	in := filepath.Join(tmp, "image"+im.Ext())
+	if err := os.WriteFile(in, im.Data, 0o644); err != nil {
+		os.RemoveAll(tmp)
+		if kept, kerr := keep(im, gen.Skipped); kerr == nil {
+			return nil, fail(exitError, err.Error()+" (the generated image is kept at "+kept+")", "cut it out: cav gen cutout "+shellArg(kept)+" -o <file.png>")
+		}
+		return nil, err
+	}
+	cut, err := imagegen.RemoveBackground(ctx, ch, in)
+	os.RemoveAll(tmp)
+	if err != nil {
+		kept, kerr := keep(im, gen.Skipped)
+		if kerr != nil {
+			return nil, fail(exitError, err.Error()+" (saving the generated image also failed: "+kerr.Error()+")", "")
+		}
+		return nil, fail(exitError, err.Error()+" (the generated image is kept at "+kept+")", "cut it out again: cav gen cutout "+shellArg(kept)+" -o <file.png>")
+	}
+	cut.Provider = im.Provider + " + " + cut.Provider
+	cut.Model = im.Model + " + " + cut.Model
+	return cut, nil
+}
+
+func genCutout(a *app, args []string) error {
+	fs := flag.NewFlagSet("gen cutout", flag.ContinueOnError)
+	out := fs.String("o", "", "output PNG (default: <input>-cutout.png next to the input)")
+	service := fs.String("service", "", "recraft or rembg")
+	pos, err := parseFlags(fs, args)
+	if err != nil {
+		return err
+	}
+	if len(pos) != 1 {
+		return usageErr("usage: cav gen cutout <image> [-o file.png]")
+	}
+	// Check the input before Pick reads a key, which can ask 1Password.
+	if _, err := os.Stat(pos[0]); err != nil {
+		return fail(exitError, err.Error(), "")
+	}
+	path := *out
+	if path == "" {
+		path = strings.TrimSuffix(pos[0], filepath.Ext(pos[0])) + "-cutout.png"
+	}
+	// Check the output before Pick reads a key (which can ask 1Password) and before the
+	// cutout runs, so a bad -o cannot waste a paid call.
+	if fi, err := os.Stat(path); strings.HasSuffix(path, "/") || strings.HasSuffix(path, string(filepath.Separator)) || err == nil && fi.IsDir() {
+		return fail(exitError, path+" is a folder", "give a file name: -o "+filepath.Join(path, "cutout.png"))
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fail(exitError, err.Error(), "")
+	}
+	c, err := services.Load()
+	if err != nil {
+		return err
+	}
+	// Only the services that cut out an existing image, in the image.alpha order.
+	cc := *c
+	cc.Order = map[string][]string{}
+	for _, s := range c.OrderFor("image.alpha") {
+		if slices.Contains(imagegen.CutoutServices, s) {
+			cc.Order["image.alpha"] = append(cc.Order["image.alpha"], s)
+		}
+	}
+	if len(cc.Order["image.alpha"]) == 0 && *service == "" {
+		return fail(exitError, "the image.alpha order has no service that cuts out an image (recraft, rembg)",
+			"name one with --service rembg, or add it: cav config order image.alpha "+strings.Join(slices.Concat(c.OrderFor("image.alpha"), []string{"rembg"}), ","))
+	}
+	// Refuse a known service that cannot cut out before Pick reads its key, so a key in
+	// 1Password is never asked for.
+	if d, ok := services.Catalog[*service]; ok && slices.Contains(d.Jobs, "image.alpha") && !slices.Contains(imagegen.CutoutServices, *service) {
+		return fail(exitError, *service+" makes transparent images only while it generates them", "use --service rembg or --service recraft")
+	}
+	// The first run downloads the rembg model (about 1 GB).
+	ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
+	defer cancel()
+	ch, err := services.Pick(ctx, &cc, "image.alpha", *service)
+	if err != nil {
+		return fail(exitError, err.Error(), "install uv (https://docs.astral.sh/uv/) for rembg, or add a Recraft key")
+	}
+	if !slices.Contains(imagegen.CutoutServices, ch.Service) {
+		return fail(exitError, ch.Service+" makes transparent images only while it generates them", "use --service rembg or --service recraft")
+	}
+	im, err := imagegen.RemoveBackground(ctx, ch, pos[0])
+	if err != nil {
+		return fail(exitError, err.Error(), "")
+	}
+	return saveAsset(a, path, im, "cut out "+pos[0], []string{pos[0]}, ch.Skipped, pos[0])
+}
+
+// freePath returns base+ext, or base-2+ext, base-3+ext and so on, whichever file does
+// not exist yet, so a kept image never replaces another file.
+func freePath(base, ext string) (string, error) {
+	p := base + ext
+	for n := 2; ; n++ {
+		_, err := os.Lstat(p)
+		if errors.Is(err, os.ErrNotExist) {
+			return p, nil
+		}
+		if err != nil {
+			return "", err
+		}
+		p = fmt.Sprintf("%s-%d%s", base, n, ext)
+	}
+}
+
 func saveGenerated(a *app, path string, im *imagegen.Image, prompt string, refs []string, skipped []string) error {
+	return saveAsset(a, path, im, prompt, refs, skipped, "")
+}
+
+// cutoutTerms gives a cutout the licence of the image it was cut from, because a cutout is
+// a changed version of that image. An image that the manifest does not list gets an unknown
+// licence, so cav credits check asks about it.
+func cutoutTerms(m *library.Manifest, root, from string, e library.Entry) library.Entry {
+	rel := library.Rel(root, from)
+	for _, src := range m.Assets {
+		if src.Path != rel {
+			continue
+		}
+		if src.Generated != nil {
+			e.Licence, e.LicenceNote, e.CommercialOK = src.Licence, src.LicenceNote, src.CommercialOK
+			return e
+		}
+		// A licensed image: the cutout carries its terms and credit. It is not recorded as
+		// generated, because cav credits check skips generated assets.
+		e.Generated = nil
+		e.Title, e.Source, e.SourceID, e.URL = src.Title, src.Source, src.SourceID, src.URL
+		e.Licence, e.LicenceURL, e.LicenceNote = src.Licence, src.LicenceURL, src.LicenceNote
+		e.Author, e.AuthorURL, e.Attribution, e.AttributionRequired = src.Author, src.AuthorURL, src.Attribution, src.AttributionRequired
+		e.CommercialOK, e.ShareAlike, e.NoDerivatives = src.CommercialOK, src.ShareAlike, src.NoDerivatives
+		if src.Licence == "reference-only" {
+			// credits check skips mood-board references, but a cutout is meant for the piece.
+			e.Licence, e.CommercialOK = "unknown", false
+		}
+		return e
+	}
+	e.Licence, e.CommercialOK = "unknown", false
+	return e
+}
+
+// saveAsset writes the image and records it in the manifest. from is the image a cutout
+// was made from, or "" for an image made from words.
+func saveAsset(a *app, path string, im *imagegen.Image, prompt string, refs []string, skipped []string, from string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
@@ -170,8 +363,12 @@ func saveGenerated(a *app, path string, im *imagegen.Image, prompt string, refs 
 	if strings.Contains(im.MIME, "svg") {
 		kind = "svg"
 	}
-	e := m.Put(root, library.Entry{Path: path, Kind: kind, Source: im.Provider, Licence: "generated", CommercialOK: true,
-		RetrievedAt: time.Now().UTC(), SHA256: sum, Generated: &library.Generated{Provider: im.Provider, Model: im.Model, Prompt: prompt, Refs: refs}})
+	e := library.Entry{Path: path, Kind: kind, Source: im.Provider, Licence: "generated", CommercialOK: true,
+		RetrievedAt: time.Now().UTC(), SHA256: sum, Generated: &library.Generated{Provider: im.Provider, Model: im.Model, Prompt: prompt, Refs: refs}}
+	if from != "" {
+		e = cutoutTerms(m, root, from, e)
+	}
+	e = m.Put(root, e)
 	if err := m.Save(root); err != nil {
 		return err
 	}

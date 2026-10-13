@@ -62,7 +62,7 @@ var JobHelp = map[string]string{
 // downloaded (cav gen image --service mflux, once).
 var DefaultOrder = map[string][]string{
 	"image":        {"gemini", "openai", "openrouter", "fal", "mflux", "comfyui", "greybox"},
-	"image.alpha":  {"openai", "recraft"},
+	"image.alpha":  {"openai", "recraft", "rembg"},
 	"image.vector": {"recraft", "vtracer", "potrace"},
 	"video":        {"veo"},
 	"music":        {"elevenlabs", "stability", "lyria", "acestep", "yue2"},

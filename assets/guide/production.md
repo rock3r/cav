@@ -24,6 +24,10 @@ through uv on Apple silicon, in about 20 s per 16:9 still. Its first run downloa
 cache: after the keyed services, before comfyui and greybox. Run
 `cav gen image "<prompt>" --service mflux` once to download it (ask the user first).
 With `--ref`, mflux edits from all the reference images.
+rembg cuts the background out of an image with BiRefNet (`birefnet-general`), on any
+platform with uv. Its first run downloads the model, about 1 GB, into `~/.rembg`. It is
+last in the `image.alpha` order: OpenAI and Recraft make the transparency while they
+generate, which keeps soft edges and shadows, and they need no second step.
 ComfyUI, ACE-Step and YuE2 are servers the user runs:
 `cav config endpoint comfyui http://127.0.0.1:8188 <workflow-api.json>` (the workflow holds
 `{{prompt}}`, `"{{width}}"`, `"{{height}}"` and `"{{seed}}"`), and
@@ -77,7 +81,7 @@ key into the chat: ask them to run `cav config set-key` themselves.
 | Job | Free | With a key |
 |---|---|---|
 | `image` (frames, stills) | greybox cards; mflux (Apple silicon), comfyui (your server) | gemini, openai, openrouter, fal |
-| `image.alpha` (transparent PNG) | none | openai, recraft |
+| `image.alpha` (transparent PNG) | rembg (through uv): cuts out an image that an `image` service made | openai, recraft |
 | `image.vector` (SVG) | vtracer, potrace (if installed) | recraft |
 | `video` (moving animatic shots) | none (the animatic holds each frame) | veo |
 | `ref` (reference images) | openverse, wikimedia | pexels, unsplash |
@@ -149,7 +153,16 @@ cav gen image "paper-cut mountains at dusk" -o assets/mountains.png
 cav gen image "flat logo mark, a fox head" --alpha -o assets/fox.png     # transparent
 cav gen image "line icon of a rocket" --vector -o assets/rocket.svg       # SVG
 cav gen vector assets/fox.png -o assets/fox.svg                          # trace a PNG
+cav gen cutout photo.png -o assets/fox.png                               # remove a background
 ```
+
+`--alpha` with rembg works in two steps: the first usable `image` service (for example
+Gemini, or mflux once its model is downloaded) makes the image, then rembg cuts it out on
+this machine. Ask for a plain, even background in the prompt; the cutout is cleaner. When
+only greybox can make an image, there is nothing to cut out, so cav says so. `cav gen cutout` works on any image you have, with
+rembg or Recraft (OpenAI cannot cut out an image it did not make). A cutout keeps the
+licence and credit of the image it came from. An image that is not in the manifest gives
+a cutout with an unknown licence, so `cav credits check` asks about it.
 
 Load an image into Cavalry with `cav.image('/abs/path.png', 'name')`. Turn an SVG into
 editable shapes with `api.convertSVGToLayers('/abs/path.svg')`, which returns the new

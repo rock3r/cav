@@ -7,6 +7,15 @@
   seconds more, then cuts the take to the length you asked for and fades out the last
   2 seconds. On a real server, 4 of 4 takes of 24 s had music up to the end. Songs with
   `--lyrics` are not changed, because a cut could lose the last line.
+- cav can make transparent images for free on this machine. The new `rembg` service runs
+  rembg 2.0.85 with the BiRefNet model (`birefnet-general`) through uv. Its first run
+  downloads the model, about 1 GB. `cav gen cutout <image>` removes the background of an
+  image you have. The cutout keeps that image's licence and credit; an image that cav did
+  not record gives a cutout with an unknown licence. `cav gen image --alpha` uses rembg
+  when there is no OpenAI or Recraft key: the first usable image service makes the image
+  (mflux too, once its model is downloaded), then rembg cuts it out. rembg is last in the `image.alpha` order, because OpenAI and Recraft
+  keep soft edges and shadows better. The release smoke runs `cav gen cutout` when uv is
+  installed.
 - mflux is in the default `image` order on Apple silicon, after the keyed services and
   before comfyui and greybox. cav uses it only when its model is already in the Hugging
   Face cache (`HF_HUB_CACHE`, `HF_HOME` and `XDG_CACHE_HOME` are respected), because the
