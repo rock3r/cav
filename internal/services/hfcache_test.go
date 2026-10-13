@@ -104,8 +104,17 @@ func TestPickUsesMfluxOnlyWhenItsModelIsCached(t *testing.T) {
 	if ch, err := Pick(context.Background(), c, "image", ""); err != nil || ch.Service != "mflux" {
 		t.Fatalf("cached weights: got %+v %v", ch, err)
 	}
+	if ch, _ := Pick(context.Background(), c.WithModel("mflux", "flux2-klein-9b"), "image", ""); ch.Service != "greybox" {
+		t.Fatalf("a --model that is not cached: got %s", ch.Service)
+	}
+	if c.Models["mflux"] != "" {
+		t.Fatal("WithModel changed the config it copied")
+	}
 	c.Models = map[string]string{"mflux": "flux2-klein-9b"}
 	if ch, _ := Pick(context.Background(), c, "image", ""); ch.Service != "greybox" {
 		t.Fatalf("the configured model is not cached: got %s", ch.Service)
+	}
+	if ch, _ := Pick(context.Background(), c.WithModel("mflux", "flux2-klein-4b"), "image", ""); ch.Service != "mflux" {
+		t.Fatalf("a cached --model over an uncached configured one: got %s", ch.Service)
 	}
 }

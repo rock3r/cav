@@ -105,6 +105,18 @@ func (c *Config) Save() error {
 	return os.Rename(tmp, Path())
 }
 
+// WithModel returns a copy of the config in which service uses model, for one command's
+// --model. Pick then checks that model's readiness (mflux weights), not the configured one.
+func (c *Config) WithModel(service, model string) *Config {
+	cc := *c
+	cc.Models = map[string]string{}
+	for k, v := range c.Models {
+		cc.Models[k] = v
+	}
+	cc.Models[service] = model
+	return &cc
+}
+
 // OrderFor returns the effective order for a job.
 func (c *Config) OrderFor(job string) []string {
 	if o, ok := c.Order[job]; ok && len(o) > 0 {

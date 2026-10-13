@@ -86,7 +86,12 @@ func genImage(a *app, args []string) error {
 	// each API call has its own shorter timeout.
 	ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
 	defer cancel()
-	ch, err := services.Pick(ctx, c, job, *service)
+	pickConfig := c
+	if *model != "" {
+		// --model goes to whichever service wins, so mflux must be ready with that model.
+		pickConfig = c.WithModel("mflux", *model)
+	}
+	ch, err := services.Pick(ctx, pickConfig, job, *service)
 	if err != nil {
 		return fail(exitError, err.Error(), "see cav config")
 	}
