@@ -76,7 +76,8 @@ approval, every change costs a generation, a music take or a render.
 4. Animatic: `cav board animatic --audio <track>`. It uses the approved frames as they are,
    so the user does not approve the frames a second time. The review is only about timing
    against the music. Start the review page in the background
-   (`cav review renders/animatic.mp4 &`), give the user its URL, then run `cav review wait`.
+   (`cav review renders/animatic.mp4 &`; on Windows, in a second terminal), give the user
+   its URL, then run `cav review wait`.
 
 ## 7. Stage 5: the build loop
 
