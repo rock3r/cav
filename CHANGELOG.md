@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.7.0
 
 - A command that cav refuses because another operation still has an unfinished job no
   longer records its own job as `unknown` (#109). cav sent nothing for it, so cav now
