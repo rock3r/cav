@@ -58,7 +58,9 @@ the user asks for it (`cav guide production`, "Licences come first").
 
 ## 5. Stage 3: the storyboard
 
-Run `cav board init`, write what happens in each shot, then `cav board frames` and
+Run `cav board init` with the brief's format and timing, for example
+`cav board init --width 1080 --height 1920 --fps 30 --seconds 15 --bpm 120 --shots 6`.
+Write what happens in each shot, then `cav board frames` and
 `cav board sheet`. Look at `renders/board.png`, fix the weak shots, and show it to the user.
 
 Do not start anything slow or costly before the user approves the storyboard. That means
@@ -71,7 +73,7 @@ approval, every change costs a generation, a music take or a render.
    `cav music gen "<style, mood, tempo>" --board storyboard.json --takes 2`. It writes the
    takes into `music/` and prints their paths. Listen with `cav listen`, pick one, and
    call it `<track>` below.
-2. Beat grid: `cav beats <track> -o build/grid.json`. Set `"grid"` in `storyboard.json`.
+2. Beat grid: `cav beats <track> --fps <storyboard fps> -o build/grid.json`. Set `"grid"` in `storyboard.json`.
 3. Optional moving shots: `cav board motion --only s2,s5`.
 4. Animatic: `cav board animatic --audio <track>`. It uses the approved frames as they are,
    so the user does not approve the frames a second time. The review is only about timing
@@ -81,5 +83,6 @@ approval, every change costs a generation, a music take or a render.
 
 ## 7. Stage 5: the build loop
 
-Follow `cav guide scene`. With a storyboard, `cav board place` first puts its frames into the
-scene as placeholders; without one, start from the plan table in `cav guide scene`. Repeat change, render and review until the user approves the render.
+Follow `cav guide scene`. With a storyboard, make the scene with the storyboard's size, fps
+and length (`cav scene new --width W --height H --fps F --seconds S`), then
+`cav board place` puts its frames into the scene as placeholders; without one, start from the plan table in `cav guide scene`. Repeat change, render and review until the user approves the render.
