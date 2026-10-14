@@ -56,14 +56,17 @@ type Item struct {
 	File    string  `json:"file,omitempty"`
 	Thumb   string  `json:"thumb,omitempty"`
 	Seconds float64 `json:"seconds,omitempty"`
-	URL     string  `json:"url,omitempty"`
-	Title   string  `json:"title,omitempty"`
-	Source  string  `json:"source,omitempty"`
-	Licence string  `json:"licence,omitempty"`
-	Credit  string  `json:"credit,omitempty"`
-	Take    string  `json:"take,omitempty"`
-	AddedBy string  `json:"addedBy,omitempty"`
-	Status  string  `json:"status,omitempty"`
+	// SheetOf is the sha256 of the clip the contact sheet was made from. cav writes it; it
+	// is not part of what the reviewer sees, so it is not part of the item's hash.
+	SheetOf string `json:"sheetOf,omitempty"`
+	URL     string `json:"url,omitempty"`
+	Title   string `json:"title,omitempty"`
+	Source  string `json:"source,omitempty"`
+	Licence string `json:"licence,omitempty"`
+	Credit  string `json:"credit,omitempty"`
+	Take    string `json:"take,omitempty"`
+	AddedBy string `json:"addedBy,omitempty"`
+	Status  string `json:"status,omitempty"`
 }
 
 // Active says whether the item is on the board.

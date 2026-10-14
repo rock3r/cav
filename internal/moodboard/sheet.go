@@ -2,7 +2,10 @@ package moodboard
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -26,26 +29,30 @@ func Duration(ctx context.Context, clip string) (float64, error) {
 	return d, nil
 }
 
-// Fresh says whether out exists and is newer than in.
-func Fresh(in, out string) bool {
-	a, err := os.Stat(in)
+// FileDigest is the sha256 of a file, in hex.
+func FileDigest(path string) (string, error) {
+	f, err := os.Open(path)
 	if err != nil {
-		return false
+		return "", err
 	}
-	b, err := os.Stat(out)
-	return err == nil && !b.ModTime().Before(a.ModTime())
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
+// Probe reads the length of a clip. It is a variable so a test can make it fail.
+var Probe = Duration
+
 // ContactSheet writes a PNG of n frames of a clip, taken at even times and labelled with
-// their time, so the agent can see the clip. It returns the clip's length. The sheet is made
-// again only when it is missing or older than the clip.
+// their time, so the agent can see the clip. It returns the clip's length. The caller decides
+// when a sheet is out of date (see Item.SheetOf).
 func ContactSheet(ctx context.Context, clip, out string, n int) (float64, error) {
-	seconds, err := Duration(ctx, clip)
+	seconds, err := Probe(ctx, clip)
 	if err != nil {
 		return 0, err
-	}
-	if Fresh(clip, out) {
-		return seconds, nil
 	}
 	if n < 1 {
 		n = 6

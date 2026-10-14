@@ -48,16 +48,29 @@ func moodSync(ctx context.Context, dir, file string) (*moodboard.Board, moodboar
 			notes = append(notes, fmt.Sprintf("%s: no contact sheet (%v)", it.ID, err))
 			continue
 		}
+		// The sheet is current when it exists and was made from these very bytes. This is
+		// checked first, so an unchanged clip never calls ffprobe or ffmpeg.
+		digest, derr := moodboard.FileDigest(b.Path(it.File))
+		_, statErr := os.Stat(out)
+		if derr == nil && it.SheetOf == digest && statErr == nil {
+			continue
+		}
 		secs, err := moodboard.ContactSheet(ctx, b.Path(it.File), out, 6)
 		if err != nil {
-			// The clip changed and cannot be read: the old sheet and length would describe
-			// the old file. SheetPath has checked that out is a plain file in .thumbs.
-			it.Seconds = 0
+			// A clip that did not change (or whose bytes cannot be read now) keeps its
+			// sheet: the failure may be passing. A clip that changed makes the old sheet and
+			// length wrong, so they go. SheetPath has checked that out is a plain file in .thumbs.
+			if derr != nil || (it.SheetOf != "" && it.SheetOf == digest) {
+				notes = append(notes, fmt.Sprintf("%s: could not refresh the contact sheet, kept the old one (%v)", it.ID, err))
+				continue
+			}
+			it.Seconds, it.SheetOf = 0, ""
 			os.Remove(out)
 			notes = append(notes, fmt.Sprintf("%s: no contact sheet (%v)", it.ID, err))
 			continue
 		}
 		it.Seconds = float64(int(secs*10+0.5)) / 10
+		it.SheetOf = digest
 	}
 	if err := b.Save(); err != nil {
 		return nil, ch, notes, err

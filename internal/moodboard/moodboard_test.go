@@ -205,14 +205,4 @@ func TestContactSheet(t *testing.T) {
 	if err != nil || st1.Size() == 0 {
 		t.Fatal("no sheet")
 	}
-	// A fresh sheet is not made again.
-	if err := os.WriteFile(out, []byte("keep"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := ContactSheet(context.Background(), clip, out, 6); err != nil {
-		t.Fatal(err)
-	}
-	if b, _ := os.ReadFile(out); string(b) != "keep" {
-		t.Error("a fresh sheet was made again")
-	}
 }
