@@ -319,6 +319,9 @@ func refKind(r briefRef) string {
 // cmdArg writes a path into a command the user may copy: as it is when it holds only safe
 // characters, else quoted with shellArg.
 func cmdArg(s string) string {
+	if strings.HasPrefix(s, "-") {
+		s = "./" + s // never read as a flag
+	}
 	for _, r := range s {
 		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.ContainsRune("._/-", r)) {
 			return shellArg(s)
