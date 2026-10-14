@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -163,7 +164,7 @@ func planStages(root string, f *flow.Flow) ([]planStage, error) {
 		}
 	}
 	for i := range out {
-		planText(&out[i], f)
+		planText(&out[i], f, root)
 	}
 	return out, nil
 }
@@ -265,8 +266,27 @@ func count(n int, one, many string) string {
 	return fmt.Sprintf("%d %s", n, many)
 }
 
+// fromCwd turns a path relative to the project root into one relative to the working
+// folder, in slash form, for a command the user runs from there. Display and JSON keep the
+// root-relative path.
+func fromCwd(root, target string) string {
+	abs, err := filepath.Abs(filepath.Join(root, filepath.FromSlash(target)))
+	if err != nil {
+		return target
+	}
+	wd, err := os.Getwd()
+	if err != nil {
+		return target
+	}
+	rel, err := filepath.Rel(wd, abs)
+	if err != nil {
+		return target
+	}
+	return filepath.ToSlash(rel)
+}
+
 // planText writes the next step for a stage, used when it is the first that needs work.
-func planText(ps *planStage, f *flow.Flow) {
+func planText(ps *planStage, f *flow.Flow, root string) {
 	switch ps.Status {
 	case "todo":
 		switch {
@@ -277,7 +297,7 @@ func planText(ps *planStage, f *flow.Flow) {
 		}
 	case "review":
 		r := ps.Review
-		cmd := "cav review " + shellArg(r.Target)
+		cmd := "cav review " + shellArg(fromCwd(root, r.Target))
 		ps.command = cmd
 		if fix := append(append([]string{}, r.Redo...), r.OpenNotes...); len(fix) > 0 {
 			ps.text = fmt.Sprintf("fix %s, then: %s", strings.Join(fix, ", "), cmd)
@@ -289,7 +309,7 @@ func planText(ps *planStage, f *flow.Flow) {
 		}
 	case "check":
 		if ps.Review != nil {
-			ps.command = "cav review export " + shellArg(ps.Review.Target)
+			ps.command = "cav review export " + shellArg(fromCwd(root, ps.Review.Target))
 			ps.text = fmt.Sprintf("fix %s (%s), then: %s", ps.Review.Target, ps.Review.Reason, ps.command)
 			break
 		}
@@ -299,7 +319,7 @@ func planText(ps *planStage, f *flow.Flow) {
 		}
 		ps.text = fmt.Sprintf("%s: %s; fix the flow file %s", ps.Name, ps.Detail, where)
 	case "notes":
-		ps.command = "cav review export " + shellArg(ps.Review.Target)
+		ps.command = "cav review export " + shellArg(fromCwd(root, ps.Review.Target))
 		ps.text = "read the notes: " + ps.command
 	case "unknown":
 		step := "ask the user"

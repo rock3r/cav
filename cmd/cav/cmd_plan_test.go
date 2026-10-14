@@ -388,7 +388,6 @@ func TestPlanUsesTheProjectRootFromAFolder(t *testing.T) {
 		t.Fatal(err)
 	}
 	writePlanFile(t, "flow.md", storyboardFlow)
-	approveAll(t, "storyboard.json")
 	sub := filepath.Join(root, "work", "deep")
 	if err := os.MkdirAll(sub, 0o755); err != nil {
 		t.Fatal(err)
@@ -400,7 +399,18 @@ func TestPlanUsesTheProjectRootFromAFolder(t *testing.T) {
 		t.Fatalf("flow = %+v, %d stages", p.Flow, len(p.Stages))
 	}
 	s := p.Stages[0]
-	if s.Status != "done" || s.Review == nil || s.Review.Target != "storyboard.json" || !s.Review.Approved {
+	if s.Status != "review" || s.Review == nil || s.Review.Target != "storyboard.json" {
 		t.Errorf("stage = %+v", s)
+	}
+	// The command runs from the working folder, so its path is relative to that folder.
+	want := "cav review " + shellArg("../../storyboard.json")
+	if p.Next.Command != want {
+		t.Errorf("command = %q, want %q", p.Next.Command, want)
+	}
+
+	approveAll(t, filepath.Join(root, "storyboard.json"))
+	s = runPlan(t).Stages[0]
+	if s.Status != "done" || !s.Review.Approved {
+		t.Errorf("after approval: stage = %+v", s)
 	}
 }
