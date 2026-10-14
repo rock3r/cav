@@ -124,7 +124,9 @@ check() {
 	fi
 }
 
-json() { python3 -I -c 'import json,sys; d=json.load(open(sys.argv[1])); print(eval(sys.argv[2], {"d": d}))' "$@"; }
+# json reads the first JSON object in a step log: the log holds stderr too, so a note
+# before or after the JSON must not break the parse.
+json() { python3 -I -c 'import json,sys; t=open(sys.argv[1]).read(); d=json.JSONDecoder().raw_decode(t[t.index("{"):])[0]; print(eval(sys.argv[2], {"d": d}))' "$@"; }
 lastlog() { ls "$logs"/[0-9]*.log | tail -1; }
 
 echo "cav: $("$cav" version | head -1)"
