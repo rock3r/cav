@@ -357,7 +357,7 @@ cat >"board/$shot1.svg" <<'SVG'
 </svg>
 SVG
 step ok "scene save (before sketch)" scene save --timeout 2m
-step ok "board frames (sketch)" board frames storyboard.json --service sketch --only "$shot1" --timeout 5m
+step ok "board frames (sketch)" board frames storyboard.json --service sketch --only "$shot1"
 check "sketch wrote a PNG for the shot" test -s "board/$shot1.png"
 # The new check passes read storyboard.json in this folder: seams (full check), dead time and
 # shot-why (also in --quick). Findings never change the exit code, so only the exit is asserted.
@@ -409,13 +409,12 @@ step ok "score" score storyboard.json --video renders/smoke.mp4 --audio click.wa
 check "score wrote a REAPER project" grep -q REAPER_PROJECT score/project.rpp
 # cav plan only reads: the folder (apart from the logs) must be the same after it.
 listing() { find . -path ./logs -prune -o -print | LC_ALL=C sort; }
-listing >plan-before.txt
+listing >"$logs/plan-before.txt"
 step ok "plan" plan
 step ok "plan --json" plan --json
 check "plan --json is valid JSON" json "$(lastlog)" 'd'
-listing >plan-after.txt
-check "plan wrote no file" diff plan-before.txt plan-after.txt
-rm -f plan-before.txt plan-after.txt
+listing >"$logs/plan-after.txt"
+check "plan wrote no file" diff "$logs/plan-before.txt" "$logs/plan-after.txt"
 
 # --- Review, MCP, relay -------------------------------------------------------------
 covered+="review "
@@ -482,6 +481,11 @@ EOF
 step ok "guide flow with flow.md" guide flow
 check "guide flow shows the flow.md stage" grep -q "smoke stage" "$(lastlog)"
 rm -f flow.md
+# cav brief writes and checks brief.json. -o keeps it out of the project root, so the
+# board and scene steps above never read it.
+mkdir -p brief
+step ok "brief init" brief init -o brief/brief.json --title "Smoke" --goal "Check the brief" --audience "Release testers" --tone calm --seconds 4 --bpm 120 --width 640 --height 360 --fps 30
+step ok "brief show" brief show brief/brief.json
 
 # --- Update (never installs here) ---------------------------------------------------
 # With --json and without --yes, cav update refuses to install; when cav is current it
