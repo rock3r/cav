@@ -256,3 +256,10 @@ func TestNullIsNotABrief(t *testing.T) {
 		t.Fatal("a null document must be a problem")
 	}
 }
+
+func TestUpperCaseSchemeIsALink(t *testing.T) {
+	b := Parse([]byte(`{"refs": ["HTTPS://vimeo.com/123"]}`), ".")
+	if p := b.Problems(); len(p) != 0 {
+		t.Fatalf("problems: %v", p)
+	}
+}

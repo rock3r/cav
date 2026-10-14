@@ -297,7 +297,7 @@ func (b *Brief) validate() {
 		}
 		ref := b.ref(r)
 		switch {
-		case ref.Link && !strings.HasPrefix(r, "http://") && !strings.HasPrefix(r, "https://"):
+		case ref.Link && !strings.HasPrefix(strings.ToLower(r), "http://") && !strings.HasPrefix(strings.ToLower(r), "https://"):
 			b.problem("refs: %q is not a web link; use http or https, or a file path", r)
 		case !ref.Link && !ref.Exists:
 			b.note("ref %q was not found next to the brief", r)
