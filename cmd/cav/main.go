@@ -269,7 +269,7 @@ Commands:
 Every command accepts --json (machine-readable output on stdout).
 Exit codes: 0 ok, 1 error, 2 bridge not reachable, 3 native outcome pending/unknown, 4 bridge lost.
 Run "cav help <command>" for details.
-New to cav? Run "cav guide" first: it explains the workflow from plan to render.
+New to cav? Run "cav guide" first: it explains how to build a scene from plan to render.
 `)
 }
 

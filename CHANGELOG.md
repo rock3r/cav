@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- `cav beats -o` creates the output folder. Before, `cav beats track.wav -o build/grid.json`
+  failed in a new project because nothing had made `build/` yet.
+- A new guide, `cav guide flow` (#88), describes the production flow as a menu of five stages:
+  brief, mood board, storyboard, music and animatic, and the build loop. For each stage it
+  lists the commands, the files written, the review and when to skip it. Only the build loop
+  is mandatory. It also states the rule for references: a reference teaches and is never a
+  template. A test checks that every `cav` command the guide names exists.
+- The main guide's topic is now `scene`, not `workflow`. `cav guide` with no topic still
+  prints it, and its ordered list now covers only the build loop. `cav guide workflow` still
+  works for older instructions: it prints a warning on stderr that names `cav guide scene`
+  and `cav guide flow`, then the scene guide. `cav guide --search` does not list the old name.
 - The guides now say how to animate software UI: app screens, UI walkthroughs and product
   demos. Always rebuild the UI in Cavalry from shapes, text and icons, and never animate a
   screenshot. Use the screenshot only as a low-opacity guide layer, and compare it with

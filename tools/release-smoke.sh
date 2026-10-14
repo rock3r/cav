@@ -420,7 +420,7 @@ check "a spooled run went through the relay" grep -q 'via relay' "$logs/relay-ru
 # --- Docs and guides ----------------------------------------------------------------
 step ok "api" api keyframe -n 3
 step ok "docs" docs duplicator -n 2
-for topic in workflow design music traps native production; do
+for topic in scene flow design music traps native production; do
 	step ok "guide $topic" guide "$topic"
 done
 step ok "guide --search" guide --search "keys dropped" -n 2

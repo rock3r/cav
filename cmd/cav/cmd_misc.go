@@ -76,20 +76,25 @@ func init() {
 	})
 }
 
+// workflowAliasWarning is printed on stderr by `cav guide workflow`, the old name of the
+// scene guide.
+const workflowAliasWarning = "To build a scene in Cavalry, use `cav guide scene`. For the production stages from brief to animatic, use `cav guide flow`."
+
 // guideTopics lists the guides in the order `cav guide` presents them.
-var guideTopics = []string{"workflow", "design", "music", "traps", "native", "production", "ui-showcase"}
+var guideTopics = []string{"scene", "flow", "design", "music", "traps", "native", "production", "ui-showcase"}
 
 func init() {
 	register(command{
 		name:    "guide",
-		args:    "[workflow|design|music|traps|native|production|ui-showcase] | --search <words> [-n 3]",
-		summary: "Print how to make motion graphics with cav: workflow, design, music, traps.",
+		args:    "[scene|flow|design|music|traps|native|production|ui-showcase] | --search <words> [-n 3]",
+		summary: "Print how to make motion graphics with cav: scene, flow, design, music, traps.",
 		run:     cmdGuide,
 	})
 	longHelp["guide"] = `
-Without a topic, prints the workflow guide. Read it before your first build.
+Without a topic, prints the scene guide. Read it before your first build.
 
-  workflow  the build-review-check-render loop, script rules and a done checklist
+  scene     the build-review-check-render loop, script rules and a done checklist
+  flow      production flow: brief, mood board, storyboard, music and animatic, build loop
   design    motion recipes: entrances, impacts, kinetic type, transitions, holds
   music     beat grids and syncing motion to music
   traps     Cavalry scripting behaviours that fail silently, and how cav avoids them
@@ -101,6 +106,10 @@ cav guide --search <words> [-n 3]
   Search every guide and print the best sections, with their topic and heading. Describe
   the symptom when you do not know the topic: cav guide --search "rotation keys ignored".
   Table rows (each trap) come back one by one. The output is capped at about 4 KB.
+
+cav guide workflow
+  The old name of the scene guide. It still works: it prints a warning on stderr, then the
+  scene guide.
 `
 }
 
@@ -121,9 +130,14 @@ func cmdGuide(a *app, args []string) error {
 	if flagSet(fs, "search") {
 		return guideSearch(a, strings.TrimSpace(strings.Join(append([]string{*query}, pos...), " ")), *n)
 	}
-	topic := "workflow"
+	topic := "scene"
 	if len(pos) > 0 {
 		topic = strings.ToLower(pos[0])
+	}
+	if topic == "workflow" {
+		// Older instructions still name this topic.
+		fmt.Fprintln(os.Stderr, workflowAliasWarning)
+		topic = "scene"
 	}
 	b, err := assets.Guide.ReadFile("guide/" + topic + ".md")
 	if err != nil {

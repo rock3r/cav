@@ -20,7 +20,9 @@ The `cav` CLI does the work and carries its own guides. This skill only gets you
      prints (allow `cav` to reach 127.0.0.1:8723, or run `cav relay` outside the sandbox).
    - `warn update`: a newer cav exists. Tell the user that `cav update` installs it. Do not
      run `cav update` without asking.
-2. Run `cav guide` and follow it. It covers the workflow, script rules and a done checklist.
+2. Run `cav guide` and follow it. It covers the build loop, script rules and a done checklist.
+   For anything longer than a quick sting, read `cav guide flow` first: it lists the
+   production stages before the build (brief, mood board, storyboard, music and animatic).
    Read `cav guide design` before a creative task and `cav guide music` when there is music
    (it covers `cav spectrogram` and `cav sync`, which let you look at music you cannot hear).
    `cav helpers` lists the script library; `cav help <command>` explains each command.

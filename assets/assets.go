@@ -15,7 +15,7 @@ var APIRef []byte
 //go:embed apiref/layertypes.json
 var LayerTypes []byte
 
-// Guide holds the usage guides that `cav guide` prints (workflow, design, music, traps,
+// Guide holds the usage guides that `cav guide` prints (scene, flow, design, music, traps,
 // native features).
 //
 //go:embed guide/*.md

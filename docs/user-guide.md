@@ -358,7 +358,7 @@ the prefix `cavalry_cav`. The skill does not depend on the tool names.
 
 ## Using cav with a coding agent
 
-`cav guide` prints the workflow, the traps, and recipes for motion design (entrances,
+`cav guide` prints the scene guide (`cav guide flow` has the production stages), the traps, and recipes for motion design (entrances,
 impacts, kinetic type, transitions, beat sync), so any agent with a shell can learn `cav` from
 `cav` itself. The `cavalry` skill is a short entry point: it tells the agent when to use
 `cav`, how to check the setup, and to read `cav guide`. When something fails silently,
