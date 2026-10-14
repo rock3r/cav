@@ -1,28 +1,40 @@
 # Production flow: from brief to final render
 
-A longer piece goes through five stages. Stages 1 to 4 plan it. Stage 5 builds it. Each stage
+A longer piece goes through stages. The standard flow has five. Stages 1 to 4 plan it. Stage 5
+builds it. Sections 3 to 7 below describe the standard flow; follow your own flow file where
+it differs. Each stage
 starts from the files of the stage before it, or from files the user brings. Command details
 are in `cav guide production`. How to build the scene is in `cav guide scene`.
 
 Other guides: `cav guide scene` (the build loop), `cav guide production` (commands, services,
 licences, review), `cav guide music` (beat sync).
 
-## 1. The stages
+## 1. The flow in effect
 
-The stages are a menu with a suggested order. The user can reorder, drop, add or change a
-stage. When the user has no preference, follow the standard flow below.
+The stages are printed at the end of this guide, under "The flow in effect". They come from
+the first of these that exists: `flow.md` in the project folder, `~/.cav/flow.md`, the
+standard flow built into cav. The stages are a menu with a suggested order. The user can
+reorder, drop, add or change a stage, either by telling you or by keeping a flow file. To
+change the flow for good, the user edits the file or asks you to. A flow file replaces the
+standard flow completely.
 
-| Stage | Commands | Files written | Review | Skip when |
-|---|---|---|---|---|
-| 1. Brief | `cav brief init`, `cav brief show`, `cav review brief.json`; you work as a creative director | `brief.json` | The user presses Approve in `cav review brief.json`; `cav review export brief.json --json` shows approved | The user gives a complete brief |
-| 2. Mood board | `cav ref search`, `get`, `arena`, `add`; `cav board mood`, `cav board mood take`; `cav review moodboard.json` | `moodboard/`, `moodboard.json`, `renders/moodboard.png` | The user reviews `moodboard.json` (keep, more, drop) | The user brings a style guide or frames |
-| 3. Storyboard | `cav board init`, `frames`, `sheet`, `cav review` | `storyboard.json`, `board/`, `renders/board.png` | The user presses Approve storyboard in `cav review storyboard.json`; `cav review export storyboard.json --json` shows approved | The piece is under about 8 seconds, or has one shot |
-| 4. Music and animatic | `cav music gen`, `cav beats -o build/grid.json`, `cav board motion`, `cav board animatic`, `cav review` | `music/`, `build/grid.json`, `renders/animatic.mp4` | The user reviews the animatic (`cav review renders/animatic.mp4`) | Skip music generation when the user brings a track. Without music, or without a storyboard, skip the animatic; use the track directly in the build. |
-| 5. Build loop | `cav board place` (with a storyboard), `cav run`, `cav sheet`, `cav onion`, `cav check`, `cav render`, `cav review` | `build/*.js`, `scenes/*.cv`, `renders/` | The user approves the render | Never |
+A flow file is Markdown. cav reads four things from it:
+
+- A line `## name` starts a stage.
+- `outputs:` lists the files the stage writes, separated by commas. A path is relative to
+  the project. `*` matches inside one folder. A path that ends in `/` is a folder.
+- `review: yes` or `review: no` says whether the user approves the stage in `cav review`.
+  The approval belongs to the first output, which must then be one `.json` file.
+- `use:` is free text for you. cav prints it and never runs it.
+
+Lines inside code blocks or `<!-- -->` comments are ignored, so you can comment out a stage.
+All other text in the file is for you to read and follow. If the file has a mistake, cav
+prints it with the line number as a warning. Fix the file; cav does not fall back to another
+flow.
 
 ## 2. Only the build loop is mandatory
 
-You may skip stages 1 to 4. When you skip one, tell the user which stage and why. A short
+You may skip any stage except the build loop. When you skip one, tell the user which stage and why. A short
 sting with a clear request needs no storyboard. A vague request needs a brief.
 
 The rules inside stage 5 do not change: look at a sheet after every change, run `cav check`

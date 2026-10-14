@@ -15,6 +15,12 @@ var APIRef []byte
 //go:embed apiref/layertypes.json
 var LayerTypes []byte
 
+// StandardFlow is the built-in production flow, written in the same format as a user's
+// flow.md. `cav guide flow` prints it when no flow file replaces it.
+//
+//go:embed flow/standard.md
+var StandardFlow []byte
+
 // Guide holds the usage guides that `cav guide` prints (scene, flow, design, music, traps,
 // native features).
 //
