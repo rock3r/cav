@@ -320,8 +320,8 @@ func TestRefusedCommandRecordsDefiniteStateAndBlocksNothing(t *testing.T) {
 	var shown struct {
 		Operation operation.Record `json:"operation"`
 	}
-	if err = json.NewDecoder(reader).Decode(&shown); err != nil || c != exitOK || shown.Operation.Status != "refused" {
-		t.Fatalf("status exit=%d status=%q %v", c, shown.Operation.Status, err)
+	if err = json.NewDecoder(reader).Decode(&shown); err != nil || c != exitOK || shown.Operation.Status != "refused" || len(shown.Operation.Jobs) != 1 || shown.Operation.Jobs[0].State != stateNotSubmitted {
+		t.Fatalf("status exit=%d shown=%+v %v", c, shown.Operation, err)
 	}
 
 	if c := (&app{json: true}).dispatch([]string{"operation", "abandon", blocker.ID, "--acknowledge-unknown-outcome"}); c != exitOK {

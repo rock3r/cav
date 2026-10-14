@@ -216,6 +216,12 @@ func cmdOperation(a *app, args []string) error {
 		c.Port = r.Port
 		c.Spool = r.Spool
 		c.ExpectedSession = r.Session
+		// Status only shows this copy; the saved record keeps its state.
+		for _, j := range r.Jobs {
+			if j.Result == nil && j.Submission == "prepared" {
+				j.State = stateNotSubmitted
+			}
+		}
 		if r.Status != "complete" && r.Status != "abandoned" && len(r.Jobs) > 0 {
 			j := r.Jobs[len(r.Jobs)-1]
 			// A prepared job was never sent, so the bridge cannot know it.
@@ -258,11 +264,7 @@ func cmdOperation(a *app, args []string) error {
 				fmt.Printf("render artifacts (file activity is not completion):\n%s\n", prettyAny(progress))
 			}
 			for _, j := range r.Jobs {
-				state := string(j.State)
-				if j.Submission == "prepared" {
-					state = "not submitted"
-				}
-				fmt.Printf("  %s %s %s\n", j.ID, j.Phase, state)
+				fmt.Printf("  %s %s %s\n", j.ID, j.Phase, j.State)
 			}
 			if progress, ok := data["progress"]; ok {
 				fmt.Printf("profile progress:\n%s\n", prettyAny(progress))
@@ -492,6 +494,10 @@ func pendingOperation(ctx context.Context, c *bridge.Client, excludeID string) e
 	}
 	return nil
 }
+
+// stateNotSubmitted is shown by operation status for a job that cav prepared but
+// never sent. The bridge cannot know such a job, so its outcome is not unknown.
+const stateNotSubmitted bridge.State = "not-submitted"
 
 // blockedError means cav refused to submit a job because another operation still
 // has native work that is not done. Nothing was submitted for the refused command.

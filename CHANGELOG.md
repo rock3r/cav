@@ -8,7 +8,7 @@
   need to abandon it. The error now names the blocking operation and says how to clear
   it: check it with `cav operation status <id>`, then, after you check Cavalry, run
   `cav operation abandon <id> --acknowledge-unknown-outcome`. `cav operation status` no
-  longer shows a job that cav never sent as `unknown`.
+  longer shows a job that cav never sent as `unknown`: it shows `not-submitted`.
 - Every paid service was called for real once, with real keys (#11). Five problems came
   out of it, and they are fixed:
   - `cav gen image --service openai --ref` failed with "unsupported mimetype". cav sent
