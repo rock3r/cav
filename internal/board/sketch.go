@@ -199,8 +199,8 @@ func analyzeSketch(data []byte, w, h int) (*sketchInfo, error) {
 				add(line, "groups are nested more than %d deep", maxSketchDepth)
 			}
 			for _, a := range t.Attr {
-				if elements > 1 && geometryAttrs[a.Name.Local] && a.Name.Space == "" && strings.Contains(a.Value, "%") {
-					add(line, "%s=%q on <%s> is a percentage: use numbers, not percentages, in a sketch", a.Name.Local, a.Value, name)
+				if prop := percentageIn(a); prop != "" && !(elements == 1 && structuralRootAttrs[a.Name.Local]) {
+					add(line, "%s=%q on <%s> is a percentage: use numbers, not percentages, in a sketch", prop, a.Value, name)
 					continue
 				}
 				if msg := prefixedAttrProblem(a, elements == 1, xlinkOnRoot); msg != "" {
@@ -242,11 +242,32 @@ func firstWord(s string) string {
 var forbiddenValue = regexp.MustCompile(`(?i)javascript:|@import|expression\s*\(|data:text/html`)
 var urlCall = regexp.MustCompile(`(?i)url\s*\(\s*['"]?\s*(.?)`)
 
-// geometryAttrs hold lengths. A percentage in them depends on the viewBox, which cav rescales,
-// so a sketch uses plain numbers there.
-var geometryAttrs = map[string]bool{
-	"x": true, "y": true, "width": true, "height": true, "cx": true, "cy": true, "r": true, "rx": true, "ry": true,
-	"x1": true, "y1": true, "x2": true, "y2": true, "stroke-width": true, "font-size": true,
+// percentOK are the attributes and style properties where a percentage is not a length.
+// A percentage anywhere else (x, dx, width, r, stroke-width, font-size, and so on) depends on the
+// viewBox, which cav rescales, so a sketch uses plain numbers there.
+var percentOK = map[string]bool{
+	"offset": true, "opacity": true, "fill-opacity": true, "stroke-opacity": true, "stop-opacity": true,
+}
+
+// percentageIn returns the attribute, or the style property, that holds a percentage it may not.
+func percentageIn(a xml.Attr) string {
+	if !strings.Contains(a.Value, "%") {
+		return ""
+	}
+	if a.Name.Local != "style" {
+		if percentOK[a.Name.Local] {
+			return ""
+		}
+		return a.Name.Local
+	}
+	for _, decl := range strings.Split(a.Value, ";") {
+		name, value, ok := strings.Cut(decl, ":")
+		name = strings.ToLower(strings.TrimSpace(name))
+		if (ok && strings.Contains(value, "%") && !percentOK[name]) || (!ok && strings.Contains(decl, "%")) {
+			return "style " + name
+		}
+	}
+	return ""
 }
 
 // prefixedAttrProblem allows only these prefixed attributes: xmlns:xlink on <svg> with the real

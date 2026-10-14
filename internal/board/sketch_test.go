@@ -314,15 +314,24 @@ func TestCheckSketchRefusesProcessingInstructionsAfterTheRootStarts(t *testing.T
 	}
 }
 
-func TestCheckSketchRefusesPercentagesInGeometry(t *testing.T) {
-	for _, attr := range []string{`width="50%"`, `x="10%"`, `cx="50%"`, `r="5%"`, `stroke-width="1%"`, `font-size="5%"`, `y2="100%"`} {
+func TestCheckSketchRefusesPercentagesExceptWhereTheyAreNotLengths(t *testing.T) {
+	for _, attr := range []string{`width="50%"`, `x="10%"`, `dx="10%"`, `dy="1%"`, `cx="50%"`, `r="5%"`, `stroke-width="1%"`, `font-size="5%"`, `y2="100%"`,
+		`style="stroke-width:5%"`, `style="fill:#fff;font-size: 120%"`, `stroke-dasharray="5% 2"`, `transform="translate(10%)"`} {
 		p := problems(t, wrap(`<rect `+attr+` height="1"/>`))
 		if len(p) == 0 || !strings.Contains(strings.Join(p, "\n"), "use numbers, not percentages") {
 			t.Errorf("%s: problems %v", attr, p)
 		}
 	}
-	// A percentage that is not a length (offset on a gradient stop, opacity) and plain numbers are fine.
-	if p := problems(t, wrap(`<defs><linearGradient id="g"><stop offset="50%" stop-color="#000"/></linearGradient></defs><rect width="10" height="10" opacity="50%"/>`)); p != nil {
-		t.Errorf("non-length percentages refused: %v", p)
+	// A percentage on the root (other than its own size) is refused too, since the group copies it.
+	if p := problems(t, []byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" font-size="5%"/>`)); len(p) == 0 {
+		t.Error("a root font-size percentage was accepted")
+	}
+	for _, ok := range []string{
+		`<defs><linearGradient id="g"><stop offset="50%" stop-color="#000" stop-opacity="50%"/></linearGradient></defs><rect width="10" height="10" opacity="50%" fill-opacity="20%" stroke-opacity="5%"/>`,
+		`<rect width="10" height="10" style="opacity:50%;fill-opacity:20%;fill:#fff"/>`,
+	} {
+		if p := problems(t, wrap(ok)); p != nil {
+			t.Errorf("allowed percentages refused: %v\n%s", p, ok)
+		}
 	}
 }
