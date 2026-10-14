@@ -16,9 +16,10 @@ import (
 	"github.com/rock3r/cav/internal/imagegen"
 )
 
-// sketchStageDir is the folder, inside the board folder, where cav keeps the sketch copies it
-// imports into Cavalry and the PNGs Cavalry renders. It is removed after a clean run.
-const sketchStageDir = ".cav-sketch"
+// sketchStagePrefix starts the name of the folder, inside the board folder, where cav keeps the
+// sketch copies it imports into Cavalry and the PNGs Cavalry renders. Each run makes its own
+// folder with a unique name and removes only that one, so a folder that was already there stays.
+const sketchStagePrefix = ".cav-sketch-"
 
 // sketchUnavailable means cav could not reach Cavalry at all, so nothing was changed.
 type sketchUnavailable struct{ err error }
@@ -137,7 +138,14 @@ func startSketch(a *app, sb *board.Board, boardDir string) (*sketchSession, erro
 			"cav renders sketches in a scratch scene and reopens yours afterwards: save it (cav scene save), then run again")
 	}
 	// Cavalry resolves a relative path from its own folder, so every path it gets is absolute.
-	stage, err := filepath.Abs(filepath.Join(boardDir, sketchStageDir))
+	boardAbs, err := filepath.Abs(boardDir)
+	if err != nil {
+		return nil, err
+	}
+	if err := os.MkdirAll(boardAbs, 0o755); err != nil {
+		return nil, err
+	}
+	stage, err := os.MkdirTemp(boardAbs, sketchStagePrefix)
 	if err != nil {
 		return nil, err
 	}
@@ -150,9 +158,6 @@ func startSketch(a *app, sb *board.Board, boardDir string) (*sketchSession, erro
 	s.mode = sketchComp
 	if st.Path != "" {
 		js, s.mode = sketchNewSceneJS, sketchScene
-	}
-	if err := os.MkdirAll(s.stage, 0o755); err != nil {
-		return nil, err
 	}
 	// From here Cavalry changes, so a failure after this point still needs close.
 	s.started = true

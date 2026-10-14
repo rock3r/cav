@@ -121,7 +121,7 @@
   - cav checks every SVG first and refuses with each problem and its line: scripts, event
     attributes, `image`, `foreignObject`, links to other files, a `DOCTYPE`, files over 512 KiB,
     more than 2000 elements, nesting deeper than 32, or a canvas that does not fit the storyboard.
-    No frame is made until all pass. Cavalry imports a cleaned copy in `board/.cav-sketch/`,
+    No frame is made until all pass. Cavalry imports a cleaned copy in a temporary `board/.cav-sketch-*` folder that cav removes,
     never your file.
   - cav draws in a scratch scene and opens your scene again afterwards. It refuses when the open
     scene has unsaved changes, and never overrides that. An empty untitled scene uses a temporary

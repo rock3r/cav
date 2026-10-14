@@ -294,8 +294,8 @@ func TestSketchFramesRenderThroughCavalry(t *testing.T) {
 	if b, _ := os.ReadFile("board/s1.svg"); string(b) != testSketch {
 		t.Error("the agent's SVG was changed")
 	}
-	if fileExists("board/.cav-sketch") {
-		t.Error("the staging folder was not removed")
+	if left, _ := filepath.Glob("board/.cav-sketch*"); len(left) != 0 {
+		t.Errorf("the staging folder was not removed: %v", left)
 	}
 	if need, _ := got["needSketch"].([]any); len(need) != 1 || need[0] != "s3" {
 		t.Errorf("needSketch %v", got["needSketch"])
@@ -519,5 +519,32 @@ func TestFrameCurrent(t *testing.T) {
 	}
 	if frameCurrent(sb, shot("greybox"), svgPath, true) {
 		t.Error("a greybox card stands when an SVG exists")
+	}
+}
+
+// A folder that was already in the board folder, even one with the old fixed name, is not cav's to delete.
+func TestSketchRunLeavesAnExistingStagingFolderAlone(t *testing.T) {
+	sketchProject(t)
+	newFakeSketchCavalry(t, savedScene())
+	writeSVG(t, "s1", testSketch)
+	if err := os.MkdirAll("board/.cav-sketch", 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile("board/.cav-sketch/keep.txt", []byte("mine"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile("board/.cav-sketch/s1.png", []byte("mine"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := framesJSON(t, "--only", "s1", "storyboard.json"); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range []string{"board/.cav-sketch/keep.txt", "board/.cav-sketch/s1.png"} {
+		if b, err := os.ReadFile(f); err != nil || string(b) != "mine" {
+			t.Errorf("%s was changed or removed: %q %v", f, b, err)
+		}
+	}
+	if left, _ := filepath.Glob("board/.cav-sketch-*"); len(left) != 0 {
+		t.Errorf("cav's own staging folder was left behind: %v", left)
 	}
 }
