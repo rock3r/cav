@@ -13,6 +13,35 @@ import (
 	"github.com/rock3r/cav/internal/operation"
 )
 
+func TestResumedCheckNoticesBeatGridChanges(t *testing.T) {
+	t.Chdir(t.TempDir())
+	if err := os.WriteFile("grid.json", []byte(`{"beats":[0,0.5,1]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sb := &board.Board{BPM: 120, Seconds: 4, Grid: "grid.json", Shots: []board.Shot{{ID: "s1", Beats: [2]float64{0, 2}, What: "x"}}}
+	if err := sb.Save("storyboard.json"); err != nil {
+		t.Fatal(err)
+	}
+	newApp := func(rec *operation.Record) *app {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		t.Cleanup(cancel)
+		return &app{ctx: ctx, op: rec}
+	}
+	rec := &operation.Record{}
+	if _, _, _, err := newApp(rec).checkStoryboard(""); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, _, err := newApp(rec).checkStoryboard(""); err != nil {
+		t.Fatalf("unchanged grid: %v", err)
+	}
+	if err := os.WriteFile("grid.json", []byte(`{"beats":[0,0.6,1.2]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, _, err := newApp(rec).checkStoryboard(""); err == nil || !strings.Contains(err.Error(), "grid.json changed since this check started") {
+		t.Fatalf("edited grid: %v", err)
+	}
+}
+
 func TestResumedCheckNoticesStoryboardChanges(t *testing.T) {
 	write := func() {
 		sb := &board.Board{BPM: 120, Seconds: 4, Shots: []board.Shot{{ID: "s1", Beats: [2]float64{0, 4}, What: "x"}}}

@@ -585,10 +585,43 @@ func (a *app) checkStoryboard(explicit string) (string, []finding, []map[string]
 	}
 	// The implicit storyboard may be missing. Record that too, so a resumed check fails
 	// when the file appears or disappears.
+	digest, err := a.recordInput(abs)
+	if err != nil {
+		return "", nil, nil, err
+	}
+	if digest == "absent" {
+		return "", nil, nil, nil
+	}
+	// board.Load also reads the beat grid the storyboard names, so that file counts too.
+	if raw, readErr := os.ReadFile(abs); readErr == nil {
+		var g struct {
+			Grid string `json:"grid"`
+		}
+		if json.Unmarshal(raw, &g) == nil && g.Grid != "" {
+			gridPath := g.Grid
+			if !filepath.IsAbs(gridPath) {
+				gridPath = filepath.Join(filepath.Dir(abs), gridPath)
+			}
+			if _, err = a.recordInput(gridPath); err != nil {
+				return "", nil, nil, err
+			}
+		}
+	}
+	sb, err := board.Load(abs)
+	if err != nil {
+		return abs, nil, []map[string]any{{"inspection": "storyboard", "error": err.Error()}}, nil
+	}
+	return abs, shotWhyFindings(sb), nil, nil
+}
+
+// recordInput stores the digest of a file the check reads ("absent" if it is missing) in the
+// operation, and fails when a resumed check finds it changed. It returns the digest.
+func (a *app) recordInput(abs string) (string, error) {
 	digest := "absent"
 	if _, statErr := os.Stat(abs); statErr == nil {
+		var err error
 		if digest, err = fileDigest(a.ctx, abs); err != nil {
-			return "", nil, nil, err
+			return "", err
 		}
 	}
 	if a.op != nil {
@@ -596,18 +629,11 @@ func (a *app) checkStoryboard(explicit string) (string, []finding, []map[string]
 			a.op.Inputs = map[string]string{}
 		}
 		if previous, ok := a.op.Inputs[abs]; ok && previous != digest {
-			return "", nil, nil, fmt.Errorf("storyboard.json changed since this check started; run cav check again (%s)", abs)
+			return "", fmt.Errorf("%s changed since this check started; run cav check again (%s)", filepath.Base(abs), abs)
 		}
 		a.op.Inputs[abs] = digest
 	}
-	if digest == "absent" {
-		return "", nil, nil, nil
-	}
-	sb, err := board.Load(abs)
-	if err != nil {
-		return abs, nil, []map[string]any{{"inspection": "storyboard", "error": err.Error()}}, nil
-	}
-	return abs, shotWhyFindings(sb), nil, nil
+	return digest, nil
 }
 
 // shotWhyFindings warns about each shot that has no reason to be in the video.
