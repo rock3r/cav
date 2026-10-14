@@ -172,6 +172,39 @@ func TestIndentedCodeIsProse(t *testing.T) {
 	}
 }
 
+func TestHTMLCommentsDisableStages(t *testing.T) {
+	src := "## brief\noutputs: brief.json\n\n" +
+		"<!--\n## brief\noutputs: /bad\nreview: maybe\nreview: no\n-->\n\n" +
+		"<!-- ## one line\noutputs: x.json -->\n" +
+		"<!-- ## inline --> ## build\noutputs: final.mp4 <!-- , old.mp4 -->\nreview: no\n\n" +
+		"```\n<!--\n```\n" +
+		"## after the fence\noutputs: a.json\n"
+	f, err := Parse("flow.md", []byte(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, s := range f.Stages {
+		names = append(names, s.Name)
+	}
+	if want := []string{"brief", "build", "after the fence"}; !reflect.DeepEqual(names, want) {
+		t.Fatalf("stages = %q, want %q", names, want)
+	}
+	if got := f.Stages[1].Outputs; !reflect.DeepEqual(got, []string{"final.mp4"}) {
+		t.Errorf("build outputs = %q", got)
+	}
+	if f.Stages[0].Review {
+		t.Error("review: no inside the comment changed the brief stage")
+	}
+}
+
+func TestHTMLCommentInsideIndentedCodeIsNotAComment(t *testing.T) {
+	f, err := Parse("flow.md", []byte("## one\n    <!--\noutputs: a.json\n"))
+	if err != nil || len(f.Stages[0].Outputs) != 1 {
+		t.Errorf("stages = %+v, %v", f, err)
+	}
+}
+
 func TestOutputsAreNormalised(t *testing.T) {
 	f, err := Parse("flow.md", []byte("## one\nOutputs: `a.json`, renders\\final.mp4 ,, `board/`\n"))
 	if err != nil {

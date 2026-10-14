@@ -90,6 +90,7 @@ func (p *parser) fail(line int, format string, args ...any) {
 func (p *parser) run(text string) {
 	p.seenStageAt = map[string]int{}
 	fence := ""
+	inComment := false
 	for i, line := range strings.Split(text, "\n") {
 		n := i + 1
 		t := strings.TrimSpace(line)
@@ -99,9 +100,11 @@ func (p *parser) run(text string) {
 			}
 			continue
 		}
-		if indentedCode(line) {
+		if !inComment && indentedCode(line) {
 			continue
 		}
+		// What is left of the line outside <!-- --> comments.
+		t = strings.TrimSpace(stripComments(line, &inComment))
 		if m := fenceMarker(t); m != "" {
 			fence = m
 			continue
@@ -226,6 +229,32 @@ func (p *parser) outputs(line int, val string) []string {
 		p.fail(line, "outputs: is empty")
 	}
 	return out
+}
+
+// stripComments removes HTML comments from a line. *inComment says whether the line starts
+// inside a comment that an earlier line opened, and is updated for the next line. Text
+// after a closing --> on the same line is kept.
+func stripComments(line string, inComment *bool) string {
+	var out strings.Builder
+	for {
+		if *inComment {
+			end := strings.Index(line, "-->")
+			if end < 0 {
+				return out.String()
+			}
+			line = line[end+len("-->"):]
+			*inComment = false
+			continue
+		}
+		start := strings.Index(line, "<!--")
+		if start < 0 {
+			out.WriteString(line)
+			return out.String()
+		}
+		out.WriteString(line[:start])
+		line = line[start+len("<!--"):]
+		*inComment = true
+	}
 }
 
 // indentedCode reports whether a line is indented by four or more spaces, or a tab. As in

@@ -408,6 +408,7 @@ use: cav gen image
 - `use:` is a note for the agent, for example the commands to use. cav prints it and never
   runs it.
 
+Lines inside code blocks or `<!-- -->` comments are ignored, so you can comment out a stage.
 All other text is for the agent. If the file has a mistake, `cav guide flow` prints the file
 anyway and warns on stderr with the line number. To start from the standard flow, copy it:
 it is the file `assets/flow/standard.md` in the cav source, and `cav guide flow` prints it.

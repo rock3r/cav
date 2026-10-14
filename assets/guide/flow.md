@@ -27,6 +27,7 @@ A flow file is Markdown. cav reads four things from it:
   The approval belongs to the first output, which must then be one `.json` file.
 - `use:` is free text for you. cav prints it and never runs it.
 
+Lines inside code blocks or `<!-- -->` comments are ignored, so you can comment out a stage.
 All other text in the file is for you to read and follow. If the file has a mistake, cav
 prints it with the line number as a warning. Fix the file; cav does not fall back to another
 flow.
