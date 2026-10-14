@@ -274,3 +274,21 @@ func TestCheckSketchRefusesAnythingAfterTheRoot(t *testing.T) {
 		t.Errorf("a comment after the root was refused: %v", p)
 	}
 }
+
+func TestCheckSketchRefusesUnboundPrefixes(t *testing.T) {
+	if p := problems(t, wrap(`<path foo:bar="x"/>`)); len(p) == 0 || !strings.Contains(strings.Join(p, "\n"), `prefix "foo"`) {
+		t.Errorf("an undeclared prefix was accepted: %v", p)
+	}
+	// A declaration on a parent covers its children; a sibling's does not.
+	ok := `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1920 1080"><rect id="a" width="1" height="1"/><use xlink:href="#a"/><g xmlns:q="urn:q"><path q:x="1"/></g></svg>`
+	if p := problems(t, []byte(ok)); p != nil {
+		t.Errorf("declared prefixes refused: %v", p)
+	}
+	leak := `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080"><g xmlns:q="urn:q"/><path q:x="1"/></svg>`
+	if p := problems(t, []byte(leak)); len(p) == 0 {
+		t.Error("a prefix declared on a closed sibling was accepted")
+	}
+	if p := problems(t, wrap(`<text xml:space="preserve">a</text>`)); p != nil {
+		t.Errorf("xml:space refused: %v", p)
+	}
+}

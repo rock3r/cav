@@ -22,7 +22,7 @@ func TestFramesRefuseShotIDsThatAreNotSimpleNames(t *testing.T) {
 	f := newFakeSketchCavalry(t, savedScene())
 	for _, args := range [][]string{{path}, {"--service", "greybox", path}, {"--service", "sketch", path}} {
 		_, _, err := framesJSON(t, args...)
-		if err == nil || !strings.Contains(err.Error(), `shot id "../s1" may only use letters, digits, - and _`) {
+		if err == nil || !strings.Contains(err.Error(), `shot id "../s1" cannot be a file name`) {
 			t.Fatalf("args %v: got %v", args, err)
 		}
 	}

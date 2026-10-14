@@ -15,7 +15,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/rock3r/cav/internal/sheet"
@@ -136,8 +135,21 @@ func (sb *Board) Time(beat float64) float64 {
 	return sb.Offset + beat*60/sb.BPM
 }
 
-// simpleID is what a shot id may be: it becomes a file name (board/<id>.png), so it is a plain name.
-var simpleID = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
+// pathSafeID says whether a shot id can be a file name (board/<id>.png) without leaving the
+// board folder: it is not empty, at most 64 bytes, has no slash, backslash or control
+// character, is not "." or "..", and does not start with a dot. Dots, spaces and non-ASCII
+// letters are fine, so older boards still load.
+func pathSafeID(id string) bool {
+	if id == "" || len(id) > 64 || id[0] == '.' {
+		return false
+	}
+	for _, r := range id {
+		if r == '/' || r == '\\' || r < 0x20 || r == 0x7f {
+			return false
+		}
+	}
+	return true
+}
 
 func (sb *Board) Validate() error {
 	if len(sb.Shots) == 0 {
@@ -151,8 +163,8 @@ func (sb *Board) Validate() error {
 		if s.ID == "" {
 			return fmt.Errorf("shot %d has no id", i+1)
 		}
-		if !simpleID.MatchString(s.ID) {
-			return fmt.Errorf("shot id %q may only use letters, digits, - and _ (1 to 64 characters)", s.ID)
+		if !pathSafeID(s.ID) {
+			return fmt.Errorf("shot id %q cannot be a file name: use 1 to 64 characters, no / or \\, and no leading dot", s.ID)
 		}
 		if seen[s.ID] {
 			return fmt.Errorf("two shots are called %s", s.ID)

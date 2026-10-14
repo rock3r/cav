@@ -117,7 +117,13 @@ func genImage(a *app, args []string) error {
 	}
 	var im *imagegen.Image
 	switch ch.Service {
-	case "greybox", "sketch":
+	case "sketch":
+		if *service == "sketch" {
+			return fail(exitError, "sketch only renders storyboard SVGs, not a prompt",
+				"write board/<id>.svg for each shot and run cav board frames, or pick another image service")
+		}
+		fallthrough
+	case "greybox":
 		data, err := imagegen.Greybox(imagegen.Card{Title: "placeholder", Lines: []string{prompt}, Footer: "greybox: add an image key (cav config) to generate"})
 		if err != nil {
 			return err

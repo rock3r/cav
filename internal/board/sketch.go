@@ -21,6 +21,7 @@ const (
 	maxSketchDepth    = 32
 	maxSketchProblems = 10
 	svgNS             = "http://www.w3.org/2000/svg"
+	xmlURL            = "http://www.w3.org/XML/1998/namespace"
 )
 
 // SketchError lists everything wrong with a sketch SVG, so one run shows all of it.
@@ -126,6 +127,21 @@ func analyzeSketch(data []byte, w, h int) (*sketchInfo, error) {
 	info := &sketchInfo{}
 	depth, elements := 0, 0
 	rootSeen := false
+	// scopes holds, per open element, the namespace URLs its xmlns declarations bind.
+	var scopes [][]string
+	bound := func(space string) bool {
+		if space == "xmlns" || space == xmlURL || space == svgNS {
+			return true
+		}
+		for _, sc := range scopes {
+			for _, u := range sc {
+				if u == space {
+					return true
+				}
+			}
+		}
+		return false
+	}
 	for {
 		prev := d.InputOffset()
 		tok, err := d.Token()
@@ -149,6 +165,13 @@ func analyzeSketch(data []byte, w, h int) (*sketchInfo, error) {
 				add(line, "nothing may follow the closing </svg>")
 			}
 		case xml.StartElement:
+			var declared []string
+			for _, a := range t.Attr {
+				if a.Name.Space == "xmlns" || (a.Name.Space == "" && a.Name.Local == "xmlns") {
+					declared = append(declared, a.Value)
+				}
+			}
+			scopes = append(scopes, declared)
 			if info.innerEnd > 0 {
 				add(line, "nothing may follow the closing </svg>")
 				break
@@ -190,9 +213,17 @@ func analyzeSketch(data []byte, w, h int) (*sketchInfo, error) {
 				add(line, "groups are nested more than %d deep", maxSketchDepth)
 			}
 			for _, a := range t.Attr {
+				// The decoder leaves the prefix of an attribute in Space when no xmlns declares it.
+				if a.Name.Space != "" && !bound(a.Name.Space) {
+					add(line, "the prefix %q of %s=… on <%s> is not declared with xmlns:%s", a.Name.Space, a.Name.Space+":"+a.Name.Local, name, a.Name.Space)
+					continue
+				}
 				checkAttr(a, name, func(f string, args ...any) { add(line, f, args...) })
 			}
 		case xml.EndElement:
+			if len(scopes) > 0 {
+				scopes = scopes[:len(scopes)-1]
+			}
 			depth--
 			if depth == 0 && info.innerEnd == 0 {
 				info.innerEnd = prev
