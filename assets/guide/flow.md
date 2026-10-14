@@ -44,8 +44,8 @@ Work like an agency creative director. Do not start with the tools.
 ## 4. Stage 2: the mood board
 
 Find references with `cav ref search`, save them with `cav ref get` (it records the licence
-and credit), read a user's Are.na channel with `cav ref arena`, and add the user's own files
-with `cav ref add`. Then run `cav board mood` and look at `renders/moodboard.png`. Show it to
+and credit), read a user's Are.na channel with `cav ref arena`, and add the user's own files: copy each one
+into `moodboard/`, then record it with `cav ref add moodboard/<file> --licence <id>`. Then run `cav board mood` and look at `renders/moodboard.png`. Show it to
 the user and ask what to keep and what to drop.
 
 **A reference teaches. It is not a template.** For each reference, write down what you take
@@ -60,8 +60,10 @@ the user asks for it (`cav guide production`, "Licences come first").
 
 Run `cav board init` with the brief's format and timing, for example
 `cav board init --width 1080 --height 1920 --fps 30 --seconds 15 --bpm 120 --shots 6`.
-Write what happens in each shot, then `cav board frames` and
-`cav board sheet`. Look at `renders/board.png`, fix the weak shots, and show it to the user.
+Then carry the approved direction into `storyboard.json`: set `style.prompt` to the look in a
+few words, `style.palette` to the chosen colours, and `style.refs` to the mood board images that
+show it. `cav board frames` sends these with every frame. Write what happens in each shot,
+then run `cav board frames` and `cav board sheet`. Look at `renders/board.png`, fix the weak shots, and show it to the user.
 
 Do not start anything slow or costly before the user approves the storyboard. That means
 music generation, Veo clips (`cav board motion`), the animatic and the build. After the
