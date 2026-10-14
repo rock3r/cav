@@ -164,7 +164,7 @@ func analyzeSketch(data []byte, w, h int) (*sketchInfo, error) {
 						info.xmlns = append(info.xmlns, a)
 					}
 					// The attributes were checked above like any other element's.
-					if a.Name.Space == "" && !structuralRootAttrs[a.Name.Local] {
+					if a.Name.Space == "" && !structuralRootAttrs[a.Name.Local] && !hasAttr(info.rootPresentation, a.Name.Local) {
 						info.rootPresentation = append(info.rootPresentation, a)
 					}
 				}
@@ -195,6 +195,15 @@ func analyzeSketch(data []byte, w, h int) (*sketchInfo, error) {
 		add(0, "the file has no <svg> element")
 	}
 	return finish(info)
+}
+
+func hasAttr(attrs []xml.Attr, name string) bool {
+	for _, a := range attrs {
+		if a.Name.Local == name {
+			return true
+		}
+	}
+	return false
 }
 
 func firstWord(s string) string {
@@ -316,7 +325,9 @@ func NormalizeSketch(data []byte, w, h int, bg string) ([]byte, error) {
 	}
 	fmt.Fprintf(&b, ` width="%d" height="%d" viewBox="0 0 %d %d">`, w, h, w, h)
 	fmt.Fprintf(&b, `<rect width="%d" height="%d" fill="%s"/>`, w, h, bg)
-	fmt.Fprintf(&b, `<g transform="translate(%s %s) scale(%s %s)"`, num(-info.vbX*sx), num(-info.vbY*sy), num(sx), num(sy))
+	// The outer group carries only cav's transform. The inner group carries the root's own
+	// attributes (a root transform included), so no element has the same attribute twice.
+	fmt.Fprintf(&b, `<g transform="translate(%s %s) scale(%s %s)"><g`, num(-info.vbX*sx), num(-info.vbY*sy), num(sx), num(sy))
 	for _, a := range info.rootPresentation {
 		var v bytes.Buffer
 		_ = xml.EscapeText(&v, []byte(a.Value))
@@ -326,6 +337,6 @@ func NormalizeSketch(data []byte, w, h int, bg string) ([]byte, error) {
 	if info.innerEnd > info.innerStart {
 		b.Write(data[info.innerStart:info.innerEnd])
 	}
-	b.WriteString("</g></svg>\n")
+	b.WriteString("</g></g></svg>\n")
 	return b.Bytes(), nil
 }
