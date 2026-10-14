@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- `cav board frames` and `cav board motion` now refuse shots whose `"what"` is still the
+  placeholder text from `cav board init`, before any call to a paid service. They name the
+  shots, for example "s1, s2: write what happens in the shot first". `--force` does not skip
+  this check. The frame prompt also tells the image service not to draw text unless the shot
+  asks for it.
+- Shot times no longer print as `-0.0s` when the beat grid starts at zero. The sheet label, the
+  animatic and the `cav board motion` and `cav listen` output print `0.0` instead.
 - `cav beats -o` creates the output folder. Before, `cav beats track.wav -o build/grid.json`
   failed in a new project because nothing had made `build/` yet.
 - A new guide, `cav guide flow` (#88), describes the production flow as a menu of five stages:

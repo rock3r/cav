@@ -232,7 +232,7 @@ func cmdListen(a *app, args []string) error {
 	if sb != nil {
 		var sh []string
 		for _, s := range sb.Shots {
-			sh = append(sh, fmt.Sprintf("%s at %.2fs: %s", s.ID, sb.Time(s.Beats[0]), s.What))
+			sh = append(sh, fmt.Sprintf("%s at %.2fs: %s", s.ID, board.RoundSeconds(sb.Time(s.Beats[0]), 2), s.What))
 		}
 		facts += "\nThe picture cuts to: " + strings.Join(sh, "; ")
 	}
