@@ -21,10 +21,13 @@ func briefFlags(fs *flag.FlagSet) (path *string, off *bool) {
 // none to use: --no-brief was given, or no --brief was named and ./brief.json does not
 // exist. A brief that was named but is missing, or that has problems, is an error.
 func briefFor(fs *flag.FlagSet, path string, off bool) (*brief.Brief, error) {
+	explicit := flagSet(fs, "brief")
+	if off && explicit {
+		return nil, usageErr("--brief and --no-brief cannot go together")
+	}
 	if off {
 		return nil, nil
 	}
-	explicit := flagSet(fs, "brief")
 	if _, err := os.Stat(path); err != nil {
 		if explicit || !os.IsNotExist(err) {
 			return nil, fail(exitError, path+" not found", "check the path, or pass --no-brief")
