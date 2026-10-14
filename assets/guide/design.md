@@ -205,7 +205,8 @@ api.set(cav.find('REF screenshot'), { hidden: true })
 
 Animate the parts in with small staggered `slideIn`s (dy 20-30, 3-4 frame steps), then show one
 interaction: a cursor (small path arrow) moves with `inOutCubic`, the button `punch`es, a new
-panel `pop`s. Keep the reference screenshot beside the rebuild in the review sheet.
+panel `pop`s. Keep the reference screenshot beside the rebuild in the review sheet. For a
+whole software video, read `cav guide showcase`.
 
 ## 13. The review loop
 
