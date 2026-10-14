@@ -334,3 +334,23 @@ test('layers hidden or outside their in and out frames do not count toward the k
 	const r = run(cv, { dryRun: true })
 	assert.equal(r.key.box.r, 400)
 })
+
+test('top-level layers after the layer cap are still transformed, and a late bg still covers the frame', () => {
+	const dots = Array.from({ length: 450 }, (_, i) => ({ name: 'dot' + i, box: [-10, 10, 10, -10] }))
+	const cv = fakeCavalry({ layers: [{ name: 'rig', children: dots }, { name: 'bg', box: FULL }, { name: 'late', pos: { x: 100, y: 0 }, box: [90, 110, 10, -10] }] })
+	const r = run(cv, {})
+	assert.equal(r.coverageComplete, false)
+	assert.deepEqual(r.backgrounds.map(b => b.name), ['bg'])
+	near(topNamed(cv, r.target.id, 'bg').scale.x, 1920 / 1080)
+	const late = topNamed(cv, r.target.id, 'late')
+	near(late.scale.x, r.scale)
+	near(late.pos.x, r.scale * 100 + r.offset[0])
+})
+
+test('only identical target dimensions are refused: near-9:16 and near-square comps are reframed', () => {
+	const a = run(fakeCavalry({ w: 1080, h: 1900, layers: [{ name: 'a', box: [-100, 100, 100, -100] }] }), { dryRun: true })
+	assert.deepEqual([a.target.w, a.target.h], [1080, 1920])
+	const b = run(fakeCavalry({ w: 1080, h: 1070, layers: [{ name: 'a', box: [-100, 100, 100, -100] }] }), { to: [1, 1], dryRun: true })
+	assert.deepEqual([b.target.w, b.target.h], [1070, 1070])
+	assert.throws(() => run(fakeCavalry({ w: 1080, h: 1080, layers: [{ name: 'a', box: [-1, 1, 1, -1] }] }), { to: [1, 1] }), /already 1:1/)
+})

@@ -94,7 +94,7 @@ function reframe() {
 	var target = targetSize(Ws, Hs, opts.to),
 		Wt = target[0],
 		Ht = target[1]
-	if (Math.abs(Wt / Ht - Ws / Hs) < 0.01) throw new Error('the comp is already ' + opts.to[0] + ':' + opts.to[1])
+	if (Wt === Ws && Ht === Hs) throw new Error('the comp is already ' + opts.to[0] + ':' + opts.to[1])
 	var newName = opts.name || sourceName + ' ' + opts.to[0] + 'x' + opts.to[1]
 	if (!opts.dryRun)
 		api.getComps().forEach(function (c) {
@@ -109,10 +109,13 @@ function reframe() {
 		skipped = 0,
 		coverageComplete = true
 	function addNode(id, parent) {
-		if (order.length >= MAX_LAYERS) {
+		// Past the cap only the top-level layers are still recorded, so every one of them is
+		// paired and transformed in the copy; nothing under them is measured.
+		var over = order.length >= MAX_LAYERS
+		if (over) {
 			skipped++
 			coverageComplete = false
-			return null
+			if (parent !== null) return null
 		}
 		var n = { id: id, type: api.getLayerType(id), name: api.getNiceName(id), parent: parent, children: [], childIds: [], inF: start, outF: end }
 		try {
@@ -120,8 +123,9 @@ function reframe() {
 			n.outF = api.getOutFrame(id)
 		} catch (e) {}
 		nodes[id] = n
-		order.push(id)
 		n.childIds = api.getChildren(id) || []
+		if (over) return n
+		order.push(id)
 		n.childIds.forEach(function (c) {
 			var cn = addNode(c, id)
 			if (cn) n.children.push(cn.id)
