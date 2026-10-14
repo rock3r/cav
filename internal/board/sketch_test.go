@@ -335,3 +335,21 @@ func TestCheckSketchRefusesPercentagesExceptWhereTheyAreNotLengths(t *testing.T)
 		}
 	}
 }
+
+func TestCheckSketchRefusesNamespaceResetsAndRootXMLAttributes(t *testing.T) {
+	for name, in := range map[string][]byte{
+		"xmlns reset":       wrap(`<g xmlns=""><rect width="1" height="1"/></g>`),
+		"xmlns on a child":  wrap(`<g xmlns="http://www.w3.org/2000/svg"/>`),
+		"prefix on a child": wrap(`<g xmlns:xlink="http://www.w3.org/1999/xlink"/>`),
+		"xml:space on root": []byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" xml:space="preserve"/>`),
+		"xml:lang on root":  []byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" xml:lang="en"/>`),
+	} {
+		if p := problems(t, in); len(p) == 0 {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+	// The root keeps its own xmlns, and inner elements may use xml:space and xml:lang.
+	if p := problems(t, wrap(`<text xml:space="preserve" xml:lang="en">a</text>`)); p != nil {
+		t.Errorf("inner xml attributes refused: %v", p)
+	}
+}

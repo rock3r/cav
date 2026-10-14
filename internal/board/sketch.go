@@ -271,12 +271,16 @@ func percentageIn(a xml.Attr) string {
 }
 
 // prefixedAttrProblem allows only these prefixed attributes: xmlns:xlink on <svg> with the real
-// XLink URI, xlink:* when that declaration is on <svg>, and xml:space and xml:lang. Sketches are
+// XLink URI, xlink:* when that declaration is on <svg>, and xml:space and xml:lang on inner
+// elements. xmlns and xmlns:* inside the root are refused. Sketches are
 // hand-written SVG, so nothing else is needed. The decoder puts the namespace URL (or, when no
 // xmlns declares the prefix, the prefix itself) in Name.Space. It returns "" when the attribute is fine.
 func prefixedAttrProblem(a xml.Attr, isRoot, xlinkOnRoot bool) string {
 	switch a.Name.Space {
 	case "":
+		if a.Name.Local == "xmlns" && !isRoot {
+			return "xmlns=… resets the namespace and is allowed only on <svg>"
+		}
 		return ""
 	case "xmlns":
 		if isRoot && a.Name.Local == "xlink" && a.Value == xlinkURL {
@@ -284,7 +288,7 @@ func prefixedAttrProblem(a xml.Attr, isRoot, xlinkOnRoot bool) string {
 		}
 		return "xmlns:" + a.Name.Local + " is not allowed (only xmlns:xlink=\"" + xlinkURL + "\" on <svg>)"
 	case xmlURL:
-		if a.Name.Local == "space" || a.Name.Local == "lang" {
+		if (a.Name.Local == "space" || a.Name.Local == "lang") && !isRoot {
 			return ""
 		}
 	case xlinkURL:
