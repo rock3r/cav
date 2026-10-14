@@ -95,16 +95,17 @@ func PageURL(provider, id, hash string) string {
 	return "https://vimeo.com/" + id
 }
 
-// PlayerURL is the address of the embedded player. It uses the privacy hosts of both
+// PlayerURL is the address of the embedded player. It starts playing at once: the page
+// only inserts it when the person presses play. It uses the privacy hosts of both
 // services, and is empty for parts that do not pass the checks.
 func PlayerURL(provider, id, hash string) string {
 	if !valid(provider, id, hash) {
 		return ""
 	}
 	if provider == YouTube {
-		return "https://www.youtube-nocookie.com/embed/" + id + "?rel=0&playsinline=1"
+		return "https://www.youtube-nocookie.com/embed/" + id + "?rel=0&playsinline=1&autoplay=1"
 	}
-	s := "https://player.vimeo.com/video/" + id + "?dnt=1"
+	s := "https://player.vimeo.com/video/" + id + "?dnt=1&autoplay=1"
 	if hash != "" {
 		s += "&h=" + hash
 	}

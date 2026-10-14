@@ -169,10 +169,10 @@ func TestParseVideoURL(t *testing.T) {
 }
 
 func TestPlayerURLUsesOnlyCheckedParts(t *testing.T) {
-	if got := PlayerURL(YouTube, "aqz-KE-bpKQ", ""); got != "https://www.youtube-nocookie.com/embed/aqz-KE-bpKQ?rel=0&playsinline=1" {
+	if got := PlayerURL(YouTube, "aqz-KE-bpKQ", ""); got != "https://www.youtube-nocookie.com/embed/aqz-KE-bpKQ?rel=0&playsinline=1&autoplay=1" {
 		t.Error(got)
 	}
-	if got := PlayerURL(Vimeo, "123", "abcdef12"); got != "https://player.vimeo.com/video/123?dnt=1&h=abcdef12" {
+	if got := PlayerURL(Vimeo, "123", "abcdef12"); got != "https://player.vimeo.com/video/123?dnt=1&autoplay=1&h=abcdef12" {
 		t.Error(got)
 	}
 	for _, c := range [][3]string{

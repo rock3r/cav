@@ -50,6 +50,10 @@ func moodSync(ctx context.Context, dir, file string) (*moodboard.Board, moodboar
 		}
 		secs, err := moodboard.ContactSheet(ctx, b.Path(it.File), out, 6)
 		if err != nil {
+			// The clip changed and cannot be read: the old sheet and length would describe
+			// the old file. SheetPath has checked that out is a plain file in .thumbs.
+			it.Seconds = 0
+			os.Remove(out)
 			notes = append(notes, fmt.Sprintf("%s: no contact sheet (%v)", it.ID, err))
 			continue
 		}

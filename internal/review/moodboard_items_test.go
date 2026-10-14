@@ -41,7 +41,7 @@ func TestMoodboardEmbedIsRebuiltFromTheParsedID(t *testing.T) {
 	for _, it := range items {
 		by[it.ID] = it
 	}
-	if got := by["good"].Embed; got != "https://www.youtube-nocookie.com/embed/aqz-KE-bpKQ?rel=0&playsinline=1" {
+	if got := by["good"].Embed; got != "https://www.youtube-nocookie.com/embed/aqz-KE-bpKQ?rel=0&playsinline=1&autoplay=1" {
 		t.Errorf("player %q", got)
 	}
 	if by["good"].Link != goodYT {
@@ -58,7 +58,7 @@ func TestMoodboardEmbedIsRebuiltFromTheParsedID(t *testing.T) {
 			t.Errorf("%s got a player: %q", id, by[id].Embed)
 		}
 	}
-	if by["vim"].Embed != "https://player.vimeo.com/video/123456789?dnt=1&h=abcdef1234" {
+	if by["vim"].Embed != "https://player.vimeo.com/video/123456789?dnt=1&autoplay=1&h=abcdef1234" {
 		t.Errorf("vimeo player %q", by["vim"].Embed)
 	}
 	if by["kindless"].Kind != "embed" || by["kindless"].Embed == "" {
