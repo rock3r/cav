@@ -460,12 +460,27 @@ func refAddVideo(a *app, root, dir, link, take, by, title string) error {
 	if err != nil {
 		return fail(exitError, err.Error(), "")
 	}
-	it := b.Find(id)
+	it := b.FindEmbed(emb.Provider, emb.ID)
 	if it == nil {
 		// No thumbnail, so no manifest entry: the item is written by hand.
+		id = b.UniqueID(id)
 		b.Items = append(b.Items, moodboard.Item{ID: id, Kind: moodboard.KindEmbed, URL: emb.PageURL, Title: emb.Title,
 			Source: emb.Provider, Licence: sources.ReferenceOnly.ID, Credit: credit, AddedBy: moodboard.ByAgent})
 		it = &b.Items[len(b.Items)-1]
+	}
+	id = it.ID
+	// Adding it again refreshes what the site said: a changed link (a Vimeo hash), a title
+	// (also one given by hand on a retry), and a thumbnail that arrived this time.
+	it.URL = emb.PageURL
+	if emb.Title != "" {
+		it.Title = emb.Title
+	}
+	if thumb != "" {
+		if abs, err := filepath.Abs(thumb); err == nil {
+			if rel, err := filepath.Rel(filepath.Dir(b.FilePath()), abs); err == nil {
+				it.Thumb = filepath.ToSlash(rel)
+			}
+		}
 	}
 	it.Status = "" // asking for it again brings a dropped video back
 	if take != "" {

@@ -4,6 +4,10 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"image"
+	"image/color"
+	"image/draw"
+	"image/png"
 	"os"
 	"path/filepath"
 	"strings"
@@ -91,6 +95,12 @@ func boardMood(a *app, args []string) error {
 	}
 	root := library.Root()
 	var tiles []board.MoodTile
+	phDir := ""
+	defer func() {
+		if phDir != "" {
+			os.RemoveAll(phDir)
+		}
+	}()
 	counts := map[string]int{}
 	var noTake []string
 	for _, it := range b.Active() {
@@ -107,8 +117,12 @@ func boardMood(a *app, args []string) error {
 			p = b.Path(it.Thumb)
 		}
 		if st, err := os.Stat(p); p == "" || err != nil || st.IsDir() {
-			notes = append(notes, it.ID+": nothing to show in the picture (no thumbnail)")
-			continue
+			// No picture (a video added offline, or a clip ffmpeg could not read): a plain
+			// card keeps the item on the board, and its caption says what it is.
+			if p, err = placeholderCard(&phDir); err != nil {
+				return err
+			}
+			notes = append(notes, it.ID+": no picture, drawn as a plain card")
 		}
 		cap := it.ID
 		if it.File != "" {
@@ -124,7 +138,7 @@ func boardMood(a *app, args []string) error {
 		case moodboard.KindClip:
 			cap = "clip  " + cap
 		case moodboard.KindEmbed:
-			cap = "video  " + strings.TrimSpace(it.Source+"  "+it.Title)
+			cap = "web video  " + firstNonEmpty(it.Title, it.ID)
 		}
 		tiles = append(tiles, board.MoodTile{Path: p, Caption: cap})
 	}
@@ -255,4 +269,27 @@ func moodCounts(total int, counts map[string]int) string {
 	}
 	return noun(total, "item", "items") + ": " + noun(counts[moodboard.KindImage], "image", "images") + ", " +
 		noun(counts[moodboard.KindClip], "clip", "clips") + ", " + noun(counts[moodboard.KindEmbed], "web video", "web videos")
+}
+
+// placeholderCard writes a plain dark card once into a temporary folder and returns its path.
+func placeholderCard(dir *string) (string, error) {
+	if *dir == "" {
+		d, err := os.MkdirTemp("", "cav-mood-card")
+		if err != nil {
+			return "", err
+		}
+		*dir = d
+	}
+	p := filepath.Join(*dir, "card.png")
+	if _, err := os.Stat(p); err == nil {
+		return p, nil
+	}
+	img := image.NewRGBA(image.Rect(0, 0, 480, 270))
+	draw.Draw(img, img.Bounds(), &image.Uniform{color.RGBA{44, 47, 56, 255}}, image.Point{}, draw.Src)
+	f, err := os.Create(p)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	return p, png.Encode(f, img)
 }

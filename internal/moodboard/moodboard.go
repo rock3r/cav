@@ -459,3 +459,19 @@ func Sync(jsonPath, dir string, m *library.Manifest, root string) (*Board, Chang
 	}
 	return b, ch, nil
 }
+
+// FindEmbed returns the item that embeds this video.
+func (b *Board) FindEmbed(provider, id string) *Item {
+	for i := range b.Items {
+		if b.Items[i].EffectiveKind() != KindEmbed {
+			continue
+		}
+		if p, v, _, ok := ParseVideoURL(b.Items[i].URL); ok && p == provider && v == id {
+			return &b.Items[i]
+		}
+	}
+	return nil
+}
+
+// UniqueID returns base, or base-2, base-3 ... when the id is taken.
+func (b *Board) UniqueID(base string) string { return b.uniqueID(base) }
