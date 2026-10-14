@@ -114,6 +114,9 @@ cav credits -o CREDITS.txt      # the credit lines the licences require
 
 ## 3. Plan: mood board, storyboard, animatic
 
+`cav guide flow` says which stages to run, in what order, and when to skip one. This section
+has the command details.
+
 ```bash
 cav ref search "neon city night"            # pick refs; each hit has a service:id ref
 cav ref get openverse:<id>                  # into moodboard/, with licence and credit

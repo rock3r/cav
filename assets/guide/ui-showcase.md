@@ -15,8 +15,8 @@ walkthroughs. Read this with `cav guide design` (recipe 12 shows how to rebuild 
 
 ## 1. Before you build
 
-- **Follow the default workflow**: mood board, storyboard, moving previz (animatic), then
-  the final. Get the user's approval at each step before you polish
+- **Follow the default flow**: brief, mood board, storyboard, moving previz (animatic), then
+  the final (`cav guide flow`). Get the user's approval at each step before you polish
   (`cav guide production`). When the instructions are vague, ask the user before you spend
   time and money on a build.
 - **Agree on the editing style.** The default is one long, continuous shot (section 5). If

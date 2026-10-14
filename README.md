@@ -88,7 +88,7 @@ folder: see [Agents in a sandbox](docs/user-guide.md#agents-in-a-sandbox).
 
 ```bash
 cav scene new --width 1920 --height 1080 --fps 60 --seconds 4
-cav guide            # the workflow, with a first script to copy
+cav guide            # how to build a scene, with a first script to copy
 cav run title.js     # run your script inside Cavalry
 cav sheet            # look at 12 frames in renders/sheet.png
 cav check            # find problems a viewer would notice
@@ -117,7 +117,7 @@ Describe a symptom, get the fix: `cav guide --search "keys dropped"`.
 | Command | What it does |
 |---|---|
 | `cav setup` / `cav doctor` | Install or check everything: token, bridge script, Cavalry, ffmpeg, docs, running bridge |
-| `cav guide [topic]` | How to work: workflow, design recipes, music sync, traps, native features, production, software showcase videos |
+| `cav guide [topic]` | How to work: building a scene, the production flow, design recipes, music sync, traps, native features, production, software showcase videos |
 | `cav guide --search <words>` | The best guide sections for a symptom, when you do not know the topic (offline) |
 | `cav status` | Existing bridge state; no scene work is queued |
 | `cav scene new\|comp\|open\|save` | New scene (refuses to discard unsaved work), change the comp, open, save |
