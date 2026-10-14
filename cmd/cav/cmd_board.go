@@ -289,14 +289,27 @@ func fileExists(p string) bool {
 	return err == nil
 }
 
-// withSketch adds sketch to an image order just before greybox, or at the end when the order
-// has no greybox. Every other service keeps its place, so a free choice stays ahead of a paid one.
+// withSketch puts sketch just before greybox, or at the end when the order has no greybox.
+// A sketch that already comes before greybox stays where it is. A sketch after greybox moves up
+// to just before it. Every other service keeps its place, so a free choice stays ahead of a paid one.
 func withSketch(order []string) []string {
+	sketchAt, greyboxAt := -1, -1
+	for i, n := range order {
+		if n == "sketch" && sketchAt < 0 {
+			sketchAt = i
+		}
+		if n == "greybox" && greyboxAt < 0 {
+			greyboxAt = i
+		}
+	}
+	if sketchAt >= 0 && (greyboxAt < 0 || sketchAt < greyboxAt) {
+		return append([]string(nil), order...)
+	}
 	out := make([]string, 0, len(order)+1)
 	added := false
 	for _, n := range order {
 		if n == "sketch" {
-			return append([]string(nil), order...)
+			continue
 		}
 		if n == "greybox" && !added {
 			out = append(out, "sketch")

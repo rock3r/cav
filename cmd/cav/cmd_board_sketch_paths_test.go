@@ -86,6 +86,9 @@ func TestWithSketch(t *testing.T) {
 		{[]string{"greybox"}, []string{"sketch", "greybox"}},
 		{nil, []string{"sketch"}},
 		{[]string{"sketch", "greybox"}, []string{"sketch", "greybox"}},
+		{[]string{"greybox", "sketch"}, []string{"sketch", "greybox"}},
+		{[]string{"gemini", "greybox", "openai", "sketch"}, []string{"gemini", "sketch", "greybox", "openai"}},
+		{[]string{"gemini", "sketch", "openai"}, []string{"gemini", "sketch", "openai"}},
 	} {
 		if got := withSketch(c.in); !reflect.DeepEqual(got, c.want) {
 			t.Errorf("withSketch(%v) = %v, want %v", c.in, got, c.want)

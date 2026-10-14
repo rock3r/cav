@@ -9,7 +9,7 @@ import (
 )
 
 func TestValidateRefusesShotIDsThatCannotBeFileNames(t *testing.T) {
-	for _, id := range []string{"../x", "a/b", `a\b`, "..", ".", "a\x00b", "a\nb", strings.Repeat("a", 65)} {
+	for _, id := range []string{"../x", "a/b", `a\b`, "..", ".", "a\x00b", "a\nb", strings.Repeat("a", 201)} {
 		sb := &Board{BPM: 120, Shots: []Shot{{ID: id, Beats: [2]float64{0, 4}}}}
 		err := sb.Validate()
 		if err == nil || !strings.Contains(err.Error(), "cannot be a file name") || !strings.Contains(err.Error(), fmt.Sprintf("%q", id)) {
@@ -17,7 +17,7 @@ func TestValidateRefusesShotIDsThatCannotBeFileNames(t *testing.T) {
 		}
 	}
 	// Older boards use dots, spaces and accents in ids.
-	for _, id := range []string{"s1", "shot.1", ".intro", "..x", "plan 2", "intro_2", "Shot-3", "é", "a.b.c", strings.Repeat("a", 64)} {
+	for _, id := range []string{"s1", "shot.1", ".intro", "..x", "plan 2", "intro_2", "Shot-3", "é", "a.b.c", strings.Repeat("a", 64), strings.Repeat("a", 65), strings.Repeat("a", 200)} {
 		sb := &Board{BPM: 120, Shots: []Shot{{ID: id, Beats: [2]float64{0, 4}}}}
 		if err := sb.Validate(); err != nil {
 			t.Errorf("id %q refused: %v", id, err)
