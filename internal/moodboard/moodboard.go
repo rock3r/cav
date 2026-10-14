@@ -319,19 +319,15 @@ func Sync(jsonPath, dir string, m *library.Manifest, root string) (*Board, Chang
 		}
 	}
 	apply := func(it *Item, e library.Entry) {
-		if e.Source != "" {
-			it.Source = e.Source
-		}
-		if e.Licence != "" {
-			it.Licence = e.Licence
-		}
+		// The manifest is the licence source of truth: copy what it says, also when a
+		// field became empty (a credit that a CC0 licence no longer needs).
+		it.Source = e.Source
+		it.Licence = e.Licence
 		credit := e.Attribution
 		if credit == "" && e.AttributionRequired {
 			credit = library.DefaultAttribution(e)
 		}
-		if credit != "" {
-			it.Credit = credit
-		}
+		it.Credit = credit
 		if e.Title != "" {
 			it.Title = e.Title
 		}
@@ -475,3 +471,19 @@ func (b *Board) FindEmbed(provider, id string) *Item {
 
 // UniqueID returns base, or base-2, base-3 ... when the id is taken.
 func (b *Board) UniqueID(base string) string { return b.uniqueID(base) }
+
+// CheckThumbWrite says whether cav may write the file out, which must be <folder>/.thumbs/<name>:
+// the thumbnail folder and the file must not be links, so a write cannot land on another file.
+func CheckThumbWrite(out string) error {
+	out = filepath.Clean(out)
+	dir := filepath.Dir(out)
+	if filepath.Base(dir) != ThumbDir {
+		return fmt.Errorf("%s is not inside a %s folder", out, ThumbDir)
+	}
+	for _, p := range []string{dir, out} {
+		if st, err := os.Lstat(p); err == nil && st.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("%s is a link, so cav does not write there", p)
+		}
+	}
+	return nil
+}

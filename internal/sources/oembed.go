@@ -113,8 +113,34 @@ func SaveThumb(ctx context.Context, thumbURL, out string) error {
 	if !strings.HasPrefix(http.DetectContentType(data), "image/") {
 		return errors.New("the thumbnail is not an image")
 	}
+	if err := moodboard.CheckThumbWrite(out); err != nil {
+		return err
+	}
 	if err := os.MkdirAll(filepath.Dir(out), 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(out, data, 0o644)
+	// The folder was made after the first check, so check again. The file is written next to
+	// its place and renamed over it: a rename replaces a link itself and never follows it.
+	if err := moodboard.CheckThumbWrite(out); err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(out), ".thumb-*.tmp")
+	if err != nil {
+		return err
+	}
+	_, werr := tmp.Write(data)
+	cerr := tmp.Close()
+	if err := errors.Join(werr, cerr); err != nil {
+		os.Remove(tmp.Name())
+		return err
+	}
+	if err := os.Chmod(tmp.Name(), 0o644); err != nil {
+		os.Remove(tmp.Name())
+		return err
+	}
+	if err := os.Rename(tmp.Name(), out); err != nil {
+		os.Remove(tmp.Name())
+		return err
+	}
+	return nil
 }
