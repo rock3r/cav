@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- The guides now say how to animate software UI: app screens, UI walkthroughs and product
+  demos. Always rebuild the UI in Cavalry from shapes, text and icons, and never animate a
+  screenshot. Use the screenshot only as a low-opacity guide layer, and compare it with
+  `cav frame` before you animate. A rebuilt UI can zoom, pan and animate each part; a
+  screenshot blurs and cannot move its parts. See `cav guide design` (recipe 12), the new
+  row in `cav guide traps`, and the cavalry skill.
 - A command that cav refuses because another operation still has an unfinished job no
   longer records its own job as `unknown` (#109). cav sent nothing for it, so cav now
   records it as `refused`. A refused record does not stop later commands, and you do not
