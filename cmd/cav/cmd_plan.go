@@ -259,6 +259,22 @@ func count(n int, one, many string) string {
 	return fmt.Sprintf("%d %s", n, many)
 }
 
+// shellQuote makes a path safe to paste into a shell: it is single-quoted when it has a
+// character other than letters, digits and _@%+=:,./-.
+func shellQuote(s string) string {
+	safe := s != ""
+	for _, r := range s {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.ContainsRune("_@%+=:,./-", r)) {
+			safe = false
+			break
+		}
+	}
+	if safe {
+		return s
+	}
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
 // planText writes the next step for a stage, used when it is the first that needs work.
 func planText(ps *planStage, f *flow.Flow) {
 	switch ps.Status {
@@ -271,7 +287,7 @@ func planText(ps *planStage, f *flow.Flow) {
 		}
 	case "review":
 		r := ps.Review
-		cmd := "cav review " + r.Target
+		cmd := "cav review " + shellQuote(r.Target)
 		ps.command = cmd
 		if fix := append(append([]string{}, r.Redo...), r.OpenNotes...); len(fix) > 0 {
 			ps.text = fmt.Sprintf("fix %s, then: %s", strings.Join(fix, ", "), cmd)
@@ -283,7 +299,7 @@ func planText(ps *planStage, f *flow.Flow) {
 		}
 	case "check":
 		if ps.Review != nil {
-			ps.command = "cav review export " + ps.Review.Target
+			ps.command = "cav review export " + shellQuote(ps.Review.Target)
 			ps.text = fmt.Sprintf("fix %s (%s), then: %s", ps.Review.Target, ps.Review.Reason, ps.command)
 			break
 		}
@@ -293,7 +309,7 @@ func planText(ps *planStage, f *flow.Flow) {
 		}
 		ps.text = fmt.Sprintf("%s: %s; fix the flow file %s", ps.Name, ps.Detail, where)
 	case "notes":
-		ps.command = "cav review export " + ps.Review.Target
+		ps.command = "cav review export " + shellQuote(ps.Review.Target)
 		ps.text = "read the notes: " + ps.command
 	case "unknown":
 		step := "ask the user"

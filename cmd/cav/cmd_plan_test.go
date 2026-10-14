@@ -357,3 +357,41 @@ func TestPlanNeverWrites(t *testing.T) {
 		t.Errorf("the cav home folder changed")
 	}
 }
+
+func TestShellQuote(t *testing.T) {
+	for in, want := range map[string]string{
+		"storyboard.json":   "storyboard.json",
+		"renders/final.mp4": "renders/final.mp4",
+		"my board.json":     "'my board.json'",
+		"it's.json":         `'it'\''s.json'`,
+		"a;b.json":          "'a;b.json'",
+		"$HOME/x.json":      "'$HOME/x.json'",
+		"":                  "''",
+	} {
+		if got := shellQuote(in); got != want {
+			t.Errorf("shellQuote(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestPlanQuotesReviewTargets(t *testing.T) {
+	path := stillsProject(t)
+	dir := filepath.Dir(path)
+	if err := os.Rename(path, filepath.Join(dir, "my board.json")); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(dir)
+	writePlanFile(t, "flow.md", "## storyboard\noutputs: my board.json, board/\nreview: yes\n")
+	p := runPlan(t)
+	if p.Stages[0].Status != "review" {
+		t.Fatalf("stage = %+v", p.Stages[0])
+	}
+	if p.Next.Command != "cav review 'my board.json'" || !strings.HasSuffix(p.Next.Text, "cav review 'my board.json'") {
+		t.Errorf("next = %+v", p.Next)
+	}
+	writePlanFile(t, "my board.json", `{"schema":"cav-board/1","shots":"x"}`)
+	p = runPlan(t)
+	if p.Next.Command != "cav review export 'my board.json'" {
+		t.Errorf("next = %+v", p.Next)
+	}
+}

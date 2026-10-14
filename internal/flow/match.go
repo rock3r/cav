@@ -86,7 +86,8 @@ func walkSegments(root, dir string, segs []string, wantDir bool, out *[]string) 
 func candidates(dir, seg string) ([]string, error) {
 	star := strings.Contains(seg, "*")
 	if !star && !foldCase {
-		if _, err := os.Lstat(filepath.Join(dir, seg)); err != nil {
+		info, err := os.Lstat(filepath.Join(dir, seg))
+		if err != nil || isReviewArtifact(seg, info.IsDir()) {
 			return nil, nil
 		}
 		return []string{seg}, nil
@@ -101,7 +102,7 @@ func candidates(dir, seg string) ([]string, error) {
 	var names []string
 	for _, e := range entries {
 		name := e.Name()
-		if star && skipped(name, seg, e.IsDir()) {
+		if star && skipped(name, seg, e.IsDir()) || !star && isReviewArtifact(name, e.IsDir()) {
 			continue
 		}
 		if star {
