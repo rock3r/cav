@@ -314,9 +314,13 @@ func TestCheckOwnerRefusesAReviewFileOfAnotherKind(t *testing.T) {
 		t.Fatalf("no review file yet: %v", err)
 	}
 	doc, _ := Paths(video)
-	if err := os.WriteFile(doc, []byte(`{"schema":"cav-review/1","source":{"render":"`+video+`"},"comments":[]}`), 0o644); err != nil {
-		t.Fatal(err)
+	write := func(kind, render string) {
+		b, _ := json.Marshal(map[string]any{"schema": "cav-review/1", "kind": kind, "source": map[string]string{"render": render}, "comments": []any{}})
+		if err := os.WriteFile(doc, b, 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
+	write("", video)
 	if err := CheckOwner(video, KindVideo); err != nil {
 		t.Fatalf("the video's own review file: %v", err)
 	}
@@ -324,9 +328,7 @@ func TestCheckOwnerRefusesAReviewFileOfAnotherKind(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "storyboard.mp4") {
 		t.Fatalf("storyboard.json must not take over the video's review file, got %v", err)
 	}
-	if err := os.WriteFile(doc, []byte(`{"schema":"cav-review/1","kind":"storyboard","source":{"render":"`+sb+`"},"comments":[]}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	write("storyboard", sb)
 	if err := CheckOwner(video, KindVideo); err == nil {
 		t.Fatal("the video must not take over the storyboard's review file")
 	}
