@@ -132,7 +132,7 @@ func TestBriefShowReportsRefs(t *testing.T) {
 	}
 	for _, want := range []string{"T (brief.json)", "Tone          calm", "15 s at 120 bpm (30 beats)", "1080 x 1920 (9:16) at 30 fps",
 		"stays an embed, never downloaded", "recorded, licence cc0", "file; not recorded yet", "file; not found",
-		"record it: cav ref add moodboard/new.jpg --licence LICENCE_ID", `cav does not use "zeta"`} {
+		"record it: cav ref add 'moodboard/new.jpg' --licence LICENCE_ID", `cav does not use "zeta"`} {
 		if !strings.Contains(out, want) {
 			t.Errorf("output lacks %q:\n%s", want, out)
 		}

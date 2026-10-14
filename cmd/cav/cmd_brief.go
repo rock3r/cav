@@ -194,7 +194,7 @@ func briefShow(a *app, args []string) error {
 		printGaps(missing, notes)
 		for _, r := range refs {
 			if r.Kind == "file" && r.Exists && !r.Recorded {
-				fmt.Printf("record it: cav ref add %s --licence LICENCE_ID\n", r.Path)
+				fmt.Printf("record it: cav ref add %s --licence LICENCE_ID\n", shellArg(r.Path))
 			}
 		}
 	})
