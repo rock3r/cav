@@ -90,8 +90,8 @@ return comp;`
 
 const sketchTempCompRestoreJS = `
 var prev = %s, frame = %d, tmp = %s;
-if (api.getComps().indexOf(prev) >= 0) api.setActiveComp(prev);
-api.setFrame(frame);
+if (prev !== api.getActiveComp() && api.getComps().indexOf(prev) >= 0) api.setActiveComp(prev);
+if (api.getFrame() !== frame) api.setFrame(frame);
 try { api.deleteLayer(tmp) } catch (e) { if (api.getComps().indexOf(tmp) >= 0) throw e }
 return true;`
 
@@ -99,7 +99,7 @@ return true;`
 const sketchReopenedJS = `
 var prev = %s, frame = %d;
 if (prev !== api.getActiveComp() && api.getComps().indexOf(prev) >= 0) api.setActiveComp(prev);
-api.setFrame(frame);
+if (api.getFrame() !== frame) api.setFrame(frame);
 return {unsaved: api.sceneHasUnsavedChanges(), path: api.getSceneFilePath()};`
 
 // startSketch reads the open scene and sets up a place to draw. It refuses when the scene has
@@ -129,8 +129,13 @@ func startSketch(a *app, sb *board.Board, boardDir string) (*sketchSession, erro
 		return nil, fail(exitError, "unsaved changes in "+st.name(),
 			"cav renders sketches in a scratch scene and reopens yours afterwards: save it (cav scene save), then run again")
 	}
+	// Cavalry resolves a relative path from its own folder, so every path it gets is absolute.
+	stage, err := filepath.Abs(filepath.Join(boardDir, sketchStageDir))
+	if err != nil {
+		return nil, err
+	}
 	s := &sketchSession{a: a, w: sb.Width, h: sb.Height, bg: board.SketchBackground(sb.Style.Palette), version: st.Version,
-		stage: filepath.Join(boardDir, sketchStageDir), prevPath: st.Path, prevComp: st.Comp, prevFrame: st.Frame}
+		stage: stage, prevPath: st.Path, prevComp: st.Comp, prevFrame: st.Frame}
 	js := sketchTempCompJS
 	s.mode = sketchComp
 	if st.Path != "" {
