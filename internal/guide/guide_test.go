@@ -8,7 +8,7 @@ import (
 	"github.com/rock3r/cav/assets"
 )
 
-var topics = []string{"workflow", "design", "music", "traps", "native", "production"}
+var topics = []string{"workflow", "design", "music", "traps", "native", "production", "ui-showcase"}
 
 const sample = "# Title\n\nIntro text.\n\n## Keys\n\nSome prose.\n\n" +
 	"| Trap | Symptom |\n|---|---|\n" +

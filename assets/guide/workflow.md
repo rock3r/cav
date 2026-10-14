@@ -5,7 +5,8 @@ see the viewport: render frames and look at them to know what you made.
 
 Other guides: `cav guide design` (motion recipes), `cav guide music` (beat sync),
 `cav guide traps` (silent failures), `cav guide native` (duplicators, filters, 3D, particles),
-`cav guide production` (storyboards, assets, music, licences, and review with the user).
+`cav guide production` (storyboards, assets, music, licences, and review with the user),
+`cav guide ui-showcase` (software videos: launch videos, product demos, UI walkthroughs).
 
 ## 1. Check the setup
 
@@ -113,6 +114,8 @@ Read `cav guide design` before a creative task. The short version:
 - **Impacts**: `cav.flash`, `cav.ring`, `cav.burst`, `cav.shake` on a top-level rig group, all
   on the same frame. Keep flashes short and partial (`peak` 40-70, `dur` 4-8).
 - **Transitions**: zoom-through (`cav.zoomThrough`), wipes, masks, a flash on the cut.
+- **App screens and UI demos**: rebuild the UI as layers. Use a screenshot only as a guide to
+  check the rebuild against (`cav guide design`, recipe 12). Read `cav guide ui-showcase` first.
 - For many similar items, use native features (duplicators, stagger): `cav guide native`.
 
 ## 5. Music

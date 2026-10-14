@@ -117,7 +117,7 @@ Describe a symptom, get the fix: `cav guide --search "keys dropped"`.
 | Command | What it does |
 |---|---|
 | `cav setup` / `cav doctor` | Install or check everything: token, bridge script, Cavalry, ffmpeg, docs, running bridge |
-| `cav guide [topic]` | How to work: workflow, design recipes, music sync, traps, native features |
+| `cav guide [topic]` | How to work: workflow, design recipes, music sync, traps, native features, production, software showcase videos |
 | `cav guide --search <words>` | The best guide sections for a symptom, when you do not know the topic (offline) |
 | `cav status` | Existing bridge state; no scene work is queued |
 | `cav scene new\|comp\|open\|save` | New scene (refuses to discard unsaved work), change the comp, open, save |

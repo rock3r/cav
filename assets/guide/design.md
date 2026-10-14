@@ -175,11 +175,38 @@ cav.slideIn(tag, 90, { dy: -30, dur: 24 })
 
 ## 12. UI rebuilt as components
 
-Rebuild UI from shapes and text (not a flat screenshot), so every part can move. Measure the
-screenshot, then rebuild at the same proportions: window rect, title bar, sidebar, buttons, fields.
-Animate them in with small staggered `slideIn`s (dy 20-30, 3-4 frame steps), then show one
+Use this for app screens, UI walkthroughs and product demos. Always rebuild the UI in Cavalry:
+shapes, text and icons as real layers. Never animate a screenshot. A rebuilt UI can pan, zoom,
+change its layout and animate each element: cards fly in, one screen morphs into the next, the
+camera pulls focus, a cursor drives the interaction. A screenshot is one flat picture. It blurs
+when you zoom in, you cannot split it into parts, and its contents cannot move.
+
+Use the screenshot only as a reference, to check that the rebuild matches the real UI:
+
+1. Load it as a guide layer at low opacity, on top, at the size of the rebuilt window.
+2. Measure it, then rebuild at the same proportions: window rect, title bar, sidebar, buttons,
+   fields, icons, text. Copy its colours, fonts, font sizes, spacing and the exact text.
+3. Compare: `cav frame <n>` with the guide visible, then without it. Fix the layout until the
+   edges line up and the text matches. Do this before you add any animation.
+4. Hide or delete the guide before you render.
+
+```js
+// ...build the window from cav.rect / cav.text / cav.path icons first...
+// then load the guide last, so it sits on top of the rebuild:
+cav.image('/abs/path/screen.png', 'REF screenshot', { opacity: 30 })
+```
+
+Leave the guide visible while you compare. Variables do not survive between runs, so hide it
+later, in its own run, by name:
+
+```js
+api.set(cav.find('REF screenshot'), { hidden: true })
+```
+
+Animate the parts in with small staggered `slideIn`s (dy 20-30, 3-4 frame steps), then show one
 interaction: a cursor (small path arrow) moves with `inOutCubic`, the button `punch`es, a new
-panel `pop`s. Keep a reference screenshot beside it in the review sheet if you have one.
+panel `pop`s. Keep the reference screenshot beside the rebuild in the review sheet. For a
+whole software video, read `cav guide ui-showcase`.
 
 ## 13. The review loop
 

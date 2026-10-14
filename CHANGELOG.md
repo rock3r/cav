@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- The guides now say how to animate software UI: app screens, UI walkthroughs and product
+  demos. Always rebuild the UI in Cavalry from shapes, text and icons, and never animate a
+  screenshot. Use the screenshot only as a low-opacity guide layer, and compare it with
+  `cav frame` before you animate. A rebuilt UI can zoom, pan and animate each part; a
+  screenshot blurs and cannot move its parts. See `cav guide design` (recipe 12), the new
+  row in `cav guide traps`, and the cavalry skill.
+- A new guide, `cav guide ui-showcase`, gives rules for software videos: launch videos,
+  product demos, feature videos and UI walkthroughs. It covers the story, a faithful UI
+  (real components, real icons, real system chrome, realistic fake data), framing and
+  camera moves, continuous motion between scenes, sound, timing and formats. The default
+  is one continuous shot in 16:9; cuts and social formats only when the user asks for them.
+
 ## 1.7.0
 
 - A command that cav refuses because another operation still has an unfinished job no
