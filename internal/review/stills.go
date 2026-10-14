@@ -229,7 +229,7 @@ func (s *Server) addItemComment(w http.ResponseWriter, in commentInput) {
 			for i := range d.Comments {
 				o := &d.Comments[i]
 				if o.Item == in.Item && o.Verdict != "" && !isNote(*o) && o.Status == "open" {
-					SetStatus(o, "resolved", "replaced by "+in.Verdict+" in "+c.ID)
+					SetStatus(o, "resolved", replacedNote+in.Verdict+" in "+c.ID)
 				}
 			}
 		}

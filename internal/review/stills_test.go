@@ -134,6 +134,14 @@ func TestStillsVerdictsAndNotes(t *testing.T) {
 	if old == nil || old.Status != "resolved" || old.ResolvedNote != "replaced by approve in "+now.ID {
 		t.Fatalf("sent redo %+v, new %+v", old, now)
 	}
+	// Taking the new verdict back does not bring the replaced one back.
+	if w := do(t, h, "DELETE", "/api/comments/"+now.ID, nil, nil); w.Code != 200 {
+		t.Fatalf("delete: %d", w.Code)
+	}
+	if st := getState(t, h); st.item("s3")["verdict"] != nil || strings.Contains(strings.Join(st.Approval.Blockers, ";"), "s3") {
+		t.Fatalf("s3 after taking the verdict back: %+v / %+v", st.item("s3"), st.Approval)
+	}
+	d, _ = s.Store.Load()
 	// Notes with words are never replaced.
 	if n := Find(d, note.ID); n == nil || n.Status != "open" {
 		t.Fatalf("the note should stay open: %+v", n)
@@ -341,6 +349,25 @@ func TestApprovalClearedByANewRedoOrReopenedNote(t *testing.T) {
 	st := getState(t, h)
 	if st.Approval.Approved || st.ApprovalCleared == nil || st.ApprovalCleared.Reason != note.ID+" is open" {
 		t.Fatalf("a reopened note: %+v %+v", st.Approval, st.ApprovalCleared)
+	}
+}
+
+// `cav review storyboard.json` is the usual way to start it: the target is a relative path,
+// and the folder it sits in may itself be reached through a link (/tmp on macOS).
+func TestStillsServesImagesForARelativeTarget(t *testing.T) {
+	_, dir := writeBoard(t)
+	link := filepath.Join(t.TempDir(), "project")
+	if err := os.Symlink(dir, link); err != nil {
+		t.Skip("no symlinks here:", err)
+	}
+	t.Chdir(link)
+	s := &Server{Store: Open("storyboard.json"), Stills: &Stills{Kind: KindStoryboard, Path: "storyboard.json"}, Author: "seb"}
+	h := s.Handler()
+	if st := getState(t, h); st.item("s1")["hasImage"] != true {
+		t.Fatalf("s1 should have an image: %+v", st.item("s1"))
+	}
+	if w := do(t, h, "GET", "/api/item/s1/image", nil, nil); w.Code != 200 || w.Body.String() != "frame s1" {
+		t.Fatalf("image: %d %q", w.Code, w.Body)
 	}
 }
 

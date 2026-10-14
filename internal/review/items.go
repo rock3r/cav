@@ -197,18 +197,22 @@ func SafeImage(target, img string) string {
 	if err != nil || !info.Mode().IsRegular() {
 		return ""
 	}
-	root, err := filepath.EvalSymlinks(filepath.Dir(target))
+	// Both are made absolute first: a relative path stays relative when its links are
+	// resolved, and /tmp is itself a link on some systems.
+	absRoot, err := filepath.Abs(filepath.Dir(target))
 	if err != nil {
 		return ""
 	}
-	real, err := filepath.EvalSymlinks(img)
+	absImg, err := filepath.Abs(img)
 	if err != nil {
 		return ""
 	}
-	if root, err = filepath.Abs(root); err != nil {
+	root, err := filepath.EvalSymlinks(absRoot)
+	if err != nil {
 		return ""
 	}
-	if real, err = filepath.Abs(real); err != nil {
+	real, err := filepath.EvalSymlinks(absImg)
+	if err != nil {
 		return ""
 	}
 	if !strings.HasPrefix(real, root+string(filepath.Separator)) {
@@ -384,6 +388,15 @@ type ItemState struct {
 // isNote tells a note (words or a drawing) from a bare verdict.
 func isNote(c Comment) bool { return c.Text != "" || len(c.Shapes) > 0 }
 
+// replacedNote starts the note of a verdict that a newer verdict on the same item replaced.
+const replacedNote = "replaced by "
+
+// replaced reports whether a newer verdict took the place of this one. It no longer counts,
+// so deleting the newer verdict does not bring it back.
+func replaced(c Comment) bool {
+	return c.Status == "resolved" && strings.HasPrefix(c.ResolvedNote, replacedNote)
+}
+
 // ItemStates gives the state of every item, and of every other item id that a note names.
 func ItemStates(d *Doc, items []Item) map[string]ItemState {
 	cur := map[string]string{}
@@ -402,7 +415,7 @@ func ItemStates(d *Doc, items []Item) map[string]ItemState {
 		if c.Status == "open" && isNote(c) {
 			s.OpenNotes++
 		}
-		if c.Verdict != "" { // the newest one wins: comments stay in the order they were made
+		if c.Verdict != "" && !replaced(c) { // the newest one wins: comments stay in the order they were made
 			if known && c.ItemSHA != sha {
 				s.Verdict, s.VerdictID, s.Outdated, s.OldVerdict = "", "", true, c.Verdict
 			} else {

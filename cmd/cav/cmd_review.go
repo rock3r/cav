@@ -508,6 +508,8 @@ func reviewWait(a *app, args []string) error {
 						fmt.Printf(" Use the notes above there, then: cav review resolve <id> --note \"what changed\"")
 					}
 					fmt.Println()
+				case got.Approved:
+					fmt.Println("\nThe stage is not approved now. Do not go on: run cav review wait again, and go on once the reviewer approves.")
 				case kind == review.KindVideo:
 					fmt.Printf("\nFix them, re-render to %s, then: cav review resolve <id> --note \"what changed\"\n", target)
 				default:

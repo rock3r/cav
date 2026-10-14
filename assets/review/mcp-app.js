@@ -198,6 +198,7 @@
     const res = new Response(out.body || '', { status: out.status, headers: { 'Content-Type': out.contentType || 'application/json' } });
     if (method === 'GET' && url === '/api/state' && res.ok) stateCache = { at: Date.now(), res: res.clone() };
     if (method === 'POST' && url === '/api/send' && res.ok) tellAgent(await res.clone().json().catch(() => null));
+    if (method === 'POST' && url === '/api/approve' && res.ok && !String(init.body || '').includes('"withdraw"')) tellApproved();
     return res;
   };
 
@@ -206,15 +207,21 @@
   // ignore it; the cav review hook still tells the agent.
   // The 2026-01-26 spec text sends one content block; the ext-apps SDK sends an array. Try
   // the spec's form first, and the array if the host refuses it.
-  function tellAgent(send) {
-    if (!send || !send.comments) return;
-    const n = send.comments.length;
-    const block = { type: 'text',
-      // The path is named as data, not pasted into a command: the agent quotes it for its shell.
-      text: `I sent ${n} review note${n > 1 ? 's' : ''} on this video: ${video}\nRead them with the review_notes tool, fix them, then resolve each one.` };
+  function say(text) {
+    const block = { type: 'text', text };
     request('ui/message', { role: 'user', content: block })
       .catch(() => request('ui/message', { role: 'user', content: [block] }))
       .catch(() => {});
+  }
+  // The path is named as data, not pasted into a command: the agent quotes it for its shell.
+  function tellAgent(send) {
+    if (!send || !send.comments) return;
+    const n = send.comments.length;
+    say(`I sent ${n} review note${n > 1 ? 's' : ''} on ${video}\nRead them with the review_notes tool, fix them, then resolve each one.`);
+  }
+  // Approving a stage of stills is a send too (it can carry no notes at all).
+  function tellApproved() {
+    say(`I approved ${video}\nRead it with the review_notes tool, then go on to the next stage.`);
   }
 
   // ---------- media: fetch once per path, hand the element a data: URL ----------
