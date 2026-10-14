@@ -18,7 +18,7 @@ stage. When the user has no preference, follow the standard flow below.
 | 2. Mood board | `cav ref search`, `get`, `arena`, `add`; `cav board mood` | `moodboard/`, `renders/moodboard.png` | Show `renders/moodboard.png` to the user | The user brings a style guide or frames |
 | 3. Storyboard | `cav board init`, `frames`, `sheet` | `storyboard.json`, `board/`, `renders/board.png` | The user approves the storyboard | The piece is under about 8 seconds, or has one shot |
 | 4. Music and animatic | `cav music gen`, `cav beats -o build/grid.json`, `cav board motion`, `cav board animatic`, `cav review` | `music/`, `build/grid.json`, `renders/animatic.mp4` | The user reviews the animatic (`cav review renders/animatic.mp4`) | Skip music generation when the user brings a track. Without music, or without a storyboard, skip the animatic; use the track directly in the build. |
-| 5. Build loop | `cav board place`, `cav run`, `cav sheet`, `cav onion`, `cav check`, `cav render`, `cav review` | `build/*.js`, `scenes/*.cv`, `renders/` | The user approves the render | Never |
+| 5. Build loop | `cav board place` (with a storyboard), `cav run`, `cav sheet`, `cav onion`, `cav check`, `cav render`, `cav review` | `build/*.js`, `scenes/*.cv`, `renders/` | The user approves the render | Never |
 
 ## 2. Only the build loop is mandatory
 
@@ -80,5 +80,5 @@ approval, every change costs a generation, a music take or a render.
 
 ## 7. Stage 5: the build loop
 
-Follow `cav guide scene`. `cav board place` puts the storyboard frames into the scene as
-placeholders. Repeat change, render and review until the user approves the render.
+Follow `cav guide scene`. With a storyboard, `cav board place` first puts its frames into the
+scene as placeholders; without one, start from the plan table in `cav guide scene`. Repeat change, render and review until the user approves the render.
