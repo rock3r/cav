@@ -62,17 +62,28 @@ func (s *Server) update(fn func(d *Doc) error) (*Doc, error) {
 // reconcile removes an approval that no longer holds, before the state is read. There is no
 // background loop: the page polls, and every write goes through update.
 func (s *Server) reconcile(items []Item) {
-	d, err := s.Store.Load()
+	if changed, _ := s.Store.ReconcileItems(items); changed {
+		s.changed()
+	}
+}
+
+// ReconcileItems removes an approval that no longer holds. It writes the review file only
+// when something changes, so it is cheap to call on every poll.
+func (s *Store) ReconcileItems(items []Item) (bool, error) {
+	d, err := s.Load()
 	if err != nil {
-		return
+		return false, err
 	}
 	probe := *d
 	if !Reconcile(&probe, items, time.Now().UTC()) {
-		return
+		return false, nil
 	}
-	if _, err := s.Store.Update(func(d *Doc) error { Reconcile(d, items, time.Now().UTC()); return nil }); err == nil {
-		s.changed()
-	}
+	changed := false
+	_, err = s.Update(func(d *Doc) error {
+		changed = Reconcile(d, items, time.Now().UTC())
+		return nil
+	})
+	return changed, err
 }
 
 // itemView is an item with what the reviewer said about it.

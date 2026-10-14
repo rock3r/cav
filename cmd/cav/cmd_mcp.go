@@ -58,7 +58,7 @@ func cmdMCP(a *app, args []string) error {
 			if video != "" {
 				pos = []string{video}
 			}
-			return reviewVideo(pos)
+			return reviewTarget(pos)
 		},
 	})
 	return srv.Run(ctx, &mcp.StdioTransport{})
