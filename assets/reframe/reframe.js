@@ -132,10 +132,28 @@ function reframe() {
 		})
 		return n
 	}
-	var tops = []
+	// Top-level nodes with no position and scale (a sound node from cav.sound, a noise node
+	// from cav.wiggle, ...) are kept exactly as they are: not measured, not transformed.
+	function hasTransform(id) {
+		try {
+			var p = api.get(id, 'position'),
+				s = api.get(id, 'scale')
+			return !!p && !!s && typeof p.x === 'number' && typeof s.x === 'number'
+		} catch (e) {
+			return false
+		}
+	}
+	var tops = [],
+		kept = []
 	topIds.forEach(function (id) {
 		var n = addNode(id, null)
-		if (n) tops.push(n.id)
+		if (!n) return
+		if (hasTransform(id)) tops.push(n.id)
+		else kept.push({ id: n.id, name: n.name, type: n.type })
+	})
+	var keptIds = {}
+	kept.forEach(function (k) {
+		keptIds[k.id] = true
 	})
 	function topOf(id) {
 		while (nodes[id].parent) id = nodes[id].parent
@@ -143,7 +161,7 @@ function reframe() {
 	}
 	var leaves = order.filter(function (id) {
 		var n = nodes[id]
-		return !n.children.length && !n.childIds.length && n.type !== 'group' && n.type !== 'null'
+		return !keptIds[topOf(id)] && !n.children.length && !n.childIds.length && n.type !== 'group' && n.type !== 'null'
 	})
 
 	// Transform facts for the top-level layers: keyed or connected position and scale.
@@ -389,6 +407,7 @@ function reframe() {
 		findings: findings,
 		coverageComplete: coverageComplete,
 		skipped: skipped,
+		kept: kept,
 		warnings: warnings,
 		dryRun: !!opts.dryRun,
 	}

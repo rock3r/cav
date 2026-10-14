@@ -17,7 +17,7 @@ function fakeCavalry(spec) {
 		layers[id] = {
 			id, comp: compId, parent, name: s.name, type: s.type || (s.children ? 'group' : 'basicShape'), children: [],
 			pos: s.pos || { x: 0, y: 0 }, scale: s.scale || { x: 1, y: 1 }, keyed: !!s.keyed, box: s.box, size: s.size,
-			inF: s.in === undefined ? 0 : s.in, outF: s.out === undefined ? 119 : s.out, opacity: 100, hidden: false, ref: s.ref,
+			noT: !!s.noTransform, inF: s.in === undefined ? 0 : s.in, outF: s.out === undefined ? 119 : s.out, opacity: 100, hidden: false, ref: s.ref,
 		}
 		layers[id].children = (s.children || []).map(c => make(compId, c, id))
 		return id
@@ -57,7 +57,7 @@ function fakeCavalry(spec) {
 		get: (id, attr) => {
 			if (comps[id]) return { resolution: { x: comps[id].w, y: comps[id].h }, startFrame: comps[id].start, endFrame: comps[id].end }[attr]
 			const l = layers[id]
-			return { position: l.pos, scale: l.scale, opacity: l.opacity, hidden: l.hidden, fontSize: l.size }[attr]
+			return { position: l.noT ? undefined : l.pos, scale: l.noT ? undefined : l.scale, opacity: l.opacity, hidden: l.hidden, fontSize: l.size }[attr]
 		},
 		select: () => {},
 		duplicate: id => {
@@ -345,6 +345,24 @@ test('top-level layers after the layer cap are still transformed, and a late bg 
 	const late = topNamed(cv, r.target.id, 'late')
 	near(late.scale.x, r.scale)
 	near(late.pos.x, r.scale * 100 + r.offset[0])
+})
+
+test('top-level nodes without position and scale (sound, noise) are kept untouched and listed', () => {
+	const cv = fakeCavalry({ layers: [
+		{ name: 'rig', children: [{ name: 'card', box: FULL }] },
+		{ name: 'music', type: 'sound', noTransform: true },
+		{ name: 'wobble', type: 'noise', noTransform: true },
+	] })
+	const r = run(cv, {})
+	assert.deepEqual(r.kept.map(k => [k.name, k.type]), [['music', 'sound'], ['wobble', 'noise']])
+	for (const name of ['music', 'wobble']) {
+		const copy = topNamed(cv, r.target.id, name), src = Object.values(cv.layers).find(l => l.comp === cv.source && l.name === name)
+		assert.deepEqual(copy.pos, { x: 0, y: 0 })
+		assert.deepEqual(copy.scale, { x: 1, y: 1 })
+		assert.ok(!cv.mutations.some(m => m.targets.includes(copy.id) || m.targets.includes(src.id)), name + ' was changed')
+	}
+	assert.equal(r.direct.length + r.wrapped.length, 1)
+	assert.equal(run(fakeCavalry({ layers: [{ name: 'rig', children: [{ name: 'card', box: FULL }] }] }), { dryRun: true }).kept.length, 0)
 })
 
 test('only identical target dimensions are refused: near-9:16 and near-square comps are reframed', () => {

@@ -61,6 +61,7 @@ func reframeFixture(dry bool) map[string]any {
 			map[string]any{"kind": "small-text", "layer": "textShape#4", "name": "title", "detail": "text would be 20 px", "fix": "raise it"},
 			map[string]any{"kind": "space", "detail": "the content fills 51 % of the height", "fix": "use the bands"},
 		},
+		"kept":             []any{map[string]any{"id": "sound#1", "name": "music", "type": "sound"}},
 		"coverageComplete": true,
 		"skipped":          0,
 		"warnings":         []any{},
@@ -158,7 +159,7 @@ func TestPrintReframeText(t *testing.T) {
 	for _, want := range []string{
 		`Launch 1920x1080: made "Launch 9x16" at 1080x1920, now the active comp`,
 		"scale 0.506", "backgrounds: bg", "inside a fit group: rig",
-		"- small-text: title: text would be 20 px", `cav sheet --comp "Launch 9x16"`, `cav check --comp "Launch 9x16"`, "The original comp was not changed.",
+		"- small-text: title: text would be 20 px", "  fix: raise it", "kept untouched (no position or scale): music", `cav sheet --comp "Launch 9x16"`, `cav check --comp "Launch 9x16"`, "The original comp was not changed.",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("text output lacks %q:\n%s", want, out)

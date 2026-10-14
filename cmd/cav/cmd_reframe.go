@@ -65,6 +65,9 @@ type reframeResult struct {
 	Backgrounds []struct {
 		Name string `json:"name"`
 	} `json:"backgrounds"`
+	Kept []struct {
+		Name string `json:"name"`
+	} `json:"kept"`
 	Findings         []reframeFinding `json:"findings"`
 	CoverageComplete bool             `json:"coverageComplete"`
 	Skipped          int              `json:"skipped"`
@@ -169,12 +172,22 @@ func printReframe(r *reframeResult) {
 		}
 		fmt.Printf("keyed layers kept as they are, inside a fit group: %s\n", strings.Join(ws, ", "))
 	}
+	if len(r.Kept) > 0 {
+		var ks []string
+		for _, k := range r.Kept {
+			ks = append(ks, k.Name)
+		}
+		fmt.Printf("kept untouched (no position or scale): %s\n", strings.Join(ks, ", "))
+	}
 	for _, f := range r.Findings {
 		where := f.Name
 		if where == "" {
 			where = "note"
 		}
 		fmt.Printf("- %s: %s: %s\n", f.Kind, where, f.Detail)
+		if f.Fix != "" {
+			fmt.Printf("  fix: %s\n", f.Fix)
+		}
 	}
 	if !r.CoverageComplete {
 		fmt.Fprintf(os.Stderr, "note: not every layer or frame was measured (%d layers skipped), so the findings may be incomplete\n", r.Skipped)
