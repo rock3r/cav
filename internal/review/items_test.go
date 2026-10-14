@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/rock3r/cav/internal/board"
 )
@@ -228,7 +229,7 @@ func TestBriefItemHashes(t *testing.T) {
 	if got := strings.Join(ids, ","); got != "goal,tone,avoid,zeta" {
 		t.Fatalf("order %s", got)
 	}
-	if items[2].Text != "red, stock music" || items[0].Text != "sell the app" {
+	if items[2].Text != "red; stock music" || items[0].Text != "sell the app" {
 		t.Fatalf("text %+v", items)
 	}
 
@@ -237,6 +238,44 @@ func TestBriefItemHashes(t *testing.T) {
 	changed, _ := Items(KindBrief, path)
 	if shaOf(changed, "goal") != shaOf(items, "goal") || shaOf(changed, "avoid") != shaOf(items, "avoid") || shaOf(changed, "tone") == shaOf(items, "tone") {
 		t.Fatalf("hashes %+v", changed)
+	}
+}
+
+// A verdict is valid for the hash of its item. Briefs were reviewed before they had their own
+// package, so the hash of a field must stay what it was: these values come from the old
+// formula, sha256("cav-item/1\nbrief\n<key>\n<canonical json of the value>").
+func TestBriefItemHashesStayValid(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "brief.json")
+	writeFile(t, path, `{"schema":"cav-brief/1","tone":"calm","avoid":["red","stock music"]}`)
+	items, err := Items(KindBrief, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := shaOf(items, "tone"); got != "6f3448e7908f690413ad60cf2cdf981b8d4f1ada4c1150de50d9e2ec65af31bb" {
+		t.Errorf("tone hash changed: %s", got)
+	}
+	if got := shaOf(items, "avoid"); got != "165b7ef4cf4d10a47b5ce366914e2e70669e9b1a113e969b85b1952da304e297" {
+		t.Errorf("avoid hash changed: %s", got)
+	}
+	if want := sum("cav-item/1", "brief", "tone", `"calm"`); shaOf(items, "tone") != want {
+		t.Errorf("tone hash is not the formula: %s", shaOf(items, "tone"))
+	}
+	// An old approval still holds: the same file gives the same hashes.
+	doc := &Doc{Approved: &Approval{Items: map[string]string{}}}
+	for _, it := range items {
+		doc.Approved.Items[it.ID] = it.SHA
+	}
+	if Reconcile(doc, items, time.Now()) {
+		t.Error("an unchanged brief must keep its approval")
+	}
+}
+
+func TestBriefWithAProblemSaysSoInPlainEnglish(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "brief.json")
+	writeFile(t, path, `{"seconds":"fifteen"}`)
+	_, err := Items(KindBrief, path)
+	if err == nil || !strings.Contains(err.Error(), "seconds must be a number of seconds, like 15") {
+		t.Fatalf("%v", err)
 	}
 }
 

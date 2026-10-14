@@ -14,7 +14,7 @@ stage. When the user has no preference, follow the standard flow below.
 
 | Stage | Commands | Files written | Review | Skip when |
 |---|---|---|---|---|
-| 1. Brief | none; you work as a creative director | `brief.md` and `brief.json`, written by hand | The user confirms the brief in chat | The user gives a complete brief |
+| 1. Brief | `cav brief init`, `cav brief show`, `cav review brief.json`; you work as a creative director | `brief.json` | The user presses Approve in `cav review brief.json`; `cav review export brief.json --json` shows approved | The user gives a complete brief |
 | 2. Mood board | `cav ref search`, `get`, `arena`, `add`; `cav board mood` | `moodboard/`, `renders/moodboard.png` | Show `renders/moodboard.png` to the user | The user brings a style guide or frames |
 | 3. Storyboard | `cav board init`, `frames`, `sheet`, `cav review` | `storyboard.json`, `board/`, `renders/board.png` | The user presses Approve storyboard in `cav review storyboard.json`; `cav review export storyboard.json --json` shows approved | The piece is under about 8 seconds, or has one shot |
 | 4. Music and animatic | `cav music gen`, `cav beats -o build/grid.json`, `cav board motion`, `cav board animatic`, `cav review` | `music/`, `build/grid.json`, `renders/animatic.mp4` | The user reviews the animatic (`cav review renders/animatic.mp4`) | Skip music generation when the user brings a track. Without music, or without a storyboard, skip the animatic; use the track directly in the build. |
@@ -37,9 +37,18 @@ Work like an agency creative director. Do not start with the tools.
 - Collect every reference the user mentions: images, links, other videos. They become the
   first mood board items.
 - Propose two or three short directions, one or two sentences each. Let the user pick or mix.
-- Write the brief down in `brief.md` (for the user to read) and `brief.json` (size, fps,
-  length, tempo, `mustHave`, `avoid`, references). Then wait for the user to confirm it in
-  chat. Do not start stage 2 before that.
+- Write the brief down in `brief.json`. Use `cav brief init --title "..." --goal "..."
+  --audience "..." --tone confident --tone playful --seconds 15 --bpm 120 --width 1080
+  --height 1920 --fps 30 --ref <link or file>`, or run `cav brief init` with no flags and fill
+  the template by hand. Repeat `--tone`, `--must-have`, `--avoid`, `--deliverable` and `--ref`
+  for more than one value. Then run `cav brief show`: fix each problem it names, and fill
+  every field under "Still to fill".
+- Start the review page in the background (`cav review brief.json &`; on Windows, in a
+  second terminal), give the user its URL, then run `cav review wait brief.json`. The user
+  gives a verdict on each field and presses Approve. Do not start stage 2 until
+  `cav review export brief.json --json` shows `approved` as `true`.
+- The brief's references become the first mood board items. A link stays a link. For a
+  local file, copy it into `moodboard/` and record it with `cav ref add`, as stage 2 says.
 
 ## 4. Stage 2: the mood board
 
@@ -58,7 +67,8 @@ the user asks for it (`cav guide production`, "Licences come first").
 
 ## 5. Stage 3: the storyboard
 
-Run `cav board init` with the brief's format and timing, for example
+Run `cav board init --shots 6`. It takes the size, fps, length, tempo and title from
+`brief.json` and says what it took. Without a brief, give them as flags, for example
 `cav board init --width 1080 --height 1920 --fps 30 --seconds 15 --bpm 120 --shots 6`.
 Then carry the approved direction into `storyboard.json`: set `style.prompt` to the look in a
 few words, `style.palette` to the chosen colours, and `style.refs` to the mood board images that
@@ -94,6 +104,7 @@ and the user approves again.
 
 ## 7. Stage 5: the build loop
 
-Follow `cav guide scene`. With a storyboard, make the scene with the storyboard's size, fps
-and length (`cav scene new --width W --height H --fps F --seconds S`), then
+Follow `cav guide scene`. `cav scene new` takes the size, fps and length from `brief.json`
+and says what it took. If the storyboard changed any of them, pass the storyboard's values
+(`cav scene new --width W --height H --fps F --seconds S`). Then
 `cav board place` puts its frames into the scene as placeholders; without one, start from the plan table in `cav guide scene`. Repeat change, render and review until the user approves the render.

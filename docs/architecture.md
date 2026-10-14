@@ -343,6 +343,11 @@ never talk to the bridge. They are plain Go around ffmpeg, HTTPS and uv:
   re-read and written atomically on every change, so the server and `cav review resolve`
   can both edit it. The server answers only `127.0.0.1`/`localhost` hosts and same-origin
   JSON writes.
+  `internal/brief` owns `brief.json`: the fields and their order, plain-English checks
+  (problems, missing required fields, notes) and the text of each field. `cav brief`,
+  `cav board init`, `cav scene new` and the review loader all read the file through it. The
+  hash of a brief item stays the hash of the field's own JSON, so a verdict from before the
+  package still holds; the words never go into the hash.
   The same server reviews stills (`Server.Stills`, `items.go`, `stills.go`). `KindOf` reads
   the target's `schema` (or its file name) and `Items` loads the items of a brief, mood
   board or storyboard. Each item has a sha256 over its own content, such as a shot's JSON

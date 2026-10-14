@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/rock3r/cav/internal/board"
+	"github.com/rock3r/cav/internal/brief"
 )
 
 // Kind is what a review is about: a rendered video, or one of the stills the workflow
@@ -27,11 +28,8 @@ const (
 	KindStoryboard Kind = "storyboard"
 )
 
-// Until the mood board and the brief have their own packages, their schemas live here.
-const (
-	MoodboardSchema = "cav-moodboard/1"
-	BriefSchema     = "cav-brief/1"
-)
+// Until the mood board has its own package, its schema lives here.
+const MoodboardSchema = "cav-moodboard/1"
 
 // Item is one thing the reviewer judges on a stills page: a shot, a reference or a field of
 // the brief. SHA changes when the item changes, and a verdict is only valid for the SHA it
@@ -286,42 +284,23 @@ func storyboardItems(path string) ([]Item, error) {
 	return items, nil
 }
 
-// briefOrder is the order the brief's fields appear in; other fields follow, sorted.
-var briefOrder = []string{"title", "goal", "audience", "tone", "seconds", "bpm", "format", "deliverables", "mustHave", "avoid", "music", "refs"}
-
-// briefItems makes one item per field of brief.json. It is deliberately minimal: the brief's
-// own schema comes with `cav brief`.
+// briefItems makes one item per field of brief.json. The brief package says which fields
+// there are, in what order and in what words. The hash stays what it always was: the field's
+// own JSON, so a verdict given before the brief had its own package still holds. The words
+// the page shows never go into the hash.
 func briefItems(path string) ([]Item, error) {
-	b, err := os.ReadFile(path)
+	fields, err := brief.Fields(path)
 	if err != nil {
 		return nil, err
 	}
-	fields := map[string]json.RawMessage{}
-	if err := json.Unmarshal(b, &fields); err != nil {
-		return nil, fmt.Errorf("%s: %w", path, err)
-	}
-	delete(fields, "schema")
-	var keys, rest []string
-	for _, k := range briefOrder {
-		if _, ok := fields[k]; ok {
-			keys = append(keys, k)
-		}
-	}
-	for k := range fields {
-		if !contains(briefOrder, k) {
-			rest = append(rest, k)
-		}
-	}
-	sort.Strings(rest)
-	keys = append(keys, rest...)
 	var items []Item
-	for _, k := range keys {
+	for _, f := range fields {
 		var v any
-		if err := json.Unmarshal(fields[k], &v); err != nil {
-			return nil, fmt.Errorf("%s: %s: %w", path, k, err)
+		if err := json.Unmarshal(f.Raw, &v); err != nil {
+			return nil, fmt.Errorf("%s: %s: %w", path, f.Key, err)
 		}
 		canon, _ := json.Marshal(v) // map keys come out sorted, so spacing and key order do not matter
-		items = append(items, Item{ID: k, Title: k, Text: fieldText(v, canon), SHA: sum("cav-item/1", "brief", k, string(canon))})
+		items = append(items, Item{ID: f.Key, Title: f.Title, Text: f.Text, SHA: sum("cav-item/1", "brief", f.Key, string(canon))})
 	}
 	return items, nil
 }
@@ -333,26 +312,6 @@ func contains(list []string, s string) bool {
 		}
 	}
 	return false
-}
-
-// fieldText shows a brief field as words: a string as it is, a list joined with commas.
-func fieldText(v any, canon []byte) string {
-	switch t := v.(type) {
-	case string:
-		return t
-	case []any:
-		parts := make([]string, len(t))
-		for i, e := range t {
-			if s, ok := e.(string); ok {
-				parts[i] = s
-			} else {
-				b, _ := json.Marshal(e)
-				parts[i] = string(b)
-			}
-		}
-		return strings.Join(parts, ", ")
-	}
-	return string(canon)
 }
 
 // moodboardItems reads the references of moodboard.json: {items:[{id,file,url,thumb,take}]}.

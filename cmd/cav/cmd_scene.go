@@ -26,11 +26,14 @@ func init() {
 cav scene info
     Scene path, unsaved changes, comp settings, layer/node/key counts and bounded coverage.
     Node counts include scene layers and comps; key counts sum animated attribute keys.
-cav scene new [--width 1920 --height 1080 --fps 60 --seconds 10 | --frames 600] [--bg #101014] [--force]
+cav scene new [--width 1920 --height 1080 --fps 60 --seconds 10 | --frames 600] [--bg #101014]
+              [--brief brief.json | --no-brief] [--force]
     --range 0-3599 sets inclusive playback endpoints. --fps-preset accepts film, pal,
     ntsc (30000/1001), web or smooth. Range conflicts with --frames/--seconds.
     Start an empty scene and set up its comp. It refuses when the open scene has
     unsaved changes, so it never throws away work. --force skips that check.
+    Size, fps and length not given come from brief.json when it exists (flags win); its
+    bpm is for the storyboard, not the comp. The command prints what it took.
 cav scene comp [--width W --height H --fps F --seconds S | --frames N] [--bg #hex] [--motion-blur]
     Change the active comp's settings without touching its layers.
 cav scene open <file.cv> [--force] [--timeout 10m]
@@ -249,8 +252,16 @@ func sceneInfo(a *app) error {
 	return nil
 }
 
-func emitSceneInfo(a *app, st *sceneState) {
-	a.emit(map[string]any{"scene": st}, func() {
+func emitSceneInfo(a *app, st *sceneState) { emitSceneInfoWith(a, st, nil) }
+
+// emitSceneInfoWith also reports what the command took from the brief.
+func emitSceneInfoWith(a *app, st *sceneState, use *briefUse) {
+	data := map[string]any{"scene": st}
+	if use != nil {
+		data["fromBrief"] = use
+	}
+	a.emit(data, func() {
+		use.say(os.Stderr)
 		p := st.ScenePath
 		if p == "" {
 			p = "(untitled)"
@@ -282,8 +293,12 @@ func sceneNew(a *app, sub string, args []string) error {
 	force := fs.Bool("force", false, "discard unsaved changes")
 	rangeSpec := fs.String("range", "", "inclusive playback range start-end")
 	preset := fs.String("fps-preset", "", "film (24), pal (25), ntsc (29.97), web (30), smooth (60)")
+	briefPath, noBrief := briefFlags(fs)
 	if _, err := parseFlags(fs, args); err != nil {
 		return err
+	}
+	if sub != "new" && (flagSet(fs, "brief") || *noBrief) {
+		return usageErr("--brief is for cav scene new")
 	}
 	if *preset != "" {
 		presets := map[string]float64{"film": 24, "pal": 25, "ntsc": 30000.0 / 1001, "web": 30, "smooth": 60}
@@ -293,7 +308,10 @@ func sceneNew(a *app, sub string, args []string) error {
 		}
 		*fps = v
 	}
-	if *w < 0 || *h < 0 || (*w == 0) != (*h == 0) ||
+	if (*w == 0) != (*h == 0) {
+		return usageErr("--width and --height go together: give both (the brief's size is used only when neither is given)")
+	}
+	if *w < 0 || *h < 0 ||
 		*fps < 0 || math.IsNaN(*fps) || math.IsInf(*fps, 0) ||
 		*secs < 0 || math.IsNaN(*secs) || math.IsInf(*secs, 0) ||
 		*frames < 0 || (*frames != 0 && *secs != 0) {
@@ -307,7 +325,23 @@ func sceneNew(a *app, sub string, args []string) error {
 			return usageErr("--range needs start-end and cannot combine with --frames/--seconds")
 		}
 	}
+	var use *briefUse
 	if sub == "new" {
+		b, err := briefFor(fs, *briefPath, *noBrief)
+		if err != nil {
+			return err
+		}
+		p := compParams{W: *w, H: *h, FPS: *fps, Secs: *secs}
+		use = applyBrief(&p, b, *briefPath, func(key string) string {
+			switch key {
+			case "size":
+				return flagsGiven(fs, []string{"width", "height"})
+			case "fps":
+				return flagsGiven(fs, []string{"fps", "fps-preset"})
+			}
+			return flagsGiven(fs, []string{"seconds", "frames", "range"})
+		}, false)
+		*w, *h, *fps, *secs = p.W, p.H, p.FPS, p.Secs
 		if *w == 0 {
 			*w = 1920
 		}
@@ -359,7 +393,15 @@ func sceneNew(a *app, sub string, args []string) error {
 	if err := a.jsCall(js.String(), time.Minute, nil); err != nil {
 		return err
 	}
-	return sceneInfo(a)
+	if use == nil {
+		return sceneInfo(a)
+	}
+	st, err := getScene(a)
+	if err != nil {
+		return err
+	}
+	emitSceneInfoWith(a, st, use)
+	return nil
 }
 
 const treeJS = `

@@ -134,6 +134,7 @@ Describe a symptom, get the fix: `cav guide --search "keys dropped"`.
 | `cav sync <video.mp4>` | Measure the cuts and hits of a render against the beats |
 | `cav review [video.mp4 \| brief.json \| moodboard.json \| storyboard.json]` | A review page: step frames or look at items, draw, comment, approve a stage of stills, then send the notes to the agent (`wait`, `export`, `resolve`) |
 | `cav mcp` | An MCP server (stdio) that shows the review page (video or stills) inside the chat, as an MCP App |
+| `cav brief init\|show` | Write and check `brief.json`, the brief agreed with the user; `cav board init` and `cav scene new` take size, fps and length from it |
 | `cav board init\|frames\|sheet\|animatic\|mood` | Storyboard timed in beats, frames per shot, a board image, an animatic on the music, mood boards |
 | `cav gen image\|vector` | Generate stills, transparent PNGs and SVG; trace a PNG to SVG |
 | `cav ref` / `cav sfx search\|get\|gen\|index` | Find reference images, sounds and music under free licences; generate sound effects |
