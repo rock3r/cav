@@ -32,6 +32,25 @@ type Doc struct {
 	// Versions lists every render of this file the review has seen, oldest first, so the
 	// page can compare the current render with an earlier one.
 	Versions []Version `json:"versions,omitempty"`
+	// Kind is "brief", "moodboard" or "storyboard" for a review of stills. A video review
+	// leaves it empty, so its file is the same as before stills were added.
+	Kind string `json:"kind,omitempty"`
+	// Approved records that the person approved the stage, with the hash of every item they
+	// saw. It is removed as soon as an item changes or something blocks again.
+	Approved *Approval `json:"approved,omitempty"`
+	// ApprovalCleared says why the approval was removed last, until the next approval.
+	ApprovalCleared *Cleared `json:"approvalCleared,omitempty"`
+}
+
+type Approval struct {
+	By    string            `json:"by"`
+	At    time.Time         `json:"at"`
+	Items map[string]string `json:"items"` // item id -> the item hash that was approved
+}
+
+type Cleared struct {
+	At     time.Time `json:"at"`
+	Reason string    `json:"reason"` // "s3 changed", "s7 added", "c_07 is open"
 }
 
 type Version struct {
@@ -94,6 +113,12 @@ type Comment struct {
 	Shapes    []Shape   `json:"shapes,omitempty"`
 	Snapshot  string    `json:"snapshot,omitempty"`
 	Replies   []Reply   `json:"replies,omitempty"`
+	// Item is the shot, reference or brief field a note on stills is about; empty for a
+	// note on a video. ItemSHA is the item's hash when the note was made, and Verdict is
+	// keep, more, drop, approve or redo. A note on stills has Frame 0 and no Timecode.
+	Item    string `json:"item,omitempty"`
+	ItemSHA string `json:"itemSha,omitempty"`
+	Verdict string `json:"verdict,omitempty"`
 	// Sent is the number of the send that handed this comment to the agent (0: not sent).
 	Sent         int        `json:"sent,omitempty"`
 	ResolvedAt   *time.Time `json:"resolvedAt,omitempty"`
@@ -106,6 +131,8 @@ type Send struct {
 	At          time.Time  `json:"at"`
 	Comments    []string   `json:"comments"`
 	DeliveredAt *time.Time `json:"deliveredAt,omitempty"`
+	// Approved is set when this send is the person approving the stage.
+	Approved bool `json:"approved,omitempty"`
 }
 
 // Paths derives the sidecar locations from the video path.
@@ -141,6 +168,10 @@ func (s *Store) Load() (*Doc, error) {
 	d := &Doc{}
 	if err := json.Unmarshal(b, d); err != nil {
 		return nil, fmt.Errorf("%s: %w", s.DocPath, err)
+	}
+	var n int
+	if _, err := fmt.Sscanf(d.Schema, "cav-review/%d", &n); err == nil && n > 1 {
+		return nil, fmt.Errorf("%s was written by a newer cav (%s): update cav", s.DocPath, d.Schema)
 	}
 	if d.Comments == nil {
 		d.Comments = []Comment{}
@@ -245,6 +276,11 @@ func Fragment(frame int, frameEnd *int, fps float64, shapes []Shape) string {
 		t1 = float64(*frameEnd+1) / fps
 	}
 	s := fmt.Sprintf("#t=%.4f,%.4f", t0, t1)
+	return s + boxFragment(shapes)
+}
+
+// boxFragment is the "&xywh=percent:…" part of a fragment: the box around the shapes, or "".
+func boxFragment(shapes []Shape) string {
 	minX, minY, maxX, maxY := 1.0, 1.0, 0.0, 0.0
 	for _, sh := range shapes {
 		for _, p := range sh.Pts {
@@ -254,9 +290,9 @@ func Fragment(frame int, frameEnd *int, fps float64, shapes []Shape) string {
 	}
 	if maxX > minX && maxY > minY {
 		clamp := func(v float64) float64 { return math.Max(0, math.Min(100, v*100)) }
-		s += fmt.Sprintf("&xywh=percent:%.0f,%.0f,%.0f,%.0f", clamp(minX), clamp(minY), clamp(maxX-minX), clamp(maxY-minY))
+		return fmt.Sprintf("&xywh=percent:%.0f,%.0f,%.0f,%.0f", clamp(minX), clamp(minY), clamp(maxX-minX), clamp(maxY-minY))
 	}
-	return s
+	return ""
 }
 
 // Digest returns the sha256 of a file.
