@@ -305,3 +305,29 @@ func TestVideoReviewFileRoundTripsWithoutNewKeys(t *testing.T) {
 		t.Errorf("a file without a schema loads: %v", err)
 	}
 }
+
+func TestCheckOwnerRefusesAReviewFileOfAnotherKind(t *testing.T) {
+	dir := t.TempDir()
+	sb := filepath.Join(dir, "storyboard.json")
+	video := filepath.Join(dir, "storyboard.mp4")
+	if err := CheckOwner(sb, KindStoryboard); err != nil {
+		t.Fatalf("no review file yet: %v", err)
+	}
+	doc, _ := Paths(video)
+	if err := os.WriteFile(doc, []byte(`{"schema":"cav-review/1","source":{"render":"`+video+`"},"comments":[]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := CheckOwner(video, KindVideo); err != nil {
+		t.Fatalf("the video's own review file: %v", err)
+	}
+	err := CheckOwner(sb, KindStoryboard)
+	if err == nil || !strings.Contains(err.Error(), "storyboard.mp4") {
+		t.Fatalf("storyboard.json must not take over the video's review file, got %v", err)
+	}
+	if err := os.WriteFile(doc, []byte(`{"schema":"cav-review/1","kind":"storyboard","source":{"render":"`+sb+`"},"comments":[]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := CheckOwner(video, KindVideo); err == nil {
+		t.Fatal("the video must not take over the storyboard's review file")
+	}
+}

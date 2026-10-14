@@ -222,6 +222,9 @@ func (h *handler) session(ctx context.Context, video string, create, activate bo
 	if err != nil {
 		return nil, err
 	}
+	if err := review.CheckOwner(abs, kind); err != nil {
+		return nil, err
+	}
 	if kind != review.KindVideo {
 		return h.stillsSession(abs, kind, create)
 	}

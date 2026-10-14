@@ -200,6 +200,9 @@ func reviewServe(a *app, args []string) error {
 	if err != nil {
 		return fail(exitError, err.Error(), "check the file plays, and that ffmpeg is installed: "+ffmpegFix())
 	}
+	if err := review.CheckOwner(video, review.KindVideo); err != nil {
+		return fail(exitError, err.Error(), "")
+	}
 	store := review.Open(video)
 	// Record the render in the review file, so `wait` and `export` know what it was.
 	if _, err := store.Update(func(d *review.Doc) error { d.Source = src; review.AddVersion(d, src); return nil }); err != nil {
@@ -230,6 +233,9 @@ func reviewServeStills(ctx context.Context, a *app, target string, kind review.K
 	items, err := review.Items(kind, target)
 	if err != nil {
 		return fail(exitError, err.Error(), "fix "+target+" first")
+	}
+	if err := review.CheckOwner(target, kind); err != nil {
+		return fail(exitError, err.Error(), "")
 	}
 	store := review.Open(target)
 	sha, _ := review.Digest(target)
@@ -441,6 +447,9 @@ func printNotes(notes []noteOut) {
 func openReview(target string) (store *review.Store, kind review.Kind, items []review.Item, itemsErr error, err error) {
 	kind, err = review.KindOf(target)
 	if err != nil {
+		return nil, "", nil, nil, fail(exitError, err.Error(), "")
+	}
+	if err := review.CheckOwner(target, kind); err != nil {
 		return nil, "", nil, nil, fail(exitError, err.Error(), "")
 	}
 	store = review.Open(target)

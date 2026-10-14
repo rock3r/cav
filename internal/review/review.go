@@ -151,6 +151,35 @@ type Store struct {
 	mu      sync.Mutex
 }
 
+// CheckOwner refuses a review file that already holds the review of another kind of target
+// with the same name, such as storyboard.mp4 next to storyboard.json: both map to
+// storyboard.review.json, and sharing it would mix their notes and approvals.
+func CheckOwner(target string, kind Kind) error {
+	doc, _ := Paths(target)
+	b, err := os.ReadFile(doc)
+	if err != nil {
+		return nil // no review file yet, or unreadable: Load reports that
+	}
+	var d struct {
+		Kind   string `json:"kind"`
+		Source struct {
+			Render string `json:"render"`
+		} `json:"source"`
+	}
+	if json.Unmarshal(b, &d) != nil || d.Source.Render == "" {
+		return nil
+	}
+	owner := Kind(d.Kind)
+	if owner == "" {
+		owner = KindVideo
+	}
+	if owner == kind {
+		return nil
+	}
+	return fmt.Errorf("%s already holds the review of %s (%s); rename %s or that file so each has its own review file",
+		doc, d.Source.Render, owner, filepath.Base(target))
+}
+
 func Open(video string) *Store {
 	d, s := Paths(video)
 	return &Store{Video: video, DocPath: d, SnapDir: s}
