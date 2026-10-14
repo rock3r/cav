@@ -31,6 +31,20 @@ type Server struct {
 	Prepare func(ctx context.Context) (Source, string, error)
 	// CacheDir holds the proxies of every version, named <sha256>.mp4.
 	CacheDir string
+	// Stills, when set, makes this a review of a brief, mood board or storyboard: the page
+	// shows the items, there is no video, and Source, Proxy and Prepare are not used.
+	Stills *Stills
+	// Nonce is a secret that only the page knows: the server writes it into the page it
+	// serves, and /api/approve refuses a request without it. It is never in an API answer,
+	// the review file or the command output. An agent that only calls the chat's
+	// review_request tool never sees the page, so it cannot approve. An agent with a shell
+	// could still read the page and approve: the approval is a strong signal, not a security
+	// boundary. Without a nonce the server refuses every approval.
+	Nonce string
+
+	itemsMu    sync.Mutex
+	lastItems  []Item // the items as they were when they last loaded without an error
+	lastItemsE string
 
 	waveMu sync.Mutex
 	waves  map[string][]byte
@@ -128,12 +142,18 @@ func (s *Server) Handler() http.Handler {
 				page = b
 			}
 		}
-		w.Write(page)
+		w.Write(PageWithNonce(page, s.Nonce))
 	})
 	// The current render. With ?v=<version>, that render: the page asks for the version that
 	// /api/state named, and a later re-render must not answer in its place, or the page would
 	// show one render while it takes notes on another.
 	mux.HandleFunc("GET /video", func(w http.ResponseWriter, r *http.Request) {
+		// A review of stills has no video, and its proxy path is empty: ServeFile would list
+		// the working folder.
+		if s.Stills != nil {
+			http.NotFound(w, r)
+			return
+		}
 		src, proxy := s.current()
 		if v := r.URL.Query().Get("v"); v != "" && v != shortSHA(src.SHA256) {
 			p, ok := s.shortVersionProxy(v)
@@ -149,7 +169,7 @@ func (s *Server) Handler() http.Handler {
 	// An earlier version's proxy, for comparing; only versions this review recorded.
 	mux.HandleFunc("GET /video/{sha}", func(w http.ResponseWriter, r *http.Request) {
 		p, ok := s.versionProxy(r.PathValue("sha"))
-		if !ok {
+		if !ok || s.Stills != nil {
 			http.NotFound(w, r)
 			return
 		}
@@ -158,7 +178,7 @@ func (s *Server) Handler() http.Handler {
 	})
 	mux.HandleFunc("GET /api/waveform/{sha}", func(w http.ResponseWriter, r *http.Request) {
 		p, ok := s.versionProxy(r.PathValue("sha"))
-		if !ok {
+		if !ok || s.Stills != nil {
 			http.NotFound(w, r)
 			return
 		}
@@ -171,6 +191,10 @@ func (s *Server) Handler() http.Handler {
 		w.Write(b)
 	})
 	mux.HandleFunc("GET /api/state", func(w http.ResponseWriter, r *http.Request) {
+		if s.Stills != nil {
+			s.stillsState(w)
+			return
+		}
 		d, err := s.Store.Load()
 		if err != nil {
 			httpErr(w, 500, err)
@@ -205,15 +229,19 @@ func (s *Server) Handler() http.Handler {
 		w.Header().Set("Cache-Control", "no-store")
 		http.ServeFile(w, r, p)
 	})
+	mux.HandleFunc("GET /api/item/{id}/image", s.itemImage)
+	mux.HandleFunc("POST /api/approve", s.approve)
 	mux.HandleFunc("POST /api/comments", s.addComment)
 	mux.HandleFunc("POST /api/comments/{id}", s.editComment)
 	mux.HandleFunc("DELETE /api/comments/{id}", func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
 		var snap string
-		_, err := s.Store.Update(func(d *Doc) error {
+		_, err := s.update(func(d *Doc) error {
 			for i, c := range d.Comments {
 				if c.ID == id {
-					snap = c.Snapshot
+					// Only a file inside the review's own folder is removed: the recorded path
+					// comes from a file that can be edited.
+					snap = s.Store.SnapshotFile(c.Snapshot)
 					d.Comments = append(d.Comments[:i], d.Comments[i+1:]...)
 					return nil
 				}
@@ -232,7 +260,7 @@ func (s *Server) Handler() http.Handler {
 	})
 	mux.HandleFunc("POST /api/send", func(w http.ResponseWriter, r *http.Request) {
 		var sent *Send
-		_, err := s.Store.Update(func(d *Doc) error {
+		_, err := s.update(func(d *Doc) error {
 			n := len(d.Sends) + 1
 			var ids []string
 			for i := range d.Comments {
@@ -268,7 +296,7 @@ func statusOf(err error) int {
 	switch {
 	case errors.Is(err, errNotFound):
 		return 404
-	case errors.Is(err, errNothing):
+	case errors.Is(err, errNothing), errors.Is(err, errItemChanged), errors.As(err, new(*blockedError)):
 		return 409
 	}
 	return 400
@@ -290,6 +318,11 @@ type commentInput struct {
 	// between the page's last look at /api/state and this request, and the note belongs to
 	// the frames the reviewer saw. Empty means the current render.
 	Version string `json:"version"`
+	// Item, ItemSHA and Verdict are for a review of stills. ItemSHA is the item's hash as
+	// the page showed it; empty means the current one.
+	Item    string `json:"item"`
+	ItemSHA string `json:"itemSha"`
+	Verdict string `json:"verdict"`
 }
 
 var errOtherVersion = errors.New("the render changed and the page shows one this review does not know: reload the page")
@@ -336,6 +369,10 @@ func (s *Server) addComment(w http.ResponseWriter, r *http.Request) {
 		httpErr(w, 400, err)
 		return
 	}
+	if s.Stills != nil {
+		s.addItemComment(w, in)
+		return
+	}
 	if in.Text == "" && len(in.Shapes) == 0 {
 		httpErr(w, 400, errors.New("write a note or draw something"))
 		return
@@ -364,7 +401,7 @@ func (s *Server) addComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var made Comment
-	_, err = s.Store.Update(func(d *Doc) error {
+	_, err = s.update(func(d *Doc) error {
 		// Leave d.Source alone: whatever changes the render writes it. This server can be
 		// one a re-render has already replaced, and its render would undo that (issue #31).
 		c := Comment{
@@ -410,7 +447,7 @@ func (s *Server) editComment(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	var out Comment
-	_, err := s.Store.Update(func(d *Doc) error {
+	_, err := s.update(func(d *Doc) error {
 		c := Find(d, r.PathValue("id"))
 		if c == nil {
 			return errNotFound
@@ -422,7 +459,7 @@ func (s *Server) editComment(w http.ResponseWriter, r *http.Request) {
 		}
 		if in.Text != nil {
 			t := strings.TrimSpace(*in.Text)
-			if t == "" && len(c.Shapes) == 0 {
+			if t == "" && len(c.Shapes) == 0 && c.Verdict == "" {
 				return errors.New("a note needs words or a drawing")
 			}
 			// The agent already has the old words once their send is delivered: the

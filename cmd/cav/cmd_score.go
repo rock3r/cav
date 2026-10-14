@@ -54,7 +54,7 @@ func cmdScore(a *app, args []string) error {
 		return fail(exitError, err.Error(), "cav score needs a storyboard for the tempo and the shot markers")
 	}
 	if *video == "" {
-		if v, err := reviewVideo(nil); err == nil {
+		if v, err := reviewTarget(nil); err == nil {
 			*video = v
 		}
 	}

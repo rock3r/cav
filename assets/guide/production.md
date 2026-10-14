@@ -126,12 +126,19 @@ cav board init --bpm 120 --seconds 16 --shots 6
 # edit storyboard.json: "what" per shot, "style" (prompt, refs, palette)
 cav board frames                            # one frame per shot into board/
 cav board sheet                             # renders/board.png: look at it
+cav review storyboard.json &                # the user judges the stills: a verdict per shot, then Approve
+cav review wait storyboard.json             # returns when the user sends notes or approves
 cav board motion --only s2,s5               # optional: moving clips for chosen shots (Veo)
 cav board animatic --audio music.wav        # renders/animatic.mp4, cut on the beat
 cav review renders/animatic.mp4             # get the user's notes before building
 cav board place                             # the frames as placeholder layers in Cavalry
 ```
 
+- Start nothing slow or paid until the user approves the storyboard: not `cav board
+  motion`, not `cav music gen`, not the animatic. Check with
+  `cav review export storyboard.json --json`: its `approved` must be `true`. Fix every
+  note and every shot marked redo first (see "Review stills" in section 6). You cannot
+  approve for the user, and you must not edit `approved` by hand.
 - Time shots in beats, like the plan table in `cav guide`. Put cuts on bar starts
   (multiples of 4 in 4/4). With real music, set `"grid": "build/grid.json"` from
   `cav beats music.wav --json -o build/grid.json` so beats follow the track.
@@ -547,3 +554,38 @@ cav review export renders/final.mp4         # every note
   with `cav review`. The notes go to the same review file, so `cav review wait` reads them
   as usual. Without a shell, read them with the `review_notes` tool: it returns the sent
   notes with their snapshot images and marks the send received.
+
+### Review stills
+
+`cav review` also takes the stills of the plan, so the user can approve each stage before
+slow or paid work starts.
+
+| Target | Items | Verdicts | Review file |
+|---|---|---|---|
+| `brief.json` | its fields | approve, redo | `brief.review.json` |
+| `moodboard.json` | references | keep, more (more like this), drop | `moodboard.review.json` |
+| `storyboard.json` | shots | approve, redo | `storyboard.review.json` |
+
+- The page shows a grid of items. The user gives a verdict per item and can open an item
+  to draw on it and write a note. A note has an item, a verdict, text, drawings and a
+  snapshot PNG, as a note on a video has a frame.
+- The Approve button works only when no item is marked redo or drop and no note is open.
+  An open "more" does not block. Approving writes `approved` into the review file.
+- Approving counts as a send: `cav review wait storyboard.json` returns, also with no
+  notes. It says "is approved by <name>". `cav review export storyboard.json --json` shows
+  `approved`, the `items` with their verdicts, and `blockers`.
+- To fix a note, change the item in its file (for a shot: its `what`, or its frame with
+  `cav board frames --force`), then run `cav review resolve <id> --note "what changed"`.
+  Do not mark anything approved: there is no command for that, and you must never edit
+  `approved` by hand. The page holds a secret that the server needs for an approval, so the
+  chat tools cannot approve. This is a strong signal, not a security boundary: an agent with
+  a shell could still read the page and send the approval itself. Never do that.
+- If the file does not load, `wait` and `export` say "approval unknown". Fix the file first.
+- A storyboard also has a "board" item: its settings (tempo, size, offset, beat grid and
+  style). Changing any of them removes the approval ("board changed").
+- Each item has a hash. When an item changes, the user's old verdict shows as outdated and
+  the approval is removed (`approvalCleared` says why). Ask the user to look and approve
+  again. A change to one shot does not touch the verdicts on the others.
+- A mood board or brief review needs `moodboard.json` or `brief.json`; cav reads their items
+  from the same file name. The hook and `cav mcp` (`show_review`, `review_notes`) work with
+  all three targets.

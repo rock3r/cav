@@ -76,6 +76,7 @@ its method and results.
 | `~/.cav/cache/review/<sha256>.mp4` | `cav review` | The all-intra proxy of a render, one per content hash. |
 | `.cav/project.json`, `.cav/manifest.json` | `cav credits`, `sfx`, `ref`, `gen`, `board`, `music` | Per project: the accepted licence, and every imported or generated asset with its licence, credit and origin. |
 | `<video>.review.json`, `review/<video>/*.png`, `.<video>.review.json.lock` | `cav review` | Review notes, sends, and one snapshot per note. Every change to the review file holds the lock file, so the CLI and the chat's server processes do not save over each other. |
+| `<name>.review.json`, `review/<name>/*.png` next to `brief.json`, `moodboard.json` or `storyboard.json` | `cav review` | The same for a review of stills. It also holds `kind`, the stage `approved` (with the hash of every item) and `approvalCleared` (why an approval was removed). |
 | `<Cavalry Scripts>/cav-bridge.js` | `cav setup` | The bridge script. macOS: `~/Library/Application Support/Cavalry/Scripts`. Windows: `%APPDATA%\Cavalry\Scripts`. |
 
 `CAV_HOME` moves `~/.cav`. `CAV_SCRIPTS_DIR`, `CAV_BRIDGE_HOST` and `CAV_BRIDGE_PORT` override
@@ -342,6 +343,15 @@ never talk to the bridge. They are plain Go around ffmpeg, HTTPS and uv:
   re-read and written atomically on every change, so the server and `cav review resolve`
   can both edit it. The server answers only `127.0.0.1`/`localhost` hosts and same-origin
   JSON writes.
+  The same server reviews stills (`Server.Stills`, `items.go`, `stills.go`). `KindOf` reads
+  the target's `schema` (or its file name) and `Items` loads the items of a brief, mood
+  board or storyboard. Each item has a sha256 over its own content, such as a shot's JSON
+  and the bytes of its frame. A note and a verdict keep the hash of the item they were
+  given on. `Reconcile` removes the stage approval when an item changed, was added or
+  removed, or something blocks again; the server runs it before every read and write, so
+  there is no background loop. The image of an item is served only when it is a regular,
+  non-link image file inside the target's folder, and the video routes answer 404. The
+  approval is written by the page's `POST /api/approve` and by nothing else.
 - `internal/reviewmcp` is `cav mcp`, built on the official Go MCP SDK. It serves the same
   page with `assets/review/mcp-app.js` added, and answers the page's requests in-process
   through the `internal/review` handler. It makes its own smaller proxy (640 pixels wide,

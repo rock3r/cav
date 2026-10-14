@@ -53,6 +53,10 @@ type Options struct {
 	// Prepare probes a video and makes its preview proxy. Tests replace it; nil uses
 	// ffprobe and ffmpeg.
 	Prepare func(ctx context.Context, video, cacheDir string) (review.Source, string, error)
+	// Nonce is the secret that the page sends with an approval (see review.Server.Nonce).
+	// The host may send the page's requests to another server process than the one that
+	// served the page, so the processes of one person share it. Empty: a random one.
+	Nonce string
 }
 
 // New builds the MCP server: the page resource, show_review for the model and
@@ -61,9 +65,12 @@ func New(o Options) *mcp.Server {
 	if o.Prepare == nil {
 		o.Prepare = Prepare
 	}
+	if o.Nonce == "" {
+		o.Nonce = review.NewNonce()
+	}
 	h := &handler{o: o, open: map[string]*session{}, stores: map[string]*review.Store{}}
 	s := mcp.NewServer(&mcp.Implementation{Name: "cav", Title: "cav review", Version: o.Version}, &mcp.ServerOptions{
-		Instructions: "show_review shows a render's cav review page in the chat, where the person can play it, draw and leave notes. " +
+		Instructions: "show_review shows the cav review page of a render, brief.json, moodboard.json or storyboard.json in the chat, where the person can play or look at it, draw and leave notes, and approve a stage. " +
 			"It is for a quick look: for frame-by-frame review run `cav review` in a shell. " +
 			"Read the notes with review_notes, or with `cav review wait` or `cav review export` when you have a shell.",
 	})
@@ -85,22 +92,23 @@ func New(o Options) *mcp.Server {
 		Description: "The cav review page: play a render, step frames, draw and leave notes for the agent."},
 		func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
 			return &mcp.ReadResourceResult{Contents: []*mcp.ResourceContents{{
-				URI: PageURI, MIMEType: AppMIME, Text: string(AppPage(o.Page, o.Shim)), Meta: pageMeta,
+				URI: PageURI, MIMEType: AppMIME, Text: string(AppPage(o.Page, o.Shim, o.Nonce)), Meta: pageMeta,
 			}}}, nil
 		})
 	mcp.AddTool(s, &mcp.Tool{
 		Name:  "show_review",
-		Title: "Show a render's review page",
+		Title: "Show a review page",
 		Description: "Show the cav review page for a rendered video in the chat, so the person can play it, draw on frames and leave notes. " +
-			"Without a video it shows the newest review or MP4 in the renders folder. The result lists the notes so far. " +
-			"After the person presses Send to agent, read the notes with review_notes.",
+			"It also takes brief.json, moodboard.json or storyboard.json: the page then shows the items (fields, references or shots), and the person gives verdicts, leaves notes and approves the stage. " +
+			"Without a path it shows the newest review or MP4 in the renders folder. The result lists the notes so far. " +
+			"After the person presses Send to agent or approves, read the notes with review_notes. Only the person approves.",
 		Meta: mcp.Meta{"ui": map[string]any{"resourceUri": PageURI}, "ui/resourceUri": PageURI},
 	}, h.show)
 	mcp.AddTool(s, &mcp.Tool{
 		Name:  "review_notes",
-		Title: "Read a render's review notes",
-		Description: "Read the review notes on a video, with the frame each one is about, its text, its drawings and a snapshot image of the frame with the drawing. " +
-			"When the person has pressed Send to agent, it returns that send and marks it received, as `cav review wait` does. " +
+		Title: "Read review notes",
+		Description: "Read the review notes on a video, brief.json, moodboard.json or storyboard.json, with the frame or item each one is about, its verdict, its text, its drawings and a snapshot image with the drawing. " +
+			"When the person has pressed Send to agent or approved a stage, it returns that send (and says it is approved) and marks it received, as `cav review wait` does. " +
 			"Otherwise it returns every open note. Use it in chats without a shell; with a shell, `cav review wait` works too.",
 	}, h.notes)
 	mcp.AddTool(s, &mcp.Tool{
@@ -115,7 +123,7 @@ func New(o Options) *mcp.Server {
 // AppPage adds the shim and a content-sized layout to the review page. The page fills the
 // window height, but the host sizes the frame from the page's own height, so in the frame
 // the page takes its natural height and the wide layout a fixed one.
-func AppPage(page, shim []byte) []byte {
+func AppPage(page, shim []byte, nonce string) []byte {
 	// The page stacks the sheet under the stage below 760 pixels. Chat frames are often 600
 	// to 800 pixels wide and about 600 tall, so in the chat the two columns hold down to 600
 	// pixels, with a narrower sheet, and the whole page takes the frame's height.
@@ -139,6 +147,9 @@ func AppPage(page, shim []byte) []byte {
 		"@media (max-width: 599px) { html.cav-mcp.cav-full .app { height: auto; min-height: 100dvh; } }\n" +
 		"</style>\n" +
 		"<script>\n" + string(shim) + "\n</script>\n"
+	// The nonce lets the page approve a stage. It goes only into this page, which the host
+	// shows to the person: never into a tool result.
+	page = review.PageWithNonce(page, nonce)
 	i := bytes.Index(page, []byte("</head>"))
 	if i < 0 {
 		return append([]byte(head), page...)
@@ -179,7 +190,9 @@ type handler struct {
 // session is one video opened with show_review. It is prepared again when the file changes,
 // as `cav review` does when an agent re-renders to the same path.
 type session struct {
-	srv     *review.Server
+	srv *review.Server
+	// kind is the review's kind; the empty string is a video.
+	kind    review.Kind
 	modTime time.Time
 	size    int64
 	// seen is the changed file as the last request found it. As in review.Server.Watch, a
@@ -204,6 +217,16 @@ func (h *handler) session(ctx context.Context, video string, create, activate bo
 	info, err := os.Stat(abs)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read %s", video)
+	}
+	kind, err := review.KindOf(abs)
+	if err != nil {
+		return nil, err
+	}
+	if err := review.CheckOwner(abs, kind); err != nil {
+		return nil, err
+	}
+	if kind != review.KindVideo {
+		return h.stillsSession(abs, kind, create)
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -252,6 +275,38 @@ func (h *handler) session(ctx context.Context, video string, create, activate bo
 	return s, nil
 }
 
+// stillsSession finds the review of a brief, mood board or storyboard. It has no render to
+// prepare and nothing to watch: the items are read again on every request.
+func (h *handler) stillsSession(abs string, kind review.Kind, create bool) (*session, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if s := h.open[abs]; s != nil {
+		return s, nil
+	}
+	store := h.storeLocked(abs)
+	if !create && !fileExists(store.DocPath) {
+		// As for a video: a review file next to the target shows that it was opened for review.
+		return nil, fmt.Errorf("%s was not opened with show_review", abs)
+	}
+	if create {
+		items, err := review.Items(kind, abs)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w (fix it, then show it again)", abs, err)
+		}
+		sha, _ := review.Digest(abs)
+		if _, err := store.Update(func(d *review.Doc) error {
+			d.Kind, d.Source = string(kind), review.Source{Render: abs, SHA256: sha}
+			review.Reconcile(d, items, time.Now().UTC())
+			return nil
+		}); err != nil {
+			return nil, err
+		}
+	}
+	s := &session{kind: kind, srv: &review.Server{Store: store, Stills: &review.Stills{Kind: kind, Path: abs}, Author: h.o.Author, Nonce: h.o.Nonce}}
+	h.open[abs] = s
+	return s, nil
+}
+
 // earlier rebuilds the session of a video that this process has not opened yet but cannot
 // prepare now, for example because it is being rewritten in place. It uses the last render in
 // the review file and its preview, so the page keeps the earlier render and shows the error,
@@ -288,7 +343,7 @@ func fileExists(p string) bool {
 }
 
 type showIn struct {
-	Video string `json:"video,omitempty" jsonschema:"path of the rendered video; default: the newest review or MP4 in the renders folder"`
+	Video string `json:"video,omitempty" jsonschema:"path of a rendered video, or of brief.json, moodboard.json or storyboard.json; default: the newest review or MP4 in the renders folder"`
 }
 
 type showOut struct {
@@ -300,6 +355,11 @@ type showOut struct {
 	Height     int     `json:"height"`
 	Open       int     `json:"open"`
 	Resolved   int     `json:"resolved"`
+	// Kind, Items and Approved are set for a review of stills; Video then holds the path of
+	// the brief, mood board or storyboard.
+	Kind     string `json:"kind,omitempty"`
+	Items    int    `json:"items,omitempty"`
+	Approved bool   `json:"approved,omitempty"`
 	// OpenNotes and Next repeat the text result. Some hosts give the model only the
 	// structured result, and then this is all it learns from the call.
 	OpenNotes []noteSummary `json:"openNotes"`
@@ -312,6 +372,8 @@ type noteSummary struct {
 	// FrameEnd is set for a note on a range of frames.
 	FrameEnd *int   `json:"frameEnd,omitempty"`
 	Text     string `json:"text"`
+	// Item is the shot, reference or brief field a note on stills is about.
+	Item string `json:"item,omitempty"`
 }
 
 func (h *handler) show(ctx context.Context, req *mcp.CallToolRequest, in showIn) (*mcp.CallToolResult, showOut, error) {
@@ -333,6 +395,9 @@ func (h *handler) show(ctx context.Context, req *mcp.CallToolRequest, in showIn)
 	d, err := s.srv.Store.Load()
 	if err != nil {
 		return nil, showOut{}, err
+	}
+	if s.kind != "" {
+		return h.showStills(s, d)
 	}
 	src := s.srv.Source
 	out := showOut{Video: s.srv.Store.Video, ReviewFile: s.srv.Store.DocPath, Frames: src.Frames, FPS: src.FPS, Width: src.Width, Height: src.Height,
@@ -362,8 +427,61 @@ func (h *handler) show(ctx context.Context, req *mcp.CallToolRequest, in showIn)
 	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: text}}}, out, nil
 }
 
+// itemNouns names what the items of each kind of review are.
+var itemNouns = map[review.Kind]string{review.KindStoryboard: "shots", review.KindMoodboard: "references", review.KindBrief: "fields"}
+
+// showStills is show for a brief, mood board or storyboard. It reads the items, drops an
+// approval that no longer holds, and lists the open notes by item.
+func (h *handler) showStills(s *session, d *review.Doc) (*mcp.CallToolResult, showOut, error) {
+	st := s.srv.Stills
+	items, err := review.Items(st.Kind, st.Path)
+	if err != nil {
+		return nil, showOut{}, err
+	}
+	if changed, err := s.srv.Store.ReconcileItems(items); err != nil {
+		return nil, showOut{}, err
+	} else if changed {
+		if d, err = s.srv.Store.Load(); err != nil {
+			return nil, showOut{}, err
+		}
+	}
+	counted := 0 // settings of the whole file are reviewed too, but are not "shots"
+	for _, it := range items {
+		if !it.Meta {
+			counted++
+		}
+	}
+	out := showOut{Video: st.Path, ReviewFile: s.srv.Store.DocPath, Kind: string(st.Kind), Items: counted, Approved: d.Approved != nil, OpenNotes: []noteSummary{}}
+	var b strings.Builder
+	for _, c := range d.Comments {
+		if c.Status != "open" {
+			out.Resolved++
+			continue
+		}
+		out.Open++
+		what := c.Item
+		if c.Verdict != "" {
+			what += " (" + c.Verdict + ")"
+		}
+		fmt.Fprintf(&b, "\n  %s %s: %s", c.ID, what, firstLine(c.Text))
+		out.OpenNotes = append(out.OpenNotes, noteSummary{ID: c.ID, Item: c.Item, Text: firstLine(c.Text)})
+	}
+	approved := "no"
+	if d.Approved != nil {
+		approved = "yes, by " + d.Approved.By
+	}
+	out.Next = "Hosts that draw MCP Apps show the page in the chat; others show only this result. " +
+		"When the person presses Send to agent or approves, call review_notes with this path. " +
+		"Only the person approves: do not start slow or paid work until the result says approved. " +
+		"With a shell, `cav review wait` with the path as its argument, quoted for your shell, works too; " +
+		"`cav review` with the same path opens the review in a browser."
+	text := fmt.Sprintf("Showing the review page of %s (%d %s). Notes: %d open, %d resolved.%s\nApproved: %s.\nPath: %s\n%s",
+		filepath.Base(st.Path), counted, itemNouns[st.Kind], out.Open, out.Resolved, b.String(), approved, out.Video, out.Next)
+	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: text}}}, out, nil
+}
+
 type notesIn struct {
-	Video string `json:"video,omitempty" jsonschema:"path of the rendered video; default: the newest review or MP4 in the renders folder"`
+	Video string `json:"video,omitempty" jsonschema:"path of a rendered video, or of brief.json, moodboard.json or storyboard.json; default: the newest review or MP4 in the renders folder"`
 }
 
 type notesOut struct {
@@ -373,6 +491,10 @@ type notesOut struct {
 	Send  int        `json:"send"`
 	Notes []noteFull `json:"notes"`
 	Next  string     `json:"next"`
+	// Kind is set for stills. Approved is set when the send is the person approving the
+	// stage, and the approval still holds.
+	Kind     string `json:"kind,omitempty"`
+	Approved bool   `json:"approved,omitempty"`
 }
 
 type noteFull struct {
@@ -388,6 +510,11 @@ type noteFull struct {
 	Replies  []review.Reply `json:"replies,omitempty"`
 	// OnOlderRender is set for a note made on an earlier render of this file.
 	OnOlderRender bool `json:"onOlderRender,omitempty"`
+	// Item, Verdict and ItemChanged are for a note on stills: the item it is about, the
+	// verdict given with it, and whether the item has changed since.
+	Item        string `json:"item,omitempty"`
+	Verdict     string `json:"verdict,omitempty"`
+	ItemChanged bool   `json:"itemChanged,omitempty"`
 }
 
 // maxSnapshots and maxSnapshotBytes cap the images one review_notes call returns. Hosts
@@ -440,6 +567,10 @@ func (h *handler) notes(ctx context.Context, req *mcp.CallToolRequest, in notesI
 	if !fileExists(store.DocPath) {
 		return nil, notesOut{}, fmt.Errorf("%s has no review yet: show it with show_review first", video)
 	}
+	kind, err := review.KindOf(abs)
+	if err != nil {
+		return nil, notesOut{}, err
+	}
 
 	// Build the answer from one read, then claim the send in a short update that first checks
 	// the send and its notes are unchanged. Building takes a while (it reads the snapshots),
@@ -449,11 +580,22 @@ func (h *handler) notes(ctx context.Context, req *mcp.CallToolRequest, in notesI
 	// or deleted, or another call took the send: build the answer again. The send is marked
 	// only once the answer is complete, so an answer that fails on the way leaves it pending.
 	for attempt := 1; ; attempt++ {
+		// For stills, the items decide which notes are about a changed item, and whether the
+		// approval still holds.
+		var items []review.Item
+		if kind != review.KindVideo {
+			if items, err = review.Items(kind, abs); err == nil {
+				_, err = store.ReconcileItems(items)
+			}
+			if err != nil {
+				return nil, notesOut{}, err
+			}
+		}
 		d, err := store.Load()
 		if err != nil {
 			return nil, notesOut{}, err
 		}
-		out, content, claim := answer(store, d, abs)
+		out, content, claim := answer(store, d, abs, kind, items)
 		if !claim {
 			return &mcp.CallToolResult{Content: content}, out, nil
 		}
@@ -482,7 +624,7 @@ func (h *handler) notes(ctx context.Context, req *mcp.CallToolRequest, in notesI
 var errChanged = errors.New("the send changed")
 
 // sendState is what a review_notes answer for send n depends on: that n is still the
-// pending send, the render (for OnOlderRender) and the send's notes as they are stored.
+// pending send, the render (for OnOlderRender), the approval and the send's notes as they are stored.
 // Two equal results give the same answer.
 func sendState(d *review.Doc, n int) string {
 	p := review.Pending(d)
@@ -500,24 +642,32 @@ func sendState(d *review.Doc, n int) string {
 		}
 	}
 	b, _ := json.Marshal(struct {
-		Send   review.Send
-		Render string
-		Notes  []review.Comment
-	}{*p, d.Source.SHA256, notes})
+		Send     review.Send
+		Render   string
+		Notes    []review.Comment
+		Approved *review.Approval
+	}{*p, d.Source.SHA256, notes, d.Approved})
 	return string(b)
 }
 
 // answer builds the review_notes answer from d: the pending send, or the open notes when
 // there is none. claim reports whether the whole send fits, so that it may be marked received.
-func answer(store *review.Store, d *review.Doc, abs string) (out notesOut, content []mcp.Content, claim bool) {
+func answer(store *review.Store, d *review.Doc, abs string, kind review.Kind, items []review.Item) (out notesOut, content []mcp.Content, claim bool) {
 	out = notesOut{Video: abs, Notes: []noteFull{}}
-	cur := d.Source.SHA256
-	if len(cur) > 12 {
-		cur = cur[:12]
+	stills := kind != review.KindVideo
+	cur := map[string]string{}
+	for _, it := range items {
+		cur[it.ID] = it.SHA
+	}
+	approvedSend := false
+	render := d.Source.SHA256
+	if len(render) > 12 {
+		render = render[:12]
 	}
 	want := map[string]bool{}
 	if s := review.Pending(d); s != nil {
 		out.Send = s.N
+		approvedSend = s.Approved
 		for _, id := range s.Comments {
 			want[id] = true
 		}
@@ -535,7 +685,11 @@ func answer(store *review.Store, d *review.Doc, abs string) (out notesOut, conte
 		// capped: otherwise one field could push the answer past MaxInline.
 		n := noteFull{ID: clip(c.ID, 64), Status: clip(c.Status, 16), Frame: c.Frame, FrameEnd: c.FrameEnd,
 			Timecode: clip(c.Timecode, 32), Text: clip(c.Text, maxNoteText), Fragment: clip(c.Fragment, 80),
-			OnOlderRender: cur != "" && c.Version != cur}
+			OnOlderRender: !stills && render != "" && c.Version != render}
+		if stills {
+			n.Item, n.Verdict = clip(c.Item, 64), clip(c.Verdict, 16)
+			n.ItemChanged = c.ItemSHA != "" && cur[c.Item] != "" && c.ItemSHA != cur[c.Item]
+		}
 		for i, r := range c.Replies {
 			if i == maxReplies {
 				break
@@ -558,11 +712,19 @@ func answer(store *review.Store, d *review.Doc, abs string) (out notesOut, conte
 
 	// A send cut short stays pending, so nothing in it is lost.
 	claim = out.Send > 0 && truncated == 0
+	if stills {
+		out.Kind = string(kind)
+		out.Approved = approvedSend && d.Approved != nil
+	}
 	var b strings.Builder
 	switch {
 	case out.Send > 0 && !claim:
 		fmt.Fprintf(&b, "Send #%d on %s has %d notes; here are the first %d. The send stays pending: read all of it with `cav review export` in a shell.\n",
 			out.Send, abs, len(out.Notes)+truncated, len(out.Notes))
+	case out.Send > 0 && out.Approved:
+		fmt.Fprintf(&b, "Send #%d on %s: the reviewer approved it, by %s. %d note(s) came with it. It is now marked received.\n", out.Send, abs, clip(d.Approved.By, 80), len(out.Notes))
+	case out.Send > 0 && approvedSend:
+		fmt.Fprintf(&b, "Send #%d on %s: the reviewer approved it, but the approval has since been removed (the review file says why). %d note(s). It is now marked received.\n", out.Send, abs, len(out.Notes))
 	case out.Send > 0:
 		fmt.Fprintf(&b, "Send #%d on %s: %d note(s). It is now marked received.\n", out.Send, abs, len(out.Notes))
 	default:
@@ -578,9 +740,18 @@ func answer(store *review.Store, d *review.Doc, abs string) (out notesOut, conte
 		if n.FrameEnd != nil {
 			where = fmt.Sprintf("frames %d-%d (from %s)", n.Frame, *n.FrameEnd, n.Timecode)
 		}
+		if n.Item != "" {
+			where = n.Item
+			if n.Verdict != "" {
+				where += ", " + n.Verdict
+			}
+		}
 		older := ""
-		if n.OnOlderRender {
+		switch {
+		case n.OnOlderRender:
 			older = " [made on an older render]"
+		case n.ItemChanged:
+			older = " [item changed since]"
 		}
 		fmt.Fprintf(&b, "\n%s %s, %s%s\n", n.ID, n.Status, where, older)
 		if n.Text != "" {
@@ -611,6 +782,13 @@ func answer(store *review.Store, d *review.Doc, abs string) (out notesOut, conte
 	}
 	out.Next = "Fix the notes, re-render to the same file, then resolve each one with a short note on what changed " +
 		"(`cav review resolve <id> --note ...` with a shell, or Resolve in the review page)."
+	if stills {
+		out.Next = "Fix the notes by changing the item in its file (and its frame), then resolve each one with a short note on what changed " +
+			"(`cav review resolve <id> --note ...` with a shell, or Resolve in the review page)."
+		if out.Approved {
+			out.Next = "The stage is approved: go on to the next stage. Resolve the notes that came with it when they are done."
+		}
+	}
 	fmt.Fprintf(&b, "\n%s", out.Next)
 	content[0] = &mcp.TextContent{Text: b.String()}
 	return out, content, claim
@@ -650,7 +828,7 @@ func firstLine(s string) string {
 }
 
 type requestIn struct {
-	Video  string `json:"video" jsonschema:"the video, as show_review returned it"`
+	Video  string `json:"video" jsonschema:"the video or stills file, as show_review returned it"`
 	Method string `json:"method" jsonschema:"GET, POST or DELETE"`
 	Path   string `json:"path" jsonschema:"the page's request path, such as /api/state"`
 	Body   string `json:"body,omitempty" jsonschema:"the JSON request body"`

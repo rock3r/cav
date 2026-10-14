@@ -25,8 +25,8 @@ import (
 func init() {
 	register(command{
 		name:    "review",
-		args:    "[video.mp4] [--port 8790] [--author NAME] [--open] | wait [video] [--timeout 30m] | export [video] | resolve <id> [--note TEXT] [video] | reopen <id> [video]",
-		summary: "Review a render in the browser: step frames, draw, comment, then send the notes to the agent.",
+		args:    "[video.mp4|brief.json|moodboard.json|storyboard.json] [--port 8790] [--author NAME] [--open] | wait [target] [--timeout 30m] | export [target] | resolve <id> [--note TEXT] [target] | reopen <id> [target]",
+		summary: "Review a render, brief, mood board or storyboard in the browser: draw, comment, approve, then send the notes to the agent.",
 		run:     cmdReview,
 	})
 	longHelp["review"] = `
@@ -44,14 +44,37 @@ Notes live next to the video in <video>.review.json. Each note with a drawing al
 PNG of its frame with the drawing burned in, in review/<video>/, so you can see what the
 reviewer saw.
 
+cav review also takes stills, so that the person can approve each stage before slow or paid
+work starts. The page shows a grid of items. Each item gets a verdict, and notes with
+drawings. There is no video, and no ffmpeg is needed.
+  target          items are       verdicts
+  brief.json      its fields      approve, redo
+  moodboard.json  references      keep, more (more like this), drop
+  storyboard.json shots           approve, redo
+The review file is <name>.review.json next to the target, as for a video. The "Approve"
+button is on only when no item is marked redo or drop and no note is open. Approving writes
+"approved" into the review file, with the hash of every item the person saw. When an item
+changes (its words, or the bytes of its frame), its old verdict shows as outdated, and the
+approval is removed, with the reason in "approvalCleared". Approval also counts as a send, so
+cav review wait returns when the person approves. There is no command to approve: only the
+person does that, in the page. Never edit "approved" by hand.
+The page holds a secret that the server wrote into it, and the server refuses an approval
+without it, so an agent that calls the chat's review_request tool cannot approve. This is a
+strong signal, not a security boundary: an agent with a shell could still read the page and
+send the approval itself. Do not do that. Approving is the person's decision.
+When the target file does not load (for example while it is being edited), wait and export
+say "approval unknown" and never "approved".
+
 For the agent:
-  cav review wait [video] [--timeout 30m]
-        blocks until the reviewer presses "Send to agent", then prints those notes (with
-        frame, range, text, shapes and the snapshot path) and marks the send received.
-        Exit 3 when the timeout passes with nothing sent: run it again.
-  cav review export [video] [--dir renders]   every note, as JSON with --json
-  cav review resolve <id> [--note "what changed"] [video]
-  cav review reopen <id> [video]
+  cav review wait [target] [--timeout 30m]
+        blocks until the reviewer presses "Send to agent" or approves a stage, then prints
+        those notes (with frame or item, text, shapes and the snapshot path) and marks the
+        send received. Exit 3 when the timeout passes with nothing sent: run it again.
+  cav review export [target] [--dir renders]   every note, as JSON with --json. For stills
+        it also lists the items with their verdicts, whether the stage is approved
+        and what blocks it. Start nothing slow or paid until it says approved.
+  cav review resolve <id> [--note "what changed"] [target]
+  cav review reopen <id> [target]
   cav review hook
         a command hook for Claude Code and Codex (SessionStart, UserPromptSubmit, Stop):
         reads the hook event on stdin and, when notes were sent and nobody picked them up,
@@ -61,7 +84,8 @@ For the agent:
         each workspace path, and answers with injectSteps (PreInvocation) or a "continue"
         decision (Stop). The cavalry plugin installs it in the Antigravity CLI.
 Fix a note, re-render to the same file, then resolve it with a short note. The page
-shows resolved notes, and marks notes made on an older render.`
+shows resolved notes, and marks notes made on an older render. For stills, fix the item in
+its file (and its frame), then resolve the note.`
 }
 
 func cmdReview(a *app, args []string) error {
@@ -87,11 +111,12 @@ func cmdReview(a *app, args []string) error {
 	return reviewServe(a, args)
 }
 
-// reviewVideo resolves the video argument. Without one it takes the video of the newest
-// review file in the renders folder, or else the newest MP4 there.
-func reviewVideo(pos []string) (string, error) {
+// reviewTarget resolves the target argument: a video, or brief.json, moodboard.json or
+// storyboard.json. Without one it takes the video of the newest review file in the renders
+// folder, or else the newest MP4 there.
+func reviewTarget(pos []string) (string, error) {
 	if len(pos) > 1 {
-		return "", usageErr("give one video")
+		return "", usageErr("give one target")
 	}
 	if len(pos) == 1 {
 		if _, err := os.Stat(pos[0]); err != nil {
@@ -142,12 +167,19 @@ func reviewServe(a *app, args []string) error {
 	if err != nil {
 		return err
 	}
-	video, err := reviewVideo(pos)
+	video, err := reviewTarget(pos)
 	if err != nil {
 		return err
 	}
+	kind, err := review.KindOf(video)
+	if err != nil {
+		return fail(exitError, err.Error(), "")
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	if kind != review.KindVideo {
+		return reviewServeStills(ctx, a, video, kind, *port, *author, *open)
+	}
 	prepare := func(ctx context.Context) (review.Source, string, error) {
 		src, err := review.Probe(ctx, video)
 		if err != nil {
@@ -168,6 +200,9 @@ func reviewServe(a *app, args []string) error {
 	if err != nil {
 		return fail(exitError, err.Error(), "check the file plays, and that ffmpeg is installed: "+ffmpegFix())
 	}
+	if err := review.CheckOwner(video, review.KindVideo); err != nil {
+		return fail(exitError, err.Error(), "")
+	}
 	store := review.Open(video)
 	// Record the render in the review file, so `wait` and `export` know what it was.
 	if _, err := store.Update(func(d *review.Doc) error { d.Source = src; review.AddVersion(d, src); return nil }); err != nil {
@@ -176,28 +211,10 @@ func reviewServe(a *app, args []string) error {
 	srv := &review.Server{Store: store, Source: src, Proxy: proxy, Page: assets.ReviewPage, PagePath: os.Getenv("CAV_REVIEW_PAGE"), Author: *author, Prepare: prepare,
 		CacheDir: filepath.Join(config.CacheDir(), "review")}
 	go srv.Watch(ctx, time.Second)
-	ln, err := listenFrom(*port)
+	url, serve, err := startReview(ctx, store, srv, *port)
 	if err != nil {
 		return err
 	}
-	url := "http://" + ln.Addr().String() + "/"
-	store.Update(func(d *review.Doc) error {
-		d.Server = &review.ServerInfo{URL: url, PID: os.Getpid(), Started: time.Now().UTC()}
-		return nil
-	})
-	defer store.Update(func(d *review.Doc) error {
-		if d.Server != nil && d.Server.PID == os.Getpid() {
-			d.Server = nil
-		}
-		return nil
-	})
-	hs := &http.Server{Handler: srv.Handler(), ReadHeaderTimeout: 10 * time.Second}
-	go func() {
-		<-ctx.Done()
-		sctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer cancel()
-		hs.Shutdown(sctx)
-	}()
 	a.emit(map[string]any{"url": url, "video": video, "reviewFile": store.DocPath, "frames": src.Frames, "fps": src.FPS}, func() {
 		fmt.Printf("review: %s\nnotes:  %s\nThe agent waits for notes with: cav review wait %s\nCtrl-C stops the server.\n", url, store.DocPath, video)
 	})
@@ -207,10 +224,96 @@ func reviewServe(a *app, args []string) error {
 	if *open {
 		openBrowser(url)
 	}
-	if err := hs.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	return serve()
+}
+
+// reviewServeStills serves the review of a brief, mood board or storyboard. It has no video
+// to prepare, so it needs no ffmpeg.
+func reviewServeStills(ctx context.Context, a *app, target string, kind review.Kind, port int, author string, open bool) error {
+	items, err := review.Items(kind, target)
+	if err != nil {
+		return fail(exitError, err.Error(), "fix "+target+" first")
+	}
+	if err := review.CheckOwner(target, kind); err != nil {
+		return fail(exitError, err.Error(), "")
+	}
+	store := review.Open(target)
+	sha, _ := review.Digest(target)
+	if _, err := store.Update(func(d *review.Doc) error {
+		d.Kind, d.Source = string(kind), review.Source{Render: target, SHA256: sha}
+		review.Reconcile(d, items, time.Now().UTC())
+		return nil
+	}); err != nil {
 		return err
 	}
-	return nil
+	srv := &review.Server{Store: store, Stills: &review.Stills{Kind: kind, Path: target}, Page: assets.ReviewPage,
+		PagePath: os.Getenv("CAV_REVIEW_PAGE"), Author: author, Nonce: review.NewNonce()}
+	url, serve, err := startReview(ctx, store, srv, port)
+	if err != nil {
+		return err
+	}
+	a.emit(map[string]any{"url": url, "target": target, "kind": kind, "reviewFile": store.DocPath, "items": len(items)}, func() {
+		fmt.Printf("review: %s\nnotes:  %s\nThe agent waits for the verdicts and notes with: cav review wait %s\nCtrl-C stops the server.\n", url, store.DocPath, target)
+	})
+	if a.json {
+		os.Stdout.Sync()
+	}
+	if open {
+		openBrowser(url)
+	}
+	return serve()
+}
+
+// startReview listens on the first free port, records the server in the review file, and
+// returns the page's URL and a function that serves until Ctrl-C.
+func startReview(ctx context.Context, store *review.Store, srv *review.Server, port int) (string, func() error, error) {
+	ln, err := listenFrom(port)
+	if err != nil {
+		return "", nil, err
+	}
+	url := "http://" + ln.Addr().String() + "/"
+	store.Update(func(d *review.Doc) error {
+		d.Server = &review.ServerInfo{URL: url, PID: os.Getpid(), Started: time.Now().UTC()}
+		return nil
+	})
+	hs := &http.Server{Handler: srv.Handler(), ReadHeaderTimeout: 10 * time.Second}
+	go func() {
+		<-ctx.Done()
+		sctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		hs.Shutdown(sctx)
+	}()
+	return url, func() error {
+		defer store.Update(func(d *review.Doc) error {
+			if d.Server != nil && d.Server.PID == os.Getpid() {
+				d.Server = nil
+			}
+			return nil
+		})
+		if err := hs.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			return err
+		}
+		return nil
+	}, nil
+}
+
+// sharedReviewNonce is the secret that the review page sends with an approval, for the chat.
+// A host may send the page's requests to another `cav mcp` process than the one that served
+// the page, so the processes of one person keep it in a private file in ~/.cav. It never goes
+// into a tool result, the review file or any output. An agent with a shell could read the
+// file: the approval is a strong signal, not a security boundary.
+func sharedReviewNonce() string {
+	path := filepath.Join(config.Home(), "review-nonce")
+	if b, err := os.ReadFile(path); err == nil {
+		if n := strings.TrimSpace(string(b)); len(n) >= 32 {
+			return n
+		}
+	}
+	n := review.NewNonce()
+	if os.MkdirAll(config.Home(), 0o700) == nil && os.WriteFile(path, []byte(n+"\n"), 0o600) == nil {
+		return n
+	}
+	return n // no file: this process alone knows it
 }
 
 func listenFrom(port int) (net.Listener, error) {
@@ -244,28 +347,42 @@ func openBrowser(url string) {
 }
 
 // noteOut is a comment as the agent sees it: with the absolute snapshot path and whether it
-// was made on the current render.
+// was made on the current render, or, for stills, on the current version of its item.
 type noteOut struct {
 	review.Comment
 	SnapshotPath  string `json:"snapshotPath,omitempty"`
 	OnOlderRender bool   `json:"onOlderRender,omitempty"`
+	ItemTitle     string `json:"itemTitle,omitempty"`
+	ItemChanged   bool   `json:"itemChanged,omitempty"`
+	ItemGone      bool   `json:"itemGone,omitempty"`
 }
 
-func notesFor(d *review.Doc, ids []string) []noteOut {
+// notesFor lists the notes with the ids (all of them when ids is nil). items is the target's
+// current items for a review of stills, or nil.
+func notesFor(d *review.Doc, ids []string, items []review.Item) []noteOut {
 	want := map[string]bool{}
 	for _, id := range ids {
 		want[id] = true
 	}
+	cur := map[string]review.Item{}
+	for _, it := range items {
+		cur[it.ID] = it
+	}
 	var out []noteOut
-	cur := d.Source.SHA256
-	if len(cur) > 12 {
-		cur = cur[:12]
+	src := d.Source.SHA256
+	if len(src) > 12 {
+		src = src[:12]
 	}
 	for _, c := range d.Comments {
 		if ids != nil && !want[c.ID] {
 			continue
 		}
-		n := noteOut{Comment: c, OnOlderRender: cur != "" && c.Version != cur}
+		n := noteOut{Comment: c, OnOlderRender: c.Item == "" && src != "" && c.Version != src}
+		if it, ok := cur[c.Item]; ok {
+			n.ItemTitle, n.ItemChanged = it.Title, c.ItemSHA != it.SHA
+		} else if c.Item != "" && items != nil {
+			n.ItemGone = true
+		}
 		if c.Snapshot != "" {
 			if abs, err := filepath.Abs(c.Snapshot); err == nil {
 				n.SnapshotPath = abs
@@ -282,9 +399,20 @@ func printNotes(notes []noteOut) {
 		if n.FrameEnd != nil {
 			where = fmt.Sprintf("frames %d–%d (from %s)", n.Frame, *n.FrameEnd, n.Timecode)
 		}
+		if n.Item != "" {
+			where = n.Item
+			if n.Verdict != "" {
+				where += " · " + n.Verdict
+			}
+		}
 		older := ""
-		if n.OnOlderRender {
+		switch {
+		case n.OnOlderRender:
 			older = " [made on an older render]"
+		case n.ItemChanged:
+			older = " [item changed since]"
+		case n.ItemGone:
+			older = " [item is gone]"
 		}
 		fmt.Printf("%s  %s  %s  by %s%s\n", n.ID, n.Status, where, n.Author, older)
 		if n.Text != "" {
@@ -311,6 +439,49 @@ func printNotes(notes []noteOut) {
 	}
 }
 
+// openReview opens the review of a target. For stills it also loads the items and removes an
+// approval that no longer holds, so that every command sees the same state as the page.
+//
+// itemsErr is set when the target does not load now (it may be mid-edit). Then the items are
+// nil, and nothing can be said about the approval: callers must not call it approved.
+func openReview(target string) (store *review.Store, kind review.Kind, items []review.Item, itemsErr error, err error) {
+	kind, err = review.KindOf(target)
+	if err != nil {
+		return nil, "", nil, nil, fail(exitError, err.Error(), "")
+	}
+	if err := review.CheckOwner(target, kind); err != nil {
+		return nil, "", nil, nil, fail(exitError, err.Error(), "")
+	}
+	store = review.Open(target)
+	items, itemsErr = currentItems(store, kind, target)
+	if itemsErr != nil {
+		fmt.Fprintf(os.Stderr, "warning: %v\n", itemsErr)
+	}
+	return store, kind, items, itemsErr, nil
+}
+
+// currentItems loads the items of a stills target and reconciles the approval with them. It
+// returns nothing for a video.
+func currentItems(store *review.Store, kind review.Kind, target string) ([]review.Item, error) {
+	if kind == review.KindVideo {
+		return nil, nil
+	}
+	items, err := review.Items(kind, target)
+	if err == nil {
+		_, err = store.ReconcileItems(items)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+// approvalUnknown is what the commands say when a stills target does not load: they cannot
+// tell whether the approval still holds, so they never call the stage approved.
+func approvalUnknown(target string, err error) string {
+	return fmt.Sprintf("approval unknown: %s does not load (%v)", target, err)
+}
+
 func reviewWait(a *app, args []string) error {
 	fs := flag.NewFlagSet("review wait", flag.ContinueOnError)
 	timeout := fs.Duration("timeout", 30*time.Minute, "how long to wait for a send")
@@ -318,15 +489,23 @@ func reviewWait(a *app, args []string) error {
 	if err != nil {
 		return err
 	}
-	video, err := reviewVideo(pos)
+	target, err := reviewTarget(pos)
 	if err != nil {
 		return err
 	}
-	store := review.Open(video)
+	store, kind, items, itemsErr, err := openReview(target)
+	if err != nil {
+		return err
+	}
 	deadline := time.Now().Add(*timeout)
-	for {
+	for first := true; ; first = false {
+		if !first {
+			items, itemsErr = currentItems(store, kind, target)
+		}
 		var got *review.Send
 		var notes []noteOut
+		var approval *review.Approval
+		var cleared *review.Cleared
 		_, err := store.Update(func(d *review.Doc) error {
 			s := review.Pending(d)
 			if s == nil {
@@ -335,14 +514,60 @@ func reviewWait(a *app, args []string) error {
 			now := time.Now().UTC()
 			s.DeliveredAt = &now
 			got = s
-			notes = notesFor(d, s.Comments)
+			notes = notesFor(d, s.Comments, items)
+			approval, cleared = d.Approved, d.ApprovalCleared
 			return nil
 		})
 		if err == nil {
-			a.emit(map[string]any{"send": got.N, "video": video, "notes": notes}, func() {
-				fmt.Printf("send #%d from the review of %s: %d note(s)\n\n", got.N, video, len(notes))
-				printNotes(notes)
-				fmt.Printf("\nFix them, re-render to %s, then: cav review resolve <id> --note \"what changed\"\n", video)
+			// With a target that does not load, nothing says the approval still holds.
+			unknown := got.Approved && itemsErr != nil
+			approved := got.Approved && approval != nil && itemsErr == nil
+			data := map[string]any{"send": got.N, "target": target, "kind": kind, "approved": approved, "notes": notes}
+			if kind == review.KindVideo {
+				data["video"] = target
+			}
+			if unknown {
+				data["approvalUnknown"], data["itemsError"] = true, itemsErr.Error()
+			}
+			if approved {
+				data["approvedBy"] = approval.By
+			}
+			a.emit(data, func() {
+				switch {
+				case unknown:
+					fmt.Printf("send #%d: the reviewer approved, but %s.\n", got.N, approvalUnknown(target, itemsErr))
+				case approved:
+					fmt.Printf("%s is approved by %s (send #%d).\n", target, approval.By, got.N)
+				case got.Approved && cleared != nil:
+					fmt.Printf("%s was approved in send #%d, but the approval has since been removed: %s.\n", target, got.N, cleared.Reason)
+				case got.Approved:
+					fmt.Printf("%s was approved in send #%d, but the approval has since been removed.\n", target, got.N)
+				default:
+					fmt.Printf("send #%d from the review of %s: %d note(s)\n", got.N, target, len(notes))
+				}
+				if len(notes) > 0 {
+					fmt.Println()
+					if got.Approved {
+						fmt.Printf("%d note(s) came with it:\n", len(notes))
+					}
+					printNotes(notes)
+				}
+				switch {
+				case unknown:
+					fmt.Printf("\nDo not go on. Fix %s, then run cav review export to see if the stage is approved.\n", target)
+				case approved:
+					fmt.Printf("\nGo on to the next stage.")
+					if len(notes) > 0 {
+						fmt.Printf(" Use the notes above there, then: cav review resolve <id> --note \"what changed\"")
+					}
+					fmt.Println()
+				case got.Approved:
+					fmt.Println("\nThe stage is not approved now. Do not go on: run cav review wait again, and go on once the reviewer approves.")
+				case kind == review.KindVideo:
+					fmt.Printf("\nFix them, re-render to %s, then: cav review resolve <id> --note \"what changed\"\n", target)
+				default:
+					fmt.Printf("\nFix them in %s (and its frames), then: cav review resolve <id> --note \"what changed\"\n", target)
+				}
 			})
 			return nil
 		}
@@ -351,7 +576,7 @@ func reviewWait(a *app, args []string) error {
 		}
 		if time.Now().After(deadline) {
 			return &cliError{code: exitStillRunning, msg: "no notes sent within " + timeout.String(),
-				hint: "the reviewer has not pressed Send to agent yet; run `cav review wait` again"}
+				hint: "the reviewer has not pressed Send to agent or Approve yet; run `cav review wait` again"}
 		}
 		time.Sleep(time.Second)
 	}
@@ -359,9 +584,20 @@ func reviewWait(a *app, args []string) error {
 
 var errNoSend = errors.New("nothing sent")
 
+// itemRow is one item in the export, with what the reviewer said about it.
+type itemRow struct {
+	ID         string `json:"id"`
+	Title      string `json:"title"`
+	SHA        string `json:"sha"`
+	Verdict    string `json:"verdict,omitempty"`
+	Outdated   bool   `json:"outdated,omitempty"`
+	OldVerdict string `json:"oldVerdict,omitempty"`
+	OpenNotes  int    `json:"openNotes"`
+}
+
 func reviewExport(a *app, args []string) error {
 	fs := flag.NewFlagSet("review export", flag.ContinueOnError)
-	dir := fs.String("dir", "", "folder to look in when no video is given (default: renders)")
+	dir := fs.String("dir", "", "folder to look in when no target is given (default: renders)")
 	pos, err := parseFlags(fs, args)
 	if err != nil {
 		return err
@@ -369,22 +605,78 @@ func reviewExport(a *app, args []string) error {
 	if *dir != "" {
 		os.Setenv("CAV_OUT_DIR", *dir)
 	}
-	video, err := reviewVideo(pos)
+	target, err := reviewTarget(pos)
 	if err != nil {
 		return err
 	}
-	store := review.Open(video)
+	store, kind, items, itemsErr, err := openReview(target)
+	if err != nil {
+		return err
+	}
 	d, err := store.Load()
 	if err != nil {
 		return err
 	}
-	notes := notesFor(d, nil)
-	a.emit(map[string]any{"video": video, "reviewFile": store.DocPath, "source": d.Source, "notes": notes, "sends": d.Sends, "server": d.Server}, func() {
-		if len(notes) == 0 {
-			fmt.Printf("no notes on %s yet (%s)\n", video, store.DocPath)
+	notes := notesFor(d, nil, items)
+	data := map[string]any{"target": target, "kind": kind, "reviewFile": store.DocPath, "source": d.Source, "notes": notes, "sends": d.Sends, "server": d.Server}
+	if kind == review.KindVideo {
+		data["video"] = target
+	}
+	var rows []itemRow
+	var blockers []string
+	if kind != review.KindVideo {
+		states := review.ItemStates(d, items)
+		for _, it := range items {
+			s := states[it.ID]
+			rows = append(rows, itemRow{ID: it.ID, Title: it.Title, SHA: it.SHA, Verdict: s.Verdict, Outdated: s.Outdated, OldVerdict: s.OldVerdict, OpenNotes: s.OpenNotes})
+		}
+		if blockers = review.Blockers(d, items); blockers == nil {
+			blockers = []string{}
+		}
+		// A file that does not load cannot be checked against the approval: say so, and never
+		// say approved.
+		approved := d.Approved != nil && itemsErr == nil
+		data["items"], data["approved"], data["approval"], data["approvalCleared"], data["blockers"] = rows, approved, d.Approved, d.ApprovalCleared, blockers
+		if itemsErr != nil {
+			data["approvalUnknown"], data["itemsError"], data["approval"] = true, itemsErr.Error(), nil
+		}
+	}
+	a.emit(data, func() {
+		if kind == review.KindVideo {
+			if len(notes) == 0 {
+				fmt.Printf("no notes on %s yet (%s)\n", target, store.DocPath)
+				return
+			}
+			printNotes(notes)
 			return
 		}
-		printNotes(notes)
+		switch {
+		case itemsErr != nil:
+			fmt.Println(approvalUnknown(target, itemsErr))
+		case d.Approved != nil:
+			fmt.Printf("approved by %s on %s\n", d.Approved.By, d.Approved.At.Local().Format("2006-01-02 15:04"))
+		case len(blockers) > 0:
+			fmt.Printf("not approved: %s\n", strings.Join(blockers, "; "))
+		default:
+			fmt.Println("not approved yet")
+		}
+		if d.Approved == nil && d.ApprovalCleared != nil {
+			fmt.Printf("the approval was removed: %s\n", d.ApprovalCleared.Reason)
+		}
+		for _, r := range rows {
+			verdict := "no verdict"
+			switch {
+			case r.Outdated:
+				verdict = "no verdict (item changed since " + r.OldVerdict + ")"
+			case r.Verdict != "":
+				verdict = r.Verdict
+			}
+			fmt.Printf("%s  %s  %s\n", r.ID, verdict, r.Title)
+		}
+		if len(notes) > 0 {
+			fmt.Println()
+			printNotes(notes)
+		}
 	})
 	return nil
 }
@@ -397,10 +689,14 @@ func reviewSetStatus(a *app, sub string, args []string) error {
 		return err
 	}
 	if len(pos) < 1 {
-		return usageErr("usage: cav review %s <id> [video]", sub)
+		return usageErr("usage: cav review %s <id> [target]", sub)
 	}
 	id := pos[0]
-	video, err := reviewVideo(pos[1:])
+	target, err := reviewTarget(pos[1:])
+	if err != nil {
+		return err
+	}
+	store, _, items, _, err := openReview(target)
 	if err != nil {
 		return err
 	}
@@ -409,15 +705,19 @@ func reviewSetStatus(a *app, sub string, args []string) error {
 		status = "open"
 	}
 	var out review.Comment
-	_, err = review.Open(video).Update(func(d *review.Doc) error {
+	_, err = store.Update(func(d *review.Doc) error {
 		c := review.Find(d, id)
 		if c == nil {
-			return fmt.Errorf("no note %s on %s", id, video)
+			return fmt.Errorf("no note %s on %s", id, target)
 		}
 		if err := review.SetStatus(c, status, *note); err != nil {
 			return err
 		}
 		out = *c
+		// A reopened note blocks the approval again.
+		if items != nil {
+			review.Reconcile(d, items, time.Now().UTC())
+		}
 		return nil
 	})
 	if err != nil {

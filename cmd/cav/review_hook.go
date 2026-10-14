@@ -38,6 +38,11 @@ type pendingSend struct {
 	key, video string
 	n, notes   int
 	url        string
+	// approved is set when the send is the reviewer approving a stage of stills.
+	approved bool
+	// removed is set when the approval in an approved send is gone from the review file: it
+	// was withdrawn, or an item changed. It says why.
+	removed string
 }
 
 // reviewHook runs as a command hook. When the reviewer has pressed "Send to agent" and no
@@ -190,30 +195,62 @@ func markSent(state map[string]time.Time, sends []pendingSend) {
 // hookMessage returns the text for the agent and a short message for the person.
 func hookMessage(fresh []pendingSend) (text, msg string) {
 	var lines []string
-	total := 0
+	total, approvals, removed := 0, 0, 0
 	for _, p := range fresh {
 		total += p.notes
-		lines = append(lines, fmt.Sprintf("- %d note(s) on %s (send #%d): run %s to read them", p.notes, codeSpan(plainPath(p.video)), p.n, codeSpan("cav review wait "+shellArg(p.video)+" --timeout 10s")))
+		wait := codeSpan("cav review wait " + shellArg(p.video) + " --timeout 10s")
+		if p.approved && p.removed != "" {
+			removed++
+			lines = append(lines, fmt.Sprintf("- the reviewer approved %s (send #%d), then the approval was removed: %s. Do not go on: run %s", codeSpan(plainPath(p.video)), p.n, p.removed, wait))
+			continue
+		}
+		if p.approved {
+			approvals++
+			lines = append(lines, fmt.Sprintf("- the reviewer approved %s (send #%d, %d note(s) with it): run %s to confirm", codeSpan(plainPath(p.video)), p.n, p.notes, wait))
+			continue
+		}
+		lines = append(lines, fmt.Sprintf("- %d note(s) on %s (send #%d): run %s to read them", p.notes, codeSpan(plainPath(p.video)), p.n, wait))
 	}
-	text = "The reviewer pressed \"Send to agent\" in cav review:\n" + strings.Join(lines, "\n") +
-		"\n`cav review wait` prints each note (frame, text, drawing, snapshot path) and marks the send received; look at each snapshot." +
-		" Fix the notes, re-render to the same file, then resolve each one with `cav review resolve <id> --note \"what changed\"`."
-	msg = fmt.Sprintf("cav review: the reviewer sent %d note(s)", total)
-	if len(fresh) == 1 {
-		msg += " on " + plainPath(filepath.Base(fresh[0].video))
+	text = "The reviewer pressed \"Send to agent\" or approved a stage in cav review:\n" + strings.Join(lines, "\n") +
+		"\n`cav review wait` prints each note (frame or item, text, drawing, snapshot path) and marks the send received; look at each snapshot." +
+		" Fix the notes (for a video, re-render to the same file; for a brief, mood board or storyboard, change the item in its file)," +
+		" then resolve each one with `cav review resolve <id> --note \"what changed\"`."
+	switch {
+	case removed == len(fresh) && total == 0:
+		msg = "cav review: an approval was removed, so the stage is not approved"
+	case approvals == 1 && len(fresh) == 1 && total == 0:
+		msg = "cav review: the reviewer approved " + plainPath(filepath.Base(fresh[0].video))
+	case approvals > 0:
+		msg = fmt.Sprintf("cav review: the reviewer approved %d stage(s) and sent %d note(s)", approvals, total)
+	default:
+		msg = fmt.Sprintf("cav review: the reviewer sent %d note(s)", total)
+		if len(fresh) == 1 {
+			msg += " on " + plainPath(filepath.Base(fresh[0].video))
+		}
 	}
 	return text, msg
 }
 
 // findPending lists the sends not yet received in the review files under dir's renders
-// folder (or $CAV_OUT_DIR).
+// folder (or $CAV_OUT_DIR), and in dir itself, where the review files of a brief, mood board
+// and storyboard sit next to their targets.
 func findPending(dir string) []pendingSend {
 	out := outDir()
 	if !filepath.IsAbs(out) {
 		out = filepath.Join(dir, out)
 	}
-	docs, _ := filepath.Glob(filepath.Join(out, "*.review.json"))
-	sort.Strings(docs)
+	var docs []string
+	seen := map[string]bool{}
+	for _, folder := range []string{out, dir} {
+		found, _ := filepath.Glob(filepath.Join(folder, "*.review.json"))
+		sort.Strings(found)
+		for _, path := range found {
+			if abs, err := filepath.Abs(path); err == nil && !seen[abs] {
+				seen[abs] = true
+				docs = append(docs, path)
+			}
+		}
+	}
 	var res []pendingSend
 	for _, path := range docs {
 		b, err := os.ReadFile(path)
@@ -227,6 +264,9 @@ func findPending(dir string) []pendingSend {
 		video := d.Source.Render
 		if video == "" {
 			video = strings.TrimSuffix(path, ".review.json") + ".mp4"
+			if d.Kind != "" && d.Kind != string(review.KindVideo) {
+				video = strings.TrimSuffix(path, ".review.json") + ".json"
+			}
 		} else if !filepath.IsAbs(video) {
 			// cav review stores the path as it was typed, relative to where it ran. The review
 			// file always sits next to its render, so take the folder from the review file.
@@ -239,7 +279,13 @@ func findPending(dir string) []pendingSend {
 			if s.DeliveredAt != nil {
 				continue
 			}
-			p := pendingSend{key: fmt.Sprintf("%s#%d@%s", path, s.N, s.At.Format(time.RFC3339Nano)), video: video, n: s.N, notes: len(s.Comments)}
+			p := pendingSend{key: fmt.Sprintf("%s#%d@%s", path, s.N, s.At.Format(time.RFC3339Nano)), video: video, n: s.N, notes: len(s.Comments), approved: s.Approved}
+			if s.Approved && d.Approved == nil {
+				p.removed = "the approval is no longer in the review file"
+				if d.ApprovalCleared != nil {
+					p.removed = plainPath(d.ApprovalCleared.Reason)
+				}
+			}
 			if d.Server != nil {
 				p.url = d.Server.URL
 			}

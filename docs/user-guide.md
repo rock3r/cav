@@ -279,6 +279,17 @@ and add notes. "Send to agent" hands the open notes to an agent waiting in
 frame and the drawing. A re-render to the same file reloads the page; W compares it with
 the earlier render (wipe, difference) or shows an onion skin.
 
+`cav review` also reviews stills, so that you can approve each stage before slow or paid
+work starts: `cav review storyboard.json` (or `brief.json`, `moodboard.json`). The page
+shows a grid of items: the shots of a storyboard, the references of a mood board, or the
+fields of a brief. Give each item a verdict (a storyboard or brief: Approve or Redo; a
+mood board: Keep, More like this or Drop). Click an item to draw on it and write a note.
+The "Approve" button is on only when no item is marked Redo or Drop and no note is open.
+Approval is written to `storyboard.review.json`. If an item changes after that (new
+words, or a new frame), its old verdict shows as outdated and the approval is removed, so
+you approve again. The agent cannot approve for you. `cav review wait` returns when you
+approve, and `cav review export storyboard.json` shows whether the stage is approved.
+
 ### Review in the chat
 
 `cav mcp` is a small MCP server that shows the same review page inside the chat, as an

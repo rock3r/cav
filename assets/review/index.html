@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>cav review</title>
+<meta name="cav-nonce" content="__CAV_NONCE__">
 <style>
   /* The page is an animator's exposure sheet: frames run down ruled rows, and each note is
      written into the row of the frame it is about. Light is the base; dark applies when the
@@ -292,6 +293,54 @@
     .readout .rl { display: none; }
     .transport .group .btn { min-width: 36px; }
   }
+
+  /* ---------- stills: a grid of items, a large view to draw on, the same sheet for notes ---------- */
+  .stills-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+  .banner { flex: none; margin: 0; padding: 8px 14px; background: var(--mark-soft); border-bottom: 1px solid var(--rule-2); font-size: 12px; color: var(--ink); overflow-wrap: anywhere; }
+  .focus { flex: none; display: flex; flex-direction: column; min-height: 0; max-height: 78%; overflow: auto; border-bottom: 1px solid var(--rule-3); background: var(--paper); }
+  .focus-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; padding: 6px 10px; border-bottom: 1px solid var(--rule); }
+  .focus-bar .ttl { margin-right: auto; min-width: 0; font: 600 15px/1.2 var(--sheet); letter-spacing: 0.02em; overflow-wrap: anywhere; }
+  .focus-stage { display: flex; align-items: center; justify-content: center; min-height: 96px; padding: 8px; background: var(--stage); }
+  .focus-box { position: relative; max-width: 100%; line-height: 0; }
+  .focus-box img { display: block; max-width: 100%; max-height: 44vh; }
+  .focus-box svg { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
+  .focus-text { max-width: 60ch; padding: 16px; color: #eceef2; font-size: 14px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .focus-write { display: flex; align-items: flex-end; gap: 8px; padding: 8px 10px; }
+  .focus-write textarea { flex: 1; min-width: 0; min-height: 40px; max-height: 120px; resize: none; padding: 6px 8px; border: 1px solid var(--rule-2); border-radius: 4px; background: var(--paper); line-height: 1.42; field-sizing: content; }
+  .focus-write textarea:focus { outline: none; border-color: var(--mark); }
+  .focus-write .where { color: var(--graphite); font-size: 11px; }
+  .grid { flex: 1; min-height: 0; overflow: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; align-content: start; padding: 12px; }
+  .grid.one { grid-template-columns: minmax(0, 1fr); }
+  .card { display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--rule-2); border-radius: 6px; background: var(--paper); overflow: hidden; }
+  .card.sel { border-color: var(--mark); box-shadow: 0 0 0 1px var(--mark); }
+  .card-img { display: flex; align-items: center; justify-content: center; aspect-ratio: 16 / 9; background: var(--stage); cursor: pointer; }
+  .card-img img { display: block; width: 100%; height: 100%; object-fit: contain; }
+  .card-img .noimg { color: #9aa1ad; font-size: 12px; }
+  .card-body { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px 10px; min-width: 0; }
+  .card-head { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+  .card-head b { font: 600 15px/1.2 var(--sheet); letter-spacing: 0.02em; overflow-wrap: anywhere; }
+  .card-head .sha { margin-left: auto; color: var(--graphite); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .card-title { margin: 0; color: var(--graphite); font-size: 11px; overflow-wrap: anywhere; }
+  .card-text { margin: 0; font-size: 13px; line-height: 1.42; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .card-text a { color: var(--mark-ink); }
+  .verdicts { display: flex; flex-wrap: wrap; gap: 4px; }
+  .vbtn { height: 28px; padding: 0 10px; border: 1px solid var(--rule-2); border-radius: 4px; background: transparent; color: var(--ink-2); font-size: 12px; font-weight: 600; cursor: pointer; }
+  .vbtn:hover { background: var(--hover); color: var(--ink); }
+  .vbtn[aria-pressed="true"].good { background: var(--ok); border-color: var(--ok); color: var(--paper); }
+  .vbtn[aria-pressed="true"].bad { background: var(--bad-fill); border-color: var(--bad-fill); color: var(--on-bad-fill); }
+  .vbtn[aria-pressed="true"].neutral { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+  .card-meta { display: flex; flex-wrap: wrap; gap: 4px 10px; color: var(--graphite); font-size: 11px; }
+  .card-meta .old { opacity: 0.8; }
+  .card-meta .old s { text-decoration-thickness: 1.5px; }
+  .chip { display: inline-block; padding: 0 6px; border-radius: 3px; font-size: 11px; font-weight: 650; line-height: 17px; border: 1px solid var(--rule-2); }
+  .chip.good { color: var(--ok); border-color: var(--ok); }
+  .chip.bad { color: var(--bad); border-color: var(--bad); }
+  .sfr b { overflow-wrap: anywhere; white-space: normal; font-size: 14px; }
+  .sfr .tc { overflow-wrap: anywhere; white-space: normal; }
+  .send.approve { background: var(--ok); color: var(--paper); }
+  .send.approve:disabled { background: var(--paper-3); color: var(--graphite); }
+  .approved-note { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 2px 10px; margin: 0; font-size: 12px; color: var(--ok); font-weight: 600; }
+  .linkbtn { border: 0; background: transparent; padding: 0; color: var(--ink-2); text-decoration: underline; cursor: pointer; font-size: 12px; }
   @media (prefers-reduced-motion: reduce) { *, *::after { transition: none !important; } }
 </style>
 </head>
@@ -345,7 +394,7 @@
     </div>
   </header>
 
-  <main class="main">
+  <main class="main" id="videoMain">
     <div class="stage-wrap" id="stageWrap">
       <p class="stage-note" id="stageNote" role="status">Loading the render…</p>
       <div class="stage" id="stage">
@@ -413,9 +462,39 @@
     </div>
   </main>
 
+  <main class="main stills-main" id="stills" hidden>
+    <p class="banner" id="banner" role="status" hidden></p>
+    <section class="focus" id="focus" aria-label="Item in detail" hidden>
+      <div class="focus-bar">
+        <span class="ttl" id="fTitle"></span>
+        <div class="verdicts" id="fVerdicts" role="group" aria-label="Verdict"></div>
+        <span class="sep"></span>
+        <div class="group" id="fTools" role="group" aria-label="Drawing tools">
+          <button class="btn" data-ftool="arrow" aria-label="Arrow" data-tip="Arrow"><svg class="i"><use href="#i-arrow"/></svg></button>
+          <button class="btn" data-ftool="rect" aria-label="Box" data-tip="Box"><svg class="i"><use href="#i-box"/></svg></button>
+          <button class="btn" data-ftool="ellipse" aria-label="Ellipse" data-tip="Ellipse"><svg class="i"><use href="#i-ellipse"/></svg></button>
+          <button class="btn" data-ftool="pen" aria-label="Pen" data-tip="Pen"><svg class="i"><use href="#i-pen"/></svg></button>
+          <button class="btn swatch" data-fcolor="#ffd23f" aria-label="Yellow" data-tip="Yellow"><span style="background:#ffd23f"></span></button>
+          <button class="btn swatch" data-fcolor="#ff4d4d" aria-label="Red" data-tip="Red"><span style="background:#ff4d4d"></span></button>
+          <button class="btn swatch" data-fcolor="#4dd4ff" aria-label="Cyan" data-tip="Cyan"><span style="background:#4dd4ff"></span></button>
+          <button class="btn swatch" data-fcolor="#ffffff" aria-label="White" data-tip="White"><span style="background:#ffffff"></span></button>
+          <button class="btn" id="fUndo" aria-label="Undo the last stroke" data-tip="Undo stroke"><svg class="i"><use href="#i-undo"/></svg></button>
+        </div>
+        <button class="btn" id="fClose" aria-label="Close" data-tip="Close  Esc" data-tip-pos="below-end"><svg class="i"><use href="#i-close"/></svg></button>
+      </div>
+      <div class="focus-stage" id="fStage"></div>
+      <div class="focus-write">
+        <textarea id="fText" rows="1" aria-label="Note on this item" placeholder="Note on this item…"></textarea>
+        <span class="where" id="fWhere"></span>
+        <button class="add" id="fAdd" data-tip="Add note  ⌘↵" data-tip-pos="end"><svg class="i"><use href="#i-plus"/></svg>Add</button>
+      </div>
+    </section>
+    <div class="grid" id="grid"></div>
+  </main>
+
   <aside class="side" aria-label="Notes">
     <div class="sheet-head">
-      <span class="colhead">Frame</span>
+      <span class="colhead" id="colFrame">Frame</span>
       <span class="colhead">Note</span>
       <span class="count"><span id="count" class="num"></span>
         <button class="btn" id="bFilter" aria-pressed="false" aria-label="Show resolved notes" data-tip="Show resolved notes" data-tip-pos="below-end"><svg class="i"><use href="#i-eye"/></svg></button>
@@ -434,8 +513,11 @@
       </div>
     </div>
     <div class="sheet-foot">
+      <p class="sendnote" id="tally" hidden></p>
       <p class="sendnote" id="sendNote" hidden></p>
       <button class="send" id="bSend"><svg class="i"><use href="#i-send"/></svg><span id="sendLabel">Send to agent</span></button>
+      <button class="send approve" id="bApprove" hidden><svg class="i"><use href="#i-check"/></svg><span id="approveLabel">Approve</span></button>
+      <p class="approved-note" id="approvedNote" hidden><span id="approvedText"></span><button class="linkbtn" id="bWithdraw">Withdraw</button></p>
     </div>
   </aside>
 </div>
@@ -459,7 +541,7 @@
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
-(() => {
+function startVideo() {
   const $ = id => document.getElementById(id);
   const video = $('video'), overlay = $('overlay'), stage = $('stage'), wrap = $('stageWrap');
   const sheet = $('list'), here = $('here');
@@ -1186,7 +1268,406 @@
   // resolved shows up at once; and refresh as soon as the tab comes back.
   setInterval(() => { if (!drawing) refresh().catch(() => {}); }, 3000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh().catch(() => {}); });
-})();
+}
+</script>
+<script>
+// Stills: the page of a brief, mood board or storyboard. The server answers /api/state with a
+// "kind" for these, and the page shows a grid of items instead of a video. It keeps its own
+// small copies of the helpers above, so that the video code stays as it was.
+function startStills(s0) {
+  const $ = id => document.getElementById(id);
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+  const icon = (name, cls) => `<svg class="i${cls ? ' ' + cls : ''}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
+  const toast = msg => { const t = $('toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('on'), 2400); };
+  const MAX_NOTE = 65536;
+  const tooLong = t => t.length > MAX_NOTE && [...t].length > MAX_NOTE;
+  const api = async (method, url, body) => {
+    if (method !== 'GET' && body === undefined) body = {};
+    const r = await fetch(url, { method, headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    return j;
+  };
+  const store = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
+  function setTheme(choice) {
+    if (choice === 'light' || choice === 'dark') document.documentElement.dataset.theme = choice;
+    else { delete document.documentElement.dataset.theme; choice = 'system'; }
+    document.querySelectorAll('[data-theme-choice]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.themeChoice === choice)));
+    store.set('cav-review-theme', choice);
+  }
+  document.querySelectorAll('[data-theme-choice]').forEach(b => b.addEventListener('click', () => setTheme(b.dataset.themeChoice)));
+  setTheme(store.get('cav-review-theme') || 'system');
+
+  // This page has no video: show the stills layout and drop the video-only controls.
+  $('videoMain').hidden = true; $('stills').hidden = false;
+  $('here').hidden = true; $('help').hidden = true; $('colFrame').textContent = 'Item';
+  $('bApprove').hidden = false; $('tally').hidden = false;
+
+  // The server wrote a secret into the page; an approval without it is refused. This is how
+  // the server tells the person's button from an agent that calls the API.
+  const nonce = (document.querySelector('meta[name="cav-nonce"]') || {}).content || '';
+  const VLABEL = { approve: 'Approve', redo: 'Redo', keep: 'Keep', more: 'More like this', drop: 'Drop' };
+  const VTONE = { approve: 'good', keep: 'good', redo: 'bad', drop: 'bad', more: 'neutral' };
+  const NOUN = { storyboard: 'storyboard', moodboard: 'mood board', brief: 'brief' };
+  let s = s0, focus = null, shownSha = '', tool = 'arrow', color = '#ffd23f', draft = [], drawing = null;
+  let selectedNote = null, showResolved = false, armed = null, lastCleared = s0.approvalCleared ? s0.approvalCleared.at : null;
+  const item = id => s.items.find(i => i.id === id);
+  const sha12 = i => i.sha.slice(0, 12);
+  const imgURL = i => `/api/item/${encodeURIComponent(i.id)}/image?v=${sha12(i)}`;
+  const safeLink = u => /^https?:\/\//i.test(u || '');
+  const isNote = c => !!c.text || (c.shapes && c.shapes.length > 0);
+
+  // ---------- title and banner ----------
+  function renderTitle() {
+    $('name').textContent = $('name').title = s.name;
+    document.title = s.name + ' · cav review';
+    const f = (k, v) => `<span class="field"><span class="k">${k}</span><span class="v">${esc(v)}</span></span>`;
+    $('meta').innerHTML = f('Kind', NOUN[s.kind] || s.kind) + f('Items', String(s.items.filter(i => !i.meta).length));
+    const b = $('banner');
+    b.hidden = !s.targetError;
+    if (s.targetError) b.textContent = `${s.name} has an error, so this page shows the last version that worked: ${s.targetError}`;
+  }
+
+  // ---------- the grid ----------
+  function verdictButtons(it) {
+    return s.verdicts.map(v => `<button class="vbtn ${VTONE[v] || 'neutral'}" data-v="${v}" aria-pressed="${it.verdict === v}">${VLABEL[v] || v}</button>`).join('');
+  }
+  function oldVerdict(it) {
+    return it.outdated ? `<span class="old" title="The item changed after this verdict, so it no longer counts"><s>${esc(VLABEL[it.oldVerdict] || it.oldVerdict)}</s> · changed since</span>` : '';
+  }
+  function card(it) {
+    const showBox = it.hasImage || (s.kind === 'storyboard' && !it.meta);
+    const link = it.link ? (safeLink(it.link) ? `<a href="${esc(it.link)}" target="_blank" rel="noopener noreferrer">${esc(it.link)}</a>` : esc(it.link)) : '';
+    const text = [it.text ? esc(it.text) : '', link].filter(Boolean).join('\n');
+    const open = it.openNotes ? `<span>${it.openNotes} open note${it.openNotes > 1 ? 's' : ''}</span>` : '';
+    return `<article class="card${focus === it.id ? ' sel' : ''}" data-id="${esc(it.id)}">
+      ${showBox ? `<div class="card-img" data-open="${esc(it.id)}" title="Open to draw and leave a note">${it.hasImage ? `<img loading="lazy" src="${imgURL(it)}" alt="${esc(it.id)}">` : '<span class="noimg">no frame yet</span>'}</div>` : ''}
+      <div class="card-body">
+        <div class="card-head"><b>${esc(it.id)}</b><span class="sha" title="${it.sha}">${it.sha.slice(0, 7)}</span></div>
+        ${it.title && it.title !== it.id ? `<p class="card-title">${esc(it.title)}</p>` : ''}
+        ${text ? `<p class="card-text">${text}</p>` : ''}
+        <div class="verdicts" role="group" aria-label="Verdict for ${esc(it.id)}">${verdictButtons(it)}<button class="vbtn neutral" data-open="${esc(it.id)}" aria-label="Add a note on ${esc(it.id)}">Note</button></div>
+        <div class="card-meta">${oldVerdict(it)}${open}</div>
+      </div>
+    </article>`;
+  }
+  let gridSig = '';
+  function renderGrid(force) {
+    const grid = $('grid');
+    const sig = JSON.stringify([s.items, s.verdicts, s.kind]);
+    if (force || sig !== gridSig) {
+      gridSig = sig;
+      const top = grid.scrollTop;
+      grid.classList.toggle('one', s.kind === 'brief');
+      grid.innerHTML = s.items.map(card).join('') || '<p class="hint" style="padding-left:12px">Nothing to review yet.</p>';
+      grid.scrollTop = top;
+    }
+    grid.querySelectorAll('.card').forEach(c => c.classList.toggle('sel', c.dataset.id === focus));
+  }
+  async function setVerdict(id, v) {
+    const it = item(id);
+    if (!it) return;
+    try {
+      if (it.verdict === v) {
+        // Clicking the active verdict takes it back, if it stands alone.
+        const c = s.doc.comments.find(x => x.id === it.verdictId);
+        if (!c || isNote(c)) { toast('This verdict came with a note. Delete the note to take it back.'); return; }
+        await api('DELETE', `/api/comments/${c.id}`);
+      } else {
+        await api('POST', '/api/comments', { item: id, itemSha: it.sha, verdict: v });
+      }
+      await refresh(true);
+    } catch (e) { toast(e.message); }
+  }
+  $('grid').addEventListener('click', e => {
+    const v = e.target.closest('[data-v]');
+    if (v) { setVerdict(v.closest('.card').dataset.id, v.dataset.v); return; }
+    const o = e.target.closest('[data-open]');
+    if (o) openFocus(o.dataset.open);
+  });
+
+  // ---------- the large view: look, draw, leave a note ----------
+  function shapeEl(sh, w, h, opacity) {
+    const g = document.createElementNS(SVGNS, 'g');
+    const sw = Math.max(2, w * 0.004);
+    const P = p => [p[0] * w, p[1] * h];
+    const stroke = el => { el.setAttribute('stroke', sh.color || '#ffd23f'); el.setAttribute('stroke-width', sw); el.setAttribute('fill', 'none'); el.setAttribute('stroke-linecap', 'round'); el.setAttribute('stroke-linejoin', 'round'); return el; };
+    const make = (tag, attrs) => { const el = stroke(document.createElementNS(SVGNS, tag)); for (const k in attrs) el.setAttribute(k, attrs[k]); g.appendChild(el); };
+    if (sh.type === 'pen') make('polyline', { points: sh.pts.map(p => P(p).join(',')).join(' ') });
+    else if (sh.type === 'arrow' && sh.pts.length === 2) {
+      const [a, b] = sh.pts.map(P), ang = Math.atan2(b[1] - a[1], b[0] - a[0]), L = sw * 5;
+      make('line', { x1: a[0], y1: a[1], x2: b[0], y2: b[1] });
+      make('polyline', { points: [[b[0] - L * Math.cos(ang - 0.45), b[1] - L * Math.sin(ang - 0.45)], b, [b[0] - L * Math.cos(ang + 0.45), b[1] - L * Math.sin(ang + 0.45)]].map(p => p.join(',')).join(' ') });
+    } else if ((sh.type === 'rect' || sh.type === 'ellipse') && sh.pts.length === 2) {
+      const [a, b] = sh.pts.map(P), x = Math.min(a[0], b[0]), y = Math.min(a[1], b[1]), bw = Math.abs(b[0] - a[0]), bh = Math.abs(b[1] - a[1]);
+      if (sh.type === 'rect') make('rect', { x, y, width: bw, height: bh });
+      else make('ellipse', { cx: x + bw / 2, cy: y + bh / 2, rx: bw / 2, ry: bh / 2 });
+    }
+    g.setAttribute('opacity', opacity);
+    return g;
+  }
+  let svg = null, fImg = null;
+  function drawOverlay() {
+    if (!svg) return;
+    const w = svg.clientWidth || 1, h = svg.clientHeight || 1, it = item(focus);
+    svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    svg.innerHTML = '';
+    // The open notes on this version of the item, so that the person sees what is said already.
+    for (const c of s.doc.comments) {
+      if (c.item !== focus || c.status !== 'open' || !c.shapes || (it && c.itemSha !== it.sha)) continue;
+      for (const sh of c.shapes) svg.appendChild(shapeEl(sh, w, h, c.id === selectedNote ? 1 : 0.45));
+    }
+    for (const sh of draft) svg.appendChild(shapeEl(sh, w, h, 1));
+    if (drawing) svg.appendChild(shapeEl(drawing, w, h, 1));
+  }
+  const norm = e => { const r = svg.getBoundingClientRect(); return [Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), Math.min(1, Math.max(0, (e.clientY - r.top) / r.height))]; };
+  function startDrawing(e) {
+    if (!svg) return;
+    svg.setPointerCapture(e.pointerId);
+    const p = norm(e);
+    drawing = { type: tool, color, pts: tool === 'pen' ? [p] : [p, p] };
+    drawOverlay();
+  }
+  function moveDrawing(e) {
+    if (!drawing) return;
+    const p = norm(e);
+    if (drawing.type === 'pen') drawing.pts.push(p); else drawing.pts[1] = p;
+    drawOverlay();
+  }
+  function endDrawing() {
+    if (!drawing) return;
+    const a = drawing.pts[0], b = drawing.pts[drawing.pts.length - 1];
+    const big = drawing.type === 'pen' ? drawing.pts.length > 2 : Math.hypot(b[0] - a[0], b[1] - a[1]) > 0.01;
+    if (big) { drawing.pts = drawing.pts.map(p => [+p[0].toFixed(4), +p[1].toFixed(4)]); draft.push(drawing); }
+    drawing = null; drawOverlay(); renderWhere(); renderFoot();
+  }
+  function setTool(t) { tool = t; document.querySelectorAll('[data-ftool]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.ftool === t))); }
+  function setColor(c) { color = c; document.querySelectorAll('[data-fcolor]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.fcolor === c))); }
+  document.querySelectorAll('[data-ftool]').forEach(b => b.addEventListener('click', () => setTool(b.dataset.ftool)));
+  document.querySelectorAll('[data-fcolor]').forEach(b => b.addEventListener('click', () => setColor(b.dataset.fcolor)));
+  $('fUndo').addEventListener('click', () => { draft.pop(); drawOverlay(); renderWhere(); renderFoot(); });
+  function renderWhere() { $('fWhere').textContent = draft.length ? `${draft.length} drawing${draft.length > 1 ? 's' : ''}` : ''; }
+
+  function openFocus(id) {
+    if (!item(id)) return;
+    if (focus !== id) { draft = []; drawing = null; $('fText').value = ''; renderWhere(); }
+    focus = id; shownSha = ''; renderFocus(true);
+    $('focus').scrollIntoView({ block: 'nearest' });
+    renderGrid(); renderSheet(true);
+  }
+  function closeFocus() {
+    focus = null; svg = fImg = null; draft = []; drawing = null; $('fText').value = '';
+    $('focus').hidden = true; renderGrid(); renderSheet(true); renderFoot();
+  }
+  function renderFocus(force) {
+    const box = $('focus');
+    const it = focus && item(focus);
+    if (focus && !it) { toast(`${focus} is not in the ${NOUN[s.kind] || 'file'} any more`); closeFocus(); return; }
+    box.hidden = !it;
+    if (!it) return;
+    $('fTitle').textContent = it.title && it.title !== it.id ? `${it.id} · ${it.title}` : it.id;
+    $('fVerdicts').innerHTML = verdictButtons(it) + oldVerdict(it);
+    $('fTools').hidden = !it.hasImage;
+    const stage = $('fStage');
+    if (force || shownSha !== it.sha) {
+      if (shownSha && shownSha !== it.sha && draft.length) toast(`${it.id} changed: your drawing is kept, check that it still fits`);
+      shownSha = it.sha;
+      if (it.hasImage) {
+        stage.innerHTML = `<div class="focus-box"><img alt="${esc(it.id)}" src="${imgURL(it)}"><svg aria-label="Drawing layer"></svg></div>`;
+        fImg = stage.querySelector('img'); svg = stage.querySelector('svg');
+        svg.addEventListener('pointerdown', startDrawing);
+        svg.addEventListener('pointermove', moveDrawing);
+        svg.addEventListener('pointerup', endDrawing);
+        fImg.addEventListener('load', drawOverlay);
+        new ResizeObserver(drawOverlay).observe(fImg);
+        drawOverlay();
+      } else {
+        svg = fImg = null;
+        stage.innerHTML = `<div class="focus-text">${esc(it.text || it.id)}</div>`;
+      }
+    } else drawOverlay();
+  }
+  $('fVerdicts').addEventListener('click', e => { const v = e.target.closest('[data-v]'); if (v && focus) setVerdict(focus, v.dataset.v); });
+  $('fClose').addEventListener('click', closeFocus);
+
+  async function snapshotPng() {
+    // Burn the drawing into the image the note is about, at the image's own size.
+    const w = fImg.naturalWidth, h = fImg.naturalHeight;
+    const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+    const ctx = cv.getContext('2d');
+    ctx.drawImage(fImg, 0, 0, w, h);
+    const tmp = document.createElementNS(SVGNS, 'svg');
+    tmp.setAttribute('xmlns', SVGNS); tmp.setAttribute('width', w); tmp.setAttribute('height', h); tmp.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    for (const sh of draft) tmp.appendChild(shapeEl(sh, w, h, 1));
+    const img = new Image();
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(new XMLSerializer().serializeToString(tmp));
+    await img.decode();
+    ctx.drawImage(img, 0, 0);
+    return cv.toDataURL('image/png');
+  }
+  async function addNote() {
+    const it = item(focus);
+    if (!it) return;
+    const text = $('fText').value.trim();
+    if (!text && !draft.length) { toast('Write a note or draw on the image first'); $('fText').focus(); return; }
+    if (tooLong(text)) { toast(`A note can be at most ${MAX_NOTE} characters`); return; }
+    $('fAdd').disabled = true;
+    try {
+      const body = { item: it.id, itemSha: shownSha, text, shapes: draft };
+      if (draft.length && fImg && fImg.naturalWidth) body.snapshot = await snapshotPng();
+      const c = await api('POST', '/api/comments', body);
+      draft = []; $('fText').value = ''; renderWhere(); selectedNote = c.id;
+      await refresh(true); toast(`Added ${c.id} on ${it.id}`);
+    } catch (e) { toast('Could not add the note: ' + e.message); }
+    finally { $('fAdd').disabled = false; }
+  }
+  $('fAdd').addEventListener('click', addNote);
+  $('fText').addEventListener('input', renderFoot);
+  $('fText').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); addNote(); } if (e.key === 'Escape') e.target.blur(); });
+
+  // ---------- the sheet: notes, grouped by item ----------
+  function noteRow(c) {
+    const it = item(c.item), done = c.status === 'resolved';
+    const older = it && c.itemSha && c.itemSha !== it.sha ? `<span class="state" title="Made on an earlier version of this item">${icon('older')}earlier version</span>` : '';
+    const gone = it ? '' : '<span class="state" title="This item is not in the file any more">removed</span>';
+    const state = done ? `<span class="state done" title="Resolved">${icon('check')}resolved</span>`
+      : c.sent ? `<span class="state sent" title="Sent to the agent in send #${c.sent}">${icon('send')}sent #${c.sent}</span>` : '';
+    const chip = c.verdict ? `<span class="chip ${VTONE[c.verdict] || ''}">${esc(VLABEL[c.verdict] || c.verdict)}</span> ` : '';
+    const thread = (c.replies || []).map(r => `<p><b>${esc(r.author)}</b> ${esc(r.text)}</p>`).join('') +
+      (c.resolvedNote ? `<p class="fix">${icon('check')} ${esc(c.resolvedNote)}</p>` : '');
+    const del = armed === c.id;
+    const acts = `<span class="acts">
+        ${done ? `<button class="btn" data-act="open" aria-label="Reopen" data-tip="Reopen">${icon('reopen')}</button>` : `<button class="btn" data-act="resolve" aria-label="Resolve" data-tip="Resolve">${icon('check')}</button>`}
+        <button class="btn${del ? ' armed' : ''}" data-act="delete" aria-label="${del ? 'Click again to delete' : 'Delete'}" data-tip="${del ? 'Click again to delete' : 'Delete'}" data-tip-pos="end">${icon('trash')}</button>
+      </span>`;
+    const words = c.text ? `<p class="txt">${chip}${esc(c.text)}</p>` : `<p class="txt${c.verdict ? '' : ' quiet'}">${c.verdict ? chip : 'Drawing only'}</p>`;
+    return `<div class="row note${done ? ' done' : ''}${c.id === selectedNote ? ' sel' : ''}" data-id="${c.id}" data-item="${esc(c.item)}" tabindex="0" aria-label="${c.id} on ${esc(c.item)}">
+      <div class="fr sfr"><b>${esc(c.item)}</b><span class="tc">${c.id}</span></div>
+      <div class="body${c.snapshot ? '' : ' bare'}">
+        ${c.snapshot ? `<img class="snap" loading="lazy" src="/api/snapshot/${c.id}?v=${c.createdAt}" alt="${esc(c.item)} with the drawing">` : ''}
+        <div>
+          ${words}
+          <div class="meta">${c.author && c.author !== s.author ? `<span>${esc(c.author)}</span>` : ''}${state}${older}${gone}${acts}</div>
+          ${thread ? `<div class="thread">${thread}</div>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }
+  let sheetSig = '';
+  function renderSheet(force) {
+    const list = $('list'), comments = s.doc.comments || [];
+    const open = comments.filter(c => c.status === 'open').length, done = comments.length - open;
+    $('count').textContent = $('count').title = comments.length ? `${open} open${done ? ` · ${done} resolved` : ''}` : '';
+    $('bFilter').hidden = !done;
+    const sig = JSON.stringify([comments, s.items.map(i => i.sha), focus, selectedNote, showResolved, armed]);
+    if (!force && sig === sheetSig) return;
+    sheetSig = sig;
+    const order = s.items.map(i => i.id);
+    const rank = c => (c.item === focus ? -1 : order.indexOf(c.item) < 0 ? order.length : order.indexOf(c.item));
+    const shown = comments.filter(c => showResolved || c.status === 'open').filter(c => c.item)
+      .sort((a, b) => rank(a) - rank(b));
+    const top = list.scrollTop;
+    for (const el of [...list.children]) if (el.id !== 'here') el.remove();
+    list.insertAdjacentHTML('beforeend', shown.map(noteRow).join('') ||
+      `<p class="hint">${comments.length ? 'Every note is resolved.' : 'Give a verdict on an item, or open one to draw on it and write what should change.'}</p>`);
+    list.scrollTop = top;
+  }
+  $('list').addEventListener('click', async e => {
+    const row = e.target.closest('.note'); if (!row) return;
+    const id = row.dataset.id, act = e.target.closest('[data-act]')?.dataset.act;
+    try {
+      if (act === 'resolve' || act === 'open') { await api('POST', `/api/comments/${id}`, { status: act === 'resolve' ? 'resolved' : 'open' }); await refresh(true); return; }
+      if (act === 'delete') {
+        // Two clicks instead of a confirm box, which a chat frame may not allow.
+        if (armed !== id) { armed = id; renderSheet(true); clearTimeout(renderSheet.t); renderSheet.t = setTimeout(() => { armed = null; renderSheet(true); }, 3000); return; }
+        clearTimeout(renderSheet.t); armed = null;
+        await api('DELETE', `/api/comments/${id}`); if (selectedNote === id) selectedNote = null; await refresh(true); toast(`Deleted ${id}`); return;
+      }
+    } catch (err) { toast(err.message); return; }
+    selectedNote = id; openFocus(row.dataset.item);
+  });
+  $('list').addEventListener('keydown', e => {
+    if (e.target.classList && e.target.classList.contains('note') && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); e.target.click(); }
+  });
+  $('bFilter').addEventListener('click', () => {
+    showResolved = !showResolved;
+    const b = $('bFilter'); b.setAttribute('aria-pressed', String(showResolved));
+    b.dataset.tip = b.ariaLabel = showResolved ? 'Hide resolved notes' : 'Show resolved notes';
+    renderSheet(true);
+  });
+
+  // ---------- the foot: send, approve ----------
+  const composing = () => !!$('fText').value.trim() || draft.length > 0;
+  function renderFoot() {
+    const comments = s.doc.comments || [], noteWord = n => `${n} note${n === 1 ? '' : 's'}`;
+    const unsent = comments.filter(c => c.status === 'open' && !c.sent).length;
+    $('bSend').disabled = !unsent;
+    $('sendLabel').textContent = unsent ? `Send ${noteWord(unsent)} to the agent` : 'Nothing new to send';
+    const lastSend = (s.doc.sends || [])[(s.doc.sends || []).length - 1];
+    $('sendNote').hidden = !lastSend;
+    if (lastSend) $('sendNote').textContent = `Send #${lastSend.n}${lastSend.approved ? ' (approval)' : `, ${noteWord(lastSend.comments.length)}`}: ` + (lastSend.deliveredAt ? 'received by the agent' : 'waiting for the agent');
+    const open = comments.filter(c => c.status === 'open' && isNote(c)).length;
+    // Settings of the whole file (the storyboard's tempo and style) are not counted as items.
+    const counted = s.items.filter(i => !i.meta);
+    const count = v => counted.filter(i => i.verdict === v).length;
+    const fix = count('redo') + count('drop');
+    const toFix = fix ? ` · ${fix} to fix` : '';
+    $('tally').textContent = s.kind === 'moodboard'
+      ? `${count('keep')} kept · ${count('more')} more · ${count('drop')} dropped · ${noteWord(open)} open`
+      : `${count('approve')} of ${counted.length} approved${toFix} · ${noteWord(open)} open`;
+    const a = s.approval, noun = NOUN[s.kind] || 'stage';
+    $('bApprove').hidden = a.approved;
+    $('approvedNote').hidden = !a.approved;
+    $('approveLabel').textContent = `Approve ${noun}`;
+    const why = a.blockers.length ? a.blockers.join('; ') : s.targetError ? 'The file has an error' : composing() ? 'Add or discard the note you are writing first' : '';
+    $('bApprove').disabled = !a.canApprove || !!s.targetError || composing();
+    $('bApprove').dataset.tip = $('bApprove').title = why || `Approve this ${noun}: the agent may go on to the next stage`;
+    if (a.approved && s.doc.approved) {
+      const when = new Date(s.doc.approved.at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+      $('approvedText').textContent = `Approved by ${s.doc.approved.by} · ${when}`;
+    }
+  }
+  $('bSend').addEventListener('click', async () => {
+    try { const r = await api('POST', '/api/send'); toast(`Sent ${r.comments.length} note${r.comments.length === 1 ? '' : 's'} to the agent`); await refresh(true); }
+    catch (e) { toast(e.message); }
+  });
+  $('bApprove').addEventListener('click', async () => {
+    const items = {};
+    for (const i of s.items) items[i.id] = i.sha; // what the person has on screen
+    try { await api('POST', '/api/approve', { items, nonce }); toast(`Approved the ${NOUN[s.kind] || 'stage'}`); }
+    catch (e) { toast(e.message); }
+    await refresh(true).catch(() => {});
+  });
+  $('bWithdraw').addEventListener('click', async () => {
+    try { await api('POST', '/api/approve', { withdraw: true, nonce }); await refresh(true); toast('Approval withdrawn'); }
+    catch (e) { toast(e.message); }
+  });
+
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape' || e.target.closest('dialog')) return;
+    if (draft.length) { draft = []; drawing = null; drawOverlay(); renderWhere(); renderFoot(); return; }
+    if (focus) closeFocus();
+  });
+
+  // ---------- state ----------
+  function render(force) {
+    renderTitle(); renderGrid(force); renderFocus(false); renderSheet(force); renderFoot();
+  }
+  async function refresh(force) {
+    const n = await api('GET', '/api/state');
+    s = n;
+    if (n.approvalCleared && n.approvalCleared.at !== lastCleared) { lastCleared = n.approvalCleared.at; toast('Approval removed: ' + n.approvalCleared.reason); }
+    render(force);
+  }
+  setTool('arrow'); setColor('#ffd23f');
+  render(true);
+  setInterval(() => { if (!drawing) refresh().catch(() => {}); }, 3000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh().catch(() => {}); });
+}
+
+// The server says what it is reviewing: a video, or stills.
+fetch('/api/state').then(r => r.json()).then(s => (s.kind && s.kind !== 'video' ? startStills(s) : startVideo()), () => startVideo());
 </script>
 </body>
 </html>
