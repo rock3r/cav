@@ -11,6 +11,7 @@ import (
 	"image/color"
 	"image/draw"
 	"image/png"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -159,7 +160,14 @@ func (sb *Board) Validate() error {
 
 // Label is the caption under a frame.
 func (sb *Board) Label(s Shot) string {
-	return fmt.Sprintf("%s  beats %g-%g  %.1f-%.1fs", s.ID, s.Beats[0], s.Beats[1], sb.Time(s.Beats[0]), sb.Time(s.Beats[1]))
+	return fmt.Sprintf("%s  beats %g-%g  %.1f-%.1fs", s.ID, s.Beats[0], s.Beats[1], RoundSeconds(sb.Time(s.Beats[0]), 1), RoundSeconds(sb.Time(s.Beats[1]), 1))
+}
+
+// RoundSeconds rounds t to the given number of decimals for printing. A value that rounds to
+// zero comes back as +0, so a tiny negative time (float error on a beat grid) never prints as -0.0.
+func RoundSeconds(t float64, decimals int) float64 {
+	p := math.Pow(10, float64(decimals))
+	return math.Round(t*p)/p + 0
 }
 
 // Normalize converts any image ffmpeg can read into a PNG of exactly w x h, letterboxed.

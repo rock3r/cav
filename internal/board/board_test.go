@@ -125,3 +125,19 @@ func TestAnimaticPlaysClipsCutToTheShot(t *testing.T) {
 		t.Fatalf("streams with music: %v", got)
 	}
 }
+
+func TestLabelNeverPrintsNegativeZero(t *testing.T) {
+	for _, first := range []float64{0, -0.01, math.Copysign(0, -1)} {
+		sb := &Board{BPM: 120, gridBeats: []float64{first, 0.5 + first, 1 + first, 1.5 + first, 2 + first}}
+		got := sb.Label(Shot{ID: "s1", Beats: [2]float64{0, 4}})
+		if strings.Contains(got, "-0.0") {
+			t.Fatalf("first beat %v: label has negative zero: %q", first, got)
+		}
+		if !strings.Contains(got, "  0.0-") {
+			t.Fatalf("first beat %v: want a start of 0.0, got %q", first, got)
+		}
+	}
+	if got := RoundSeconds(-0.04, 1); math.Signbit(got) {
+		t.Fatalf("RoundSeconds(-0.04) = %v, want +0", got)
+	}
+}

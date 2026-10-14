@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/rock3r/cav/internal/board"
@@ -37,5 +38,54 @@ func TestRemadeFrameDropsItsClip(t *testing.T) {
 	}
 	if got.Shots[0].Clip != "" || got.Shots[0].Source != "greybox" {
 		t.Fatalf("a remade frame must drop the clip made from the old one: %+v", got.Shots[0])
+	}
+}
+
+func writePlaceholderBoard(t *testing.T) string {
+	t.Helper()
+	t.Setenv("CAV_HOME", t.TempDir())
+	dir := t.TempDir()
+	t.Chdir(dir)
+	sb := &board.Board{BPM: 120, Seconds: 8, Width: 1920, Height: 1080, Shots: []board.Shot{
+		{ID: "s1", Beats: [2]float64{0, 4}, What: shotPlaceholder},
+		{ID: "s2", Beats: [2]float64{4, 8}, What: shotPlaceholder},
+		{ID: "s3", Beats: [2]float64{8, 12}, What: "a logo"},
+	}}
+	path := filepath.Join(dir, "storyboard.json")
+	if err := sb.Save(path); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func TestFramesRefusePlaceholderShots(t *testing.T) {
+	path := writePlaceholderBoard(t)
+	for _, extra := range [][]string{nil, {"--force"}} {
+		err := boardFrames(&app{json: true}, append(append([]string{"--service", "greybox"}, extra...), path))
+		if err == nil || !strings.Contains(err.Error(), "s1, s2: write what happens in the shot first") {
+			t.Fatalf("args %v: want a refusal naming s1, s2, got %v", extra, err)
+		}
+	}
+	if got, _ := board.Load(path); got.Shots[0].Frame != "" {
+		t.Fatal("a refused run must not make frames")
+	}
+	// Shots that are not asked for do not block the run.
+	if err := boardFrames(&app{json: true}, []string{"--service", "greybox", "--only", "s3", path}); err != nil {
+		t.Fatalf("--only s3 must work: %v", err)
+	}
+}
+
+func TestMotionRefusesPlaceholderShots(t *testing.T) {
+	path := writePlaceholderBoard(t)
+	err := boardMotion(&app{json: true}, []string{"--all", path})
+	if err == nil || !strings.Contains(err.Error(), "s1, s2: write what happens in the shot first") {
+		t.Fatalf("want a refusal naming s1, s2, got %v", err)
+	}
+}
+
+func TestFramePromptForbidsUnaskedText(t *testing.T) {
+	p := framePrompt(&board.Board{Width: 1920, Height: 1080}, board.Shot{ID: "s1", What: "a logo"})
+	if !strings.Contains(p, "Do not draw any text, labels or captions unless the shot description asks for them.") {
+		t.Fatalf("prompt lacks the no-text rule: %s", p)
 	}
 }

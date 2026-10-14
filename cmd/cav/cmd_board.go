@@ -130,7 +130,7 @@ func boardInit(a *app, args []string) error {
 		if i == *shots-1 {
 			end = total
 		}
-		sb.Shots = append(sb.Shots, board.Shot{ID: fmt.Sprintf("s%d", i+1), Beats: [2]float64{start, end}, What: "describe what happens in this shot"})
+		sb.Shots = append(sb.Shots, board.Shot{ID: fmt.Sprintf("s%d", i+1), Beats: [2]float64{start, end}, What: shotPlaceholder})
 		start = end
 	}
 	if err := sb.Save(*out); err != nil {
@@ -157,6 +157,28 @@ func aspectOf(w, h int) string {
 	return best
 }
 
+// shotPlaceholder is the "what" that cav board init writes. A shot that still has it is not described yet.
+const shotPlaceholder = "describe what happens in this shot"
+
+// noTextRule keeps the image service from drawing words the shot did not ask for.
+const noTextRule = "Do not draw any text, labels or captions unless the shot description asks for them."
+
+// placeholderShots names the shots in the set that still have the placeholder text.
+// pick says whether a shot is going to be sent to a paid service.
+func placeholderShots(sb *board.Board, pick func(board.Shot) bool) error {
+	var ids []string
+	for _, s := range sb.Shots {
+		if pick(s) && strings.TrimSpace(s.What) == shotPlaceholder {
+			ids = append(ids, s.ID)
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	return fail(exitError, strings.Join(ids, ", ")+": write what happens in the shot first (storyboard.json \"what\")",
+		"edit \"what\" for these shots; --force does not skip this check")
+}
+
 func framePrompt(sb *board.Board, s board.Shot) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Storyboard frame for an animated motion-graphics piece (%s). ", aspectOf(sb.Width, sb.Height))
@@ -179,7 +201,7 @@ func framePrompt(sb *board.Board, s board.Shot) string {
 	if len(sb.Style.Refs) > 0 {
 		b.WriteString("Match the style of the reference images. ")
 	}
-	b.WriteString("Show one clear key moment. Keep the same style as the other frames of this storyboard.")
+	b.WriteString("Show one clear key moment. Keep the same style as the other frames of this storyboard. " + noTextRule)
 	return b.String()
 }
 
@@ -198,6 +220,24 @@ func boardFrames(a *app, args []string) error {
 	if err != nil {
 		return fail(exitError, err.Error(), "cav board init writes a starting storyboard")
 	}
+	want := map[string]bool{}
+	for _, id := range splitList(*only) {
+		want[id] = true
+	}
+	// Refuse before any service call: a placeholder "what" makes the image service invent content.
+	if err := placeholderShots(sb, func(s board.Shot) bool {
+		if len(want) > 0 && !want[s.ID] {
+			return false
+		}
+		if s.Frame != "" && !*force {
+			if _, err := os.Stat(sb.Path(s.Frame)); err == nil {
+				return false
+			}
+		}
+		return true
+	}); err != nil {
+		return err
+	}
 	c, err := services.Load()
 	if err != nil {
 		return err
@@ -211,10 +251,6 @@ func boardFrames(a *app, args []string) error {
 	var refs []string
 	for _, r := range sb.Style.Refs {
 		refs = append(refs, sb.Path(r))
-	}
-	want := map[string]bool{}
-	for _, id := range splitList(*only) {
-		want[id] = true
 	}
 	root := library.Root()
 	// A broken manifest stops the run before the first paid call.
@@ -364,6 +400,19 @@ func boardMotion(a *app, args []string) error {
 			return usageErr("no shot is called %s", id)
 		}
 	}
+	if err := placeholderShots(sb, func(s board.Shot) bool {
+		if !*all && !want[s.ID] {
+			return false
+		}
+		if s.Clip != "" && !*force {
+			if _, err := os.Stat(sb.Path(s.Clip)); err == nil {
+				return false
+			}
+		}
+		return true
+	}); err != nil {
+		return err
+	}
 	c, err := services.Load()
 	if err != nil {
 		return err
@@ -406,7 +455,7 @@ func boardMotion(a *app, args []string) error {
 		}
 		length := sb.Time(s.Beats[1]) - sb.Time(s.Beats[0])
 		prompt := motionPrompt(sb, *s)
-		fmt.Fprintf(os.Stderr, "%s: animating with %s (%d s clip for a %.1f s shot)…\n", s.ID, ch.Service, videogen.Duration(length), length)
+		fmt.Fprintf(os.Stderr, "%s: animating with %s (%d s clip for a %.1f s shot)…\n", s.ID, ch.Service, videogen.Duration(length), board.RoundSeconds(length, 1))
 		cl, err := videogen.Generate(ctx, c, ch, videogen.Request{Prompt: prompt, Image: sb.Path(s.Frame), Aspect: aspect,
 			Seconds: length, Resolution: *res, Model: *model})
 		if err != nil {
