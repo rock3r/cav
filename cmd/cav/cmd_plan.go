@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -92,9 +93,10 @@ func cmdPlan(a *app, args []string) error {
 	if len(pos) > 0 {
 		return usageErr("usage: cav plan [--json]")
 	}
-	f, err := flow.Load(".")
+	root := flowRoot()
+	f, err := flow.Load(root)
 	if err != nil {
-		path, source := flow.Find(".")
+		path, source := flow.Find(root)
 		hint := "fix the flow file"
 		if path != "" {
 			hint = "fix " + path + ", or move it away to use the next flow in line: "
@@ -106,7 +108,7 @@ func cmdPlan(a *app, args []string) error {
 		}
 		return fail(exitError, err.Error(), hint)
 	}
-	stages, err := planStages(f)
+	stages, err := planStages(root, f)
 	if err != nil {
 		return err
 	}
@@ -127,13 +129,14 @@ func cmdPlan(a *app, args []string) error {
 	return nil
 }
 
-// planStages checks every stage of the flow. It reads files and writes none.
-func planStages(f *flow.Flow) ([]planStage, error) {
+// planStages checks every stage of the flow against the files in root. It reads files and
+// writes none. The paths it reports are relative to root.
+func planStages(root string, f *flow.Flow) ([]planStage, error) {
 	out := make([]planStage, len(f.Stages))
 	for i, s := range f.Stages {
 		ps := planStage{N: i + 1, Name: s.Name, Use: s.Use, Outputs: []planOutput{}, Missing: []string{}}
 		for _, o := range s.Outputs {
-			matches, ok, err := flow.Check(".", o)
+			matches, ok, err := flow.Check(root, o)
 			if err != nil {
 				return nil, fail(exitError, fmt.Sprintf("stage %s: cannot look for %s: %v", s.Name, o, err), "")
 			}
@@ -145,7 +148,7 @@ func planStages(f *flow.Flow) ([]planStage, error) {
 				ps.Missing = append(ps.Missing, o)
 			}
 		}
-		planState(&ps, s, f)
+		planState(&ps, s, root)
 		out[i] = ps
 	}
 	// A stage with no output at all, while a later stage has one, was left out on purpose.
@@ -161,7 +164,7 @@ func planStages(f *flow.Flow) ([]planStage, error) {
 		}
 	}
 	for i := range out {
-		planText(&out[i], f)
+		planText(&out[i], f, root)
 	}
 	return out, nil
 }
@@ -176,7 +179,7 @@ func anyOutput(s planStage) bool {
 }
 
 // planState sets the status and detail of one stage from its outputs and its review.
-func planState(ps *planStage, s flow.Stage, f *flow.Flow) {
+func planState(ps *planStage, s flow.Stage, root string) {
 	switch {
 	case len(s.Outputs) == 0:
 		ps.Status, ps.Detail = "unknown", "no outputs: line, so cav cannot check it"
@@ -186,19 +189,19 @@ func planState(ps *planStage, s flow.Stage, f *flow.Flow) {
 		return
 	}
 	if s.Review {
-		target, problem := s.ReviewTargetIn(".")
+		target, problem := s.ReviewTargetIn(root)
 		if problem != "" {
 			ps.Status, ps.Detail = "check", problem
 			return
 		}
-		planReviewed(ps, target)
+		planReviewed(ps, root, target)
 		return
 	}
 	// A stage without a review still shows notes that someone left on its first output.
 	first := s.Outputs[0]
 	if !strings.HasSuffix(first, "/") && !strings.Contains(first, "*") {
-		if st := review.ReadStatus(filepath.FromSlash(first)); !st.ApprovalUnknown && st.HasReview && len(st.Open) > 0 {
-			ps.Review = reviewInfo(first, st)
+		if st := review.ReadStatus(filepath.Join(root, filepath.FromSlash(first))); !st.ApprovalUnknown && st.HasReview && len(st.Open) > 0 {
+			ps.Review = reviewInfo(root, first, st)
 			ps.Status, ps.Detail = "notes", fmt.Sprintf("%s open: %s", count(len(st.Open), "note", "notes"), strings.Join(st.Open, ", "))
 			return
 		}
@@ -207,9 +210,9 @@ func planState(ps *planStage, s flow.Stage, f *flow.Flow) {
 }
 
 // planReviewed sets the status of a stage whose first output is a review target.
-func planReviewed(ps *planStage, target string) {
-	st := review.ReadStatus(filepath.FromSlash(target))
-	ps.Review = reviewInfo(target, st)
+func planReviewed(ps *planStage, root, target string) {
+	st := review.ReadStatus(filepath.Join(root, filepath.FromSlash(target)))
+	ps.Review = reviewInfo(root, target, st)
 	size := ""
 	if st.Items > 0 {
 		noun := map[review.Kind][2]string{
@@ -246,8 +249,12 @@ func planReviewed(ps *planStage, target string) {
 	}
 }
 
-func reviewInfo(target string, st review.Status) *planReview {
-	return &planReview{Target: target, ReviewFile: filepath.ToSlash(st.ReviewFile), Kind: string(st.Kind),
+func reviewInfo(root, target string, st review.Status) *planReview {
+	reviewFile := st.ReviewFile
+	if rel, err := filepath.Rel(root, reviewFile); reviewFile != "" && err == nil && !strings.HasPrefix(rel, "..") {
+		reviewFile = rel
+	}
+	return &planReview{Target: target, ReviewFile: filepath.ToSlash(reviewFile), Kind: string(st.Kind),
 		Approved: st.Approved, ApprovalUnknown: st.ApprovalUnknown, Reason: st.Reason, Items: st.Items,
 		Redo: st.Redo, OpenNotes: st.Open, Cleared: st.Cleared}
 }
@@ -259,24 +266,27 @@ func count(n int, one, many string) string {
 	return fmt.Sprintf("%d %s", n, many)
 }
 
-// shellQuote makes a path safe to paste into a shell: it is single-quoted when it has a
-// character other than letters, digits and _@%+=:,./-.
-func shellQuote(s string) string {
-	safe := s != ""
-	for _, r := range s {
-		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.ContainsRune("_@%+=:,./-", r)) {
-			safe = false
-			break
-		}
+// fromCwd turns a path relative to the project root into one relative to the working
+// folder, in slash form, for a command the user runs from there. Display and JSON keep the
+// root-relative path.
+func fromCwd(root, target string) string {
+	abs, err := filepath.Abs(filepath.Join(root, filepath.FromSlash(target)))
+	if err != nil {
+		return target
 	}
-	if safe {
-		return s
+	wd, err := os.Getwd()
+	if err != nil {
+		return target
 	}
-	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+	rel, err := filepath.Rel(wd, abs)
+	if err != nil {
+		return target
+	}
+	return filepath.ToSlash(rel)
 }
 
 // planText writes the next step for a stage, used when it is the first that needs work.
-func planText(ps *planStage, f *flow.Flow) {
+func planText(ps *planStage, f *flow.Flow, root string) {
 	switch ps.Status {
 	case "todo":
 		switch {
@@ -287,7 +297,7 @@ func planText(ps *planStage, f *flow.Flow) {
 		}
 	case "review":
 		r := ps.Review
-		cmd := "cav review " + shellQuote(r.Target)
+		cmd := "cav review " + shellArg(fromCwd(root, r.Target))
 		ps.command = cmd
 		if fix := append(append([]string{}, r.Redo...), r.OpenNotes...); len(fix) > 0 {
 			ps.text = fmt.Sprintf("fix %s, then: %s", strings.Join(fix, ", "), cmd)
@@ -299,7 +309,7 @@ func planText(ps *planStage, f *flow.Flow) {
 		}
 	case "check":
 		if ps.Review != nil {
-			ps.command = "cav review export " + shellQuote(ps.Review.Target)
+			ps.command = "cav review export " + shellArg(fromCwd(root, ps.Review.Target))
 			ps.text = fmt.Sprintf("fix %s (%s), then: %s", ps.Review.Target, ps.Review.Reason, ps.command)
 			break
 		}
@@ -309,7 +319,7 @@ func planText(ps *planStage, f *flow.Flow) {
 		}
 		ps.text = fmt.Sprintf("%s: %s; fix the flow file %s", ps.Name, ps.Detail, where)
 	case "notes":
-		ps.command = "cav review export " + shellQuote(ps.Review.Target)
+		ps.command = "cav review export " + shellArg(fromCwd(root, ps.Review.Target))
 		ps.text = "read the notes: " + ps.command
 	case "unknown":
 		step := "ask the user"

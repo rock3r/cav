@@ -28,6 +28,7 @@ type planOut struct {
 		Detail string `json:"detail"`
 		Review *struct {
 			Target          string   `json:"target"`
+			ReviewFile      string   `json:"reviewFile"`
 			Approved        bool     `json:"approved"`
 			ApprovalUnknown bool     `json:"approvalUnknown"`
 			Redo            []string `json:"redo"`
@@ -132,7 +133,7 @@ func TestPlanOutputsWithoutApprovalAreNotDone(t *testing.T) {
 	if p.Stages[0].Status != "review" {
 		t.Fatalf("status = %s", p.Stages[0].Status)
 	}
-	if p.Next.Text != "ask the user to approve: cav review storyboard.json" || p.Next.Command != "cav review storyboard.json" {
+	if p.Next.Text != "ask the user to approve: cav review "+shellArg("storyboard.json") || p.Next.Command != "cav review "+shellArg("storyboard.json") {
 		t.Errorf("next = %+v", p.Next)
 	}
 }
@@ -152,7 +153,7 @@ func TestPlanRedoItem(t *testing.T) {
 	if p.Stages[0].Status != "review" || !reflect.DeepEqual(p.Stages[0].Review.Redo, []string{"s1"}) {
 		t.Errorf("stage = %+v", p.Stages[0])
 	}
-	if p.Next.Text != "fix s1, then: cav review storyboard.json" {
+	if p.Next.Text != "fix s1, then: cav review "+shellArg("storyboard.json") {
 		t.Errorf("next = %q", p.Next.Text)
 	}
 	if !strings.Contains(p.Stages[0].Detail, "s1 marked redo") {
@@ -251,7 +252,10 @@ func TestPlanTargetThatDoesNotLoad(t *testing.T) {
 	if s.Status != "check" || s.Review == nil || !s.Review.ApprovalUnknown || s.Review.Approved {
 		t.Fatalf("stage = %+v", s)
 	}
-	if !strings.Contains(p.Next.Text, "cav review export storyboard.json") {
+	if s.Review.ReviewFile != "" {
+		t.Errorf("reviewFile = %q, want empty", s.Review.ReviewFile)
+	}
+	if !strings.Contains(p.Next.Text, "cav review export "+shellArg("storyboard.json")) {
 		t.Errorf("next = %q", p.Next.Text)
 	}
 }
@@ -268,7 +272,7 @@ func TestPlanNotesOnAStageWithoutReview(t *testing.T) {
 		t.Fatal(err)
 	}
 	p := runPlan(t)
-	if p.Stages[0].Status != "notes" || p.Next.Text != "read the notes: cav review export renders/final.mp4" {
+	if p.Stages[0].Status != "notes" || p.Next.Text != "read the notes: cav review export "+shellArg("renders/final.mp4") {
 		t.Errorf("stage = %+v, next = %+v", p.Stages[0], p.Next)
 	}
 }
@@ -358,22 +362,6 @@ func TestPlanNeverWrites(t *testing.T) {
 	}
 }
 
-func TestShellQuote(t *testing.T) {
-	for in, want := range map[string]string{
-		"storyboard.json":   "storyboard.json",
-		"renders/final.mp4": "renders/final.mp4",
-		"my board.json":     "'my board.json'",
-		"it's.json":         `'it'\''s.json'`,
-		"a;b.json":          "'a;b.json'",
-		"$HOME/x.json":      "'$HOME/x.json'",
-		"":                  "''",
-	} {
-		if got := shellQuote(in); got != want {
-			t.Errorf("shellQuote(%q) = %q, want %q", in, got, want)
-		}
-	}
-}
-
 func TestPlanQuotesReviewTargets(t *testing.T) {
 	path := stillsProject(t)
 	dir := filepath.Dir(path)
@@ -386,12 +374,47 @@ func TestPlanQuotesReviewTargets(t *testing.T) {
 	if p.Stages[0].Status != "review" {
 		t.Fatalf("stage = %+v", p.Stages[0])
 	}
-	if p.Next.Command != "cav review 'my board.json'" || !strings.HasSuffix(p.Next.Text, "cav review 'my board.json'") {
+	if p.Next.Command != "cav review "+shellArg("my board.json") || !strings.HasSuffix(p.Next.Text, "cav review "+shellArg("my board.json")) {
 		t.Errorf("next = %+v", p.Next)
 	}
 	writePlanFile(t, "my board.json", `{"schema":"cav-board/1","shots":"x"}`)
 	p = runPlan(t)
-	if p.Next.Command != "cav review export 'my board.json'" {
+	if p.Next.Command != "cav review export "+shellArg("my board.json") {
 		t.Errorf("next = %+v", p.Next)
+	}
+}
+
+func TestPlanUsesTheProjectRootFromAFolder(t *testing.T) {
+	path := stillsProject(t)
+	root := filepath.Dir(path)
+	t.Chdir(root)
+	if err := os.MkdirAll(".cav", 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writePlanFile(t, "flow.md", storyboardFlow)
+	sub := filepath.Join(root, "work", "deep")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(sub)
+
+	p := runPlan(t)
+	if p.Flow.Source != "project" || len(p.Stages) != 1 {
+		t.Fatalf("flow = %+v, %d stages", p.Flow, len(p.Stages))
+	}
+	s := p.Stages[0]
+	if s.Status != "review" || s.Review == nil || s.Review.Target != "storyboard.json" {
+		t.Errorf("stage = %+v", s)
+	}
+	// The command runs from the working folder, so its path is relative to that folder.
+	want := "cav review " + shellArg("../../storyboard.json")
+	if p.Next.Command != want {
+		t.Errorf("command = %q, want %q", p.Next.Command, want)
+	}
+
+	approveAll(t, filepath.Join(root, "storyboard.json"))
+	s = runPlan(t).Stages[0]
+	if s.Status != "done" || !s.Review.Approved {
+		t.Errorf("after approval: stage = %+v", s)
 	}
 }
