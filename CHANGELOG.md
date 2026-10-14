@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.8.0
 
 - `cav brief init -o dir/brief.json` creates the missing folder instead of failing.
 - `cav check` warns about overshoot on data values (#116).
