@@ -263,3 +263,13 @@ func TestUpperCaseSchemeIsALink(t *testing.T) {
 		t.Fatalf("problems: %v", p)
 	}
 }
+
+func TestSaveCreatesTheParentFolder(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "plan", "brief", "brief.json")
+	if err := (&Brief{Title: "T"}).Save(path); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("brief not written: %v", err)
+	}
+}

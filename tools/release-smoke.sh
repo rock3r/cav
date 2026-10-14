@@ -483,7 +483,6 @@ check "guide flow shows the flow.md stage" grep -q "smoke stage" "$(lastlog)"
 rm -f flow.md
 # cav brief writes and checks brief.json. -o keeps it out of the project root, so the
 # board and scene steps above never read it.
-mkdir -p brief
 step ok "brief init" brief init -o brief/brief.json --title "Smoke" --goal "Check the brief" --audience "Release testers" --tone calm --seconds 4 --bpm 120 --width 640 --height 360 --fps 30
 step ok "brief show" brief show brief/brief.json
 

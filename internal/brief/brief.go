@@ -326,6 +326,9 @@ func (b *Brief) Save(path string) error {
 	if err != nil {
 		return err
 	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
 	return os.WriteFile(path, append(data, '\n'), 0o644)
 }
 
