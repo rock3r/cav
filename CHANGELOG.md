@@ -13,6 +13,34 @@
   prints it, and its ordered list now covers only the build loop. `cav guide workflow` still
   works for older instructions: it prints a warning on stderr that names `cav guide scene`
   and `cav guide flow`, then the scene guide. `cav guide --search` does not list the old name.
+- `cav review` now takes stills too (#89): `brief.json`, `moodboard.json` and
+  `storyboard.json`. The person can approve each stage before slow or paid work starts.
+  The page shows a grid of items: the fields of the brief, the references of the mood
+  board, or the shots of the storyboard. For each item the person gives a verdict, and can
+  open the item to draw on it and write a note. A storyboard or a brief takes `approve` and
+  `redo`. A mood board takes `keep`, `more` (more like this) and `drop`. There is no video,
+  and no ffmpeg is needed.
+  - The "Approve" button works only when no item is marked `redo` or `drop` and no note is
+    open. The approval goes into the review file (`<name>.review.json`), with the hash of
+    every item the person saw. Only the person approves: there is no command for the agent.
+  - Each item has a hash. When an item changes (its words, or the bytes of its frame), its
+    old verdict shows as outdated and no longer counts, and the approval is removed. The
+    review file says why, for example `s3 changed`, `s7 added` or `c_07 is open`.
+  - Approving counts as a send. `cav review wait` returns when the person approves, also
+    with no notes. `cav review export storyboard.json --json` lists the items with their
+    verdicts, whether the stage is approved, and what blocks it. Start nothing slow or paid
+    until it says approved.
+  - `wait`, `export`, `resolve`, `reopen`, the review hook, and the `show_review` and
+    `review_notes` tools take the new targets. Reopening a note after the approval removes
+    the approval.
+  - Video reviews are unchanged. The new fields in the review file are optional, and a
+    video review file is saved without them. A review file that a newer cav wrote
+    (`cav-review/2` or later) is refused with a message to update cav.
+  - A mood board and a brief can be reviewed once `moodboard.json` and `brief.json` exist
+    (#90 and #92). Until then cav reads a small form of them: `{"items": [{"id", "file",
+    "url", "thumb", "take"}]}` for the mood board, and one item per field for the brief.
+  - Known limit: an older cav that runs `cav review resolve` on a stills review file drops
+    the new fields from it. Update cav before you use stills reviews.
 - The guides now say how to animate software UI: app screens, UI walkthroughs and product
   demos. Always rebuild the UI in Cavalry from shapes, text and icons, and never animate a
   screenshot. Use the screenshot only as a low-opacity guide layer, and compare it with
