@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `cav brief init -o dir/brief.json` creates the missing folder instead of failing.
 - `cav check` finds dead time: a hold where nothing moves (#117).
   - It reports a span of the active comp, longer than `--max-dead` seconds (default 2),
     where something is on screen but no layer has moving keys, an expression or a live
