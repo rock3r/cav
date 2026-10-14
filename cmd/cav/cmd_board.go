@@ -140,6 +140,9 @@ func boardInit(a *app, args []string) error {
 		return usageErr("--shots, --bpm and --seconds must be positive")
 	}
 	total := math.Floor(*seconds * *bpm / 60)
+	if total < 1 {
+		return fail(exitError, fmt.Sprintf("%g s at %g bpm is less than one beat", *seconds, *bpm), "make the piece longer, or raise --bpm")
+	}
 	sb := &board.Board{Title: title, BPM: *bpm, FPS: *fps, Seconds: *seconds, Width: *width, Height: *height,
 		Style: board.Style{Prompt: "flat motion-design look, clean shapes, generous empty space", Palette: []string{"#0b0d12", "#f5f7fa", "#ff4d2e"}}}
 	// Split the beats into whole bars where possible, so cuts land on downbeats.
