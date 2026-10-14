@@ -48,7 +48,7 @@ filesystem honoring its persistence primitives; fixtures do not simulate a machi
 
 `cav status`, `cav job status <id>` and `cav operation status <id>` read existing state.
 They never queue metadata or rendering. `cav scene info` explicitly retrieves scene
-metadata. Status may be `queued`, `running`, `busy` or `unknown`; a completed preparatory
+metadata. Status may be `queued`, `running`, `busy`, `unknown` or `refused`; a completed preparatory
 job makes an operation `ready-to-resume`, rather than complete. Inspection does not update
 checkpoint timestamps. Silence cannot distinguish a blocking native call from a stopped
 app. A heartbeat or cancellation cannot interrupt a native call inside Cavalry.
@@ -66,6 +66,13 @@ A kernel lock prevents simultaneous operation clients sharing `CAV_HOME`. After 
 exits, a pending native job still gates new operations on the same transport. cav also
 runs the same gate before any new submission during resume, excluding the resumed
 operation itself. Reading completed results or waiting on a recorded job remains allowed.
+When the gate refuses a command, cav records that command as `refused`, with
+`failureReason: blocked-by-operation`. cav sent nothing for it, so its outcome is
+definite: it never gates later work and needs no `abandon`. The error and its JSON
+(`blockedBy`, `blockingJob`, `blockingStatus`) name the blocking operation. Check that
+operation with `cav operation status <id>`. If its outcome stays unknown, check Cavalry
+and its outputs, then clear it with `cav operation abandon <id> --acknowledge-unknown-outcome`.
+After that, `cav operation resume` continues the refused command.
 The relay runs forwarded operations in its own state folder; inspect/resume through the same relay.
 Raw commands, independent `CAV_HOME` folders, other tools and GUI edits are outside this
 coordination. Avoid them until the operation completes.

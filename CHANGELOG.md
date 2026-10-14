@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- A command that cav refuses because another operation still has an unfinished job no
+  longer records its own job as `unknown` (#109). cav sent nothing for it, so cav now
+  records it as `refused`. A refused record does not stop later commands, and you do not
+  need to abandon it. The error now names the blocking operation and says how to clear
+  it: check it with `cav operation status <id>`, then, after you check Cavalry, run
+  `cav operation abandon <id> --acknowledge-unknown-outcome`. `cav operation status` no
+  longer shows a job that cav never sent as `unknown`.
 - Every paid service was called for real once, with real keys (#11). Five problems came
   out of it, and they are fixed:
   - `cav gen image --service openai --ref` failed with "unsupported mimetype". cav sent

@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -168,6 +169,10 @@ func restartChunk(ctx context.Context, r *operation.Record, acknowledge bool) er
 		return fmt.Errorf("restart-chunk requires a different idle bridge session")
 	}
 	if err = pendingOperation(ctx, c, r.ID); err != nil {
+		var blocked *blockedError
+		if errors.As(err, &blocked) {
+			return blocked.cli()
+		}
 		return err
 	}
 	for path, expected := range r.Inputs {

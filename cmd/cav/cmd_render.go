@@ -753,7 +753,9 @@ func cmdRender(a *app, args []string) error {
 			}
 			if r.ID != a.op.ID {
 				for _, o := range r.Outputs {
-					if o == absOut && r.Status != "complete" && r.Status != "abandoned" {
+					// A refused render never started native work, so it does not hold its
+					// output. If it is resumed later, publishing still refuses to overwrite.
+					if o == absOut && r.Status != "complete" && r.Status != "abandoned" && r.Status != "refused" {
 						return fmt.Errorf("output reserved by operation %s; resume or inspect it", r.ID)
 					}
 				}
