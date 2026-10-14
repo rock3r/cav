@@ -256,3 +256,21 @@ func TestCheckSketchAllowsDashes(t *testing.T) {
 		t.Fatalf("stroke-dasharray refused: %v", p)
 	}
 }
+
+func TestCheckSketchRefusesAnythingAfterTheRoot(t *testing.T) {
+	root := `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080"></svg>`
+	for _, tail := range []string{"<rect/>", "<svg/>", "text", "<g></g>"} {
+		in := []byte(root + "\n" + tail)
+		p := problems(t, in)
+		if len(p) == 0 || !strings.Contains(strings.Join(p, "\n"), "line 2: nothing may follow the closing </svg>") {
+			t.Errorf("tail %q: problems %v", tail, p)
+		}
+		if out, err := NormalizeSketch(in, 1920, 1080, "#000000"); err == nil {
+			t.Errorf("tail %q: NormalizeSketch ran on it: %s", tail, out)
+		}
+	}
+	// Whitespace and comments after the root are fine.
+	if p := problems(t, []byte(root+"\n<!-- end -->\n  \n")); p != nil {
+		t.Errorf("a comment after the root was refused: %v", p)
+	}
+}

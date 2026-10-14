@@ -144,7 +144,15 @@ func analyzeSketch(data []byte, w, h int) (*sketchInfo, error) {
 			if t.Target != "xml" {
 				add(line, "<?%s?> is not allowed in a sketch", t.Target)
 			}
+		case xml.CharData:
+			if info.innerEnd > 0 && len(bytes.TrimSpace(t)) > 0 {
+				add(line, "nothing may follow the closing </svg>")
+			}
 		case xml.StartElement:
+			if info.innerEnd > 0 {
+				add(line, "nothing may follow the closing </svg>")
+				break
+			}
 			depth++
 			elements++
 			name := t.Name.Local
@@ -186,7 +194,7 @@ func analyzeSketch(data []byte, w, h int) (*sketchInfo, error) {
 			}
 		case xml.EndElement:
 			depth--
-			if depth == 0 {
+			if depth == 0 && info.innerEnd == 0 {
 				info.innerEnd = prev
 			}
 		}
