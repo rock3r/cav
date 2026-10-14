@@ -134,6 +134,7 @@ function motionAPI(){
   get:(id,attr)=>{
    if(id.includes(':')){const k=node(id);return attr==='timeOffset'?k[0]:attr==='frame'?k[0]:{numValue:k[1],interpolation:k[2]}}
    if(attr==='hidden')return id==='sim';
+   if(attr==='opacity')return id==='dup'?0:100;
    return get(id,attr);
   }
  });
@@ -149,9 +150,11 @@ test('motion metadata reads key values, hidden flags and expressions without eva
  assert.deepEqual(Array.from(dup.motion[0].values),[0,100]);
  assert.equal(r.layers.find(l=>l.id==='sim').hidden,true);
  assert.equal(js.hidden,false);
- assert.equal(r.layers.find(l=>l.id==='nested').expression,true);
- assert.equal(js.expression,undefined);
- assert.equal(dup.expression,true,'rotation.z is the rotation channel');
+ assert.deepEqual(Array.from(r.layers.find(l=>l.id==='nested').expressions),['scale.x']);
+ assert.deepEqual(Array.from(js.expressions),[]);
+ assert.deepEqual(Array.from(dup.expressions),['rotation.z'],'rotation.z is the rotation channel');
+ assert.equal(js.opacity,100);
+ assert.equal(dup.opacity,0,'static opacity is read');
  assert.equal(r.motion.complete,true);
 });
 test('motion metadata is absent without limits.motion',()=>{

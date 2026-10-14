@@ -143,8 +143,12 @@ func deadTimeFindings(d structureData, sb *board.Board, maxDead float64) (flagge
 		children[l.Parent] = true
 	}
 	outEdges := map[string]bool{}
+	opacityDriven := map[string]bool{}
 	for _, e := range d.Edges {
 		outEdges[e.From] = true
+		if e.ToAttr == "opacity" {
+			opacityDriven[e.To] = true
+		}
 	}
 
 	// The frames a layer is shown: its own in and out frames, inside those of its parents.
@@ -169,13 +173,34 @@ func deadTimeFindings(d structureData, sb *board.Board, maxDead float64) (flagge
 		visCache[id] = v
 		return v
 	}
-	hiddenAbove := func(id string) bool {
+	// A layer is off when it is hidden, or when its opacity is 0 and nothing changes the opacity:
+	// no keys, no expression and no connection. What is below an off layer is not on screen.
+	off := func(l structureLayer) bool {
+		if l.Hidden != nil && *l.Hidden {
+			return true
+		}
+		if l.Opacity == nil || *l.Opacity != 0 {
+			return false
+		}
+		for _, m := range l.Motion {
+			if m.Attr == "opacity" {
+				return false
+			}
+		}
+		for _, x := range l.Expressions {
+			if x == "opacity" {
+				return false
+			}
+		}
+		return !opacityDriven[l.ID]
+	}
+	offAbove := func(id string) bool {
 		for depth := 0; depth < 64; depth++ {
 			l, ok := byID[id]
 			if !ok {
 				return false
 			}
-			if l.Hidden != nil && *l.Hidden {
+			if off(l) {
 				return true
 			}
 			id = l.Parent
@@ -188,16 +213,18 @@ func deadTimeFindings(d structureData, sb *board.Board, maxDead float64) (flagge
 	counts := map[string]bool{} // layers whose own motion counts as something moving
 	for id, l := range byID {
 		v := visible(id, 0)
-		hidden := l.Hidden != nil && *l.Hidden
 		empty := (l.Type == "null" || l.Type == "group") && !children[id] && !outEdges[id]
 		driver := driverType.MatchString(l.Type) && !(isSimulation(l.Type) && l.Type != "spring")
-		counts[id] = !(hidden && !children[id]) && !driver && !empty
-		if !hiddenAbove(id) && !hidden && !children[id] && !driver && !empty && v.To > v.From {
+		// A layer under an off layer shows nothing and moves nothing on screen. An off driver
+		// still drives the visible layers it is connected to.
+		onScreen := !offAbove(id)
+		counts[id] = onScreen && !driver && !empty
+		if onScreen && !children[id] && !driver && !empty && v.To > v.From {
 			shown = append(shown, v)
 		}
 		var own []frameSpan
 		switch {
-		case l.Expression, driver, l.Type == "compositionReference", isSimulation(l.Type):
+		case len(l.Expressions) > 0, driver, l.Type == "compositionReference", isSimulation(l.Type):
 			own = []frameSpan{v}
 		default:
 			for _, m := range l.Motion {
@@ -208,7 +235,8 @@ func deadTimeFindings(d structureData, sb *board.Board, maxDead float64) (flagge
 	}
 	// Whatever a live layer is connected to moves while it does: a layer driven by an
 	// oscillator, or a layer a keyed layer feeds.
-	for round := 0; round < 8; round++ {
+	// Repeat until nothing changes; a chain cannot be longer than the number of layers.
+	for round := 0; round <= len(byID); round++ {
 		changed := false
 		for _, e := range d.Edges {
 			src, ok := live[e.From]

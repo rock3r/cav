@@ -70,7 +70,8 @@ while (queue.length) {
   node.boundaries=[];
   try { node.boundaries.push(api.getInFrame(id),api.getOutFrame(id)); } catch(e) { failed(id,'in-out',e); }
   node.keyframes=0;node.sampledCurves=[];
-  if(limits.motion){node.motion=[];node.hidden=read(id,'hidden',function(){return !!api.get(id,'hidden');},false);}
+  if(limits.motion){node.motion=[];node.hidden=read(id,'hidden',function(){return !!api.get(id,'hidden');},false);
+   motionGets++;var op=read(id,'opacity',function(){return api.get(id,'opacity');},null);if(typeof op==='number')node.opacity=op;}
   var animated=read(id,'keyframe-attributes',function(){return api.getAnimatedAttributes(id)||[];},[]);
   for(var a=0;a<animated.length;a++) {
    if(timedOut()||keyQueries++>=keyQueryLimit){skipped.push({inspection:'keyframes',layer:id,reason:'query/time limit',remaining: animated.length-a});motionComplete=false;break;}
@@ -87,10 +88,11 @@ while (queue.length) {
   }
   if(limits.motion){
    // An expression can move a layer without keys; what it computes is not read.
+   node.expressions=[];
    for(var x=0;x<motionExprAttrs.length;x++){
     if(motionGets++>=motionGetLimit||timedOut()){skipped.push({inspection:'motion',layer:id,reason:'expression query or time budget'});motionComplete=false;break;}
     var xa=motionExprAttrs[x];
-    if(read(id,'expression',function(){return !!api.hasAttributeExpression(id,xa);},false)){node.expression=true;break;}
+    if(read(id,'expression',function(){return !!api.hasAttributeExpression(id,xa);},false))node.expressions.push(xa);
    }
   }
   if(/sksl/i.test(type)) {

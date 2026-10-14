@@ -10,6 +10,8 @@
     one, count as moving. So do pre-comps and simulations, because they are not opened.
   - It reads metadata only, so it also runs with `--quick`. It is skipped, and says so, when
     the keys could not be read completely. A span with nothing on screen is not reported.
+    A hidden layer, a layer at opacity 0 that nothing changes, and everything below them are
+    not on screen and do not count as moving. A hidden driver still drives visible layers.
   - A shot with `"hold": true` in `storyboard.json` marks a hold on purpose. A span inside
     it is listed in `intended` and not counted. The shot `hold` field is new and optional. A
     shot that gets `hold` changes, so its review verdict becomes outdated once.

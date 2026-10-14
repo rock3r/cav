@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -22,6 +23,32 @@ func keyed(times []float64, values []float64, interp ...int) motionAttr {
 }
 
 func boolp(b bool) *bool { return &b }
+
+// chainLayers are n null layers n0..n(n-1) with children, to pass liveness along.
+func chainLayers(n int) []structureLayer {
+	var out []structureLayer
+	for i := 0; i < n; i++ {
+		out = append(out, structureLayer{ID: fmt.Sprintf("n%d", i), Type: "null"})
+	}
+	return out
+}
+
+// chainEdges connect osc to n0, n0 to n1, ... and the last one to end. They are listed last
+// to first, so a single pass over the edges cannot reach the end.
+func chainEdges(n int) []structureEdge {
+	prev := "osc"
+	var out []structureEdge
+	for i := 0; i < n; i++ {
+		id := fmt.Sprintf("n%d", i)
+		out = append(out, structureEdge{From: prev, FromAttr: "output", To: id, ToAttr: "position.x"})
+		prev = id
+	}
+	out = append(out, structureEdge{From: prev, FromAttr: "output", To: "end", ToAttr: "position.x"})
+	for i, j := 0, len(out)-1; i < j; i, j = i+1, j-1 {
+		out[i], out[j] = out[j], out[i]
+	}
+	return out
+}
 
 func withEdges(d structureData, e ...structureEdge) structureData {
 	d.Edges = e
@@ -79,16 +106,52 @@ func TestDeadTimeFindings(t *testing.T) {
 		{"a hidden layer with keys does not count",
 			motionScene(structureLayer{ID: "a", Motion: []motionAttr{gapKeys(), tail}}, structureLayer{ID: "h", Hidden: boolp(true), Motion: []motionAttr{keyed([]float64{0, 299}, []float64{0, 1})}}),
 			nil, [][2]int{{30, 120}}, 0, false},
-		{"a hidden parent that moves its child counts",
+		{"a hidden parent and its subtree do not count as moving",
 			motionScene(structureLayer{ID: "a", Motion: []motionAttr{gapKeys(), tail}},
 				structureLayer{ID: "p", Type: "null", Hidden: boolp(true), Motion: []motionAttr{keyed([]float64{0, 299}, []float64{0, 1})}},
-				structureLayer{ID: "c", Parent: "p", Type: "basicShape"}),
+				structureLayer{ID: "c", Parent: "p", Type: "basicShape", Motion: []motionAttr{keyed([]float64{0, 299}, []float64{0, 1})}}),
+			nil, [][2]int{{30, 120}}, 0, false},
+		{"a child under a hidden ancestor does not count",
+			motionScene(structureLayer{ID: "a", Motion: []motionAttr{gapKeys(), tail}},
+				structureLayer{ID: "g", Type: "group", Hidden: boolp(true)},
+				structureLayer{ID: "c", Parent: "g", Motion: []motionAttr{keyed([]float64{0, 299}, []float64{0, 1})}}),
+			nil, [][2]int{{30, 120}}, 0, false},
+		{"a hidden oscillator still drives a visible layer",
+			withEdges(motionScene(structureLayer{ID: "a", Motion: []motionAttr{gapKeys(), tail}}, structureLayer{ID: "osc", Type: "oscillator", Hidden: boolp(true)}, structureLayer{ID: "b"}),
+				structureEdge{From: "osc", FromAttr: "output", To: "b", ToAttr: "position.y"}),
+			nil, nil, 0, false},
+		{"a hidden oscillator driving a hidden layer does not count",
+			withEdges(motionScene(structureLayer{ID: "a", Motion: []motionAttr{gapKeys(), tail}}, structureLayer{ID: "osc", Type: "oscillator"}, structureLayer{ID: "b", Hidden: boolp(true)}),
+				structureEdge{From: "osc", FromAttr: "output", To: "b", ToAttr: "position.y"}),
+			nil, [][2]int{{30, 120}}, 0, false},
+		{"a layer at opacity 0 with nothing changing it is not on screen and does not move",
+			motionScene(structureLayer{ID: "a", Motion: []motionAttr{gapKeys(), tail}},
+				structureLayer{ID: "z", Opacity: fp(0), Motion: []motionAttr{keyed([]float64{0, 299}, []float64{0, 1})}}),
+			nil, [][2]int{{30, 120}}, 0, false},
+		{"opacity 0 under a parent at opacity 0 hides the child",
+			motionScene(structureLayer{ID: "a", Boundaries: []int{0, 60}, Motion: []motionAttr{keyed([]float64{0, 59}, []float64{0, 1})}},
+				structureLayer{ID: "g", Type: "group", Opacity: fp(0)},
+				structureLayer{ID: "c", Parent: "g"}),
+			nil, nil, 0, false},
+		{"opacity 0 with keys on opacity is a fade, so the layer counts",
+			motionScene(structureLayer{ID: "z", Opacity: fp(0), Motion: []motionAttr{{Attr: "opacity", Times: []float64{0, 299}, Values: []*float64{fp(0), fp(100)}}}}),
+			nil, nil, 0, false},
+		{"opacity 0 with an expression on opacity is not off",
+			motionScene(structureLayer{ID: "z", Opacity: fp(0), Expressions: []string{"opacity"}}),
+			nil, nil, 0, false},
+		{"opacity 0 with a connection into opacity is not off",
+			withEdges(motionScene(structureLayer{ID: "osc", Type: "oscillator"}, structureLayer{ID: "z", Opacity: fp(0)}),
+				structureEdge{From: "osc", FromAttr: "output", To: "z", ToAttr: "opacity"}),
+			nil, nil, 0, false},
+		{"a long chain of drivers reaches its target",
+			withEdges(motionScene(append([]structureLayer{{ID: "osc", Type: "oscillator"}}, append(chainLayers(30), structureLayer{ID: "end"})...)...),
+				chainEdges(30)...),
 			nil, nil, 0, false},
 		{"a pre-comp is moving",
 			motionScene(structureLayer{ID: "a", Motion: []motionAttr{gapKeys(), tail}}, structureLayer{ID: "ref", Type: "compositionReference"}),
 			nil, nil, 0, false},
 		{"a layer with an expression is moving",
-			motionScene(structureLayer{ID: "a", Motion: []motionAttr{gapKeys(), tail}}, structureLayer{ID: "e", Expression: true}),
+			motionScene(structureLayer{ID: "a", Motion: []motionAttr{gapKeys(), tail}}, structureLayer{ID: "e", Expressions: []string{"scale.x"}}),
 			nil, nil, 0, false},
 		{"a simulation is moving",
 			motionScene(structureLayer{ID: "a", Motion: []motionAttr{gapKeys(), tail}}, structureLayer{ID: "p", Type: "particleShape"}),

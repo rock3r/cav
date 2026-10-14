@@ -68,7 +68,7 @@ A span of the active comp, longer than --max-dead seconds (2), where something i
 but no layer has moving keys, an expression or a live driver (an oscillator, noise, a script,
 a layer connected to one) is a dead-time warning. It reads metadata only, so it also runs
 with --quick. A layer with equal values on both keys is a hold, and a pre-comp or a
-simulation counts as moving. A hidden layer with no children counts as nothing. A span
+simulation counts as moving. A hidden layer, a layer with opacity 0 that nothing changes, and everything below them count as nothing (a hidden driver still drives). A span
 inside a shot with "hold": true in storyboard.json is listed under "intended" and not counted.
 It is skipped when the motion metadata is incomplete.
 --min-text (28) and --max-still (1.5 seconds) tune visual findings.`
@@ -824,10 +824,11 @@ type structureLayer struct {
 	Copies        *float64 `json:"copies"`
 	Comp          string   `json:"comp,omitempty"`
 	CompPath      []string `json:"compPath,omitempty"`
-	// Hidden, Motion and Expression are read only with limits.motion (see structure.js).
+	// Hidden, Motion, Expressions and Opacity are read only with limits.motion (see structure.js).
 	Hidden      *bool        `json:"hidden,omitempty"`
 	Motion      []motionAttr `json:"motion,omitempty"`
-	Expression  bool         `json:"expression,omitempty"`
+	Expressions []string     `json:"expressions,omitempty"`
+	Opacity     *float64     `json:"opacity,omitempty"`
 	MissingFont *struct {
 		Family string `json:"family"`
 		Style  string `json:"style"`
