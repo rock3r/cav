@@ -308,7 +308,10 @@ func sceneNew(a *app, sub string, args []string) error {
 		}
 		*fps = v
 	}
-	if *w < 0 || *h < 0 || (*w == 0) != (*h == 0) ||
+	if (*w == 0) != (*h == 0) {
+		return usageErr("--width and --height go together: give both (the brief's size is used only when neither is given)")
+	}
+	if *w < 0 || *h < 0 ||
 		*fps < 0 || math.IsNaN(*fps) || math.IsInf(*fps, 0) ||
 		*secs < 0 || math.IsNaN(*secs) || math.IsInf(*secs, 0) ||
 		*frames < 0 || (*frames != 0 && *secs != 0) {
