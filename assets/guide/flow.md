@@ -18,6 +18,8 @@ reorder, drop, add or change a stage, either by telling you or by keeping a flow
 change the flow for good, the user edits the file or asks you to. A flow file replaces the
 standard flow completely.
 
+`cav plan` shows each stage's state and the next step; it blocks nothing.
+
 A flow file is Markdown. cav reads four things from it:
 
 - A line `## name` starts a stage.

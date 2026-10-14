@@ -331,7 +331,7 @@ within about 35 ms counts as on the grid.
 
 ### Production commands
 
-`config`, `review`, `board`, `gen`, `sfx`, `ref`, `credits`, `listen`, `music` and `score`
+`config`, `review`, `plan`, `board`, `gen`, `sfx`, `ref`, `credits`, `listen`, `music` and `score`
 never talk to the bridge. They are plain Go around ffmpeg, HTTPS and uv:
 
 - `internal/services` holds the catalog of services, the order per job, key resolution
@@ -360,6 +360,12 @@ never talk to the bridge. They are plain Go around ffmpeg, HTTPS and uv:
   non-link image file inside the target's folder (a mood board clip, by `/api/item/{id}/clip`,
   with the same checks), and the video routes answer 404. The
   approval is written by the page's `POST /api/approve` and by nothing else.
+- `cav plan` reads the flow in effect (`internal/flow`) and checks each stage. `flow.Check`
+  looks for an output in the project folder: a file, a folder that holds a file, or a `*`
+  pattern, without the review files. `review.ReadStatus` reads a review file the way `cav
+  review export` does, but in memory: it runs `Reconcile` on the loaded copy and never saves
+  it, so a plan never removes an approval from the file and takes no lock. Only
+  `cav review` and the review page write review files.
 - `internal/reviewmcp` is `cav mcp`, built on the official Go MCP SDK. It serves the same
   page with `assets/review/mcp-app.js` added, and answers the page's requests in-process
   through the `internal/review` handler. It makes its own smaller proxy (640 pixels wide,

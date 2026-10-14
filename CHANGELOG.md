@@ -21,6 +21,20 @@
   - Guide links for a finding can now name one bullet of a section. The `shot-why` finding
     now links only "Explain every feature you show".
 
+- `cav plan` shows where a project stands in its flow (#94).
+  - It reads the flow in effect (see `cav guide flow`) and checks each stage against the files
+    in the current folder. For each stage it shows one state: `done`, `review`, `check`,
+    `notes`, `todo`, `skipped` or `unknown`. Then it shows the next step.
+  - A stage is `done` when all its outputs exist and, if it has a review, the review file holds
+    an approval that still holds. Outputs without an approval show as `review`. The details
+    list items marked redo and open notes, and say when an edit removed an approval.
+  - A stage without an `outputs:` line is `unknown`. It is never `done`.
+  - A path in `outputs:` that ends in `/` counts when the folder holds at least one file. `*`
+    matches inside one folder. Review files and the `review/` folder are not outputs.
+  - `cav plan --json` gives the same facts as data.
+  - `cav plan` only reads. It writes no file, calls no paid service, and blocks no command. It
+    exits with 1 only when the flow file does not parse.
+
 - Storyboard shots say why they are in the video, and `cav check` reads it (#113).
   - A shot has a new optional `why` line: what the viewer learns or feels from it. The agent
     writes it. `cav board init` fills it with a placeholder.

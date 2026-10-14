@@ -278,7 +278,7 @@ New to cav? Run "cav guide" first: it explains how to build a scene from plan to
 `)
 }
 
-var helpOrder = []string{"setup", "doctor", "config", "status", "run", "job", "operation", "scene", "tree", "layer", "frame", "sheet", "onion", "check", "render", "review", "mcp", "brief", "board", "gen", "sfx", "ref", "credits", "beats", "spectrogram", "sync", "listen", "music", "score", "api", "docs", "helpers", "guide", "relay", "version", "update"}
+var helpOrder = []string{"setup", "doctor", "config", "status", "run", "job", "operation", "scene", "tree", "layer", "frame", "sheet", "onion", "check", "render", "review", "mcp", "brief", "plan", "board", "gen", "sfx", "ref", "credits", "beats", "spectrogram", "sync", "listen", "music", "score", "api", "docs", "helpers", "guide", "relay", "version", "update"}
 
 func order(name string) int {
 	for i, n := range helpOrder {

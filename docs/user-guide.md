@@ -414,6 +414,22 @@ All other text is for the agent. If the file has a mistake, `cav guide flow` pri
 anyway and warns on stderr with the line number. To start from the standard flow, copy it:
 it is the file `assets/flow/standard.md` in the cav source, and `cav guide flow` prints it.
 
+`cav plan` shows where the project stands in the flow. It checks each stage against the files
+in the current folder and shows one state per stage:
+
+- `done`: the outputs exist and, if the stage has a review, you approved them.
+- `review`: the outputs exist but are not approved. The line names shots marked redo and open
+  notes, and says when an edit removed your approval.
+- `check`: cav cannot tell. The review file does not load, or the flow asks for a review that
+  cannot hold an approval (for example a video, a folder or a pattern as the first output).
+- `notes`: a stage without a review has open notes.
+- `todo`: an output is missing.
+- `skipped`: nothing exists, but a later stage already has output.
+- `unknown`: the stage has no `outputs:` line, so cav cannot check it. It is never `done`.
+
+The last line is the next step. `cav plan --json` gives the same facts as data. The command
+only reads. It writes no file, uses no paid service, and does not stop any other command.
+
 Install the skill in Claude Code:
 
 ```text
