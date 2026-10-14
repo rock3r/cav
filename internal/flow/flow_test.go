@@ -239,6 +239,22 @@ func TestHTMLCommentInsideIndentedCodeIsNotAComment(t *testing.T) {
 	}
 }
 
+func TestIndentedFenceDoesNotCloseAFence(t *testing.T) {
+	src := "## one\noutputs: a.json\n```\n    ```\noutputs: /bad\nreview: maybe\n```\nreview: yes\n"
+	f, err := Parse("flow.md", []byte(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(f.Stages) != 1 || !f.Stages[0].Review || !reflect.DeepEqual(f.Stages[0].Outputs, []string{"a.json"}) {
+		t.Errorf("stages = %+v", f.Stages)
+	}
+	// Up to three spaces still close it.
+	f, err = Parse("flow.md", []byte("## one\n```\n   ```\noutputs: a.json\n"))
+	if err != nil || len(f.Stages[0].Outputs) != 1 {
+		t.Errorf("three-space closer: %+v, %v", f, err)
+	}
+}
+
 func TestOutputsAreNormalised(t *testing.T) {
 	f, err := Parse("flow.md", []byte("## one\nOutputs: `a.json`, renders\\final.mp4 ,, `board/`\n"))
 	if err != nil {

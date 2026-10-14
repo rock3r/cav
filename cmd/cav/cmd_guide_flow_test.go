@@ -333,6 +333,29 @@ func TestGuideFlowFindsTheProjectRootFromASubfolder(t *testing.T) {
 	}
 }
 
+func TestGuideFlowDoesNotTakeTheHomeFolderForAProject(t *testing.T) {
+	home := t.TempDir()
+	if err := os.Mkdir(filepath.Join(home, ".cav"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("CAV_HOME", "") // unset: the cav home is $HOME/.cav
+	project := filepath.Join(home, "work", "video")
+	if err := os.MkdirAll(project, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(project, "flow.md"), []byte("## mine\noutputs: a.json\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(project)
+	_, _, data := flowGuide(t, true)
+	info := data["flow"].(map[string]any)
+	if info["source"] != "project" || info["path"] != "flow.md" {
+		t.Errorf("flow = %v; ./flow.md was not found", info)
+	}
+}
+
 func TestGuideFlowJSONKeepsThePathOfABrokenFile(t *testing.T) {
 	project, home := flowEnv(t)
 	broken := "## a\nreview: maybe\n"

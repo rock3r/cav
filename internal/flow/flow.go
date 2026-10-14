@@ -100,7 +100,7 @@ func (p *parser) run(text string) {
 		n := i + 1
 		t := strings.TrimSpace(line)
 		if fence != "" {
-			if m := fenceMarker(t); m != "" && m[0] == fence[0] && len(m) >= len(fence) && strings.Trim(t, m[:1]) == "" {
+			if m := fenceMarker(t); m != "" && !indentedCode(line) && m[0] == fence[0] && len(m) >= len(fence) && strings.Trim(t, m[:1]) == "" {
 				fence = ""
 			}
 			continue

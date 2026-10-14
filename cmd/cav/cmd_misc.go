@@ -215,12 +215,26 @@ func flowInfo(f *flow.Flow, warnings []string) map[string]any {
 	return map[string]any{"source": f.Source, "path": f.Path, "valid": true, "stages": stages, "warnings": warnings}
 }
 
+func sameFolder(a, b string) bool {
+	if ra, err := filepath.EvalSymlinks(a); err == nil {
+		a = ra
+	}
+	if rb, err := filepath.EvalSymlinks(b); err == nil {
+		b = rb
+	}
+	return filepath.Clean(a) == filepath.Clean(b)
+}
+
 // flowRoot is the project folder to look for flow.md in: the nearest folder above the working
 // directory with a .cav folder, as for the other project files. It is "." when that is the
 // working directory itself, or when there is no .cav folder.
 func flowRoot() string {
 	root := library.Root()
 	if wd, err := os.Getwd(); err != nil || root == wd {
+		return "."
+	}
+	// A .cav folder that is the global cav home (~/.cav) does not make its parent a project.
+	if sameFolder(filepath.Join(root, ".cav"), config.Home()) {
 		return "."
 	}
 	return root
