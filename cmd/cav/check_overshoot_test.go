@@ -96,6 +96,7 @@ func TestOvershootFindings(t *testing.T) {
 		{"a custom outCubic on a meter", []structureLayer{{ID: "a", Name: "meter", Motion: []motionAttr{eased("stroke.trimEnd", custom(0, 1, true))}}}, nil, 0, "", 0},
 		{"cavRole container turns the warning off", []structureLayer{{ID: "a", Name: "progress bar", Role: "container", Motion: []motionAttr{eased("scale.x", spring)}}}, nil, 0, "", 0},
 		{"cavRole data flags a plain shape", []structureLayer{{ID: "a", Name: "Dot", Role: "data", Motion: []motionAttr{eased("scale.x", spring)}}}, nil, 1, "userData", 0},
+		{"cavRole data does not flag position, rotation or opacity", []structureLayer{{ID: "a", Name: "Dot", Role: "data", Motion: []motionAttr{eased("position.y", spring), eased("rotation.z", spring), eased("opacity", spring)}}}, nil, 0, "", 0},
 		{"a custom ease that was not evaluated is skipped", []structureLayer{{ID: "a", Name: "progress bar", Motion: []motionAttr{eased("scale.x", notRead)}}}, nil, 0, "", 1},
 		{"a custom ease that was not evaluated on a card is not listed", []structureLayer{{ID: "a", Name: "Card", Motion: []motionAttr{eased("scale.x", notRead)}}}, nil, 0, "", 0},
 		{"a spring layer connected to a bar", []structureLayer{{ID: "a", Name: "progress bar"}, {ID: "sp", Type: "spring"}}, []structureEdge{{From: "sp", FromAttr: "output", To: "a", ToAttr: "scale.x"}}, 1, "name", 0},

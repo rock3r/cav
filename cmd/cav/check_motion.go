@@ -418,15 +418,19 @@ var (
 
 // dataRole says why an attribute of a layer shows data: "userData" (cav.role), "text" (it
 // feeds a text layer), "attr" (the attribute name) or "name" (the layer name and a length
-// attribute). It is empty when the attribute is not data. The first rule that applies wins.
+// attribute). It is empty when the attribute is not data. Position, rotation and opacity
+// never show data, even on a layer marked "data". After that, the first rule that applies wins.
 func dataRole(l structureLayer, attr string, hasChildren, feedsText bool) string {
+	if neverDataAttr.MatchString(attr) {
+		return ""
+	}
 	switch l.Role {
 	case "data":
 		return "userData"
 	case "container":
 		return ""
 	}
-	if l.Type == "group" || l.Type == "compositionReference" || hasChildren || neverDataAttr.MatchString(attr) {
+	if l.Type == "group" || l.Type == "compositionReference" || hasChildren {
 		return ""
 	}
 	switch {
