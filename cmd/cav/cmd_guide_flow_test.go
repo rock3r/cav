@@ -26,13 +26,18 @@ func captureStreams(t *testing.T, f func()) (stdout, stderr string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Drain both pipes while f runs: a full pipe would block f (Windows pipes are small).
+	read := func(r *os.File) <-chan string {
+		c := make(chan string, 1)
+		go func() { b, _ := io.ReadAll(r); c <- string(b) }()
+		return c
+	}
+	o, e := read(outR), read(errR)
 	os.Stdout, os.Stderr = outW, errW
 	f()
 	outW.Close()
 	errW.Close()
-	o, _ := io.ReadAll(outR)
-	e, _ := io.ReadAll(errR)
-	return string(o), string(e)
+	return <-o, <-e
 }
 
 func TestGuideWorkflowIsAWarningAliasForScene(t *testing.T) {
