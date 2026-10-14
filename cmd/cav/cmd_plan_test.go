@@ -28,6 +28,7 @@ type planOut struct {
 		Detail string `json:"detail"`
 		Review *struct {
 			Target          string   `json:"target"`
+			ReviewFile      string   `json:"reviewFile"`
 			Approved        bool     `json:"approved"`
 			ApprovalUnknown bool     `json:"approvalUnknown"`
 			Redo            []string `json:"redo"`
@@ -250,6 +251,9 @@ func TestPlanTargetThatDoesNotLoad(t *testing.T) {
 	s := p.Stages[0]
 	if s.Status != "check" || s.Review == nil || !s.Review.ApprovalUnknown || s.Review.Approved {
 		t.Fatalf("stage = %+v", s)
+	}
+	if s.Review.ReviewFile != "" {
+		t.Errorf("reviewFile = %q, want empty", s.Review.ReviewFile)
 	}
 	if !strings.Contains(p.Next.Text, "cav review export "+shellArg("storyboard.json")) {
 		t.Errorf("next = %q", p.Next.Text)

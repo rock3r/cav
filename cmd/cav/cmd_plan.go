@@ -251,7 +251,7 @@ func planReviewed(ps *planStage, root, target string) {
 
 func reviewInfo(root, target string, st review.Status) *planReview {
 	reviewFile := st.ReviewFile
-	if rel, err := filepath.Rel(root, reviewFile); err == nil && !strings.HasPrefix(rel, "..") {
+	if rel, err := filepath.Rel(root, reviewFile); reviewFile != "" && err == nil && !strings.HasPrefix(rel, "..") {
 		reviewFile = rel
 	}
 	return &planReview{Target: target, ReviewFile: filepath.ToSlash(reviewFile), Kind: string(st.Kind),
