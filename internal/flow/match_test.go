@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -31,11 +33,19 @@ func TestCheck(t *testing.T) {
 	setFold(t, false)
 	root := t.TempDir()
 	touch(t, root, "brief.json", "style/a.png", "style/b.png", "style/.hidden.png", "style/c.jpg",
-		"board/s1.png", "board/deep/s2.png", "only-dot/.DS_Store", "x/aXb", "x/a?b",
+		"board/s1.png", "board/deep/s2.png", "only-dot/.DS_Store", "x/aXb",
 		"renders/final.mp4", "renders/final.review.json", "renders/review/final/f1.png",
 		"snaps/review/f.png", "snaps/note.review.json")
 	if err := os.MkdirAll(filepath.Join(root, "empty"), 0o755); err != nil {
 		t.Fatal(err)
+	}
+	// ? is not a valid character in a Windows file name.
+	if runtime.GOOS != "windows" {
+		touch(t, root, "x/a?b")
+	}
+	starMiddle := []string{"x/a?b", "x/aXb"}
+	if runtime.GOOS == "windows" {
+		starMiddle = []string{"x/aXb"}
 	}
 	tests := []struct {
 		name   string
@@ -58,7 +68,7 @@ func TestCheck(t *testing.T) {
 		{"dot file is matched when asked", "style/.*.png", []string{"style/.hidden.png"}},
 		{"? is plain", "x/a?b", []string{"x/a?b"}},
 		{"? is not a wildcard", "x/a?*", []string{"x/a?b"}},
-		{"star in the middle", "x/a*b", []string{"x/a?b", "x/aXb"}},
+		{"star in the middle", "x/a*b", starMiddle},
 		{"review file is not an output", "renders/*", []string{"renders/final.mp4"}},
 		{"snapshots do not make a folder", "snaps/", nil},
 		{"review folder is not matched", "renders/*/", nil},
@@ -66,6 +76,9 @@ func TestCheck(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			if runtime.GOOS == "windows" && strings.Contains(tc.output, "?") {
+				t.Skip("? is not valid in a Windows file name")
+			}
 			got, ok, err := Check(root, tc.output)
 			if err != nil {
 				t.Fatal(err)
