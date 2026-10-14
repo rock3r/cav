@@ -138,6 +138,12 @@ step ok "version" version
 step net "version --check" version --check
 step ok "setup" setup --no-docs
 step ok "doctor" doctor
+if grep -q '^FAIL bridge' "$(lastlog)"; then
+	echo
+	echo "cav-bridge is not running, so no Cavalry step can run. Start Cavalry, open Scripts menu >"
+	echo "cav-bridge, keep its window open, then run again (cav doctor says ready)."
+	exit 1
+fi
 step ok "status" status
 step ok "config" config
 step ok "config check greybox" config check greybox
@@ -146,7 +152,8 @@ step ok "config check greybox" config check greybox
 step ok "scene new" scene new --width 640 --height 360 --fps 30 --seconds 4 --bg '#101014'
 if ! grep -q '640x360' "$(lastlog)"; then
 	echo
-	echo "cav scene new did not start a scratch scene. Save or close the open scene, then run again."
+	echo "cav scene new did not start a scratch scene (its error is above). If Cavalry has a scene"
+	echo "with unsaved changes, save or close it, then run again."
 	exit 1
 fi
 scratch_scene=1
