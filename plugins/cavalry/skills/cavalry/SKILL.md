@@ -24,7 +24,8 @@ The `cav` CLI does the work and carries its own guides. This skill only gets you
    For anything longer than a quick sting, read `cav guide flow` first: it lists the
    production stages before the build (brief, mood board, storyboard, music and animatic).
    If the project has a `flow.md` (or the user has `~/.cav/flow.md`), it replaces those
-   stages, and `cav guide flow` prints it: follow it.
+   stages, and `cav guide flow` prints it: follow it. `cav plan` shows where the project stands
+   in that flow and what to do next.
    Read `cav guide design` before a creative task and `cav guide music` when there is music
    (it covers `cav spectrogram` and `cav sync`, which let you look at music you cannot hear).
    `cav helpers` lists the script library; `cav help <command>` explains each command.
