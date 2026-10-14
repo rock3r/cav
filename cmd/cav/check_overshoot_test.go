@@ -54,7 +54,7 @@ func TestEaseOvershoots(t *testing.T) {
 		{"bezier whose end handle is above the end", late0, late1, fp(0), fp(100), true},
 		{"bezier going down inside", down0, down1, fp(100), fp(0), false},
 		{"bezier with unknown values", out0, out1, nil, fp(100), false},
-		{"bezier with equal values", out0, out1, fp(5), fp(5), false},
+		{"bezier hump between equal values", out0, out1, fp(5), fp(5), true},
 	}
 	for _, tc := range tests {
 		if got, _ := easeOvershoots(tc.e0, tc.e1, tc.v0, tc.v1); got != tc.want {
@@ -97,6 +97,10 @@ func TestOvershootFindings(t *testing.T) {
 		{"cavRole container turns the warning off", []structureLayer{{ID: "a", Name: "progress bar", Role: "container", Motion: []motionAttr{eased("scale.x", spring)}}}, nil, 0, "", 0},
 		{"cavRole data flags a plain shape", []structureLayer{{ID: "a", Name: "Dot", Role: "data", Motion: []motionAttr{eased("scale.x", spring)}}}, nil, 1, "userData", 0},
 		{"cavRole data does not flag position, rotation or opacity", []structureLayer{{ID: "a", Name: "Dot", Role: "data", Motion: []motionAttr{eased("position.y", spring), eased("rotation.z", spring), eased("opacity", spring)}}}, nil, 0, "", 0},
+		{"an attribute with more than 64 keys is skipped, not ignored", []structureLayer{{ID: "a", Name: "progress bar", Motion: []motionAttr{{Attr: "scale.x", Span: []float64{0, 398}}}}}, nil, 0, "", 1},
+		{"a long attribute that is not data is not listed", []structureLayer{{ID: "a", Name: "Card", Motion: []motionAttr{{Attr: "scale.x", Span: []float64{0, 398}}}}}, nil, 0, "", 0},
+		{"a bezier hump between equal values is flagged", []structureLayer{{ID: "a", Name: "progress bar", Motion: []motionAttr{humpKeys(40, 40)}}}, nil, 1, "name", 0},
+		{"a flat bezier between equal values is a hold", []structureLayer{{ID: "a", Name: "progress bar", Motion: []motionAttr{humpKeys(0, 0)}}}, nil, 0, "", 0},
 		{"a custom ease that was not evaluated is skipped", []structureLayer{{ID: "a", Name: "progress bar", Motion: []motionAttr{eased("scale.x", notRead)}}}, nil, 0, "", 1},
 		{"a custom ease that was not evaluated on a card is not listed", []structureLayer{{ID: "a", Name: "Card", Motion: []motionAttr{eased("scale.x", notRead)}}}, nil, 0, "", 0},
 		{"a spring layer connected to a bar", []structureLayer{{ID: "a", Name: "progress bar"}, {ID: "sp", Type: "spring"}}, []structureEdge{{From: "sp", FromAttr: "output", To: "a", ToAttr: "scale.x"}}, 1, "name", 0},
@@ -160,4 +164,13 @@ func TestQuickCheckReportsDataOvershootWithGuide(t *testing.T) {
 	if len(hits[0].Guide) == 0 || !strings.Contains(hits[0].Guide[0], "Springs on containers") {
 		t.Errorf("guide %+v", hits[0].Guide)
 	}
+}
+
+// humpKeys is a scale.x attribute with two keys of the same value and Bezier handles whose
+// value offsets are right and left.
+func humpKeys(right, left float64) motionAttr {
+	m := keyed([]float64{10, 40}, []float64{50, 50})
+	m.Attr = "scale.x"
+	m.Eases = []*keyEase{{Right: []float64{5, right}, Left: []float64{-5, 0}}, {Right: []float64{5, 0}, Left: []float64{-5, left}}}
+	return m
 }

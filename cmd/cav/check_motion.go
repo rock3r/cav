@@ -388,8 +388,13 @@ func easeOvershoots(e0, e1 *keyEase, v0, v1 *float64) (bool, string) {
 // the key value plus the offset. The time of the handles does not change the range.
 func bezierOvershoots(rightY, leftY, v0, v1 float64) (bool, string) {
 	move := math.Abs(v1 - v0)
+	// With equal end values, a hump is judged against the size of the handles.
+	ref := move
 	if move < 1e-9 {
-		return false, ""
+		ref = math.Max(math.Abs(rightY), math.Abs(leftY))
+		if ref < 1e-9 {
+			return false, ""
+		}
 	}
 	y := [4]float64{v0, v0 + rightY, v1 + leftY, v1}
 	lo, hi := math.Min(v0, v1), math.Max(v0, v1)
@@ -400,7 +405,10 @@ func bezierOvershoots(rightY, leftY, v0, v1 float64) (bool, string) {
 		v := u*u*u*y[0] + 3*u*u*t*y[1] + 3*u*t*t*y[2] + t*t*t*y[3]
 		worst = math.Max(worst, math.Max(lo-v, v-hi))
 	}
-	if worst > bezierSlack*move {
+	if worst > bezierSlack*ref {
+		if move < 1e-9 {
+			return true, "a curve that rises or dips between two equal values"
+		}
 		return true, fmt.Sprintf("a curve that goes %.0f %% past the end value", 100*worst/move)
 	}
 	return false, ""
@@ -469,11 +477,16 @@ func overshootFindings(d structureData) (flagged []finding, skipped []map[string
 	done := map[string]bool{}
 	for _, l := range d.Layers {
 		for _, m := range l.Motion {
-			if len(m.Eases) == 0 {
+			if len(m.Eases) == 0 && len(m.Span) != 2 {
 				continue
 			}
 			role := dataRole(l, m.Attr, hasChildren[l.ID], feedsText[l.ID])
 			if role == "" {
+				continue
+			}
+			if len(m.Eases) == 0 {
+				// Too many keys were read as a span only, so their eases are not known.
+				skipped = append(skipped, map[string]any{"inspection": "ease", "layer": l.ID, "attr": m.Attr, "reason": "more than 64 keys, eases not read"})
 				continue
 			}
 			unread := false
@@ -482,19 +495,21 @@ func overshootFindings(d structureData) (flagged []finding, skipped []map[string
 				if i+1 < len(m.Values) {
 					v0, v1 = m.Values[i], m.Values[i+1]
 				}
-				if v0 != nil && v1 != nil && math.Abs(*v0-*v1) < 1e-9 {
-					continue
-				}
 				if i < len(m.Interp) && m.Interp[i] == interpStep {
 					continue
 				}
 				e := m.Eases[i]
-				if e != nil && e.Magic == easeCustom && (e.Custom == nil || e.Custom.Error != "") {
-					unread = true
-				}
 				var e1 *keyEase
 				if i+1 < len(m.Eases) {
 					e1 = m.Eases[i+1]
+				}
+				// Equal end values are a hold, unless a Bezier curve with handles bulges between them.
+				bulge := e != nil && e.Magic == 0 && len(e.Right) == 2 && e1 != nil && len(e1.Left) == 2 && (e.Right[1] != 0 || e1.Left[1] != 0)
+				if v0 != nil && v1 != nil && math.Abs(*v0-*v1) < 1e-9 && !bulge {
+					continue
+				}
+				if e != nil && e.Magic == easeCustom && (e.Custom == nil || e.Custom.Error != "") {
+					unread = true
 				}
 				if bad, why := easeOvershoots(e, e1, v0, v1); bad {
 					flagged = append(flagged, overshootFinding(l, m.Attr, m.Times[i], why, role))
