@@ -36,6 +36,11 @@ const interpStep = 2
 // sound, counters and scripts. They draw nothing; they move the layers they are connected to.
 var driverType = regexp.MustCompile(`^(oscillator|noise|wave|sound|spring|looper|localTime|timelineCounter|frame|secondsToFrames|javaScript.*)$`)
 
+// nonDrawingType matches layers that draw nothing themselves: filters, shaders, deformers,
+// materials and their behaviours, and cameras. Their in and out frames do not put anything on
+// screen, so they are not counted as shown. The names are Cavalry's layer type ids.
+var nonDrawingType = regexp.MustCompile(`(Filter|Shader|Deformer|Material|Behaviou?r)$|^(materialBehaviour|behaviour|materialSampler|shaderArray)|[cC]amera`)
+
 // mergeSpans sorts spans and joins those that touch or overlap.
 func mergeSpans(in []frameSpan) []frameSpan {
 	var s []frameSpan
@@ -213,13 +218,13 @@ func deadTimeFindings(d structureData, sb *board.Board, maxDead float64) (flagge
 	counts := map[string]bool{} // layers whose own motion counts as something moving
 	for id, l := range byID {
 		v := visible(id, 0)
-		empty := (l.Type == "null" || l.Type == "group") && !children[id] && !outEdges[id]
+		empty := ((l.Type == "null" || l.Type == "group") && !children[id] && !outEdges[id])
 		driver := driverType.MatchString(l.Type) && !(isSimulation(l.Type) && l.Type != "spring")
 		// A layer under an off layer shows nothing and moves nothing on screen. An off driver
 		// still drives the visible layers it is connected to.
 		onScreen := !offAbove(id)
 		counts[id] = onScreen && !driver && !empty
-		if onScreen && !children[id] && !driver && !empty && v.To > v.From {
+		if onScreen && !children[id] && !driver && !empty && !nonDrawingType.MatchString(l.Type) && v.To > v.From {
 			shown = append(shown, v)
 		}
 		var own []frameSpan

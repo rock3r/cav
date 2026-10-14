@@ -10,7 +10,7 @@ var byComp = null, scanComplete = true, coverageComplete = true, scannedComps = 
 // Reading a key costs two api.get calls; this budget bounds them. An attribute with more keys than
 // motionKeyCap is reported only by its first and last frame.
 var motionGets = 0, motionGetLimit = limits.motionGets || 20000, motionKeyCap = 64, motionComplete = true;
-var motionExprAttrs = ['position.x', 'position.y', 'scale.x', 'scale.y', 'rotation.z', 'opacity'];
+var motionExprAttrs = ['position.x', 'position.y', 'position.z', 'scale.x', 'scale.y', 'scale.z', 'rotation.x', 'rotation.y', 'rotation.z', 'opacity'];
 function failed(id, inspection, e) { failures.push({layer:id, inspection:inspection, error:String(e)}); }
 function read(id, inspection, fn, fallback) { try { return fn(); } catch(e) { failed(id,inspection,e); return fallback; } }
 function timedOut() { return Date.now()-began > limits.ms; }

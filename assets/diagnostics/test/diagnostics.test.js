@@ -157,6 +157,12 @@ test('motion metadata reads key values, hidden flags and expressions without eva
  assert.equal(dup.opacity,0,'static opacity is read');
  assert.equal(r.motion.complete,true);
 });
+test('expressions are queried on every transform channel and opacity',()=>{
+ const f=motionAPI(),seen=new Set();
+ f.api.hasAttributeExpression=(id,attr)=>{seen.add(attr);return false};
+ run('structure',f.api,{limits:{layers:10,edges:100,ms:1000,motion:true}});
+ for(const a of ['position.x','position.y','position.z','scale.x','scale.y','scale.z','rotation.x','rotation.y','rotation.z','opacity'])assert.ok(seen.has(a),a);
+});
 test('motion metadata is absent without limits.motion',()=>{
  const f=motionAPI();
  f.api.getKeyframeIdsForAttribute=()=>{throw Error('must not read keys')};
