@@ -194,7 +194,7 @@ func briefShow(a *app, args []string) error {
 		printGaps(missing, notes)
 		for _, r := range refs {
 			if r.Kind == "file" && r.Exists && !r.Recorded {
-				fmt.Printf("record it: cav ref add %s --licence <id>\n", r.Ref)
+				fmt.Printf("record it: cav ref add %s --licence <id>\n", r.Path)
 			}
 		}
 	})
@@ -208,6 +208,7 @@ type briefRef struct {
 	Exists   bool   `json:"exists"`
 	Recorded bool   `json:"recorded"`
 	Licence  string `json:"licence,omitempty"`
+	Path     string `json:"path,omitempty"` // a file ref as seen from the current folder
 }
 
 // briefRefStates matches the brief's file refs against the manifest. It only reads: a
@@ -218,6 +219,14 @@ func briefRefStates(b *brief.Brief) []briefRef {
 	refs := []briefRef{}
 	for _, r := range b.RefList() {
 		s := briefRef{Ref: r.Value, Kind: "file", Exists: r.Exists}
+		if !r.Link {
+			s.Path = r.Path
+			if wd, err := os.Getwd(); err == nil {
+				if rel, err := filepath.Rel(wd, r.Path); err == nil {
+					s.Path = rel
+				}
+			}
+		}
 		if r.Link {
 			s.Kind, s.Exists = "link", true
 		} else if m != nil {
