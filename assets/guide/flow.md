@@ -16,7 +16,7 @@ stage. When the user has no preference, follow the standard flow below.
 |---|---|---|---|---|
 | 1. Brief | none; you work as a creative director | `brief.md` and `brief.json`, written by hand | The user confirms the brief in chat | The user gives a complete brief |
 | 2. Mood board | `cav ref search`, `get`, `arena`, `add`; `cav board mood` | `moodboard/`, `renders/moodboard.png` | Show `renders/moodboard.png` to the user | The user brings a style guide or frames |
-| 3. Storyboard | `cav board init`, `frames`, `sheet` | `storyboard.json`, `board/`, `renders/board.png` | The user approves the storyboard | The piece is under about 8 seconds, or has one shot |
+| 3. Storyboard | `cav board init`, `frames`, `sheet`, `cav review` | `storyboard.json`, `board/`, `renders/board.png` | The user presses Approve storyboard in `cav review storyboard.json`; `cav review export storyboard.json --json` shows approved | The piece is under about 8 seconds, or has one shot |
 | 4. Music and animatic | `cav music gen`, `cav beats -o build/grid.json`, `cav board motion`, `cav board animatic`, `cav review` | `music/`, `build/grid.json`, `renders/animatic.mp4` | The user reviews the animatic (`cav review renders/animatic.mp4`) | Skip music generation when the user brings a track. Without music, or without a storyboard, skip the animatic; use the track directly in the build. |
 | 5. Build loop | `cav board place` (with a storyboard), `cav run`, `cav sheet`, `cav onion`, `cav check`, `cav render`, `cav review` | `build/*.js`, `scenes/*.cv`, `renders/` | The user approves the render | Never |
 
@@ -63,11 +63,20 @@ Run `cav board init` with the brief's format and timing, for example
 Then carry the approved direction into `storyboard.json`: set `style.prompt` to the look in a
 few words, `style.palette` to the chosen colours, and `style.refs` to the mood board images that
 show it. `cav board frames` sends these with every frame. Write what happens in each shot,
-then run `cav board frames` and `cav board sheet`. Look at `renders/board.png`, fix the weak shots, and show it to the user.
+then run `cav board frames` and `cav board sheet`. Look at `renders/board.png` and fix the weak shots.
 
-Do not start anything slow or costly before the user approves the storyboard. That means
-music generation, Veo clips (`cav board motion`), the animatic and the build. After the
-approval, every change costs a generation, a music take or a render.
+Then let the user review the storyboard. Start the review page in the background
+(`cav review storyboard.json &`; on Windows, in a second terminal), give the user its URL,
+then run `cav review wait storyboard.json`. The user gives a verdict on each shot, draws and
+writes notes, and presses Approve storyboard. Fix each note and each shot marked redo in
+`storyboard.json` (and its frames), resolve the note with `cav review resolve`, and wait again.
+
+The gate is that the user presses Approve storyboard: `cav review export storyboard.json --json`
+shows `approved` as `true`. You cannot approve for the user. Do not start anything slow or
+costly before that. That means music generation, Veo clips (`cav board motion`), the
+animatic and the build. After the approval, every change costs a generation, a music take
+or a render. If you change a shot or the storyboard settings later, the approval is removed
+and the user approves again.
 
 ## 6. Stage 4: music and animatic
 
