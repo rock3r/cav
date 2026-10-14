@@ -575,9 +575,6 @@ func cmdSceneCheck(a *app, args []string) error {
 func (a *app) checkStoryboard(explicit string) (string, []finding, []map[string]any, error) {
 	path := explicit
 	if path == "" {
-		if _, err := os.Stat("storyboard.json"); err != nil {
-			return "", nil, nil, nil
-		}
 		path = "storyboard.json"
 	} else if _, err := os.Stat(path); err != nil {
 		return "", nil, nil, usageErr("--board: no such file: %s", path)
@@ -586,18 +583,25 @@ func (a *app) checkStoryboard(explicit string) (string, []finding, []map[string]
 	if err != nil {
 		return "", nil, nil, err
 	}
-	digest, err := fileDigest(a.ctx, abs)
-	if err != nil {
-		return "", nil, nil, err
+	// The implicit storyboard may be missing. Record that too, so a resumed check fails
+	// when the file appears or disappears.
+	digest := "absent"
+	if _, statErr := os.Stat(abs); statErr == nil {
+		if digest, err = fileDigest(a.ctx, abs); err != nil {
+			return "", nil, nil, err
+		}
 	}
 	if a.op != nil {
 		if a.op.Inputs == nil {
 			a.op.Inputs = map[string]string{}
 		}
 		if previous, ok := a.op.Inputs[abs]; ok && previous != digest {
-			return "", nil, nil, fmt.Errorf("storyboard input changed since the operation started: %s", abs)
+			return "", nil, nil, fmt.Errorf("storyboard.json changed since this check started; run cav check again (%s)", abs)
 		}
 		a.op.Inputs[abs] = digest
+	}
+	if digest == "absent" {
+		return "", nil, nil, nil
 	}
 	sb, err := board.Load(abs)
 	if err != nil {

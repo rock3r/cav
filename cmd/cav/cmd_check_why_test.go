@@ -1,14 +1,64 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/rock3r/cav/internal/board"
 	"github.com/rock3r/cav/internal/bridge"
+	"github.com/rock3r/cav/internal/operation"
 )
+
+func TestResumedCheckNoticesStoryboardChanges(t *testing.T) {
+	write := func() {
+		sb := &board.Board{BPM: 120, Seconds: 4, Shots: []board.Shot{{ID: "s1", Beats: [2]float64{0, 4}, What: "x"}}}
+		if err := sb.Save("storyboard.json"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	newApp := func(rec *operation.Record) *app {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		t.Cleanup(cancel)
+		return &app{ctx: ctx, op: rec}
+	}
+
+	// Absent both times is fine; then it appears.
+	t.Chdir(t.TempDir())
+	rec := &operation.Record{}
+	if _, _, _, err := newApp(rec).checkStoryboard(""); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, _, err := newApp(rec).checkStoryboard(""); err != nil {
+		t.Fatalf("absent twice: %v", err)
+	}
+	write()
+	if _, _, _, err := newApp(rec).checkStoryboard(""); err == nil || !strings.Contains(err.Error(), "run cav check again") {
+		t.Fatalf("absent then present: %v", err)
+	}
+
+	// Present both times is fine; then it is edited; then it is gone.
+	t.Chdir(t.TempDir())
+	write()
+	rec = &operation.Record{}
+	if _, _, _, err := newApp(rec).checkStoryboard(""); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, _, err := newApp(rec).checkStoryboard(""); err != nil {
+		t.Fatalf("present twice: %v", err)
+	}
+	os.WriteFile("storyboard.json", []byte(`{"bpm":90}`), 0o644)
+	if _, _, _, err := newApp(rec).checkStoryboard(""); err == nil {
+		t.Fatal("edited storyboard not noticed")
+	}
+	os.Remove("storyboard.json")
+	if _, _, _, err := newApp(rec).checkStoryboard(""); err == nil || !strings.Contains(err.Error(), "run cav check again") {
+		t.Fatalf("present then gone: %v", err)
+	}
+}
 
 func metadataFixture(t *testing.T) {
 	t.Helper()
