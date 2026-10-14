@@ -102,4 +102,6 @@ Inspect `cav.keys(layer)` after intervening setters/connections before assuming 
 
 `api.getOutFrame` is the first invisible frame in Cavalry 2.8, while `setOutFrame` takes
 an inclusive last-visible frame. `cav seams` compares the first invisible frame against
-its predecessor. A layer set to out 9 hands off at frame 10.
+its predecessor. A layer set to out 9 hands off at frame 10. `cav check` takes the start
+frame of each storyboard shot as the boundary, so it matches this rule when the shots start
+on the frames you set.
