@@ -78,7 +78,8 @@ step() {
 	covered+="$1 "
 	n=$((n + 1))
 	local log
-	log="$logs/$(printf '%02d' "$n")-${name// /_}.log"
+	log="$logs/$(printf '%03d' "$n")-${name// /_}.log"
+	last_log=$log
 	local start=$SECONDS rc
 	"$cav" "$@" >"$log" 2>&1
 	rc=$?
@@ -127,7 +128,8 @@ check() {
 # json reads the first JSON object in a step log: the log holds stderr too, so a note
 # before or after the JSON must not break the parse.
 json() { python3 -I -c 'import json,sys; t=open(sys.argv[1]).read(); d=json.JSONDecoder().raw_decode(t[t.index("{"):])[0]; print(eval(sys.argv[2], {"d": d}))' "$@"; }
-lastlog() { ls "$logs"/[0-9]*.log | tail -1; }
+# lastlog is the log of the last step. (Sorting the file names broke after step 99.)
+lastlog() { echo "$last_log"; }
 
 echo "cav: $("$cav" version | head -1)"
 echo "work: $work"
