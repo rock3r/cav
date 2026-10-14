@@ -430,6 +430,22 @@ test('small text is judged at 1080p and the fix is in target pixels (3840x2160 s
 	assert.ok(!run(fakeCavalry(spec), { dryRun: true }).findings.some(f => f.kind === 'small-text'))
 })
 
+test('the suggested font size divides by the inherited scale too', () => {
+	// rig scale 0.5 x fit 0.50625: 100 px text renders at 25.3 px; 28 px needs font size 28 / (0.50625 * 0.5) = 110.6.
+	const cv = fakeCavalry({ layers: [{ name: 'rig', scale: { x: 0.5, y: 0.5 }, children: [{ name: 'card', box: FULL }, { name: 'title', type: 'textShape', size: 100, box: [-300, 300, 100, 0] }] }] })
+	const t = run(cv, { dryRun: true }).findings.find(f => f.kind === 'small-text')
+	assert.ok(t, 'no small-text finding')
+	assert.match(t.fix, /at least 28 px tall/)
+	assert.match(t.fix, /font size 111 before the fit and inherited scales/)
+})
+
+test('a dry run reports a comp name clash too, without changing anything', () => {
+	const cv = fakeCavalry(launch())
+	assert.throws(() => run(cv, { name: 'Launch', dryRun: true }), /already exists/)
+	assert.equal(cv.mutations.length, 0)
+	assert.deepEqual(cv.state(), { active: cv.source, frame: 0 })
+})
+
 test('only identical target dimensions are refused: near-9:16 and near-square comps are reframed', () => {
 	const a = run(fakeCavalry({ w: 1080, h: 1900, layers: [{ name: 'a', box: [-100, 100, 100, -100] }] }), { dryRun: true })
 	assert.deepEqual([a.target.w, a.target.h], [1080, 1920])

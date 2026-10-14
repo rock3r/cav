@@ -96,10 +96,10 @@ function reframe() {
 		Ht = target[1]
 	if (Wt === Ws && Ht === Hs) throw new Error('the comp is already ' + opts.to[0] + ':' + opts.to[1])
 	var newName = opts.name || sourceName + ' ' + opts.to[0] + 'x' + opts.to[1]
-	if (!opts.dryRun)
-		api.getComps().forEach(function (c) {
-			if (api.getNiceName(c) === newName) throw new Error('a comp named "' + newName + '" already exists: pass --name with a different name')
-		})
+	// Read-only, so a dry run reports the clash too.
+	api.getComps().forEach(function (c) {
+		if (api.getNiceName(c) === newName) throw new Error('a comp named "' + newName + '" already exists: pass --name with a different name')
+	})
 
 	// 1. Measure the original. Nothing is written.
 	api.setActiveComp(sourceComp)
@@ -387,19 +387,19 @@ function reframe() {
 		else if (unsafe !== null) find('unsafe', id, 'would sit under the platform buttons or captions at frame ' + unsafe, 'move it inside the safe area (cav.safeArea().safe)', unsafe)
 		if (outside !== null && off === null) find('outside-key', id, 'would sit outside the middle half at frame ' + outside, 'move it into the middle half, or add its group to --key', outside)
 		if (n.type === 'textShape') {
-			var sizes = n.looks
-				.map(function (l) {
-					return l.size
-				})
-				.filter(function (v) {
-					return v > 0
-				})
+			var sizes = n.looks.filter(function (l) {
+				return l.size > 0
+			})
 			if (sizes.length) {
+				// The smallest look; its size already includes the scale inherited from the layer and its parents.
+				var small = sizes.reduce(function (a, b) {
+					return b.size < a.size ? b : a
+				})
 				// --min-text is in pixels at 1080p, so the size in the copy is normalised to the short side.
-				var px = Math.min.apply(null, sizes) * a.k,
+				var px = small.size * a.k,
 					norm = (px * 1080) / Math.min(Wt, Ht),
 					needPx = Math.ceil((opts.minText * Math.min(Wt, Ht)) / 1080)
-				if (norm < opts.minText) find('small-text', id, 'text would be ' + Math.round(norm) + ' px (at 1080p); below ' + opts.minText + ' px it is hard to read on a phone', 'make it at least ' + needPx + ' px tall in the ' + Wt + 'x' + Ht + ' copy (font size ' + Math.ceil(needPx / a.k) + ' before the fit scale), or cut the text')
+				if (norm < opts.minText) find('small-text', id, 'text would be ' + Math.round(norm) + ' px (at 1080p); below ' + opts.minText + ' px it is hard to read on a phone', 'make it at least ' + needPx + ' px tall in the ' + Wt + 'x' + Ht + ' copy (font size ' + Math.ceil(needPx / (a.k * small.sc)) + ' before the fit and inherited scales), or cut the text')
 			}
 		}
 	})
