@@ -182,6 +182,53 @@ test('an attribute with many keys is reported by its first and last frame only',
  assert.deepEqual(Array.from(r.layers.find(l=>l.id==='js').motion[0].span),[0,398]);
  assert.equal(r.motion.complete,true);
 });
+// Overshoot on data (#116): the keys' eases are read from the same key data, a Custom formula is run only
+// when it is a plain formula, and the cavRole user data is read.
+function easeAPI(data){
+ const f=motionAPI(),get=f.api.get;
+ f.api.get=(id,attr)=>{
+  if(id==='js:position.x:0'&&attr==='data')return Object.assign({numValue:0},data);
+  return get(id,attr);
+ };
+ return f;
+}
+const limitsMotion={limits:{layers:10,edges:100,ms:1000,motion:true}};
+test('a Custom ease is measured: outBack goes above 1, outCubic stays monotonic',()=>{
+ const E={outBack:'1 + 2.70158*pow(x-1,3) + 1.70158*pow(x-1,2)',outCubic:'1 - pow(1-x,3)',spring:'x>=1 ? 1 : 1 - exp(-7*x)*cos(14*x)',inBack:'2.70158*x*x*x - 1.70158*x*x'};
+ const read=expr=>{const f=easeAPI({easing:34,exprEasing:expr}),r=run('structure',f.api,limitsMotion);assert.equal(f.changed,0);return r.layers.find(l=>l.id==='js').motion[0].eases[0]};
+ let e=read(E.outBack);assert.equal(e.magic,34);assert.ok(e.custom.max>1.05&&e.custom.min>=0);
+ e=read(E.outCubic);assert.ok(e.custom.max<=1.0000001&&e.custom.mono);
+ e=read(E.spring);assert.ok(e.custom.max>1.05&&!e.custom.mono);
+ e=read(E.inBack);assert.ok(e.custom.min<-0.05);
+});
+test('a formula that is not plain is never evaluated',()=>{
+ for(const bad of ['constructor.constructor("return 1")()','(function(){return 1})()','x.toString()','globalThis.api','pow(x,2)+Math.PI','1e3']){
+  const f=easeAPI({easing:34,exprEasing:bad}),r=run('structure',f.api,limitsMotion);
+  const e=r.layers.find(l=>l.id==='js').motion[0].eases[0];
+  assert.ok(e.custom.error,bad);assert.equal(e.custom.max,undefined,bad);
+ }
+ const f=easeAPI({easing:34}),e=run('structure',f.api,limitsMotion).layers.find(l=>l.id==='js').motion[0].eases[0];
+ assert.ok(e.custom.error,'a Custom ease with no formula');
+});
+test('Magic Easing numbers and Bezier handles are read; plain keys have no ease',()=>{
+ let r=run('structure',easeAPI({easing:23}).api,limitsMotion),m=r.layers.find(l=>l.id==='js').motion[0];
+ assert.equal(m.eases[0].magic,23);assert.equal(m.eases[1],null);
+ r=run('structure',easeAPI({rightBez:{x:5,y:140},leftBez:{x:-5,y:0}}).api,limitsMotion);m=r.layers.find(l=>l.id==='js').motion[0];
+ assert.deepEqual(Array.from(m.eases[0].right),[5,140]);assert.deepEqual(Array.from(m.eases[0].left),[-5,0]);
+ r=run('structure',motionAPI().api,limitsMotion);
+ assert.equal(r.layers.find(l=>l.id==='js').motion[0].eases,undefined);
+});
+test('cavRole user data is read as the layer role and a failed read is no failure',()=>{
+ const f=motionAPI();
+ f.api.getUserDataKey=(id,k)=>{assert.equal(k,'cavRole');if(id==='dup')throw Error('no user data');return id==='js'?'data':id==='nested'?'card':''};
+ const r=run('structure',f.api,limitsMotion);
+ assert.equal(r.layers.find(l=>l.id==='js').role,'data');
+ assert.equal(r.layers.find(l=>l.id==='nested').role,undefined,'only data and container');
+ assert.equal(r.layers.find(l=>l.id==='dup').role,undefined);
+ assert.equal(r.failures.length,0);assert.equal(r.motion.complete,true);
+ const q=run('structure',f.api,{limits:{layers:10,edges:100,ms:1000}});
+ assert.ok(q.layers.every(l=>l.role===undefined),'no role without limits.motion');
+});
 test('key reading is capped, and the cap makes the motion metadata incomplete',()=>{
  const f=motionAPI();
  const r=run('structure',f.api,{limits:{layers:10,edges:100,ms:1000,motion:true,motionGets:3}});

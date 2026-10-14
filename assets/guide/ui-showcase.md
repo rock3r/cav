@@ -109,7 +109,8 @@ walkthroughs. Read this with `cav guide design` (recipe 12 shows how to rebuild 
   frames for small, quick items, longer for big or slow moves.
 - **Springs on containers, never on values.** Cards and panels may spring and overshoot as
   they enter. Numbers, bars and rings must settle with no overshoot, so the data never
-  shows a wrong value.
+  shows a wrong value. `cav check` warns about a spring, back or bounce ease on data. If it
+  guesses wrong, mark the layer with `cav.role(layer, 'container')` (or `'data'`).
 - **Draw highlights on.** A callout box draws on along its outline (`cav.drawOn`); it does
   not scale or fade in. It fits its target exactly and contrasts with the background. Its
   fill may fade in as the draw nears its end, so that nothing appears all at once.

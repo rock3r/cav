@@ -49,7 +49,7 @@ Findings do not change the exit code; timeout returns 3 with partial results and
 operation ID to resume. Use --json for agents.
 A finding whose kind a guide explains (offframe, hidden, font, sksl-input-redeclared,
 group-filter, perf-sampled-keys, perf-keyframe-volume, perf-copy-javascript,
-perf-simulation, shot-why, seam, dead-time) names that guide section, and the sections are printed once after the
+perf-simulation, shot-why, seam, dead-time, data-overshoot) names that guide section, and the sections are printed once after the
 findings ("guide" in JSON, at most about 4 KB).
 A storyboard.json in the current folder (or --board FILE) is read too: a shot with no
 "why" (empty, or still the placeholder from cav board init) is a shot-why warning. This also
@@ -71,6 +71,16 @@ with --quick. A layer with equal values on both keys is a hold, and a pre-comp o
 simulation counts as moving. A hidden layer, a layer with opacity 0 that nothing changes, and everything below them count as nothing (a hidden driver still drives). A span
 inside a shot with "hold": true in storyboard.json is listed under "intended" and not counted.
 It is skipped when the motion metadata is incomplete.
+A spring, back, anticipate, overshoot or bounce ease on a value that shows data is a
+data-overshoot warning, because the number or bar shows a wrong value for a moment. It
+reads metadata only, so it also runs with --quick. A layer shows data when it feeds a text
+layer (cav.counter), when cav.role(layer, 'data') says so, when the attribute is called
+value, number, percent, progress, amount or level, or when a layer named like a bar, meter,
+gauge, ring, chart or counter has a keyed scale, size or stroke trim. Groups, pre-comps,
+layers with children and position, rotation and opacity never count. cav.role(layer,
+'container') turns the warning off for a layer that is not data. A Custom ease is run only
+when it is a plain formula (numbers, x, operators, pow, exp, cos, sin, sqrt, abs, min, max,
+floor); any other is skipped and listed.
 --min-text (28) and --max-still (1.5 seconds) tune visual findings.`
 }
 
@@ -488,6 +498,9 @@ func cmdSceneCheck(a *app, args []string) error {
 	}
 	deadFlagged, deadIntended, deadSpans, deadSkipped := deadTimeFindings(metadata, shots, *maxDead)
 	perf = append(perf, deadFlagged...)
+	overshoots, overshootSkipped := overshootFindings(metadata)
+	perf = append(perf, overshoots...)
+	skipped = append(skipped, overshootSkipped...)
 	a.checkIntended = append(a.checkIntended, deadIntended...)
 	skipped = append(skipped, deadSkipped...)
 	var measured []profileResult
@@ -829,6 +842,8 @@ type structureLayer struct {
 	Motion      []motionAttr `json:"motion,omitempty"`
 	Expressions []string     `json:"expressions,omitempty"`
 	Opacity     *float64     `json:"opacity,omitempty"`
+	// Role is the cavRole user data set by cav.role: "data" or "container".
+	Role        string `json:"role,omitempty"`
 	MissingFont *struct {
 		Family string `json:"family"`
 		Style  string `json:"style"`

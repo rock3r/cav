@@ -23,6 +23,7 @@ var checkGuide = map[string][][]string{
 	"shot-why":              {{"ui-showcase", "2. Story and message", "- Explain every feature you show"}},
 	"dead-time":             {{"ui-showcase", "4. Framing and attention", "- Use camera holds on purpose"}},
 	"seam":                  {{"ui-showcase", "5. Motion and continuity", "- Check both sides of every boundary"}},
+	"data-overshoot":        {{"ui-showcase", "5. Motion and continuity", "- Springs on containers"}},
 	"perf-sampled-keys":     {{"native", "Dense animation curves"}},
 	"perf-keyframe-volume":  {{"native", "Dense animation curves"}},
 	"perf-copy-javascript":  {{"native", "Per-copy JavaScript"}},

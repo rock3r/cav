@@ -438,3 +438,15 @@ test('safeArea gives the key and safe boxes for portrait, square and wide comps'
 	assert.deepEqual(cav.safeArea().frame, z.frame)
 	assert.throws(() => cav.safeArea(0, 10), /positive/)
 })
+
+test('cav.role saves the role in the layer user data and rejects other roles', () => {
+	const { cav, api } = mockEnv()
+	const saved = []
+	api.setUserData = (l, k, v) => saved.push([l, k, v])
+	const r = cav.rect('r', 10, 10)
+	assert.equal(cav.role(r, 'data'), r)
+	cav.role(r, 'container')
+	assert.deepEqual(saved, [[r, 'cavRole', 'data'], [r, 'cavRole', 'container']])
+	assert.throws(() => cav.role(r, 'card'), /must be "data" or "container"/)
+	assert.throws(() => cav.role('missing#1', 'data'), /does not exist/)
+})

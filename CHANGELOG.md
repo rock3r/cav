@@ -3,6 +3,19 @@
 ## Unreleased
 
 - `cav brief init -o dir/brief.json` creates the missing folder instead of failing.
+- `cav check` warns about overshoot on data values (#116).
+  - A spring, back, anticipate, overshoot or bounce ease on a value that shows data is a
+    `data-overshoot` finding, because a number or a bar then shows a wrong value for a
+    moment. A Custom ease (for example `cav.E.outBack`) is measured, and so are Bezier
+    handles. Eases that settle, such as `outCubic`, are not flagged.
+  - A layer shows data when it feeds a text layer (`cav.counter`), when its attribute is
+    called value, number, percent, progress, amount or level, or when its name looks like a
+    bar, meter, gauge, ring or chart and its scale, size or stroke trim is keyed. Groups,
+    pre-comps, layers with children, position, rotation and opacity never count.
+  - New helper `cav.role(layer, 'data' | 'container')` saves the role in the scene. Use
+    `'container'` when `cav check` guesses wrong, or `'data'` for a layer it misses.
+  - It reads metadata only, so it also runs with `--quick`. A Custom ease that is not a
+    plain formula is not run; it is listed as skipped.
 - `cav check` finds dead time: a hold where nothing moves (#117).
   - It reports a span of the active comp, longer than `--max-dead` seconds (default 2),
     where something is on screen but no layer has moving keys, an expression or a live

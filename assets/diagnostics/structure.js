@@ -30,7 +30,48 @@ function compLayers(id) {
  }
  return byComp[id] || [];
 }
-// The keys of one attribute: frames, plain numbers (null for anything else) and the interpolation.
+// A Custom ease is a formula in x. It is run only when it is made of numbers, x, operators and a few
+// Math functions; anything else is never evaluated. Returns the range it reaches over x in [0,1].
+var easeCache = {};
+function easeSafe(src) {
+ if (src.length > 400) return false;
+ var rest = src.replace(/\b(pow|exp|cos|sin|sqrt|abs|min|max|floor|PI)\b/g, '');
+ return /^[\d\s.x+\-*\/%<>=!&|?:(),]*$/.test(rest);
+}
+function sampleEase(src) {
+ if (easeCache[src]) return easeCache[src];
+ var out;
+ if (!easeSafe(src)) out = {error: 'not a plain formula'};
+ else try {
+  var fn = new Function('x', 'pow', 'exp', 'cos', 'sin', 'sqrt', 'abs', 'min', 'max', 'floor', 'PI', 'return (' + src + ');');
+  var lo = Infinity, hi = -Infinity, mono = true, prev = null;
+  for (var i = 0; i <= 64; i++) {
+   var y = fn(i / 64, Math.pow, Math.exp, Math.cos, Math.sin, Math.sqrt, Math.abs, Math.min, Math.max, Math.floor, Math.PI);
+   if (typeof y !== 'number' || !isFinite(y)) throw new Error('not a number');
+   lo = Math.min(lo, y); hi = Math.max(hi, y);
+   if (prev !== null && y < prev - 1e-6) mono = false;
+   prev = y;
+  }
+  out = {min: lo, max: hi, mono: mono};
+ } catch (e) { out = {error: String(e)}; }
+ easeCache[src] = out;
+ return out;
+}
+// What a key says about the segment that starts at it: a Magic Easing number, a Custom formula's
+// range, or Bezier handles. Null when the segment is plain.
+function easeOf(d) {
+ var e = {}, any = false;
+ if (typeof d.easing === 'number' && d.easing > 0) {
+  e.magic = d.easing; any = true;
+  if (d.easing === 34) e.custom = typeof d.exprEasing === 'string' ? sampleEase(d.exprEasing) : {error: 'no formula'};
+ }
+ var r = d.rightBez, l = d.leftBez;
+ if (!d.interpolation && r && l && typeof r.x === 'number' && typeof r.y === 'number' && typeof l.x === 'number' && typeof l.y === 'number') {
+  e.right = [r.x, r.y]; e.left = [l.x, l.y]; any = true;
+ }
+ return any ? e : null;
+}
+// The keys of one attribute: frames, plain numbers (null for anything else), the interpolation and the ease.
 function motionOf(id, attr, times) {
  if(times.length>motionKeyCap){
   var sorted=times.slice().sort(function(p,q){return p-q;});
@@ -42,12 +83,14 @@ function motionOf(id, attr, times) {
  for(var i=0;i<kids.length;i++){
   if(motionGets>=motionGetLimit||timedOut()){skipped.push({inspection:'motion',layer:id,reason:'key query or time budget'});motionComplete=false;return null;}
   motionGets+=2;
-  var kid=kids[i], key=read(id,'motion-key',function(){var d=api.get(kid,'data')||{};return {t:api.get(kid,'timeOffset'),v:typeof d.numValue==='number'?d.numValue:null,i:d.interpolation||0};},null);
+  var kid=kids[i], key=read(id,'motion-key',function(){var d=api.get(kid,'data')||{};return {t:api.get(kid,'timeOffset'),v:typeof d.numValue==='number'?d.numValue:null,i:d.interpolation||0,e:easeOf(d)};},null);
   if(key===null||typeof key.t!=='number'){motionComplete=false;return null;}
   keys.push(key);
  }
  keys.sort(function(p,q){return p.t-q.t;});
- return {attr:attr,times:keys.map(function(k){return k.t;}),values:keys.map(function(k){return k.v;}),interp:keys.map(function(k){return k.i;})};
+ var m={attr:attr,times:keys.map(function(k){return k.t;}),values:keys.map(function(k){return k.v;}),interp:keys.map(function(k){return k.i;})};
+ if(keys.some(function(k){return k.e;}))m.eases=keys.map(function(k){return k.e;});
+ return m;
 }
 while (queue.length) {
  var current=queue.shift();
@@ -71,7 +114,9 @@ while (queue.length) {
   try { node.boundaries.push(api.getInFrame(id),api.getOutFrame(id)); } catch(e) { failed(id,'in-out',e); }
   node.keyframes=0;node.sampledCurves=[];
   if(limits.motion){node.motion=[];node.hidden=read(id,'hidden',function(){return !!api.get(id,'hidden');},false);
-   motionGets++;var op=read(id,'opacity',function(){return api.get(id,'opacity');},null);if(typeof op==='number')node.opacity=op;}
+   motionGets++;var op=read(id,'opacity',function(){return api.get(id,'opacity');},null);if(typeof op==='number')node.opacity=op;
+   // What the layer shows, if the scene says so (cav.role). Not having it is normal, so a failed read is no failure.
+   try{var role=api.getUserDataKey(id,'cavRole');if(role==='data'||role==='container')node.role=role;}catch(e){}}
   var animated=read(id,'keyframe-attributes',function(){return api.getAnimatedAttributes(id)||[];},[]);
   for(var a=0;a<animated.length;a++) {
    if(timedOut()||keyQueries++>=keyQueryLimit){skipped.push({inspection:'keyframes',layer:id,reason:'query/time limit',remaining: animated.length-a});motionComplete=false;break;}
