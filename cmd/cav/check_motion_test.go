@@ -286,6 +286,22 @@ func TestQuickCheckSkipsDeadTimeWhenMotionIsIncomplete(t *testing.T) {
 	}
 }
 
+func TestFindingHeadOmitsWhatIsEmpty(t *testing.T) {
+	for _, tc := range []struct {
+		f    finding
+		want string
+	}{
+		{finding{Kind: "dead-time"}, "dead-time"},
+		{finding{Kind: "dead-time", Name: "s2"}, `dead-time "s2"`},
+		{finding{Kind: "text", Layer: "textShape#1", Name: "Title"}, `text textShape#1 "Title"`},
+		{finding{Kind: "offframe", Layer: "basicShape#1"}, "offframe basicShape#1"},
+	} {
+		if got := findingHead(tc.f); got != tc.want {
+			t.Errorf("got %q, want %q", got, tc.want)
+		}
+	}
+}
+
 func TestCheckRejectsAMaxDeadThatIsNotPositive(t *testing.T) {
 	for _, v := range []string{"0", "-1", "NaN"} {
 		a := &app{json: true}

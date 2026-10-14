@@ -10,7 +10,7 @@ var byComp = null, scanComplete = true, coverageComplete = true, scannedComps = 
 // Reading a key costs two api.get calls; this budget bounds them. An attribute with more keys than
 // motionKeyCap is reported only by its first and last frame.
 var motionGets = 0, motionGetLimit = limits.motionGets || 20000, motionKeyCap = 64, motionComplete = true;
-var motionExprAttrs = ['position.x', 'position.y', 'scale.x', 'scale.y', 'rotation', 'opacity'];
+var motionExprAttrs = ['position.x', 'position.y', 'scale.x', 'scale.y', 'rotation.z', 'opacity'];
 function failed(id, inspection, e) { failures.push({layer:id, inspection:inspection, error:String(e)}); }
 function read(id, inspection, fn, fallback) { try { return fn(); } catch(e) { failed(id,inspection,e); return fallback; } }
 function timedOut() { return Date.now()-began > limits.ms; }
@@ -73,7 +73,7 @@ while (queue.length) {
   if(limits.motion){node.motion=[];node.hidden=read(id,'hidden',function(){return !!api.get(id,'hidden');},false);}
   var animated=read(id,'keyframe-attributes',function(){return api.getAnimatedAttributes(id)||[];},[]);
   for(var a=0;a<animated.length;a++) {
-   if(timedOut()||keyQueries++>=keyQueryLimit){skipped.push({inspection:'keyframes',layer:id,reason:'query/time limit',remaining: animated.length-a});break;}
+   if(timedOut()||keyQueries++>=keyQueryLimit){skipped.push({inspection:'keyframes',layer:id,reason:'query/time limit',remaining: animated.length-a});motionComplete=false;break;}
    var times=read(id,'keyframe-times',function(){return api.getKeyframeTimes(id,animated[a])||[];},[]);
    node.keyframes+=times.length;
    if(animated[a]==='opacity'){node.boundaries=node.boundaries.concat(times.slice(0,120));
@@ -103,12 +103,12 @@ while (queue.length) {
   }
   var outs=read(id,'connections' ,function(){return api.getOutConnectedAttributes(id)||[];},[]);
   for (var j=0;j<outs.length;j++) {
-   if(timedOut()){skipped.push({inspection:'connections',layer:id,reason:'time budget'});break;}
-   if(inspectedEdges>=limits.edges){skipped.push({inspection:'connections',layer:id,reason:'edge limit'});break;}
+   if(timedOut()){skipped.push({inspection:'connections',layer:id,reason:'time budget'});motionComplete=false;break;}
+   if(inspectedEdges>=limits.edges){skipped.push({inspection:'connections',layer:id,reason:'edge limit'});motionComplete=false;break;}
    var targets=read(id,'connections',function(){return api.getOutConnections(id,outs[j])||[];},[]);
    for(var k=0;k<targets.length;k++){
-    if(timedOut()){skipped.push({inspection:'connections',layer:id,reason:'time budget'});break;}
-    if(inspectedEdges++>=limits.edges){skipped.push({inspection:'connections',layer:id,reason:'edge limit'});break;}
+    if(timedOut()){skipped.push({inspection:'connections',layer:id,reason:'time budget'});motionComplete=false;break;}
+    if(inspectedEdges++>=limits.edges){skipped.push({inspection:'connections',layer:id,reason:'edge limit'});motionComplete=false;break;}
     var t=String(targets[k]), dot=t.indexOf('.');
     if(dot<0){failed(id,'connections','unrecognized target '+t);continue;}
     edges.push({from:id,fromAttr:outs[j],to:t.slice(0,dot),toAttr:t.slice(dot+1)});

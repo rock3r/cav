@@ -130,7 +130,7 @@ function motionAPI(){
   getAnimatedAttributes:id=>id==='js'?['position.x']:id==='dup'?['opacity']:[],
   getKeyframeTimes:(id,attr)=>(keys[id+':'+attr]||[]).map(k=>k[0]),
   getKeyframeIdsForAttribute:kidsOf,
-  hasAttributeExpression:(id,attr)=>id==='nested'&&attr==='scale.x',
+  hasAttributeExpression:(id,attr)=>(id==='nested'&&attr==='scale.x')||(id==='dup'&&attr==='rotation.z'),
   get:(id,attr)=>{
    if(id.includes(':')){const k=node(id);return attr==='timeOffset'?k[0]:attr==='frame'?k[0]:{numValue:k[1],interpolation:k[2]}}
    if(attr==='hidden')return id==='sim';
@@ -151,6 +151,7 @@ test('motion metadata reads key values, hidden flags and expressions without eva
  assert.equal(js.hidden,false);
  assert.equal(r.layers.find(l=>l.id==='nested').expression,true);
  assert.equal(js.expression,undefined);
+ assert.equal(dup.expression,true,'rotation.z is the rotation channel');
  assert.equal(r.motion.complete,true);
 });
 test('motion metadata is absent without limits.motion',()=>{
@@ -177,6 +178,24 @@ test('key reading is capped, and the cap makes the motion metadata incomplete',(
  const r=run('structure',f.api,{limits:{layers:10,edges:100,ms:1000,motion:true,motionGets:3}});
  assert.equal(r.motion.complete,false);
  assert.ok(r.skipped.some(s=>s.inspection==='motion'));
+});
+test('every motion-relevant truncation makes the motion metadata incomplete',()=>{
+ const base={layers:10,edges:100,ms:1000,motion:true};
+ // keyframe-query cap: not every animated attribute is read
+ let r=run('structure',motionAPI().api,{limits:{...base,keys:1}});
+ assert.ok(r.skipped.some(s=>s.inspection==='keyframes'));
+ assert.equal(r.motion.complete,false,'keyframe query cap');
+ // edge cap: a driver's targets are not all known
+ r=run('structure',motionAPI().api,{limits:{...base,edges:1}});
+ assert.ok(r.skipped.some(s=>s.inspection==='connections'&&s.reason==='edge limit'));
+ assert.equal(r.motion.complete,false,'edge cap');
+ // time budget while reading connections
+ const f=motionAPI();let now=0;
+ r=vm.runInNewContext('(function(){'+source('structure')+'})()',{api:f.api,limits:{...base,ms:100},Date:{now:()=>(now+=10)}});
+ assert.ok(r.skipped.length);
+ assert.equal(r.motion.complete,false,'time budget');
+ // control: no truncation
+ assert.equal(run('structure',motionAPI().api,{limits:base}).motion.complete,true);
 });
 test('a failed key read makes the motion metadata incomplete',()=>{
  const f=motionAPI(),get=f.api.get;

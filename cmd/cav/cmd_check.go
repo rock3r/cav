@@ -726,6 +726,19 @@ func shotWhyFindings(sb *board.Board) []finding {
 	return out
 }
 
+// findingHead is the start of a finding's text line: its kind, then the layer and the quoted
+// name when it has them.
+func findingHead(f finding) string {
+	head := f.Kind
+	if f.Layer != "" {
+		head += " " + f.Layer
+	}
+	if f.Name != "" {
+		head += fmt.Sprintf(" %q", f.Name)
+	}
+	return head
+}
+
 func (a *app) partialCheck(out []finding, failures, skipped []map[string]any, measured []profileResult, cause error, warmups ...*profileWarmup) error {
 	out = append(out, licenceFindings()...)
 	if cause != nil {
@@ -767,13 +780,13 @@ func (a *app) partialCheck(out []finding, failures, skipped []map[string]any, me
 			if len(f.CompPath) > 1 {
 				location = " in " + strings.Join(f.CompPath, " > ")
 			}
-			fmt.Printf("%s %s %q%s: %s\n  fix: %s\n", f.Kind, f.Layer, f.Name, location, f.Detail, f.Fix)
+			fmt.Printf("%s%s: %s\n  fix: %s\n", findingHead(f), location, f.Detail, f.Fix)
 			for _, g := range f.Guide {
 				fmt.Printf("  guide: %s\n", g)
 			}
 		}
 		for _, f := range a.checkIntended {
-			fmt.Printf("intended %s %q: %s\n", f.Kind, f.Name, f.Detail)
+			fmt.Printf("intended %s: %s\n", findingHead(f), f.Detail)
 		}
 		if len(related) > 0 {
 			fmt.Println("\nGuide sections for these findings:")
