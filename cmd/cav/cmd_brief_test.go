@@ -154,9 +154,9 @@ func TestBriefShowReportsRefs(t *testing.T) {
 	}
 	want := []briefRef{
 		{Ref: "https://vimeo.com/123456789", Kind: "link", Exists: true},
-		{Ref: "moodboard/kept.jpg", Kind: "file", Exists: true, Recorded: true, Licence: "cc0"},
-		{Ref: "moodboard/new.jpg", Kind: "file", Exists: true},
-		{Ref: "moodboard/gone.jpg", Kind: "file"},
+		{Ref: "moodboard/kept.jpg", Kind: "file", Exists: true, Recorded: true, Licence: "cc0", Path: "moodboard/kept.jpg"},
+		{Ref: "moodboard/new.jpg", Kind: "file", Exists: true, Path: "moodboard/new.jpg"},
+		{Ref: "moodboard/gone.jpg", Kind: "file", Path: "moodboard/gone.jpg"},
 	}
 	if len(got.Refs) != len(want) {
 		t.Fatalf("%+v", got.Refs)
