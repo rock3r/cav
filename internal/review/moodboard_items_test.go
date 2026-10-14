@@ -1,6 +1,7 @@
 package review
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -121,7 +122,7 @@ func TestClipEndpointServesRangesAndRefusesWhatSafeClipRefuses(t *testing.T) {
 	writeFile(t, path, `{"schema":"cav-moodboard/1","dir":"moodboard","items":[
 		{"id":"reel","kind":"clip","file":"moodboard/reel.mp4","thumb":"moodboard/.thumbs/reel.png","seconds":2},
 		{"id":"link","kind":"clip","file":"moodboard/link.mp4"},
-		{"id":"abs","kind":"clip","file":"`+outside+`"},
+		{"id":"abs","kind":"clip","file":`+jsonStr(outside)+`},
 		{"id":"up","kind":"clip","file":"../outside.mp4"},
 		{"id":"txt","kind":"clip","file":"moodboard/notes.txt"},
 		{"id":"img","kind":"image","file":"moodboard/a.jpg"}]}`)
@@ -153,4 +154,10 @@ func TestClipEndpointServesRangesAndRefusesWhatSafeClipRefuses(t *testing.T) {
 	if it := s2.item("link"); it["hasClip"] == true {
 		t.Errorf("a symlinked clip must not play: %v", it)
 	}
+}
+
+// jsonStr quotes a path for a JSON fixture: a Windows path has backslashes.
+func jsonStr(s string) string {
+	b, _ := json.Marshal(s)
+	return string(b)
 }

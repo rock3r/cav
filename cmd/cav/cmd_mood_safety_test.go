@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -25,7 +26,7 @@ func TestBoardMoodNeverWritesOutsideTheThumbFolder(t *testing.T) {
 	os.WriteFile(victim, []byte("keep me"), 0o644)
 	escape := filepath.Join(filepath.Dir(dir), "escaped.png")
 	os.WriteFile("moodboard.json", []byte(`{"schema":"cav-moodboard/1","dir":"moodboard","items":[
-		{"id":"reel","kind":"clip","file":"moodboard/reel.mp4","thumb":"`+victim+`"},
+		{"id":"reel","kind":"clip","file":"moodboard/reel.mp4","thumb":`+jsonStr(victim)+`},
 		{"id":"../../escaped","kind":"clip","file":"moodboard/other.mp4","thumb":"../escaped.png"}]}`), 0o644)
 	var err error
 	_, _, notes, _ := moodSync(context.Background(), "moodboard", "moodboard.json")
@@ -74,4 +75,10 @@ func TestBriefShowHintsForRefsOutsideTheMoodBoard(t *testing.T) {
 			t.Errorf("output should not hint %q:\n%s", not, out)
 		}
 	}
+}
+
+// jsonStr quotes a path for a JSON fixture: a Windows path has backslashes.
+func jsonStr(s string) string {
+	b, _ := json.Marshal(s)
+	return string(b)
 }

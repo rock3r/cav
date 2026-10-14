@@ -98,7 +98,7 @@ func TestSaveThumb(t *testing.T) {
 		case "/html":
 			w.Write([]byte("<html>not an image</html>"))
 		case "/redirect":
-			http.Redirect(w, r, "https://evil.test/img.png", 302)
+			http.Redirect(w, r, "https://evil.test/img.png", http.StatusFound)
 		}
 	})
 	dir := t.TempDir()

@@ -1,6 +1,7 @@
 package moodboard
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,7 +16,7 @@ func TestSyncMatchesFilesWrittenInOtherForms(t *testing.T) {
 	touch(t, filepath.Join(dir, "b.jpg"), "b")
 	touch(t, js, `{"schema":"cav-moodboard/1","dir":"moodboard","items":[
 		{"id":"first","file":"./moodboard/a.jpg","take":"kept"},
-		{"id":"second","file":"`+filepath.Join(dir, "b.jpg")+`","take":"also kept"}]}`)
+		{"id":"second","file":`+jsonStr(filepath.Join(dir, "b.jpg"))+`,"take":"also kept"}]}`)
 	b, ch, err := Sync(js, dir, nil, root)
 	if err != nil {
 		t.Fatal(err)
@@ -37,7 +38,7 @@ func TestClipThumbIsAlwaysCavsOwnPath(t *testing.T) {
 	touch(t, filepath.Join(dir, "reel.mp4"), "v")
 	touch(t, filepath.Join(dir, "x.mp4"), "v")
 	touch(t, js, `{"schema":"cav-moodboard/1","dir":"moodboard","items":[
-		{"id":"reel","kind":"clip","file":"moodboard/reel.mp4","thumb":"`+victim+`"},
+		{"id":"reel","kind":"clip","file":"moodboard/reel.mp4","thumb":`+jsonStr(victim)+`},
 		{"id":"../../x","kind":"clip","file":"moodboard/x.mp4","thumb":"../../x.png"}]}`)
 	b, _, err := Sync(js, dir, nil, root)
 	if err != nil {
@@ -102,4 +103,10 @@ func TestEmbedThumbOutsideTheThumbFolderIsDropped(t *testing.T) {
 	if got := b.Find("yt-aqz-KE-bpKQ").Thumb; got != "" {
 		t.Errorf("thumb %q", got)
 	}
+}
+
+// jsonStr quotes a path for a JSON fixture: a Windows path has backslashes.
+func jsonStr(s string) string {
+	b, _ := json.Marshal(s)
+	return string(b)
 }
