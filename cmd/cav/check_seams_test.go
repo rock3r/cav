@@ -185,8 +185,9 @@ func seamFixture(t *testing.T) (renders *int) {
 		case strings.Contains(code, "expected.comp"):
 			fixtureResult(t, req.ID, map[string]any{"start": 0, "end": 120, "fps": 30, "layers": 0, "segs": []any{}, "failures": []any{}, "skipped": []any{}})
 		case strings.Contains(code, "precomp-coverage"):
-			fixtureResult(t, req.ID, map[string]any{"start": 0, "end": 120, "fps": 30, "comp": "compNode#1", "scenePath": "scratch.cv", "totalLayers": 1, "failures": []any{}, "skipped": []any{},
-				"layers": []any{map[string]any{"id": "basicShape#1", "name": "box", "type": "basicShape", "comp": "compNode#1"}}, "edges": []any{}})
+			fixtureResult(t, req.ID, map[string]any{"start": 0, "end": 120, "fps": 30, "comp": "compNode#1", "scenePath": "scratch.cv", "totalLayers": 2, "failures": []any{}, "skipped": []any{},
+				"layers": []any{map[string]any{"id": "basicShape#1", "name": "box", "type": "basicShape", "comp": "compNode#1"},
+					map[string]any{"id": "group#1", "name": "Pre", "type": "group", "comp": "compNode#1", "parent": "", "boundaries": []int{45, 90}}}, "edges": []any{}})
 		default:
 			fixtureResult(t, req.ID, map[string]any{"scenePath": "scratch.cv", "comp": map[string]any{"id": "compNode#1", "name": "scratch", "fps": 30, "startFrame": 0, "endFrame": 120}})
 		}
@@ -208,6 +209,12 @@ func runSeamCheck(t *testing.T, args ...string) (seamCheckOut, int) {
 }
 
 func seamStoryboard(t *testing.T, cut bool) {
+	seamStoryboardShots(t, cut, false)
+}
+
+// seamStoryboardShots writes the four shots; with calm, s4 ends at beat 7 and a last shot s5
+// (marked as a cut) starts at frame 105, where the picture does not change.
+func seamStoryboardShots(t *testing.T, cut, calm bool) {
 	t.Helper()
 	t.Chdir(t.TempDir())
 	sb := &board.Board{BPM: 120, Seconds: 4, Width: 1920, Height: 1080, Shots: []board.Shot{
@@ -216,6 +223,10 @@ func seamStoryboard(t *testing.T, cut bool) {
 		{ID: "s3", Beats: [2]float64{4, 6}, What: "c", Why: "w"},
 		{ID: "s4", Beats: [2]float64{6, 8}, What: "d", Why: "w", Cut: cut},
 	}}
+	if calm {
+		sb.Shots[3].Beats[1] = 7
+		sb.Shots = append(sb.Shots, board.Shot{ID: "s5", Beats: [2]float64{7, 8}, What: "e", Why: "w", Cut: true})
+	}
 	if err := sb.Save("storyboard.json"); err != nil {
 		t.Fatal(err)
 	}
@@ -304,5 +315,41 @@ func TestCheckQuickAndLimitsSkipSeams(t *testing.T) {
 	}
 	if !found || len(out.Seams) != 2 {
 		t.Errorf("limit skipped %+v, seams %d", out.Skipped, len(out.Seams))
+	}
+}
+
+func TestCheckListsEveryMarkedCutEvenWhenCalm(t *testing.T) {
+	seamFixture(t)
+	seamStoryboardShots(t, false, true)
+	out, code := runSeamCheck(t)
+	if code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	var calm *finding
+	for i, f := range out.Intended {
+		if f.Name == "s5" {
+			calm = &out.Intended[i]
+		}
+	}
+	if calm == nil || !strings.Contains(calm.Detail, "measured and is calm") {
+		t.Fatalf("a marked cut with no change must still be listed: %+v", out.Intended)
+	}
+	for _, f := range out.Findings {
+		if f.Kind == "seam" && f.Name == "s5" {
+			t.Errorf("a marked cut was flagged: %+v", f)
+		}
+	}
+}
+
+func TestCheckWithCompIgnoresTheStoryboard(t *testing.T) {
+	seamFixture(t)
+	seamStoryboard(t, false)
+	// The storyboard has shots at 30, 60 and 90. For another comp, the layers decide.
+	out, code := runSeamCheck(t, "--comp", "Pre-comp")
+	if code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	if len(out.Seams) != 1 || out.Seams[0].Frame != 45 || out.Seams[0].Name != "Pre" || out.Seams[0].Shot {
+		t.Fatalf("seams %+v", out.Seams)
 	}
 }

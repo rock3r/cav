@@ -146,9 +146,9 @@ func (a *app) seamsPass(d structureData, sb *board.Board, allowed map[int]bool, 
 		checks = append(checks, c)
 		switch {
 		case c.Flagged:
-			flagged = append(flagged, seamFinding(c, false))
-		case b.Intended && c.At >= threshold:
-			intended = append(intended, seamFinding(c, true))
+			flagged = append(flagged, seamFinding(c, false, threshold))
+		case b.Intended:
+			intended = append(intended, seamFinding(c, true, threshold))
 		}
 	}
 	return
@@ -156,7 +156,7 @@ func (a *app) seamsPass(d structureData, sb *board.Board, allowed map[int]bool, 
 
 // seamFinding describes one boundary. A flagged one is a warning; an intended one is
 // only reported.
-func seamFinding(c seamCheck, intended bool) finding {
+func seamFinding(c seamCheck, intended bool, threshold float64) finding {
 	where := "start of layer " + c.Name
 	if c.Shot {
 		where = "start of shot " + c.Name
@@ -170,6 +170,9 @@ func seamFinding(c seamCheck, intended bool) finding {
 	if intended {
 		f.Severity = "info"
 		f.Detail = fmt.Sprintf("frame %d (%s) is an intended cut: %.0f %% of the picture changes in one frame", c.Frame, where, 100*c.At)
+		if c.At < threshold {
+			f.Detail = fmt.Sprintf("frame %d (%s) is marked as a cut, but it was measured and is calm: only %.1f %% of the picture changes in one frame", c.Frame, where, 100*c.At)
+		}
 		f.Fix = "none; the cut is marked on purpose"
 		return f
 	}

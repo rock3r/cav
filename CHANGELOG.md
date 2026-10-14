@@ -11,6 +11,9 @@
     they are the in-frames of top-level groups and pre-comps.
   - A shot with `"cut": true`, or a frame in `--allow-cuts F,...`, is an intended cut. It is
     listed in the new `intended` list and is not counted as a finding.
+    Every marked cut is listed, also when the picture barely changes there (the text says so).
+  - With `--comp`, the storyboard is not used: that comp's own top-level groups and pre-comps
+    give the boundaries.
   - New flags: `--max-seams` (24), `--seam-threshold` (0.05), `--allow-cuts`.
   - `--quick` skips this pass. So do scenes with simulations (use `cav seams --video`).
   - The shot `cut` field is new and optional. A shot that gets `cut` changes, so its review

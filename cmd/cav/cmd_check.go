@@ -58,7 +58,7 @@ A full check also renders the frames around every section boundary (25 % scale, 
 boundary) and flags a boundary where the picture changes by --seam-threshold (0.05) or
 more in one frame, and at least twice as much as in the frames next to it: a pop-in, a
 flash or a jump. A cross-fade or a pan is not flagged. Boundaries are the start of each
-storyboard shot after the first, or else the in-frames of top-level groups and pre-comps.
+storyboard shot after the first (not with --comp), or else the in-frames of top-level groups and pre-comps.
 A shot with "cut": true in storyboard.json, or a frame in --allow-cuts, is an intended cut:
 it is listed under "intended" and not counted. --max-seams (24) bounds the boundaries;
 the rest is skipped. --quick skips this pass, and so do simulations (use cav seams --video).
@@ -508,7 +508,13 @@ func cmdSceneCheck(a *app, args []string) error {
 	if *quick {
 		skipped = append(skipped, map[string]any{"inspection": "seams", "reason": "quick mode"})
 	} else {
-		flagged, intended, checks, seamSkipped, seamFailures, seamErr := a.seamsPass(metadata, a.checkShots, allowedCuts, *maxSeams, *seamThreshold)
+		// The storyboard describes the comp cav board place fills, which is the active comp.
+		// With --comp, the check looks at another comp, so its boundaries come from its layers.
+		seamBoard := a.checkShots
+		if *comp != "" {
+			seamBoard = nil
+		}
+		flagged, intended, checks, seamSkipped, seamFailures, seamErr := a.seamsPass(metadata, seamBoard, allowedCuts, *maxSeams, *seamThreshold)
 		perf = append(perf, flagged...)
 		a.checkIntended, a.checkSeams = intended, checks
 		skipped = append(skipped, seamSkipped...)
