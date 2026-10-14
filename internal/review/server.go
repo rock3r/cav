@@ -230,6 +230,7 @@ func (s *Server) Handler() http.Handler {
 		http.ServeFile(w, r, p)
 	})
 	mux.HandleFunc("GET /api/item/{id}/image", s.itemImage)
+	mux.HandleFunc("GET /api/item/{id}/clip", s.itemClip)
 	mux.HandleFunc("POST /api/approve", s.approve)
 	mux.HandleFunc("POST /api/comments", s.addComment)
 	mux.HandleFunc("POST /api/comments/{id}", s.editComment)

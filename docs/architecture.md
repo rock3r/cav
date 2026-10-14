@@ -355,7 +355,8 @@ never talk to the bridge. They are plain Go around ffmpeg, HTTPS and uv:
   given on. `Reconcile` removes the stage approval when an item changed, was added or
   removed, or something blocks again; the server runs it before every read and write, so
   there is no background loop. The image of an item is served only when it is a regular,
-  non-link image file inside the target's folder, and the video routes answer 404. The
+  non-link image file inside the target's folder (a mood board clip, by `/api/item/{id}/clip`,
+  with the same checks), and the video routes answer 404. The
   approval is written by the page's `POST /api/approve` and by nothing else.
 - `internal/reviewmcp` is `cav mcp`, built on the official Go MCP SDK. It serves the same
   page with `assets/review/mcp-app.js` added, and answers the page's requests in-process
@@ -392,6 +393,13 @@ never talk to the bridge. They are plain Go around ffmpeg, HTTPS and uv:
   `reaper -renderproject`.
 - `internal/board` turns a storyboard into a board sheet, an animatic (ffmpeg concat with one
   still per shot) and mood boards.
+- `internal/moodboard` owns `moodboard.json`: `Sync` keeps the items in line with the folder
+  and the manifest (ids and takes stay; gone files are marked, dropped items stay dropped),
+  `ParseVideoURL` and `PlayerURL` turn a YouTube or Vimeo link into a checked id and the one
+  player address the page may embed, and `ContactSheet` makes the ffmpeg frames of a clip. It
+  has no network code, so `internal/review` stays offline. `internal/sources/oembed.go` asks
+  the sites for a title and a thumbnail (only from their image hosts); cav never downloads a
+  web video.
 
 ### Offline search
 

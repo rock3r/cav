@@ -15,6 +15,8 @@ import (
 
 	"github.com/rock3r/cav/internal/board"
 	"github.com/rock3r/cav/internal/brief"
+	"github.com/rock3r/cav/internal/library"
+	"github.com/rock3r/cav/internal/moodboard"
 )
 
 // Kind is what a review is about: a rendered video, or one of the stills the workflow
@@ -28,9 +30,6 @@ const (
 	KindStoryboard Kind = "storyboard"
 )
 
-// Until the mood board has its own package, its schema lives here.
-const MoodboardSchema = "cav-moodboard/1"
-
 // Item is one thing the reviewer judges on a stills page: a shot, a reference or a field of
 // the brief. SHA changes when the item changes, and a verdict is only valid for the SHA it
 // was given on.
@@ -42,6 +41,16 @@ type Item struct {
 	// Image is the file the page shows; it never leaves the server (see SafeImage).
 	Image    string `json:"-"`
 	HasImage bool   `json:"hasImage"`
+	// Kind, Embed, Clip and Tags are for mood board items. Kind is image, clip or embed.
+	// Embed is the player address of a video, always built from an id that was read out of
+	// the item's link again (see moodboard.ParseVideoURL); it is never the link as written.
+	// Clip is a local video the page plays; it never leaves the server (see SafeClip).
+	Kind    string   `json:"kind,omitempty"`
+	Embed   string   `json:"embed,omitempty"`
+	Clip    string   `json:"-"`
+	HasClip bool     `json:"hasClip,omitempty"`
+	Tags    []string `json:"tags,omitempty"`
+	Credit  string   `json:"credit,omitempty"`
 	// Meta marks a setting of the whole file, such as the storyboard's tempo and style. It
 	// is reviewed like the rest but not counted as an item.
 	Meta bool   `json:"meta,omitempty"`
@@ -190,11 +199,16 @@ var imageExts = map[string]bool{".png": true, ".jpg": true, ".jpeg": true, ".web
 // SafeImage returns the real path of an item's image, or "" when the page must not show it.
 // A target file comes from the project and could name any path, so the image has to be a
 // regular image file that is not a symlink and whose real place is inside the target's folder.
-func SafeImage(target, img string) string {
-	if img == "" || !imageExts[strings.ToLower(filepath.Ext(img))] {
+func SafeImage(target, img string) string { return safeFile(target, img, imageExts) }
+
+// SafeClip is SafeImage for a video file, with the same checks.
+func SafeClip(target, clip string) string { return safeFile(target, clip, moodboard.ClipExts) }
+
+func safeFile(target, p string, exts map[string]bool) string {
+	if p == "" || !exts[strings.ToLower(filepath.Ext(p))] {
 		return ""
 	}
-	info, err := os.Lstat(img)
+	info, err := os.Lstat(p)
 	if err != nil || !info.Mode().IsRegular() {
 		return ""
 	}
@@ -204,7 +218,7 @@ func SafeImage(target, img string) string {
 	if err != nil {
 		return ""
 	}
-	absImg, err := filepath.Abs(img)
+	absFile, err := filepath.Abs(p)
 	if err != nil {
 		return ""
 	}
@@ -212,7 +226,7 @@ func SafeImage(target, img string) string {
 	if err != nil {
 		return ""
 	}
-	real, err := filepath.EvalSymlinks(absImg)
+	real, err := filepath.EvalSymlinks(absFile)
 	if err != nil {
 		return ""
 	}
@@ -314,34 +328,30 @@ func contains(list []string, s string) bool {
 	return false
 }
 
-// moodboardItems reads the references of moodboard.json: {items:[{id,file,url,thumb,take}]}.
-// It is deliberately minimal: the mood board's own schema comes with `cav moodboard`.
+// moodboardItems reads moodboard.json (see the moodboard package). Items that are missing or
+// dropped are not on the board, so they are not items. The hash covers only what the person
+// sees and what the file holds: the bytes of the file, the link, the take (cav's own
+// thumbnails and contact sheets are left out, so making one later changes no verdict), and the words copied from the manifest. A sync that changes nothing changes no hash.
 func moodboardItems(path string) ([]Item, error) {
-	b, err := os.ReadFile(path)
+	mb, err := moodboard.Load(path)
 	if err != nil {
 		return nil, err
 	}
-	var mb struct {
-		Items []struct {
-			ID    string `json:"id"`
-			File  string `json:"file"`
-			URL   string `json:"url"`
-			Thumb string `json:"thumb"`
-			Take  string `json:"take"`
-		} `json:"items"`
-	}
-	if err := json.Unmarshal(b, &mb); err != nil {
-		return nil, fmt.Errorf("%s: %w", path, err)
-	}
-	dir := filepath.Dir(path)
-	at := func(p string) string {
-		if p == "" || filepath.IsAbs(p) {
-			return p
+	digestOf := func(rel string) string {
+		if rel == "" {
+			return ""
 		}
-		return filepath.Join(dir, p)
+		d, err := cachedDigest(mb.Path(rel))
+		if err != nil {
+			return "missing:" + rel
+		}
+		return d
 	}
 	var items []Item
 	for _, r := range mb.Items {
+		if !r.Active() {
+			continue
+		}
 		id := r.ID
 		if id == "" && r.File != "" {
 			id = filepath.Base(r.File)
@@ -349,21 +359,61 @@ func moodboardItems(path string) ([]Item, error) {
 		if id == "" {
 			id = r.URL
 		}
+		kind := r.EffectiveKind()
+		it := Item{ID: id, Title: id, Text: r.Take, Link: r.URL, Kind: kind, Credit: r.Credit}
+		if r.Title != "" {
+			it.Title = r.Title
+		}
 		// The file's bytes and every word the reviewer sees go into the hash.
 		digest := "url:" + r.URL
 		if r.File != "" {
-			d, err := cachedDigest(at(r.File))
-			if err != nil {
-				d = "missing:" + r.File
+			digest = digestOf(r.File)
+		}
+		switch kind {
+		case moodboard.KindEmbed:
+			// The player is rebuilt from the id in the link. A link that is not a YouTube or
+			// Vimeo video gets no player, whatever else the file says.
+			if p, vid, h, ok := moodboard.ParseVideoURL(r.URL); ok {
+				it.Embed = moodboard.PlayerURL(p, vid, h)
+				it.Link = moodboard.PageURL(p, vid, h)
+				it.Tags = append(it.Tags, p, "embed")
+			} else {
+				// Not shown as a link either: the page links only what cav can vouch for.
+				it.Link = ""
+				it.Tags = append(it.Tags, "not a YouTube or Vimeo link")
 			}
-			digest = d
+		case moodboard.KindClip:
+			if c := SafeClip(path, mb.Path(r.File)); c != "" {
+				it.Clip, it.HasClip = c, true
+			}
+			it.Tags = append(it.Tags, "clip")
+			if r.Seconds > 0 {
+				it.Tags = append(it.Tags, fmt.Sprintf("%.1f s", r.Seconds))
+			}
+		default:
+			if r.Source != "" {
+				it.Tags = append(it.Tags, r.Source)
+			}
 		}
-		sha := sum("cav-item/1", "ref", digest, r.Take, r.URL, r.Thumb)
-		img := SafeImage(path, at(r.File))
-		if img == "" {
-			img = SafeImage(path, at(r.Thumb))
+		if r.Licence != "" {
+			if r.Licence == "reference-only" {
+				it.Tags = append(it.Tags, "reference only")
+			} else {
+				it.Tags = append(it.Tags, library.LicenceName(r.Licence))
+			}
 		}
-		items = append(items, Item{ID: id, Title: id, Text: r.Take, Link: r.URL, Image: img, HasImage: img != "", SHA: sha})
+		if r.AddedBy == moodboard.ByBrief {
+			it.Tags = append(it.Tags, "from the brief")
+		}
+		if kind == moodboard.KindImage && r.File != "" {
+			it.Image = SafeImage(path, mb.Path(r.File))
+		}
+		if it.Image == "" && r.Thumb != "" {
+			it.Image = SafeImage(path, mb.Path(r.Thumb))
+		}
+		it.HasImage = it.Image != ""
+		it.SHA = sum("cav-item/1", "ref", kind, digest, r.Take, r.URL, r.Title, r.Licence, r.Credit, r.Source, r.AddedBy)
+		items = append(items, it)
 	}
 	return items, nil
 }

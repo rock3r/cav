@@ -12,6 +12,7 @@ import (
 
 	"github.com/rock3r/cav/internal/brief"
 	"github.com/rock3r/cav/internal/library"
+	"github.com/rock3r/cav/internal/moodboard"
 )
 
 func init() {
@@ -192,9 +193,27 @@ func briefShow(a *app, args []string) error {
 	a.emit(data, func() {
 		printBrief(path, b, refs)
 		printGaps(missing, notes)
+		onBoard := map[string]bool{}
+		if mb, err := moodboard.Load(moodFile("moodboard")); err == nil {
+			for _, it := range mb.Items {
+				if p, id, _, ok := moodboard.ParseVideoURL(it.URL); ok {
+					onBoard[moodboard.EmbedID(p, id)] = true
+				}
+			}
+		}
 		for _, r := range refs {
-			if r.Kind == "file" && r.Exists && !r.Recorded {
-				fmt.Printf("record it: cav ref add %s --licence LICENCE_ID\n", cmdArg(r.Path))
+			switch {
+			case r.Kind == "file" && r.Exists && !r.Recorded:
+				rel := filepath.ToSlash(filepath.Clean(r.Path))
+				if strings.HasPrefix(rel, "moodboard/") {
+					fmt.Printf("record it: cav ref add %s --licence LICENCE_ID --by brief\n", cmdArg(r.Path))
+				} else {
+					fmt.Printf("copy it into moodboard/, then: cav ref add %s --licence LICENCE_ID --by brief\n", cmdArg("moodboard/"+filepath.Base(r.Path)))
+				}
+			case r.Kind == "link":
+				if p, id, _, ok := moodboard.ParseVideoURL(r.Ref); ok && !onBoard[moodboard.EmbedID(p, id)] {
+					fmt.Printf("embed it: cav ref add %s --by brief\n", linkArg(r.Ref))
+				}
 			}
 		}
 	})
@@ -324,6 +343,17 @@ func cmdArg(s string) string {
 	}
 	for _, r := range s {
 		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.ContainsRune("._/-", r)) {
+			return shellArg(s)
+		}
+	}
+	return s
+}
+
+// linkArg writes a link into a command the user may copy: as it is when it holds only safe
+// characters, else quoted.
+func linkArg(s string) string {
+	for _, r := range s {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.ContainsRune("._/:-", r)) {
 			return shellArg(s)
 		}
 	}

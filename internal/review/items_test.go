@@ -191,7 +191,7 @@ func TestFrameBytesCountEvenWhenThePageWillNotShowThem(t *testing.T) {
 	}
 }
 
-func TestMoodboardHashCoversTakeURLAndThumb(t *testing.T) {
+func TestMoodboardHashCoversTakeAndURLButNotThumbnails(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "moodboard.json")
 	writeFile(t, filepath.Join(dir, "a.jpg"), "a")
@@ -204,7 +204,18 @@ func TestMoodboardHashCoversTakeURLAndThumb(t *testing.T) {
 		return items[0].SHA
 	}
 	base := write("")
-	for _, extra := range []string{`,"take":"the colour"`, `,"url":"https://x.test/a"`, `,"thumb":"t.png"`} {
+	for _, extra := range []string{`,"source":"openverse"`, `,"addedBy":"brief"`} {
+		if write(extra) == base {
+			t.Errorf("%s is shown on the page, so it should change the item", extra)
+		}
+	}
+	if write(`,"seconds":3`) != base {
+		t.Error("seconds follows from the clip file and stays out of the hash")
+	}
+	if write(`,"thumb":"t.png"`) != base {
+		t.Error("a generated thumbnail must not change the item")
+	}
+	for _, extra := range []string{`,"take":"the colour"`, `,"url":"https://x.test/a"`} {
 		if write(extra) == base {
 			t.Errorf("%s should change the reference", extra)
 		}

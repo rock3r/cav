@@ -125,7 +125,10 @@ cav review brief.json &                     # the user approves the brief before
 cav ref search "neon city night"            # pick refs; each hit has a service:id ref
 cav ref get openverse:<id>                  # into moodboard/, with licence and credit
 cav ref arena https://www.are.na/<user>/<channel>   # the user's Are.na board, reference only
-cav board mood                              # renders/moodboard.png: look at it
+cav ref add <youtube or vimeo link>        # a web video: embedded, never downloaded, reference only
+cav board mood                              # moodboard.json + renders/moodboard.png: look at it
+cav board mood take <id> "the blue/orange split"   # one take-from-it line per item
+cav review moodboard.json &                 # the user: keep, more like this, drop
 cav board init --shots 6                    # size, fps, length, tempo and title come from brief.json
 # edit storyboard.json: "what" per shot, "style" (prompt, refs, palette)
 cav board frames                            # one frame per shot into board/
@@ -567,7 +570,7 @@ slow or paid work starts.
 | Target | Items | Verdicts | Review file |
 |---|---|---|---|
 | `brief.json` | its fields | approve, redo | `brief.review.json` |
-| `moodboard.json` | references | keep, more (more like this), drop | `moodboard.review.json` |
+| `moodboard.json` | references: images, clips, video embeds | keep, more (more like this), drop | `moodboard.review.json` |
 | `storyboard.json` | shots | approve, redo | `storyboard.review.json` |
 
 - The page shows a grid of items. The user gives a verdict per item and can open an item
@@ -590,6 +593,10 @@ slow or paid work starts.
 - Each item has a hash. When an item changes, the user's old verdict shows as outdated and
   the approval is removed (`approvalCleared` says why). Ask the user to look and approve
   again. A change to one shot does not touch the verdicts on the others.
+- On a mood board, a clip and a YouTube or Vimeo video play on the item (the user presses the
+  play button; nothing loads before). The page shows your take-from-it line under each item.
+  In the chat view (`show_review`), a host may block the player: the link under the item
+  always works, and a clip over 24 MB says to run `cav review moodboard.json`.
 - A mood board or brief review needs `moodboard.json` or `brief.json`; cav reads their items
   from the same file name. `cav brief show` checks a brief first: a brief with a problem does
   not open in review. The hook and `cav mcp` (`show_review`, `review_notes`) work with

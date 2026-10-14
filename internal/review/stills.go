@@ -167,6 +167,32 @@ func (s *Server) itemImage(w http.ResponseWriter, r *http.Request) {
 	http.NotFound(w, r)
 }
 
+// itemClip serves a mood board clip with Range support, so the page can seek. It follows the
+// rules of itemImage: the path comes from the item, is checked again by SafeClip, and nothing
+// else is served. The local server sets no Content-Security-Policy, so a page can embed a
+// player; a future policy needs frame-src https://www.youtube-nocookie.com
+// https://player.vimeo.com and media-src 'self'.
+func (s *Server) itemClip(w http.ResponseWriter, r *http.Request) {
+	if s.Stills == nil {
+		http.NotFound(w, r)
+		return
+	}
+	items, _ := s.items()
+	for _, it := range items {
+		if it.ID != r.PathValue("id") {
+			continue
+		}
+		p := SafeClip(s.Stills.Path, it.Clip)
+		if p == "" {
+			break
+		}
+		w.Header().Set("Cache-Control", "no-cache")
+		http.ServeFile(w, r, p)
+		return
+	}
+	http.NotFound(w, r)
+}
+
 func isFullSHA(s string) bool {
 	return len(s) == 64 && strings.Trim(s, "0123456789abcdef") == ""
 }

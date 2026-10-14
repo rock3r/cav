@@ -299,6 +299,17 @@
     }
   }).observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ['src'] });
 
+  // ---------- links: the sandboxed frame cannot open a tab, so ask the host ----------
+  // A mood board item links to its page (a video on YouTube or Vimeo, a photo's source). A
+  // host that does not support ui/open-link refuses the request, and the link then opens the
+  // usual way.
+  document.addEventListener('click', e => {
+    const a = e.target.closest && e.target.closest('a[target="_blank"]');
+    if (!a || !/^https?:\/\//i.test(a.href)) return;
+    e.preventDefault();
+    request('ui/open-link', { url: a.href }).catch(() => { window.open(a.href, '_blank', 'noopener,noreferrer'); });
+  });
+
   // ---------- size: tell the host how tall the page is ----------
   let lastH = 0;
   const report = () => {
