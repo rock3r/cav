@@ -21,7 +21,7 @@ cav config set-key openai op://Private/OpenAI/api key    # or env:NAME, keychain
 Local models run on this machine. mflux runs open image models (default FLUX.2 klein 4B)
 through uv on Apple silicon, in about 20 s per 16:9 still. Its first run downloads about
 16 GB, so the default `image` order uses mflux only once the model is in the Hugging Face
-cache: after the keyed services, before comfyui and greybox. Run
+cache: after the keyed services, before comfyui, sketch and greybox. Run
 `cav gen image "<prompt>" --service mflux` once to download it (ask the user first).
 With `--ref`, mflux edits from all the reference images.
 rembg cuts the background out of an image with BiRefNet (`birefnet-general`), on any
@@ -89,7 +89,7 @@ key into the chat: ask them to run `cav config set-key` themselves.
 
 | Job | Free | With a key |
 |---|---|---|
-| `image` (frames, stills) | greybox cards; mflux (Apple silicon), comfyui (your server) | gemini, openai, openrouter, fal |
+| `image` (frames, stills) | sketch (your SVG per shot, rendered by Cavalry), greybox cards; mflux (Apple silicon), comfyui (your server) | gemini, openai, openrouter, fal |
 | `image.alpha` (transparent PNG) | rembg (through uv): cuts out an image that an `image` service made | openai, recraft |
 | `image.vector` (SVG) | vtracer, potrace (if installed) | recraft |
 | `video` (moving animatic shots) | none (the animatic holds each frame) | veo |
@@ -164,9 +164,10 @@ cav board place                             # the frames as placeholder layers i
   clip's last frame. Veo adds its own sound; the animatic drops it and plays only the
   music. Each clip costs money, so animate only the shots where movement changes the
   decision, and name them with `--only` (or pass `--all`).
-- Greybox cards are text placeholders. For a greybox made of real shapes, build it in
-  Cavalry, render it with `cav frame <n> -o board/s3.png`, and set that shot's `"frame"`.
-  `cav board frames` keeps frames that exist (`--force` remakes them).
+- Greybox cards are text placeholders: they show no composition. With no image service,
+  write a sketch for each shot instead (see "Sketch frames" below). For a greybox made of
+  real shapes in Cavalry, build it, render it with `cav frame <n> -o board/s3.png`, and set
+  that shot's `"frame"`. `cav board frames` keeps frames that exist (`--force` remakes them).
 - `cav board place` starts the build. It adds each frame to the active composition as an
   image layer named by its shot id (`s1`, `s2`, ...), shown from its start beat to its end
   beat at the composition's frame rate, and scaled to fit. Time 0 of the music is the
@@ -178,6 +179,58 @@ cav board place                             # the frames as placeholder layers i
   placeholder to have it fitted again) and keeps any shot whose name a built layer
   already uses.
   `--only s2,s3` places some shots; `--comp NAME` targets another composition.
+
+### Sketch frames
+
+With no image service, `cav board frames` can draw each frame from an SVG that you write.
+This shows the composition, which a text card cannot. The image order is gemini, openai,
+openrouter, fal, mflux, comfyui, sketch, greybox, so a sketch is used only when no
+generating service can run.
+
+- When: you have no image key, or you want exact control of one shot. Write one SVG per
+  shot, `board/<id>.svg` next to the storyboard (`board/s1.svg`), with the storyboard's
+  size as its canvas. The root is `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0
+  1920 1080">`; use the width and height from `storyboard.json`. A different shape of
+  canvas is refused.
+- What to draw: the key moment of the shot as a composition, not a detailed picture. Use
+  only `rect`, `circle`, `ellipse`, `line`, `polyline`, `polygon`, `path` and `g`, and
+  fewer than about 100 shapes. Use flat fills from `style.palette`: the first colour is the
+  background, the second is the foreground, and the accent goes only on the subject. Leave
+  a lot of empty space. Show text as grey bars unless the shot is about the words. Show
+  movement as a faint copy of the shape at its start position, and a thin line along its
+  path.
+- Refused: scripts, event attributes (`onclick`), `image`, `foreignObject`, `style`
+  elements, links to other files, `url(` that does not point inside the file, a `DOCTYPE`,
+  files over 512 KiB, more than 2000 elements, and nesting deeper than 32. cav lists every
+  problem with its line number and makes no frame until you fix them.
+- Run `cav board frames`. cav checks all the SVGs, then renders each one through Cavalry
+  and writes `board/<id>.png`; the shot's `source` is `sketch`. Shots with no SVG get a
+  greybox card, and cav lists them so you can write the SVGs and run the command again.
+  `cav board frames --service sketch [--only s3]` renders only sketches and refuses when
+  an SVG is missing.
+- Edit loop: change the SVG, then run `cav board frames --only s3`. A sketch is drawn
+  again when its SVG is newer than its PNG; other frames are kept. The SVG stays in
+  `board/` for editing.
+- Cavalry must be open with the bridge. cav draws in a scratch scene and opens your scene
+  again afterwards, so it refuses when the open scene has unsaved changes: ask the user to
+  save (`cav scene save`) first. An empty untitled scene is fine. Cavalry shows the scratch
+  scene for a few seconds. If Cavalry is not open, the default order falls back to cards
+  and says so.
+- During review, redrawing a shot changes its frame, so the user's verdict on that shot
+  shows as outdated and the approval is removed. After the user approves, render only the
+  shot that changed (`--only s3`); do not use `--force` on all shots.
+
+Example, `board/s1.svg` for a logo that lands in the centre of a 1920x1080 board:
+
+```xml
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080">
+  <rect x="780" y="360" width="360" height="360" rx="48" fill="#f5f7fa"/>
+  <circle cx="960" cy="540" r="90" fill="#ff4d2e"/>
+  <rect x="660" y="800" width="600" height="28" rx="14" fill="#f5f7fa" opacity="0.4"/>
+  <rect x="780" y="120" width="360" height="360" rx="48" fill="#f5f7fa" opacity="0.12"/>
+  <line x1="960" y1="300" x2="960" y2="360" stroke="#f5f7fa" stroke-width="4" opacity="0.4"/>
+</svg>
+```
 
 ## 4. Assets
 
@@ -590,7 +643,7 @@ slow or paid work starts.
   `approved`, the `items` with their verdicts, and `blockers`.
 - The page shows a shot's `why` under its text. Adding or changing `why` changes the shot, so
   its verdict becomes outdated once and the user judges it again.
-- To fix a note, change the item in its file (for a shot: its `what`, or its frame with
+- To fix a note, change the item in its file (for a shot: its `what`, its sketch SVG, or its frame with
   `cav board frames --force`), then run `cav review resolve <id> --note "what changed"`.
   Do not mark anything approved: there is no command for that, and you must never edit
   `approved` by hand. The page holds a secret that the server needs for an approval, so the

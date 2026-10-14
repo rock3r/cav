@@ -384,6 +384,7 @@ var Catalog = map[string]*Def{
 		Signup: "cargo install vtracer, or https://github.com/visioncortex/vtracer/releases"},
 	"potrace": {Title: "potrace (trace PNG to SVG in one colour, local)", Kind: KindLocal, Jobs: []string{"image.vector"}, Binary: "potrace",
 		Signup: "brew install potrace"},
+	"sketch":  {Title: "Sketch frames: the agent's SVG per shot, rendered by Cavalry (free; needs Cavalry open)", Kind: KindBuiltin, Jobs: []string{"image"}},
 	"greybox": {Title: "Greybox frames drawn by cav (free)", Kind: KindBuiltin, Jobs: []string{"image"}},
 }
 

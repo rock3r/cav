@@ -73,7 +73,7 @@ func TestPickSkipsUnusableServices(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ch.Service != "greybox" || len(ch.Skipped) != 6 {
+	if ch.Service != "sketch" || len(ch.Skipped) != 6 {
 		t.Fatalf("no keys: got %s, skipped %v", ch.Service, ch.Skipped)
 	}
 	t.Setenv("OPENAI_API_KEY", "sk-test")
@@ -90,6 +90,12 @@ func TestPickSkipsUnusableServices(t *testing.T) {
 	ch, _ = Pick(context.Background(), c, "image", "")
 	if ch.Service != "greybox" {
 		t.Fatalf("configured order ignored: %s", ch.Service)
+	}
+	if err := c.SetOrder("image", []string{"sketch", "greybox"}); err != nil {
+		t.Fatalf("sketch is not accepted in the image order: %v", err)
+	}
+	if ch, _ := Pick(context.Background(), c, "image", ""); ch.Service != "sketch" {
+		t.Fatalf("sketch first: got %s", ch.Service)
 	}
 	if err := c.SetOrder("music", []string{"pexels"}); err == nil {
 		t.Fatal("pexels cannot make music")

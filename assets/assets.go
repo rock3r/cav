@@ -57,3 +57,8 @@ var BoardPlace string
 //
 //go:embed reframe/reframe.js
 var Reframe string
+
+// BoardSketch is the native job that renders one sketch SVG for cav board frames.
+//
+//go:embed board/sketch.js
+var BoardSketch string

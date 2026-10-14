@@ -161,25 +161,44 @@ func cmdScene(a *app, args []string) error {
 	return usageErr("unknown scene command %q", sub)
 }
 
+// sceneWork says whether the open scene holds work that opening or making another scene
+// would lose.
+type sceneWork struct {
+	Unsaved bool   `json:"unsaved"`
+	Path    string `json:"path"`
+	Layers  int    `json:"layers"`
+}
+
+// sceneWorkJS reads the fields of sceneWork. Layers counts the layers of every comp, not the comps.
+const sceneWorkJS = `{unsaved: api.sceneHasUnsavedChanges(), path: api.getSceneFilePath(), layers: api.getAllSceneLayers().filter(function (id) { return api.getLayerType(id) !== 'compNode' }).length}`
+
+func readSceneWork(a *app) (sceneWork, error) {
+	var w sceneWork
+	err := a.jsCall("return "+sceneWorkJS, time.Minute, &w)
+	return w, err
+}
+
+// hasUnsaved says whether the scene has changes that are not saved. An untitled scene with no
+// layers holds no work, even if Cavalry flags it as changed.
+func (w sceneWork) hasUnsaved() bool { return w.Unsaved && (w.Path != "" || w.Layers > 0) }
+
+func (w sceneWork) name() string {
+	if w.Path == "" {
+		return "the untitled scene"
+	}
+	return w.Path
+}
+
 func guardUnsaved(a *app, force bool) error {
 	if force {
 		return nil
 	}
-	var st struct {
-		Unsaved bool   `json:"unsaved"`
-		Path    string `json:"path"`
-		Layers  int    `json:"layers"`
-	}
-	if err := a.jsCall(`return {unsaved: api.sceneHasUnsavedChanges(), path: api.getSceneFilePath(), layers: api.getAllSceneLayers().filter(function (id) { return api.getLayerType(id) !== 'compNode' }).length}`, time.Minute, &st); err != nil {
+	w, err := readSceneWork(a)
+	if err != nil {
 		return err
 	}
-	// An untitled scene with no layers holds no work, even if Cavalry flags it as changed.
-	if st.Unsaved && (st.Path != "" || st.Layers > 0) {
-		name := st.Path
-		if name == "" {
-			name = "the untitled scene"
-		}
-		return fail(exitError, "unsaved changes in "+name,
+	if w.hasUnsaved() {
+		return fail(exitError, "unsaved changes in "+w.name(),
 			"save them first (cav scene save <file.cv>), or pass --force to discard them")
 	}
 	return nil

@@ -117,6 +117,13 @@ few words, `style.palette` to the chosen colours, and `style.refs` to the kept m
 show it. Use image items only: a clip's contact sheet and a video thumbnail are not references to send. `cav board frames` sends these with every frame. Write what happens in each shot (`what`) and why it is there (`why`: what the viewer learns or feels; you write it, not the user),
 then run `cav board frames` and `cav board sheet`. Look at `renders/board.png` and fix the weak shots.
 
+Frames come from the best image source available: an image service (Gemini and the other keyed
+services, then mflux and comfyui), then a sketch, then a greybox card. With no image service, write
+one SVG per shot (`board/s1.svg`, ...) before you run `cav board frames`: cav renders each one
+through Cavalry as a sketch (`cav guide production`, "Sketch frames"). A text card shows no
+composition, so do not take a storyboard of cards to the user for review. Cavalry must be open,
+and the open scene must be saved or empty.
+
 Then let the user review the storyboard. Start the review page in the background
 (`cav review storyboard.json &`; on Windows, in a second terminal), give the user its URL,
 then run `cav review wait storyboard.json`. The user gives a verdict on each shot, draws and

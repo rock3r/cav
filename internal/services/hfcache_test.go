@@ -91,7 +91,7 @@ func TestPickUsesMfluxOnlyWhenItsModelIsCached(t *testing.T) {
 	t.Setenv("HF_HUB_CACHE", cache)
 	c := &Config{}
 	ch, err := Pick(context.Background(), c, "image", "")
-	if err != nil || ch.Service != "greybox" {
+	if err != nil || ch.Service != "sketch" {
 		t.Fatalf("no weights: got %+v %v", ch, err)
 	}
 	if !strings.Contains(strings.Join(ch.Skipped, "\n"), "mflux: the flux2-klein-4b weights are not downloaded yet (about 16 GB)") {
@@ -104,14 +104,14 @@ func TestPickUsesMfluxOnlyWhenItsModelIsCached(t *testing.T) {
 	if ch, err := Pick(context.Background(), c, "image", ""); err != nil || ch.Service != "mflux" {
 		t.Fatalf("cached weights: got %+v %v", ch, err)
 	}
-	if ch, _ := Pick(context.Background(), c.WithModel("mflux", "flux2-klein-9b"), "image", ""); ch.Service != "greybox" {
+	if ch, _ := Pick(context.Background(), c.WithModel("mflux", "flux2-klein-9b"), "image", ""); ch.Service != "sketch" {
 		t.Fatalf("a --model that is not cached: got %s", ch.Service)
 	}
 	if c.Models["mflux"] != "" {
 		t.Fatal("WithModel changed the config it copied")
 	}
 	c.Models = map[string]string{"mflux": "flux2-klein-9b"}
-	if ch, _ := Pick(context.Background(), c, "image", ""); ch.Service != "greybox" {
+	if ch, _ := Pick(context.Background(), c, "image", ""); ch.Service != "sketch" {
 		t.Fatalf("the configured model is not cached: got %s", ch.Service)
 	}
 	if ch, _ := Pick(context.Background(), c.WithModel("mflux", "flux2-klein-4b"), "image", ""); ch.Service != "mflux" {

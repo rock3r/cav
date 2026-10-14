@@ -336,6 +336,13 @@ step refuse="elevenlabs: no key: CAV_NO_KEYS is set" "sfx gen: no key" sfx gen "
 
 # --- Storyboard, assets, credits ----------------------------------------------------
 step ok "board init" board init --bpm 120 --fps 30 --seconds 4 --shots 2 -o storyboard.json
+# board frames refuses the placeholder "what" that board init writes.
+python3 -I -c 'import json,sys
+p = sys.argv[1]
+d = json.load(open(p))
+for s in d["shots"]:
+    s["what"] = "smoke test shot " + s["id"]
+json.dump(d, open(p, "w"), indent=2)' storyboard.json
 step ok "board frames (greybox)" board frames storyboard.json --service greybox
 step ok "board sheet" board sheet storyboard.json -o renders/board.png
 step ok "board animatic" board animatic storyboard.json --audio click.wav -o renders/animatic.mp4

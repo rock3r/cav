@@ -117,7 +117,7 @@ func genImage(a *app, args []string) error {
 	}
 	var im *imagegen.Image
 	switch ch.Service {
-	case "greybox":
+	case "greybox", "sketch":
 		data, err := imagegen.Greybox(imagegen.Card{Title: "placeholder", Lines: []string{prompt}, Footer: "greybox: add an image key (cav config) to generate"})
 		if err != nil {
 			return err
@@ -215,7 +215,7 @@ func generateThenCutout(ctx context.Context, c *services.Config, ch *services.Ch
 	if err != nil {
 		return nil, fail(exitError, err.Error(), "see cav config")
 	}
-	if gen.Service == "greybox" {
+	if gen.Service == "greybox" || gen.Service == "sketch" {
 		return nil, fail(exitError, ch.Service+" cuts the background out of a generated image, but no image service can make one (only greybox is usable)",
 			"add an image key (cav config), or cut out an image you have: cav gen cutout <image>")
 	}
