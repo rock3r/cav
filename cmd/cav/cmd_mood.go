@@ -93,6 +93,9 @@ func boardMood(a *app, args []string) error {
 	if err != nil {
 		return fail(exitError, err.Error(), "put reference images in "+dir+", for example with cav ref get")
 	}
+	for _, f := range ch.Skipped {
+		notes = append(notes, f+" is not shown: convert it to PNG or JPEG")
+	}
 	root := library.Root()
 	var tiles []board.MoodTile
 	phDir := ""

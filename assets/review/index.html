@@ -1372,7 +1372,7 @@ function startStills(s0) {
     const tags = it.tags && it.tags.length ? `<p class="card-tags">${it.tags.map(t => `<span>${esc(t)}</span>`).join('')}</p>` : '';
     const credit = it.credit ? `<p class="card-credit">${esc(it.credit)}</p>` : '';
     const open = it.openNotes ? `<span>${it.openNotes} open note${it.openNotes > 1 ? 's' : ''}</span>` : '';
-    return `<article class="card${focus === it.id ? ' sel' : ''}" data-id="${esc(it.id)}">
+    return `<article class="card${focus === it.id ? ' sel' : ''}" data-id="${esc(it.id)}" data-sha="${it.sha}">
       ${showBox ? cardImage(it) : ''}
       <div class="card-body">
         <div class="card-head"><b>${esc(it.id)}</b><span class="sha" title="${it.sha}">${it.sha.slice(0, 7)}</span></div>
@@ -1387,6 +1387,25 @@ function startStills(s0) {
       </div>
     </article>`;
   }
+  // Draw the cards without touching a card whose clip or video is playing: moving or
+  // recreating a player stops it, and a verdict (which redraws the grid) must not. Such a
+  // card keeps its own node and gets only a fresh body. A card whose item changed is new.
+  function patchGrid(grid) {
+    const tmp = document.createElement('div');
+    tmp.innerHTML = s.items.map(card).join('');
+    const old = new Map([...grid.children].filter(c => c.classList.contains('card')).map(c => [c.dataset.id, c]));
+    const nodes = [...tmp.children].map(n => {
+      const o = old.get(n.dataset.id);
+      if (o && o.dataset.sha === n.dataset.sha && o.querySelector('.card-img.playing') && n.querySelector('.card-img.playing')) {
+        o.querySelector('.card-body').replaceWith(n.querySelector('.card-body'));
+        return o;
+      }
+      return n;
+    });
+    const keep = new Set(nodes);
+    [...grid.children].forEach(c => { if (!keep.has(c)) c.remove(); });
+    nodes.forEach((n, i) => { const at = grid.children[i]; if (at !== n) grid.insertBefore(n, at || null); });
+  }
   let gridSig = '';
   function renderGrid(force) {
     const grid = $('grid');
@@ -1395,7 +1414,8 @@ function startStills(s0) {
       gridSig = sig;
       const top = grid.scrollTop;
       grid.classList.toggle('one', s.kind === 'brief');
-      grid.innerHTML = s.items.map(card).join('') || '<p class="hint" style="padding-left:12px">Nothing to review yet.</p>';
+      if (!s.items.length) grid.innerHTML = '<p class="hint" style="padding-left:12px">Nothing to review yet.</p>';
+      else patchGrid(grid);
       grid.scrollTop = top;
     }
     grid.querySelectorAll('.card').forEach(c => c.classList.toggle('sel', c.dataset.id === focus));

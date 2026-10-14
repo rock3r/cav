@@ -69,10 +69,14 @@ type Item struct {
 // Active says whether the item is on the board.
 func (it Item) Active() bool { return it.Status == "" }
 
-// KindOfFile says what kind of item a file is, or "" when it is neither an image nor a clip.
+// ImageExts are the image files a mood board shows: the review page can display these.
+var ImageExts = map[string]bool{".png": true, ".jpg": true, ".jpeg": true, ".webp": true, ".gif": true}
+
+// KindOfFile says what kind of item a file is, or "" when it is neither an image the page can
+// show nor a clip. An image of another type (tiff, bmp) has no kind: see Changes.Skipped.
 func KindOfFile(name string) string {
 	switch {
-	case board.IsImageFile(name):
+	case ImageExts[strings.ToLower(filepath.Ext(name))]:
 		return KindImage
 	case ClipExts[strings.ToLower(filepath.Ext(name))]:
 		return KindClip
@@ -244,6 +248,8 @@ type Changes struct {
 	Added   []string `json:"added"`
 	Missing []string `json:"missing"`
 	Revived []string `json:"revived"`
+	// Skipped lists images the page cannot show (tiff, bmp), as paths relative to the file.
+	Skipped []string `json:"skipped"`
 }
 
 // Slug makes an id from a file name: lower case words joined by dashes.
@@ -348,6 +354,9 @@ func Sync(jsonPath, dir string, m *library.Manifest, root string) (*Board, Chang
 		}
 		kind := KindOfFile(name)
 		if kind == "" {
+			if board.IsImageFile(name) {
+				ch.Skipped = append(ch.Skipped, filepath.ToSlash(filepath.Join(b.Dir, name)))
+			}
 			continue
 		}
 		abs := filepath.Join(absDir, name)
