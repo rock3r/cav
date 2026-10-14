@@ -125,6 +125,7 @@ function reframe() {
 		nodes[id] = n
 		n.childIds = api.getChildren(id) || []
 		if (over) return n
+		n.measured = true
 		order.push(id)
 		n.childIds.forEach(function (c) {
 			var cn = addNode(c, id)
@@ -186,6 +187,7 @@ function reframe() {
 
 	// Sample the frames. A leaf counts on a frame where it is visible: inside its own and its
 	// ancestors' in and out frames, not hidden, with opacity above 0.
+	var framesSkipped = false
 	var frames = sampleFrames(start, end, opts.samples || 12)
 	leaves.forEach(function (id) {
 		nodes[id].looks = []
@@ -193,6 +195,7 @@ function reframe() {
 	frames.forEach(function (f) {
 		if (Date.now() - began > budget) {
 			coverageComplete = false
+			framesSkipped = true
 			return
 		}
 		api.setFrame(f)
@@ -279,6 +282,11 @@ function reframe() {
 			})
 		}
 	}
+	// A layer named in --key is content, never a background.
+	if (keyMode === 'explicit')
+		Object.keys(keySet).forEach(function (id) {
+			delete bgs[id]
+		})
 	function underKey(id) {
 		while (id) {
 			if (keySet[id]) return true
@@ -286,6 +294,14 @@ function reframe() {
 		}
 		return false
 	}
+	// The fit is only as good as the key measurement: every node under a key layer must have
+	// been collected, and every sample frame measured.
+	function subtreeMeasured(id) {
+		var n = nodes[id]
+		if (!n.measured || n.children.length !== n.childIds.length) return false
+		return n.children.every(subtreeMeasured)
+	}
+	var keyComplete = !framesSkipped && Object.keys(keySet).every(subtreeMeasured)
 	var keyBoxes = []
 	leaves.forEach(function (id) {
 		if (!underKey(id)) return
@@ -362,8 +378,11 @@ function reframe() {
 					return v > 0
 				})
 			if (sizes.length) {
-				var px = Math.min.apply(null, sizes) * a.k
-				if (px < opts.minText) find('small-text', id, 'text would be ' + Math.round(px) + ' px (at ' + Math.min(Wt, Ht) + ' px wide); below ' + opts.minText + ' px it is hard to read on a phone', 'raise its size to at least ' + Math.round(opts.minText / a.k) + ' in the copy, or cut the text')
+				// --min-text is in pixels at 1080p, so the size in the copy is normalised to the short side.
+				var px = Math.min.apply(null, sizes) * a.k,
+					norm = (px * 1080) / Math.min(Wt, Ht),
+					needPx = Math.ceil((opts.minText * Math.min(Wt, Ht)) / 1080)
+				if (norm < opts.minText) find('small-text', id, 'text would be ' + Math.round(norm) + ' px (at 1080p); below ' + opts.minText + ' px it is hard to read on a phone', 'make it at least ' + needPx + ' px tall in the ' + Wt + 'x' + Ht + ' copy (font size ' + Math.ceil(needPx / a.k) + ' before the fit scale), or cut the text')
 			}
 		}
 	})
@@ -417,6 +436,12 @@ function reframe() {
 		if (n.dynamic) plan.wrapped.push({ id: id, name: n.name, group: null })
 		else plan.direct.push({ id: id, name: n.name })
 	})
+	if (!keyComplete) {
+		var N = MAX_LAYERS
+		if (opts.dryRun || opts.scale > 0)
+			warnings.push('the key layers have more than ' + N + ' nodes or took too long to measure, so the fit comes from a partial box' + (opts.scale > 0 ? ' (the scale is yours; the centre is a guess)' : '; a real run needs --key with fewer layers, or --scale S'))
+		else throw new Error('the key layers have more than ' + N + ' nodes or took too long to measure, so the fit would be a guess: pass --key with fewer layers, or --scale S to set the scale yourself')
+	}
 	if (opts.dryRun) {
 		restoreView()
 		return plan

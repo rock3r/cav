@@ -338,7 +338,7 @@ test('layers hidden or outside their in and out frames do not count toward the k
 test('top-level layers after the layer cap are still transformed, and a late bg still covers the frame', () => {
 	const dots = Array.from({ length: 450 }, (_, i) => ({ name: 'dot' + i, box: [-10, 10, 10, -10] }))
 	const cv = fakeCavalry({ layers: [{ name: 'rig', children: dots }, { name: 'bg', box: FULL }, { name: 'late', pos: { x: 100, y: 0 }, box: [90, 110, 10, -10] }] })
-	const r = run(cv, {})
+	const r = run(cv, { scale: 0.5 })
 	assert.equal(r.coverageComplete, false)
 	assert.deepEqual(r.backgrounds.map(b => b.name), ['bg'])
 	near(topNamed(cv, r.target.id, 'bg').scale.x, 1920 / 1080)
@@ -363,6 +363,42 @@ test('top-level nodes without position and scale (sound, noise) are kept untouch
 	}
 	assert.equal(r.direct.length + r.wrapped.length, 1)
 	assert.equal(run(fakeCavalry({ layers: [{ name: 'rig', children: [{ name: 'card', box: FULL }] }] }), { dryRun: true }).kept.length, 0)
+})
+
+test('an incomplete key measurement refuses to build, unless --scale is given', () => {
+	const big = () => fakeCavalry({ layers: [{ name: 'rig', children: Array.from({ length: 450 }, (_, i) => ({ name: 'dot' + i, box: [-10, 10, 10, -10] })) }] })
+	const cv = big()
+	assert.throws(() => run(cv, {}), /the fit would be a guess: pass --key with fewer layers, or --scale S/)
+	assert.deepEqual(Object.keys(cv.comps), [cv.source])
+	assert.equal(cv.mutations.length, 0)
+	const d = run(big(), { dryRun: true })
+	assert.ok(d.warnings.some(w => /partial box/.test(w)))
+	const ok = run(big(), { scale: 0.5 })
+	assert.equal(ok.scale, 0.5)
+	assert.ok(ok.warnings.some(w => /partial box/.test(w)))
+	// A time budget hit while sampling counts the same way.
+	assert.throws(() => run(fakeCavalry(launch()), { budgetMs: -1 }), /the fit would be a guess/)
+})
+
+test('a layer named in --key is never treated as a background', () => {
+	const spec = () => ({ layers: [{ name: 'bg', box: FULL }, { name: 'rig', children: [{ name: 'card', box: [-400, 400, 200, -200] }] }] })
+	assert.deepEqual(run(fakeCavalry(spec()), { dryRun: true }).backgrounds.map(b => b.name), ['bg'])
+	const r = run(fakeCavalry(spec()), { key: ['bg'], dryRun: true })
+	assert.deepEqual(r.backgrounds, [])
+	assert.deepEqual(r.key.layers.map(k => k.name), ['bg'])
+})
+
+test('small text is judged at 1080p and the fix is in target pixels (3840x2160 source)', () => {
+	const spec = { w: 3840, h: 2160, layers: [{ name: 'rig', children: [{ name: 'card', box: [-1920, 1920, 1080, -1080] }, { name: 'title', type: 'textShape', size: 100, box: [-300, 300, 100, 0] }] }] }
+	const r = run(fakeCavalry(spec), { dryRun: true })
+	assert.deepEqual([r.target.w, r.target.h], [2160, 3840])
+	const t = r.findings.find(f => f.kind === 'small-text')
+	// 100 px x 0.50625 = 50.6 px in the 2160-wide copy = 25.3 px at 1080p, below 28.
+	assert.ok(t && /25 px \(at 1080p\)/.test(t.detail), JSON.stringify(r.findings))
+	assert.match(t.fix, /at least 56 px tall in the 2160x3840 copy/)
+	// Large enough text raises no finding.
+	spec.layers[0].children[1].size = 120
+	assert.ok(!run(fakeCavalry(spec), { dryRun: true }).findings.some(f => f.kind === 'small-text'))
 })
 
 test('only identical target dimensions are refused: near-9:16 and near-square comps are reframed', () => {
