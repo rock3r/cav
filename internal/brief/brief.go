@@ -159,6 +159,10 @@ func Parse(data []byte, dir string) *Brief {
 		b.problem("%s", syntaxMessage(data, err))
 		return b
 	}
+	if raw == nil {
+		b.problem("a brief must be a JSON object like {\"title\": \"...\"}, not null")
+		return b
+	}
 	keys := make([]string, 0, len(raw))
 	for k := range raw {
 		keys = append(keys, k)

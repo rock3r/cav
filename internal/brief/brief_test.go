@@ -249,3 +249,10 @@ func TestFieldsOrderAndText(t *testing.T) {
 		t.Error("a problem should fail")
 	}
 }
+
+func TestNullIsNotABrief(t *testing.T) {
+	b := Parse([]byte("null"), ".")
+	if len(b.Problems()) == 0 {
+		t.Fatal("a null document must be a problem")
+	}
+}

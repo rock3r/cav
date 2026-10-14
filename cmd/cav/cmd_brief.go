@@ -125,9 +125,9 @@ func briefInit(a *app, args []string) error {
 	a.emit(map[string]any{"file": *out, "brief": b, "missing": nonNil(missing), "notes": nonNil(notes)}, func() {
 		fmt.Printf("wrote %s\n", *out)
 		printGaps(missing, notes)
-		show, review := "cav brief show", "cav review "+*out
+		show, review := "cav brief show", "cav review "+cmdArg(*out)
 		if *out != brief.FileName {
-			show += " " + *out
+			show += " " + cmdArg(*out)
 		}
 		fmt.Printf("Check it: %s\nThen ask the user to review it: %s &\n", show, review)
 	})
@@ -194,7 +194,7 @@ func briefShow(a *app, args []string) error {
 		printGaps(missing, notes)
 		for _, r := range refs {
 			if r.Kind == "file" && r.Exists && !r.Recorded {
-				fmt.Printf("record it: cav ref add %s --licence LICENCE_ID\n", shellArg(r.Path))
+				fmt.Printf("record it: cav ref add %s --licence LICENCE_ID\n", cmdArg(r.Path))
 			}
 		}
 	})
@@ -314,4 +314,15 @@ func refKind(r briefRef) string {
 		return "file; recorded, licence " + r.Licence
 	}
 	return "file; not recorded yet"
+}
+
+// cmdArg writes a path into a command the user may copy: as it is when it holds only safe
+// characters, else quoted with shellArg.
+func cmdArg(s string) string {
+	for _, r := range s {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.ContainsRune("._/-", r)) {
+			return shellArg(s)
+		}
+	}
+	return s
 }
