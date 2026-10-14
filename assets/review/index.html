@@ -1337,7 +1337,7 @@ function startStills(s0) {
     return it.outdated ? `<span class="old" title="The item changed after this verdict, so it no longer counts"><s>${esc(VLABEL[it.oldVerdict] || it.oldVerdict)}</s> · changed since</span>` : '';
   }
   function card(it) {
-    const showBox = it.hasImage || s.kind === 'storyboard';
+    const showBox = it.hasImage || (s.kind === 'storyboard' && !it.meta);
     const link = it.link ? (safeLink(it.link) ? `<a href="${esc(it.link)}" target="_blank" rel="noopener noreferrer">${esc(it.link)}</a>` : esc(it.link)) : '';
     const text = [it.text ? esc(it.text) : '', link].filter(Boolean).join('\n');
     const open = it.openNotes ? `<span>${it.openNotes} open note${it.openNotes > 1 ? 's' : ''}</span>` : '';
