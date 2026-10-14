@@ -17,7 +17,7 @@ stage. When the user has no preference, follow the standard flow below.
 | 1. Brief | none; you work as a creative director | `brief.md` and `brief.json`, written by hand | The user confirms the brief in chat | The user gives a complete brief |
 | 2. Mood board | `cav ref search`, `get`, `arena`, `add`; `cav board mood` | `moodboard/`, `renders/moodboard.png` | Show `renders/moodboard.png` to the user | The user brings a style guide or frames |
 | 3. Storyboard | `cav board init`, `frames`, `sheet` | `storyboard.json`, `board/`, `renders/board.png` | The user approves the storyboard | The piece is under about 8 seconds, or has one shot |
-| 4. Music and animatic | `cav music gen`, `cav beats -o build/grid.json`, `cav board motion`, `cav board animatic`, `cav review` | `music/`, `build/grid.json`, `renders/animatic.mp4` | The user reviews the animatic (`cav review renders/animatic.mp4`) | Skip music generation when the user brings a track. Skip the whole stage only when the piece has no music. |
+| 4. Music and animatic | `cav music gen`, `cav beats -o build/grid.json`, `cav board motion`, `cav board animatic`, `cav review` | `music/`, `build/grid.json`, `renders/animatic.mp4` | The user reviews the animatic (`cav review renders/animatic.mp4`) | Skip music generation when the user brings a track. Without music, or without a storyboard, skip the animatic; use the track directly in the build. |
 | 5. Build loop | `cav board place`, `cav run`, `cav sheet`, `cav onion`, `cav check`, `cav render`, `cav review` | `build/*.js`, `scenes/*.cv`, `renders/` | The user approves the render | Never |
 
 ## 2. Only the build loop is mandatory
@@ -75,7 +75,8 @@ approval, every change costs a generation, a music take or a render.
 3. Optional moving shots: `cav board motion --only s2,s5`.
 4. Animatic: `cav board animatic --audio <track>`. It uses the approved frames as they are,
    so the user does not approve the frames a second time. The review is only about timing
-   against the music: `cav review renders/animatic.mp4`, then `cav review wait`.
+   against the music. Start the review page in the background
+   (`cav review renders/animatic.mp4 &`), give the user its URL, then run `cav review wait`.
 
 ## 7. Stage 5: the build loop
 

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `cav beats -o` creates the output folder. Before, `cav beats track.wav -o build/grid.json`
+  failed in a new project because nothing had made `build/` yet.
 - A new guide, `cav guide flow` (#88), describes the production flow as a menu of five stages:
   brief, mood board, storyboard, music and animatic, and the build loop. For each stage it
   lists the commands, the files written, the review and when to skip it. Only the build loop

@@ -186,8 +186,7 @@ func cmdBeats(a *app, args []string) error {
 		g.describe(*structure)
 	}
 	if *out != "" {
-		b, _ := json.MarshalIndent(g, "", "  ")
-		if err := os.WriteFile(*out, b, 0o644); err != nil {
+		if err := writeJSONFile(*out, g); err != nil {
 			return err
 		}
 	}
