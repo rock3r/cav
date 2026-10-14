@@ -42,6 +42,8 @@ type Shot struct {
 	Clip string `json:"clip,omitempty"`
 	// Cut says the change into this shot is a hard cut on purpose; cav check does not flag it.
 	Cut bool `json:"cut,omitempty"`
+	// Hold says nothing needs to move in this shot; cav check does not flag dead time inside it.
+	Hold bool `json:"hold,omitempty"`
 }
 
 type Board struct {
@@ -203,6 +205,29 @@ func (sb *Board) StartFrames(fps float64, compStart int) []ShotFrame {
 			continue
 		}
 		out = append(out, ShotFrame{ID: s.ID, Frame: compStart + a, Cut: s.Cut})
+	}
+	return out
+}
+
+// ShotSpan is the comp frames a shot covers: From is its first frame, To the first frame
+// after it.
+type ShotSpan struct {
+	ID       string
+	From, To int
+	Hold     bool
+}
+
+// Spans returns the frames of every shot, with the same rounding and the same skipped shots
+// as StartFrames.
+func (sb *Board) Spans(fps float64, compStart int) []ShotSpan {
+	var out []ShotSpan
+	for _, s := range sb.Shots {
+		a := max(0, int(math.Round(sb.Time(s.Beats[0])*fps)))
+		b := max(0, int(math.Round(sb.Time(s.Beats[1])*fps)))
+		if b <= a {
+			continue
+		}
+		out = append(out, ShotSpan{ID: s.ID, From: compStart + a, To: compStart + b, Hold: s.Hold})
 	}
 	return out
 }

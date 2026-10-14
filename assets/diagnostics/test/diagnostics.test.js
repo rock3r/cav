@@ -119,6 +119,102 @@ test('scene-open guard normalizes Windows separators and rejects another scene',
  assert.throws(()=>execute('C:/scenes/other.cv'),/opened scene changed/);
 });
 
+// Dead time (#117): with limits.motion the script reads the keys' values and the hidden flag, still
+// without evaluating the scene.
+function motionAPI(){
+ const f=metadata(),keys={'js:position.x':[[0,5,0],[30,5,0],[60,9,2]],'dup:opacity':[[10,0,0],[20,100,0]]};
+ const kidsOf=(id,attr)=>(keys[id+':'+attr]||[]).map((_,i)=>id+':'+attr+':'+i);
+ const node=kid=>{const [id,attr,i]=kid.split(':');return keys[id+':'+attr][+i]};
+ const get=f.api.get;
+ Object.assign(f.api,{
+  getAnimatedAttributes:id=>id==='js'?['position.x']:id==='dup'?['opacity']:[],
+  getKeyframeTimes:(id,attr)=>(keys[id+':'+attr]||[]).map(k=>k[0]),
+  getKeyframeIdsForAttribute:kidsOf,
+  hasAttributeExpression:(id,attr)=>(id==='nested'&&attr==='scale.x')||(id==='dup'&&attr==='rotation.z'),
+  get:(id,attr)=>{
+   if(id.includes(':')){const k=node(id);return attr==='timeOffset'?k[0]:attr==='frame'?k[0]:{numValue:k[1],interpolation:k[2]}}
+   if(attr==='hidden')return id==='sim';
+   if(attr==='opacity')return id==='dup'?0:100;
+   return get(id,attr);
+  }
+ });
+ return f;
+}
+test('motion metadata reads key values, hidden flags and expressions without evaluating the scene',()=>{
+ const f=motionAPI(),r=run('structure',f.api,{limits:{layers:10,edges:100,ms:1000,motion:true}});
+ const js=r.layers.find(l=>l.id==='js'),dup=r.layers.find(l=>l.id==='dup');
+ assert.equal(f.changed,0);
+ assert.deepEqual(Array.from(js.motion[0].times),[0,30,60]);
+ assert.deepEqual(Array.from(js.motion[0].values),[5,5,9]);
+ assert.deepEqual(Array.from(js.motion[0].interp),[0,0,2]);
+ assert.deepEqual(Array.from(dup.motion[0].values),[0,100]);
+ assert.equal(r.layers.find(l=>l.id==='sim').hidden,true);
+ assert.equal(js.hidden,false);
+ assert.deepEqual(Array.from(r.layers.find(l=>l.id==='nested').expressions),['scale.x']);
+ assert.deepEqual(Array.from(js.expressions),[]);
+ assert.deepEqual(Array.from(dup.expressions),['rotation.z'],'rotation.z is the rotation channel');
+ assert.equal(js.opacity,100);
+ assert.equal(dup.opacity,0,'static opacity is read');
+ assert.equal(r.motion.complete,true);
+});
+test('expressions are queried on every transform channel and opacity',()=>{
+ const f=motionAPI(),seen=new Set();
+ f.api.hasAttributeExpression=(id,attr)=>{seen.add(attr);return false};
+ run('structure',f.api,{limits:{layers:10,edges:100,ms:1000,motion:true}});
+ for(const a of ['position.x','position.y','position.z','scale.x','scale.y','scale.z','rotation.x','rotation.y','rotation.z','opacity'])assert.ok(seen.has(a),a);
+});
+test('motion metadata is absent without limits.motion',()=>{
+ const f=motionAPI();
+ f.api.getKeyframeIdsForAttribute=()=>{throw Error('must not read keys')};
+ f.api.hasAttributeExpression=()=>{throw Error('must not query expressions')};
+ const r=run('structure',f.api,{limits:{layers:10,edges:100,ms:1000}});
+ assert.equal(r.motion,undefined);
+ assert.ok(r.layers.every(l=>l.motion===undefined&&l.hidden===undefined));
+ assert.equal(r.failures.length,0);
+});
+test('an attribute with many keys is reported by its first and last frame only',()=>{
+ const f=motionAPI(),many=Array.from({length:200},(_,i)=>i*2);
+ const times=f.api.getKeyframeTimes;
+ f.api.getKeyframeTimes=(id,attr)=>id==='js'?many.slice().reverse():times(id,attr);
+ const ids=f.api.getKeyframeIdsForAttribute;
+ f.api.getKeyframeIdsForAttribute=(id,attr)=>{if(id==='js')throw Error('must not read 200 keys');return ids(id,attr)};
+ const r=run('structure',f.api,{limits:{layers:10,edges:100,ms:1000,motion:true}});
+ assert.deepEqual(Array.from(r.layers.find(l=>l.id==='js').motion[0].span),[0,398]);
+ assert.equal(r.motion.complete,true);
+});
+test('key reading is capped, and the cap makes the motion metadata incomplete',()=>{
+ const f=motionAPI();
+ const r=run('structure',f.api,{limits:{layers:10,edges:100,ms:1000,motion:true,motionGets:3}});
+ assert.equal(r.motion.complete,false);
+ assert.ok(r.skipped.some(s=>s.inspection==='motion'));
+});
+test('every motion-relevant truncation makes the motion metadata incomplete',()=>{
+ const base={layers:10,edges:100,ms:1000,motion:true};
+ // keyframe-query cap: not every animated attribute is read
+ let r=run('structure',motionAPI().api,{limits:{...base,keys:1}});
+ assert.ok(r.skipped.some(s=>s.inspection==='keyframes'));
+ assert.equal(r.motion.complete,false,'keyframe query cap');
+ // edge cap: a driver's targets are not all known
+ r=run('structure',motionAPI().api,{limits:{...base,edges:1}});
+ assert.ok(r.skipped.some(s=>s.inspection==='connections'&&s.reason==='edge limit'));
+ assert.equal(r.motion.complete,false,'edge cap');
+ // time budget while reading connections
+ const f=motionAPI();let now=0;
+ r=vm.runInNewContext('(function(){'+source('structure')+'})()',{api:f.api,limits:{...base,ms:100},Date:{now:()=>(now+=10)}});
+ assert.ok(r.skipped.length);
+ assert.equal(r.motion.complete,false,'time budget');
+ // control: no truncation
+ assert.equal(run('structure',motionAPI().api,{limits:base}).motion.complete,true);
+});
+test('a failed key read makes the motion metadata incomplete',()=>{
+ const f=motionAPI(),get=f.api.get;
+ f.api.get=(id,attr)=>{if(id.includes(':')&&attr==='data')throw Error('no key data');return get(id,attr)};
+ const r=run('structure',f.api,{limits:{layers:10,edges:100,ms:1000,motion:true}});
+ assert.equal(r.motion.complete,false);
+ assert.ok(r.failures.length);
+ assert.equal(f.changed,0);
+});
+
 // Cavalry defaults overwriteExisting to false and reports refusal with a boolean.
 test('profile replaces existing progress through warm-up, samples and restoration',()=>{
  const f=chronologicalAPI(),files=new Map(),writes=[];

@@ -81,8 +81,9 @@ walkthroughs. Read this with `cav guide design` (recipe 12 shows how to rebuild 
   scenes.
 - **Use camera holds on purpose.** When the camera stops, use the time to show one element
   or feature, then move the camera again. Keep something alive during a hold (a slow drift,
-  a clock that ticks over). Use 2.5D camera and subject moves for drama, but rarely: not
-  everything needs to fly at the viewer.
+  a clock that ticks over). `cav check` reports holds over about 2 s where nothing moves.
+  Use 2.5D camera and subject moves for drama, but rarely: not everything needs to fly at
+  the viewer.
 - **Let every interaction finish.** A cursor move or a tap must complete its action, and the
   result must stay on screen long enough to register. If you cut away too soon, it reads as
   a glitch. Tween the cursor with `inOutCubic`, `punch` the button, then show the change.

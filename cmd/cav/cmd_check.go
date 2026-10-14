@@ -20,7 +20,7 @@ import (
 func init() {
 	register(command{
 		name:    "check",
-		args:    "[--quick] [--profile [--profile-render]] [--samples 3 | --profile-frames F,...] [--max-warmup 600] [--max-seams 24 --seam-threshold 0.05 --allow-cuts F,...] [--timeout 2m]",
+		args:    "[--quick] [--profile [--profile-render]] [--samples 3 | --profile-frames F,...] [--max-warmup 600] [--max-seams 24 --seam-threshold 0.05 --allow-cuts F,...] [--max-dead 2] [--timeout 2m]",
 		summary: "Find structural performance risks and bounded visual problems before rendering.",
 		run:     cmdSceneCheck,
 	})
@@ -49,7 +49,7 @@ Findings do not change the exit code; timeout returns 3 with partial results and
 operation ID to resume. Use --json for agents.
 A finding whose kind a guide explains (offframe, hidden, font, sksl-input-redeclared,
 group-filter, perf-sampled-keys, perf-keyframe-volume, perf-copy-javascript,
-perf-simulation, shot-why, seam) names that guide section, and the sections are printed once after the
+perf-simulation, shot-why, seam, dead-time) names that guide section, and the sections are printed once after the
 findings ("guide" in JSON, at most about 4 KB).
 A storyboard.json in the current folder (or --board FILE) is read too: a shot with no
 "why" (empty, or still the placeholder from cav board init) is a shot-why warning. This also
@@ -64,6 +64,13 @@ it is listed under "intended" and not counted. --max-seams (24) bounds the bound
 the rest is skipped. --quick skips this pass, and so do simulations (use cav seams --video).
 Evidence has the Before and After images. cav seams has no such rule: it reports every
 boundary against its --threshold. check is stricter.
+A span of the active comp, longer than --max-dead seconds (2), where something is on screen
+but no layer has moving keys, an expression or a live driver (an oscillator, noise, a script,
+a layer connected to one) is a dead-time warning. It reads metadata only, so it also runs
+with --quick. A layer with equal values on both keys is a hold, and a pre-comp or a
+simulation counts as moving. A hidden layer, a layer with opacity 0 that nothing changes, and everything below them count as nothing (a hidden driver still drives). A span
+inside a shot with "hold": true in storyboard.json is listed under "intended" and not counted.
+It is skipped when the motion metadata is incomplete.
 --min-text (28) and --max-still (1.5 seconds) tune visual findings.`
 }
 
@@ -408,12 +415,13 @@ func cmdSceneCheck(a *app, args []string) error {
 	maxSeams := fs.Int("max-seams", 24, "maximum section boundaries to compare (1..200)")
 	seamThreshold := fs.Float64("seam-threshold", 0.05, "changed-pixel fraction that makes a boundary a pop (0..1)")
 	cuts := fs.String("allow-cuts", "", "intended cut frames (not flagged)")
+	maxDead := fs.Float64("max-dead", 2, "longest span in seconds where no layer moves (dead time)")
 	pos, err := parseFlags(fs, args)
 	if err != nil {
 		return err
 	}
 	a.compSelector = *comp
-	if len(pos) > 0 || *maxWarmup < 0 || *maxWarmup > 100000 || *maxScan < 1 || *maxScan > 100000 || *samples < 1 || *samples > 12 || *maxLayers < 1 || *maxLayers > 10000 || *timeout <= 0 || *minText <= 0 || *maxStill < 0 || *maxSeams < 1 || *maxSeams > 200 || *seamThreshold < 0 || *seamThreshold > 1 || math.IsNaN(*seamThreshold) {
+	if len(pos) > 0 || *maxWarmup < 0 || *maxWarmup > 100000 || *maxScan < 1 || *maxScan > 100000 || *samples < 1 || *samples > 12 || *maxLayers < 1 || *maxLayers > 10000 || *timeout <= 0 || *minText <= 0 || *maxStill < 0 || *maxSeams < 1 || *maxSeams > 200 || *seamThreshold < 0 || *seamThreshold > 1 || math.IsNaN(*seamThreshold) || !(*maxDead > 0) {
 		return usageErr("invalid check limits")
 	}
 	allowedCuts := map[int]bool{}
@@ -456,7 +464,7 @@ func cmdSceneCheck(a *app, args []string) error {
 		return err
 	}
 	b, _ := assets.Diagnostics.ReadFile("diagnostics/structure.js")
-	limits := fmt.Sprintf("var limits={layers:%d,edges:10000,scan:%d,comps:64,ms:%d};\n", *maxLayers, *maxScan, (*timeout / 2).Milliseconds())
+	limits := fmt.Sprintf("var limits={layers:%d,edges:10000,scan:%d,comps:64,ms:%d,motion:true};\n", *maxLayers, *maxScan, (*timeout / 2).Milliseconds())
 	var metadata structureData
 	if err = a.jsCall(limits+string(b), *timeout, &metadata); err != nil {
 		return err
@@ -472,6 +480,16 @@ func cmdSceneCheck(a *app, args []string) error {
 	perf = append(perf, whyFindings...)
 	failures := append(metadata.Failures, boardFailures...)
 	skipped := metadata.Skipped
+	// The storyboard describes the comp cav board place fills, which is the active comp.
+	// With --comp, the check looks at another comp, so its shots do not apply.
+	shots := a.checkShots
+	if *comp != "" {
+		shots = nil
+	}
+	deadFlagged, deadIntended, deadSpans, deadSkipped := deadTimeFindings(metadata, shots, *maxDead)
+	perf = append(perf, deadFlagged...)
+	a.checkIntended = append(a.checkIntended, deadIntended...)
+	skipped = append(skipped, deadSkipped...)
 	var measured []profileResult
 	var warmup *profileWarmup
 	var d checkData
@@ -520,15 +538,10 @@ func cmdSceneCheck(a *app, args []string) error {
 	if *quick {
 		skipped = append(skipped, map[string]any{"inspection": "seams", "reason": "quick mode"})
 	} else {
-		// The storyboard describes the comp cav board place fills, which is the active comp.
-		// With --comp, the check looks at another comp, so its boundaries come from its layers.
-		seamBoard := a.checkShots
-		if *comp != "" {
-			seamBoard = nil
-		}
-		flagged, intended, checks, seamSkipped, seamFailures, seamErr := a.seamsPass(metadata, seamBoard, allowedCuts, *maxSeams, *seamThreshold)
+		// Without shots, the boundaries come from the layers.
+		flagged, intended, checks, seamSkipped, seamFailures, seamErr := a.seamsPass(metadata, shots, allowedCuts, *maxSeams, *seamThreshold)
 		perf = append(perf, flagged...)
-		a.checkIntended, a.checkSeams = intended, checks
+		a.checkIntended, a.checkSeams = append(a.checkIntended, intended...), checks
 		skipped = append(skipped, seamSkipped...)
 		failures = append(failures, seamFailures...)
 		if seamErr != nil {
@@ -556,7 +569,7 @@ func cmdSceneCheck(a *app, args []string) error {
 		}
 		for _, g := range gaps {
 			secs := (g[1] - g[0]) / d.FPS
-			if secs > *maxStill {
+			if secs > *maxStill && !insideSpan(g, deadSpans) {
 				out = append(out, finding{Kind: "still",
 					Detail: fmt.Sprintf("nothing visible moves from frame %d to %d (%.1f s); motion on one small layer does not count", int(g[0]), int(g[1]), secs),
 					Fix:    "move something larger during the hold (a slow drift or scale breathe on the main text or shapes), start the next section earlier, or shorten the comp"})
@@ -713,6 +726,19 @@ func shotWhyFindings(sb *board.Board) []finding {
 	return out
 }
 
+// findingHead is the start of a finding's text line: its kind, then the layer and the quoted
+// name when it has them.
+func findingHead(f finding) string {
+	head := f.Kind
+	if f.Layer != "" {
+		head += " " + f.Layer
+	}
+	if f.Name != "" {
+		head += fmt.Sprintf(" %q", f.Name)
+	}
+	return head
+}
+
 func (a *app) partialCheck(out []finding, failures, skipped []map[string]any, measured []profileResult, cause error, warmups ...*profileWarmup) error {
 	out = append(out, licenceFindings()...)
 	if cause != nil {
@@ -754,13 +780,13 @@ func (a *app) partialCheck(out []finding, failures, skipped []map[string]any, me
 			if len(f.CompPath) > 1 {
 				location = " in " + strings.Join(f.CompPath, " > ")
 			}
-			fmt.Printf("%s %s %q%s: %s\n  fix: %s\n", f.Kind, f.Layer, f.Name, location, f.Detail, f.Fix)
+			fmt.Printf("%s%s: %s\n  fix: %s\n", findingHead(f), location, f.Detail, f.Fix)
 			for _, g := range f.Guide {
 				fmt.Printf("  guide: %s\n", g)
 			}
 		}
 		for _, f := range a.checkIntended {
-			fmt.Printf("intended %s %q: %s\n", f.Kind, f.Name, f.Detail)
+			fmt.Printf("intended %s: %s\n", findingHead(f), f.Detail)
 		}
 		if len(related) > 0 {
 			fmt.Println("\nGuide sections for these findings:")
@@ -798,7 +824,12 @@ type structureLayer struct {
 	Copies        *float64 `json:"copies"`
 	Comp          string   `json:"comp,omitempty"`
 	CompPath      []string `json:"compPath,omitempty"`
-	MissingFont   *struct {
+	// Hidden, Motion, Expressions and Opacity are read only with limits.motion (see structure.js).
+	Hidden      *bool        `json:"hidden,omitempty"`
+	Motion      []motionAttr `json:"motion,omitempty"`
+	Expressions []string     `json:"expressions,omitempty"`
+	Opacity     *float64     `json:"opacity,omitempty"`
+	MissingFont *struct {
 		Family string `json:"family"`
 		Style  string `json:"style"`
 	} `json:"missingFont,omitempty"`
@@ -820,6 +851,7 @@ type structureData struct {
 	ScenePath        string           `json:"scenePath"`
 	Layers           []structureLayer `json:"layers"`
 	Edges            []structureEdge  `json:"edges"`
+	Motion           *motionInfo      `json:"motion,omitempty"`
 	Failures         []map[string]any `json:"failures"`
 	Skipped          []map[string]any `json:"skipped"`
 }
