@@ -36,13 +36,12 @@ var sketchElements = map[string]bool{
 	"clipPath": true, "use": true,
 }
 
-// presentationAttrs are the root attributes that child shapes inherit. The wrapper group
-// carries them, so a sketch that sets fill on <svg> keeps its look.
-var presentationAttrs = map[string]bool{
-	"fill": true, "stroke": true, "stroke-width": true, "stroke-linecap": true, "stroke-linejoin": true,
-	"stroke-opacity": true, "fill-opacity": true, "fill-rule": true, "opacity": true,
-	"font-family": true, "font-size": true, "font-weight": true, "font-style": true, "text-anchor": true,
-	"style": true,
+// structuralRootAttrs describe the root element itself. Every other attribute that the check
+// accepted on <svg> (fill, color, stroke-dasharray, font and so on) is inherited by the shapes
+// inside, so the wrapper group carries it.
+var structuralRootAttrs = map[string]bool{
+	"xmlns": true, "width": true, "height": true, "viewBox": true, "preserveAspectRatio": true,
+	"version": true, "x": true, "y": true, "id": true, "class": true,
 }
 
 // AspectLabel names the standard aspect ratio closest to w:h, such as "16:9".
@@ -165,7 +164,7 @@ func analyzeSketch(data []byte, w, h int) (*sketchInfo, error) {
 						info.xmlns = append(info.xmlns, a)
 					}
 					// The attributes were checked above like any other element's.
-					if a.Name.Space == "" && presentationAttrs[a.Name.Local] {
+					if a.Name.Space == "" && !structuralRootAttrs[a.Name.Local] {
 						info.rootPresentation = append(info.rootPresentation, a)
 					}
 				}

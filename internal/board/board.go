@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/rock3r/cav/internal/sheet"
@@ -135,6 +136,9 @@ func (sb *Board) Time(beat float64) float64 {
 	return sb.Offset + beat*60/sb.BPM
 }
 
+// simpleID is what a shot id may be: it becomes a file name (board/<id>.png), so it is a plain name.
+var simpleID = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
+
 func (sb *Board) Validate() error {
 	if len(sb.Shots) == 0 {
 		return errors.New("the storyboard has no shots")
@@ -146,6 +150,9 @@ func (sb *Board) Validate() error {
 	for i, s := range sb.Shots {
 		if s.ID == "" {
 			return fmt.Errorf("shot %d has no id", i+1)
+		}
+		if !simpleID.MatchString(s.ID) {
+			return fmt.Errorf("shot id %q may only use letters, digits, - and _ (1 to 64 characters)", s.ID)
 		}
 		if seen[s.ID] {
 			return fmt.Errorf("two shots are called %s", s.ID)
