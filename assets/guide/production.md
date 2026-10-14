@@ -153,6 +153,9 @@ cav board place                             # the frames as placeholder layers i
 - Set `"cut": true` on a shot when the change into it is a hard cut on purpose. `cav check`
   compares the frames around each shot start and flags a jump. A shot with `cut` is listed
   as intended and not flagged. Do this only when the user asked for cuts.
+- Set `"hold": true` on a shot where nothing needs to move. `cav check` reports a span
+  longer than about 2 seconds where no layer moves; a span inside a `hold` shot is listed as
+  intended and not flagged. Prefer a small drift or an oscillator over marking a hold.
 - Time shots in beats, like the plan table in `cav guide`. Put cuts on bar starts
   (multiples of 4 in 4/4). With real music, set `"grid": "build/grid.json"` from
   `cav beats music.wav --json -o build/grid.json` so beats follow the track.

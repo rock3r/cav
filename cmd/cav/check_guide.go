@@ -21,6 +21,7 @@ var checkGuide = map[string][][]string{
 	"sksl-input-redeclared": {{"traps", "Launch-video observations", "Redeclaring a SkSL input uniform"}},
 	"group-filter":          {{"traps", "Launch-video observations", "A filter attached to a group"}},
 	"shot-why":              {{"ui-showcase", "2. Story and message", "- Explain every feature you show"}},
+	"dead-time":             {{"ui-showcase", "4. Framing and attention", "- Use camera holds on purpose"}},
 	"seam":                  {{"ui-showcase", "5. Motion and continuity", "- Check both sides of every boundary"}},
 	"perf-sampled-keys":     {{"native", "Dense animation curves"}},
 	"perf-keyframe-volume":  {{"native", "Dense animation curves"}},

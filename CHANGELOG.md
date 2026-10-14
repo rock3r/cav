@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- `cav check` finds dead time: a hold where nothing moves (#117).
+  - It reports a span of the active comp, longer than `--max-dead` seconds (default 2),
+    where something is on screen but no layer has moving keys, an expression or a live
+    driver. Kind `dead-time`, with the frames and seconds. A layer with equal values on both
+    keys is a hold. An oscillator, noise, wave or script layer, and every layer connected to
+    one, count as moving. So do pre-comps and simulations, because they are not opened.
+  - It reads metadata only, so it also runs with `--quick`. It is skipped, and says so, when
+    the keys could not be read completely. A span with nothing on screen is not reported.
+  - A shot with `"hold": true` in `storyboard.json` marks a hold on purpose. A span inside
+    it is listed in `intended` and not counted. The shot `hold` field is new and optional. A
+    shot that gets `hold` changes, so its review verdict becomes outdated once.
+  - A `still` finding for a span that is already reported as dead time is dropped.
+  - `cav check` now also reads the values of the keys of each layer (at most 64 keys per
+    attribute). This adds a little time with many keys.
+
 - `cav check` looks at every section boundary for pop-ins, flashes and jumps (#114).
   - A full `cav check` renders the frames around each boundary (25 % scale) and compares
     them. A boundary is flagged with kind `seam` when the picture changes by 5 % or more in
