@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.7.0
 
 - The guides now say how to animate software UI: app screens, UI walkthroughs and product
   demos. Always rebuild the UI in Cavalry from shapes, text and icons, and never animate a

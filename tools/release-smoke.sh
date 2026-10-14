@@ -2,7 +2,7 @@
 # Release smoke: run every cav command once against the running Cavalry, in a new
 # scratch scene and a temporary project folder.
 #
-#   tools/release-smoke.sh <path to cav> [--keep] [--keyed]
+#   tools/release-smoke.sh <path to cav> [--keep] [--keyed | --keyed=GROUP[,GROUP]]
 #
 # Needs Cavalry open with the cav-bridge window, ffmpeg and ffprobe, and python3.
 # The open scene must have no unsaved changes: the smoke starts a new scene without
@@ -18,21 +18,34 @@
 # can ask 1Password, so --keyed works only at a terminal: it lists the calls and asks
 # before it runs them.
 #
+# --keyed=GROUP[,GROUP] runs only those keyed groups and nothing else: no Cavalry steps,
+# so Cavalry need not be open. Groups: image, alpha, recraft, sfx, freesound, music, ears,
+# qwen. Use it to check one service again, for example --keyed=freesound.
+#
 # The smoke fails when a step fails, or when `cav help` lists a command that has no
 # step here. Add a step for every new command.
 set -uo pipefail
 
-[[ $# -ge 1 ]] || { echo "usage: $0 <path to cav> [--keep] [--keyed]" >&2; exit 64; }
+[[ $# -ge 1 ]] || { echo "usage: $0 <path to cav> [--keep] [--keyed | --keyed=GROUP[,GROUP]]" >&2; exit 64; }
 cav="$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
 shift
-keep= keyed=
+keep= keyed= only=
+groups="image alpha recraft sfx freesound music ears qwen"
 for a in "$@"; do
 	case $a in
 	--keep) keep=--keep ;;
 	--keyed) keyed=1 ;;
+	--keyed=*)
+		keyed=1 only=${a#--keyed=}
+		for g in ${only//,/ }; do
+			[[ " $groups " == *" $g "* ]] || { echo "unknown keyed group $g (groups: $groups)" >&2; exit 64; }
+		done
+		;;
 	*) echo "unknown option $a" >&2; exit 64 ;;
 	esac
 done
+# want GROUP: run that keyed group (all of them with plain --keyed).
+want() { [[ -z "$only" || ",$only," == *",$1,"* ]]; }
 if [[ -n "$keyed" ]] && ! [[ -t 0 && -t 1 ]]; then
 	echo "--keyed needs a terminal: its calls can cost money and ask 1Password" >&2
 	exit 64
@@ -47,12 +60,21 @@ work="$(mktemp -d "${TMPDIR:-/tmp}/cav-smoke.XXXXXX")"
 logs="$work/logs"
 mkdir -p "$logs" "$work/.cav"
 cd "$work" || exit 70
-if [[ "$keep" != --keep ]]; then
-	trap 'rm -rf "$work"' EXIT
-fi
+# On exit, replace the smoke's own scratch scene with an empty one, so the next run (and the
+# user) does not find a scene with unsaved changes. A scene that is not the smoke's is left
+# alone. --keep keeps the files in $work, not the open scene.
+scratch_scene=
+finish() {
+	# Before "scene save", the smoke's scene is untitled; after it, it is smoke.cv in $work.
+	if [[ -n "$scratch_scene" ]] && "$cav" scene info 2>/dev/null | head -1 | grep -qE "\(untitled\)|/$(basename "$work")/"; then
+		"$cav" scene new --force >/dev/null 2>&1 || echo "note: could not close the smoke's scratch scene; close it in Cavalry before the next run"
+	fi
+	[[ "$keep" == --keep ]] || rm -rf "$work"
+}
+trap finish EXIT
 
 pass=0 fail=0 warn=0 n=0
-net_errors='deadline exceeded|timed? ?out|timeout|no such host|connection (refused|reset)|network is unreachable|dial tcp|tls|certificate|HTTP 5[0-9][0-9]|answered HTTP (429|5)|temporary failure|could not resolve|failed to fetch|failed to download'
+net_errors='deadline exceeded|: EOF|timed? ?out|timeout|no such host|connection (refused|reset)|network is unreachable|dial tcp|tls|certificate|HTTP 5[0-9][0-9]|answered HTTP (429|5)|temporary failure|could not resolve|failed to fetch|failed to download'
 covered=" "
 failed=()
 
@@ -69,7 +91,8 @@ step() {
 	covered+="$1 "
 	n=$((n + 1))
 	local log
-	log="$logs/$(printf '%02d' "$n")-${name// /_}.log"
+	log="$logs/$(printf '%03d' "$n")-${name// /_}.log"
+	last_log=$log
 	local start=$SECONDS rc
 	"$cav" "$@" >"$log" 2>&1
 	rc=$?
@@ -115,8 +138,89 @@ check() {
 	fi
 }
 
-json() { python3 -I -c 'import json,sys; d=json.load(open(sys.argv[1])); print(eval(sys.argv[2], {"d": d}))' "$@"; }
-lastlog() { ls "$logs"/[0-9]*.log | tail -1; }
+# json reads the first JSON object in a step log: the log holds stderr too, so a note
+# before or after the JSON must not break the parse.
+json() { python3 -I -c 'import json,sys; t=open(sys.argv[1]).read(); d=json.JSONDecoder().raw_decode(t[t.index("{"):])[0]; print(eval(sys.argv[2], {"d": d}))' "$@"; }
+# lastlog is the log of the last step. (Sorting the file names broke after step 99.)
+lastlog() { echo "$last_log"; }
+
+# report prints the totals and exits 1 when a step failed.
+report() {
+	echo "$pass passed, $warn warnings, $fail failed (logs: $logs)"
+	[[ "$keep" == --keep ]] || echo "run with --keep to keep $work"
+	if ((fail)); then
+		printf 'failed: %s\n' "${failed[@]}"
+		exit 1
+	fi
+}
+
+# keyed_steps runs the keyed groups that want() selects, with keys allowed.
+keyed_steps() {
+	unset CAV_NO_KEYS
+	step ok "keyed: config check" config check
+	checks="$(lastlog)"
+	# usable SERVICE: config check said "ok" for it, so its key or server works.
+	usable() { grep -qE "^ok +$1 " "$checks"; }
+	# rgba FILE: byte 25 of a PNG is its colour type, and 6 is RGBA.
+	rgba() { python3 -I -c 'import sys; d = open(sys.argv[1], "rb").read(26); sys.exit(d[1:4] != b"PNG" or d[25] != 6)' "$1"; }
+	if want image; then
+		step ok "keyed: gen image" gen image "a smoke test card, flat colours" -o assets/keyed.png
+	elif want recraft; then
+		# Recraft needs an image to cut out and trace; greybox makes one for free.
+		"$cav" gen image "a smoke test card" --service greybox -o assets/keyed.png >/dev/null 2>&1
+	fi
+	if want alpha; then
+		step ok "keyed: gen image --alpha" gen image "a flat orange fox head logo on a plain grey background" --alpha -o assets/keyed-alpha.png
+		[[ -f assets/keyed-alpha.png ]] && check "keyed: --alpha wrote an RGBA PNG" rgba assets/keyed-alpha.png
+	fi
+	if ! want recraft; then
+		:
+	elif usable recraft && [[ -f assets/keyed.png ]]; then
+		step ok "keyed: gen cutout (recraft)" gen cutout assets/keyed.png --service recraft -o assets/keyed-cutout.png
+		[[ -f assets/keyed-cutout.png ]] && check "keyed: recraft cutout is an RGBA PNG" rgba assets/keyed-cutout.png
+		step ok "keyed: gen vector (recraft)" gen vector assets/keyed.png --service recraft -o assets/keyed.svg
+		check "keyed: recraft trace has a path" grep -q "<path" assets/keyed.svg
+	else
+		echo "skip  keyed: recraft cutout and trace    no working Recraft key, or no keyed.png"
+	fi
+	want sfx && step ok "keyed: sfx gen" sfx gen "a short soft click" --seconds 1
+	if ! want freesound; then
+		:
+	elif usable freesound; then
+		step ok "keyed: sfx search (freesound)" sfx search whoosh --service freesound --max-seconds 3 --limit 1 --json
+		fsref="$(json "$(lastlog)" 'd["results"][0]["service"] + ":" + d["results"][0]["id"]' 2>/dev/null)"
+		step ok "keyed: sfx get (freesound preview)" sfx get "$fsref" -o sfx-keyed
+		check "keyed: sfx get saved an MP3 preview" test -n "$(ls sfx-keyed/freesound-*.mp3 2>/dev/null)"
+	else
+		echo "skip  keyed: freesound search and get   no working Freesound key"
+	fi
+	want music && step ok "keyed: music gen" music gen "calm piano, ten seconds" --seconds 10 -o music
+	want ears && step ok "keyed: listen with ears" listen click.wav --seconds 4 --fps 30 -o listen-ears.png
+	if ! want qwen; then
+		:
+	elif usable qwen-omni; then
+		step ok "keyed: listen (qwen-omni)" listen click.wav --ears qwen-omni --seconds 4 --fps 30 -o listen-qwen.png
+	else
+		echo "skip  keyed: listen (qwen-omni)          no qwen-omni server set (cav config endpoint qwen-omni)"
+	fi
+	export CAV_NO_KEYS=1
+}
+
+if [[ -n "$only" ]]; then
+	echo "cav: $("$cav" version | head -1)"
+	echo "work: $work"
+	echo
+	echo "--keyed=$only runs only these keyed groups, plus one free cav config check. They"
+	echo "can cost money and can ask 1Password."
+	read -r -p "Run them? [y/N] " answer
+	[[ "$answer" == [yY]* ]] || { echo "keyed services skipped"; exit 0; }
+	mkdir -p assets
+	ffmpeg -v error -y -f lavfi -i "aevalsrc='0.8*sin(2*PI*60*t)*exp(-30*mod(t,0.5))':s=48000:d=4" -c:a pcm_s16le click.wav
+	keyed_steps
+	echo
+	report
+	exit 0
+fi
 
 echo "cav: $("$cav" version | head -1)"
 echo "work: $work"
@@ -127,6 +231,12 @@ step ok "version" version
 step net "version --check" version --check
 step ok "setup" setup --no-docs
 step ok "doctor" doctor
+if grep -q '^FAIL bridge' "$(lastlog)"; then
+	echo
+	echo "cav-bridge is not running, so no Cavalry step can run. Start Cavalry, open Scripts menu >"
+	echo "cav-bridge, keep its window open, then run again (cav doctor says ready)."
+	exit 1
+fi
 step ok "status" status
 step ok "config" config
 step ok "config check greybox" config check greybox
@@ -135,9 +245,11 @@ step ok "config check greybox" config check greybox
 step ok "scene new" scene new --width 640 --height 360 --fps 30 --seconds 4 --bg '#101014'
 if ! grep -q '640x360' "$(lastlog)"; then
 	echo
-	echo "cav scene new did not start a scratch scene. Save or close the open scene, then run again."
+	echo "cav scene new did not start a scratch scene (its error is above). If Cavalry has a scene"
+	echo "with unsaved changes, save or close it, then run again."
 	exit 1
 fi
+scratch_scene=1
 step ok "scene comp" scene comp --motion-blur
 step ok "scene info" scene info
 cat >build.js <<'EOF'
@@ -346,41 +458,7 @@ if [[ -n "$keyed" ]]; then
 	echo "                                  when its server is set (under 1 cent on OpenRouter)"
 	read -r -p "Run them? [y/N] " answer
 	if [[ "$answer" == [yY]* ]]; then
-		unset CAV_NO_KEYS
-		step ok "keyed: config check" config check
-		checks="$(lastlog)"
-		# usable SERVICE: config check said "ok" for it, so its key or server works.
-		usable() { grep -qE "^ok +$1 " "$checks"; }
-		# rgba FILE: byte 25 of a PNG is its colour type, and 6 is RGBA.
-		rgba() { python3 -I -c 'import sys; d = open(sys.argv[1], "rb").read(26); sys.exit(d[1:4] != b"PNG" or d[25] != 6)' "$1"; }
-		step ok "keyed: gen image" gen image "a smoke test card, flat colours" -o assets/keyed.png
-		step ok "keyed: gen image --alpha" gen image "a flat orange fox head logo on a plain grey background" --alpha -o assets/keyed-alpha.png
-		[[ -f assets/keyed-alpha.png ]] && check "keyed: --alpha wrote an RGBA PNG" rgba assets/keyed-alpha.png
-		if usable recraft && [[ -f assets/keyed.png ]]; then
-			step ok "keyed: gen cutout (recraft)" gen cutout assets/keyed.png --service recraft -o assets/keyed-cutout.png
-			[[ -f assets/keyed-cutout.png ]] && check "keyed: recraft cutout is an RGBA PNG" rgba assets/keyed-cutout.png
-			step ok "keyed: gen vector (recraft)" gen vector assets/keyed.png --service recraft -o assets/keyed.svg
-			check "keyed: recraft trace has a path" grep -q "<path" assets/keyed.svg
-		else
-			echo "skip  keyed: recraft cutout and trace    no working Recraft key, or no keyed.png"
-		fi
-		step ok "keyed: sfx gen" sfx gen "a short soft click" --seconds 1
-		if usable freesound; then
-			step ok "keyed: sfx search (freesound)" sfx search whoosh --service freesound --max-seconds 3 --limit 1 --json
-			fsref="$(json "$(lastlog)" 'd["results"][0]["service"] + ":" + d["results"][0]["id"]' 2>/dev/null)"
-			step ok "keyed: sfx get (freesound preview)" sfx get "$fsref" -o sfx-keyed
-			check "keyed: sfx get saved an MP3 preview" test -n "$(ls sfx-keyed/freesound-*.mp3 2>/dev/null)"
-		else
-			echo "skip  keyed: freesound search and get   no working Freesound key"
-		fi
-		step ok "keyed: music gen" music gen "calm piano, ten seconds" --seconds 10 -o music
-		step ok "keyed: listen with ears" listen click.wav --seconds 4 --fps 30 -o listen-ears.png
-		if usable qwen-omni; then
-			step ok "keyed: listen (qwen-omni)" listen click.wav --ears qwen-omni --seconds 4 --fps 30 -o listen-qwen.png
-		else
-			echo "skip  keyed: listen (qwen-omni)          no qwen-omni server set (cav config endpoint qwen-omni)"
-		fi
-		export CAV_NO_KEYS=1
+		keyed_steps
 	else
 		echo "keyed services skipped"
 	fi
@@ -402,9 +480,4 @@ if ((${#missing[@]})); then
 	echo "FAIL  commands with no smoke step: ${missing[*]}"
 	fail=$((fail + 1))
 fi
-echo "$pass passed, $warn warnings, $fail failed (logs: $logs)"
-[[ "$keep" == --keep ]] || echo "run with --keep to keep $work"
-if ((fail)); then
-	printf 'failed: %s\n' "${failed[@]}"
-	exit 1
-fi
+report

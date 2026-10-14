@@ -110,6 +110,8 @@ downloads the BiRefNet model (about 1 GB). It reads no
 key (`CAV_NO_KEYS=1`) and uses only free services, so it costs nothing and never asks
 1Password. A `warn` line is a step that needs the internet. With the maintainer at the
 keyboard, `--keyed` adds one call to each keyed service after it lists them and asks.
+`--keyed=GROUP[,GROUP]` runs only those keyed groups, without Cavalry, to check one
+service again (for example `--keyed=freesound`).
 
 ### 5. Tag and publish
 
