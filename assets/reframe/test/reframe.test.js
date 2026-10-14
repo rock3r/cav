@@ -388,6 +388,35 @@ test('a layer named in --key is never treated as a background', () => {
 	assert.deepEqual(r.key.layers.map(k => k.name), ['bg'])
 })
 
+test('--key resolves against the whole comp and measures its subtree past the cap of the rest', () => {
+	const cv = fakeCavalry({ layers: [
+		{ name: 'deco', children: Array.from({ length: 450 }, (_, i) => ({ name: 'dot' + i, box: [-10, 10, 10, -10] })) },
+		{ name: 'rig', children: [{ name: 'card', box: [-300, 300, 100, -100] }] },
+	] })
+	const r = run(cv, { key: ['rig'] })
+	assert.equal(r.coverageComplete, false)
+	assert.equal(r.scale, 1)
+	assert.equal(r.key.box.r, 300)
+	assert.deepEqual(r.key.layers.map(k => k.name), ['rig'])
+	// A nested layer deep in the comp resolves by name too, and by id.
+	const nested = fakeCavalry({ layers: [{ name: 'deco', children: Array.from({ length: 450 }, (_, i) => ({ name: 'dot' + i, box: [-10, 10, 10, -10] })) }, { name: 'rig', children: [{ name: 'card', box: [-300, 300, 100, -100] }] }] })
+	assert.equal(run(nested, { key: ['card'], dryRun: true }).key.box.l, -300)
+})
+
+test('a nested --key layer under a bg group keeps that group out of the backgrounds', () => {
+	const cv = fakeCavalry({ layers: [
+		{ name: 'bg', children: [{ name: 'panel', box: FULL }] },
+		{ name: 'rig', children: [{ name: 'card', box: [-300, 300, 100, -100] }] },
+	] })
+	assert.deepEqual(run(cv, { dryRun: true }).backgrounds.map(b => b.name), ['bg'])
+	const r = run(fakeCavalry({ layers: [
+		{ name: 'bg', children: [{ name: 'panel', box: FULL }] },
+		{ name: 'rig', children: [{ name: 'card', box: [-300, 300, 100, -100] }] },
+	] }), { key: ['panel'], dryRun: true })
+	assert.deepEqual(r.backgrounds, [])
+	assert.deepEqual(r.key.layers.map(k => k.name), ['panel'])
+})
+
 test('small text is judged at 1080p and the fix is in target pixels (3840x2160 source)', () => {
 	const spec = { w: 3840, h: 2160, layers: [{ name: 'rig', children: [{ name: 'card', box: [-1920, 1920, 1080, -1080] }, { name: 'title', type: 'textShape', size: 100, box: [-300, 300, 100, 0] }] }] }
 	const r = run(fakeCavalry(spec), { dryRun: true })

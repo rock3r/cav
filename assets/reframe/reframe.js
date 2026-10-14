@@ -108,10 +108,33 @@ function reframe() {
 		topIds = api.getCompLayers(true),
 		skipped = 0,
 		coverageComplete = true
-	function addNode(id, parent) {
+	// --key selectors are resolved against every layer of the comp, not the measured part, so a
+	// big decorative group in front cannot hide them. Key subtrees (and the layers above them)
+	// have their own cap, so they are measured even when the rest hits its cap.
+	var keySel = {},
+		needed = {},
+		keyCount = 0
+	if (opts.key && opts.key.length) {
+		var everyId = api.getCompLayers(false)
+		opts.key.forEach(function (sel) {
+			var m = everyId.filter(function (id) {
+				return id === sel
+			})
+			if (!m.length)
+				m = everyId.filter(function (id) {
+					return api.getNiceName(id) === sel
+				})
+			if (m.length !== 1) throw new Error(m.length ? 'layer name is not unique in the comp: ' + sel + ' (use its id)' : 'no layer named or numbered "' + sel + '" in the comp')
+			keySel[m[0]] = true
+			for (var p = m[0]; p && p !== sourceComp; p = api.getParent(p)) needed[p] = true
+		})
+	}
+	function addNode(id, parent, inKey) {
 		// Past the cap only the top-level layers are still recorded, so every one of them is
 		// paired and transformed in the copy; nothing under them is measured.
-		var over = order.length >= MAX_LAYERS
+		inKey = inKey || !!keySel[id]
+		var isNeeded = inKey || !!needed[id]
+		var over = isNeeded ? keyCount >= MAX_LAYERS : order.length - keyCount >= MAX_LAYERS
 		if (over) {
 			skipped++
 			coverageComplete = false
@@ -127,8 +150,9 @@ function reframe() {
 		if (over) return n
 		n.measured = true
 		order.push(id)
+		if (isNeeded) keyCount++
 		n.childIds.forEach(function (c) {
-			var cn = addNode(c, id)
+			var cn = addNode(c, id, inKey)
 			if (cn) n.children.push(cn.id)
 		})
 		return n
@@ -257,16 +281,9 @@ function reframe() {
 	var keySet = {}
 	if (opts.key && opts.key.length) {
 		keyMode = 'explicit'
-		opts.key.forEach(function (sel) {
-			var m = order.filter(function (id) {
-				return id === sel
-			})
-			if (!m.length)
-				m = order.filter(function (id) {
-					return nodes[id].name === sel
-				})
-			if (m.length !== 1) throw new Error(m.length ? 'layer name is not unique in the comp: ' + sel + ' (use its id)' : 'no layer named or numbered "' + sel + '" in the comp')
-			keySet[m[0]] = true
+		Object.keys(keySel).forEach(function (id) {
+			if (!nodes[id]) throw new Error('layer "' + id + '" could not be recorded')
+			keySet[id] = true
 		})
 	} else {
 		var rig = tops.filter(function (id) {
@@ -282,10 +299,10 @@ function reframe() {
 			})
 		}
 	}
-	// A layer named in --key is content, never a background.
+	// A layer named in --key is content, never a background, nor is the top-level layer it sits in.
 	if (keyMode === 'explicit')
 		Object.keys(keySet).forEach(function (id) {
-			delete bgs[id]
+			delete bgs[topOf(id)]
 		})
 	function underKey(id) {
 		while (id) {
