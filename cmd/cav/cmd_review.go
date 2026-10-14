@@ -58,6 +58,12 @@ changes (its words, or the bytes of its frame), its old verdict shows as outdate
 approval is removed, with the reason in "approvalCleared". Approval also counts as a send, so
 cav review wait returns when the person approves. There is no command to approve: only the
 person does that, in the page. Never edit "approved" by hand.
+The page holds a secret that the server wrote into it, and the server refuses an approval
+without it, so an agent that calls the chat's review_request tool cannot approve. This is a
+strong signal, not a security boundary: an agent with a shell could still read the page and
+send the approval itself. Do not do that. Approving is the person's decision.
+When the target file does not load (for example while it is being edited), wait and export
+say "approval unknown" and never "approved".
 
 For the agent:
   cav review wait [target] [--timeout 30m]
@@ -235,7 +241,7 @@ func reviewServeStills(ctx context.Context, a *app, target string, kind review.K
 		return err
 	}
 	srv := &review.Server{Store: store, Stills: &review.Stills{Kind: kind, Path: target}, Page: assets.ReviewPage,
-		PagePath: os.Getenv("CAV_REVIEW_PAGE"), Author: author}
+		PagePath: os.Getenv("CAV_REVIEW_PAGE"), Author: author, Nonce: review.NewNonce()}
 	url, serve, err := startReview(ctx, store, srv, port)
 	if err != nil {
 		return err
@@ -283,6 +289,25 @@ func startReview(ctx context.Context, store *review.Store, srv *review.Server, p
 		}
 		return nil
 	}, nil
+}
+
+// sharedReviewNonce is the secret that the review page sends with an approval, for the chat.
+// A host may send the page's requests to another `cav mcp` process than the one that served
+// the page, so the processes of one person keep it in a private file in ~/.cav. It never goes
+// into a tool result, the review file or any output. An agent with a shell could read the
+// file: the approval is a strong signal, not a security boundary.
+func sharedReviewNonce() string {
+	path := filepath.Join(config.Home(), "review-nonce")
+	if b, err := os.ReadFile(path); err == nil {
+		if n := strings.TrimSpace(string(b)); len(n) >= 32 {
+			return n
+		}
+	}
+	n := review.NewNonce()
+	if os.MkdirAll(config.Home(), 0o700) == nil && os.WriteFile(path, []byte(n+"\n"), 0o600) == nil {
+		return n
+	}
+	return n // no file: this process alone knows it
 }
 
 func listenFrom(port int) (net.Listener, error) {
@@ -410,32 +435,42 @@ func printNotes(notes []noteOut) {
 
 // openReview opens the review of a target. For stills it also loads the items and removes an
 // approval that no longer holds, so that every command sees the same state as the page.
-func openReview(target string) (*review.Store, review.Kind, []review.Item, error) {
-	kind, err := review.KindOf(target)
+//
+// itemsErr is set when the target does not load now (it may be mid-edit). Then the items are
+// nil, and nothing can be said about the approval: callers must not call it approved.
+func openReview(target string) (store *review.Store, kind review.Kind, items []review.Item, itemsErr error, err error) {
+	kind, err = review.KindOf(target)
 	if err != nil {
-		return nil, "", nil, fail(exitError, err.Error(), "")
+		return nil, "", nil, nil, fail(exitError, err.Error(), "")
 	}
-	store := review.Open(target)
-	return store, kind, currentItems(store, kind, target, true), nil
+	store = review.Open(target)
+	items, itemsErr = currentItems(store, kind, target)
+	if itemsErr != nil {
+		fmt.Fprintf(os.Stderr, "warning: %v\n", itemsErr)
+	}
+	return store, kind, items, itemsErr, nil
 }
 
 // currentItems loads the items of a stills target and reconciles the approval with them. It
-// returns nil for a video, and when the target cannot be read now (it may be mid-edit).
-func currentItems(store *review.Store, kind review.Kind, target string, warn bool) []review.Item {
+// returns nothing for a video.
+func currentItems(store *review.Store, kind review.Kind, target string) ([]review.Item, error) {
 	if kind == review.KindVideo {
-		return nil
+		return nil, nil
 	}
 	items, err := review.Items(kind, target)
 	if err == nil {
 		_, err = store.ReconcileItems(items)
 	}
 	if err != nil {
-		if warn {
-			fmt.Fprintf(os.Stderr, "warning: %v\n", err)
-		}
-		return nil
+		return nil, err
 	}
-	return items
+	return items, nil
+}
+
+// approvalUnknown is what the commands say when a stills target does not load: they cannot
+// tell whether the approval still holds, so they never call the stage approved.
+func approvalUnknown(target string, err error) string {
+	return fmt.Sprintf("approval unknown: %s does not load (%v)", target, err)
 }
 
 func reviewWait(a *app, args []string) error {
@@ -449,14 +484,14 @@ func reviewWait(a *app, args []string) error {
 	if err != nil {
 		return err
 	}
-	store, kind, items, err := openReview(target)
+	store, kind, items, itemsErr, err := openReview(target)
 	if err != nil {
 		return err
 	}
 	deadline := time.Now().Add(*timeout)
 	for first := true; ; first = false {
 		if !first {
-			items = currentItems(store, kind, target, false)
+			items, itemsErr = currentItems(store, kind, target)
 		}
 		var got *review.Send
 		var notes []noteOut
@@ -475,16 +510,23 @@ func reviewWait(a *app, args []string) error {
 			return nil
 		})
 		if err == nil {
-			approved := got.Approved && approval != nil
+			// With a target that does not load, nothing says the approval still holds.
+			unknown := got.Approved && itemsErr != nil
+			approved := got.Approved && approval != nil && itemsErr == nil
 			data := map[string]any{"send": got.N, "target": target, "kind": kind, "approved": approved, "notes": notes}
 			if kind == review.KindVideo {
 				data["video"] = target
+			}
+			if unknown {
+				data["approvalUnknown"], data["itemsError"] = true, itemsErr.Error()
 			}
 			if approved {
 				data["approvedBy"] = approval.By
 			}
 			a.emit(data, func() {
 				switch {
+				case unknown:
+					fmt.Printf("send #%d: the reviewer approved, but %s.\n", got.N, approvalUnknown(target, itemsErr))
 				case approved:
 					fmt.Printf("%s is approved by %s (send #%d).\n", target, approval.By, got.N)
 				case got.Approved && cleared != nil:
@@ -502,6 +544,8 @@ func reviewWait(a *app, args []string) error {
 					printNotes(notes)
 				}
 				switch {
+				case unknown:
+					fmt.Printf("\nDo not go on. Fix %s, then run cav review export to see if the stage is approved.\n", target)
 				case approved:
 					fmt.Printf("\nGo on to the next stage.")
 					if len(notes) > 0 {
@@ -556,7 +600,7 @@ func reviewExport(a *app, args []string) error {
 	if err != nil {
 		return err
 	}
-	store, kind, items, err := openReview(target)
+	store, kind, items, itemsErr, err := openReview(target)
 	if err != nil {
 		return err
 	}
@@ -580,7 +624,13 @@ func reviewExport(a *app, args []string) error {
 		if blockers = review.Blockers(d, items); blockers == nil {
 			blockers = []string{}
 		}
-		data["items"], data["approved"], data["approval"], data["approvalCleared"], data["blockers"] = rows, d.Approved != nil, d.Approved, d.ApprovalCleared, blockers
+		// A file that does not load cannot be checked against the approval: say so, and never
+		// say approved.
+		approved := d.Approved != nil && itemsErr == nil
+		data["items"], data["approved"], data["approval"], data["approvalCleared"], data["blockers"] = rows, approved, d.Approved, d.ApprovalCleared, blockers
+		if itemsErr != nil {
+			data["approvalUnknown"], data["itemsError"], data["approval"] = true, itemsErr.Error(), nil
+		}
 	}
 	a.emit(data, func() {
 		if kind == review.KindVideo {
@@ -592,6 +642,8 @@ func reviewExport(a *app, args []string) error {
 			return
 		}
 		switch {
+		case itemsErr != nil:
+			fmt.Println(approvalUnknown(target, itemsErr))
 		case d.Approved != nil:
 			fmt.Printf("approved by %s on %s\n", d.Approved.By, d.Approved.At.Local().Format("2006-01-02 15:04"))
 		case len(blockers) > 0:
@@ -635,7 +687,7 @@ func reviewSetStatus(a *app, sub string, args []string) error {
 	if err != nil {
 		return err
 	}
-	store, _, items, err := openReview(target)
+	store, _, items, _, err := openReview(target)
 	if err != nil {
 		return err
 	}

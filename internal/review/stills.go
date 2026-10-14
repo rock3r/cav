@@ -1,6 +1,10 @@
 package review
 
 import (
+	"bytes"
+	"crypto/rand"
+	"crypto/subtle"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +15,23 @@ import (
 	"strings"
 	"time"
 )
+
+// NewNonce makes a random secret for a Server.
+func NewNonce() string {
+	b := make([]byte, 24)
+	if _, err := rand.Read(b); err != nil {
+		panic(err) // no source of randomness: better no server than a guessable secret
+	}
+	return hex.EncodeToString(b)
+}
+
+// noncePlaceholder stands for the nonce in the page; PageWithNonce fills it in.
+const noncePlaceholder = "__CAV_NONCE__"
+
+// PageWithNonce puts the nonce into the page. The page sends it with an approval.
+func PageWithNonce(page []byte, nonce string) []byte {
+	return bytes.ReplaceAll(page, []byte(noncePlaceholder), []byte(nonce))
+}
 
 // Stills names the target of a review of stills.
 type Stills struct {
@@ -201,6 +222,9 @@ func (s *Server) addItemComment(w http.ResponseWriter, in commentInput) {
 		httpErr(w, 400, err)
 		return
 	}
+	if bare {
+		png = nil // a bare verdict has nothing to show; its id may be an earlier verdict's
+	}
 	version := shortSHA(TargetSHA(s.Stills.Path))
 	var made Comment
 	_, err = s.update(func(d *Doc) error {
@@ -237,7 +261,7 @@ func (s *Server) addItemComment(w http.ResponseWriter, in commentInput) {
 			if err := os.MkdirAll(s.Store.SnapDir, 0o755); err != nil {
 				return err
 			}
-			c.Snapshot = filepath.Join(s.Store.SnapDir, fmt.Sprintf("%s_%s.png", c.ID, itemFileName(in.Item)))
+			c.Snapshot = filepath.Join(s.Store.SnapDir, fmt.Sprintf("%s_%s.png", itemFileName(c.ID), itemFileName(in.Item)))
 			if err := os.WriteFile(c.Snapshot, png, 0o644); err != nil {
 				return err
 			}
@@ -264,9 +288,15 @@ func (s *Server) approve(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Items    map[string]string `json:"items"`
 		Withdraw bool              `json:"withdraw"`
+		Nonce    string            `json:"nonce"`
 	}
 	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&in); err != nil {
 		httpErr(w, 400, err)
+		return
+	}
+	// Only the page knows the nonce, so a request that did not come from it is refused.
+	if s.Nonce == "" || subtle.ConstantTimeCompare([]byte(in.Nonce), []byte(s.Nonce)) != 1 {
+		httpErr(w, 403, errors.New("only the review page can approve: use the Approve button"))
 		return
 	}
 	if in.Withdraw {
@@ -282,6 +312,10 @@ func (s *Server) approve(w http.ResponseWriter, r *http.Request) {
 	items, ierr := s.items()
 	if ierr != nil {
 		httpErr(w, 409, ierr)
+		return
+	}
+	if len(items) == 0 {
+		httpErr(w, 409, errors.New("there is nothing to approve: the file has no items"))
 		return
 	}
 	var sent *Send

@@ -34,6 +34,13 @@ type Server struct {
 	// Stills, when set, makes this a review of a brief, mood board or storyboard: the page
 	// shows the items, there is no video, and Source, Proxy and Prepare are not used.
 	Stills *Stills
+	// Nonce is a secret that only the page knows: the server writes it into the page it
+	// serves, and /api/approve refuses a request without it. It is never in an API answer,
+	// the review file or the command output. An agent that only calls the chat's
+	// review_request tool never sees the page, so it cannot approve. An agent with a shell
+	// could still read the page and approve: the approval is a strong signal, not a security
+	// boundary. Without a nonce the server refuses every approval.
+	Nonce string
 
 	itemsMu    sync.Mutex
 	lastItems  []Item // the items as they were when they last loaded without an error
@@ -135,7 +142,7 @@ func (s *Server) Handler() http.Handler {
 				page = b
 			}
 		}
-		w.Write(page)
+		w.Write(PageWithNonce(page, s.Nonce))
 	})
 	// The current render. With ?v=<version>, that render: the page asks for the version that
 	// /api/state named, and a later re-render must not answer in its place, or the page would
@@ -232,7 +239,9 @@ func (s *Server) Handler() http.Handler {
 		_, err := s.update(func(d *Doc) error {
 			for i, c := range d.Comments {
 				if c.ID == id {
-					snap = c.Snapshot
+					// Only a file inside the review's own folder is removed: the recorded path
+					// comes from a file that can be edited.
+					snap = s.Store.SnapshotFile(c.Snapshot)
 					d.Comments = append(d.Comments[:i], d.Comments[i+1:]...)
 					return nil
 				}

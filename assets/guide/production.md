@@ -577,7 +577,12 @@ slow or paid work starts.
 - To fix a note, change the item in its file (for a shot: its `what`, or its frame with
   `cav board frames --force`), then run `cav review resolve <id> --note "what changed"`.
   Do not mark anything approved: there is no command for that, and you must never edit
-  `approved` by hand.
+  `approved` by hand. The page holds a secret that the server needs for an approval, so the
+  chat tools cannot approve. This is a strong signal, not a security boundary: an agent with
+  a shell could still read the page and send the approval itself. Never do that.
+- If the file does not load, `wait` and `export` say "approval unknown". Fix the file first.
+- A storyboard also has a "board" item: its settings (tempo, size, offset, beat grid and
+  style). Changing any of them removes the approval ("board changed").
 - Each item has a hash. When an item changes, the user's old verdict shows as outdated and
   the approval is removed (`approvalCleared` says why). Ask the user to look and approve
   again. A change to one shot does not touch the verdicts on the others.

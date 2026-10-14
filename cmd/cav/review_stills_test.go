@@ -174,7 +174,7 @@ func TestReviewExportStillsJSON(t *testing.T) {
 		return e
 	}
 	e := export()
-	if e.Kind != "storyboard" || len(e.Items) != 2 || e.Approved || len(e.Blockers) != 0 || e.Items[0].SHA == "" {
+	if e.Kind != "storyboard" || len(e.Items) != 3 || e.Approved || len(e.Blockers) != 0 || e.Items[0].SHA == "" {
 		t.Fatalf("fresh export %+v", e)
 	}
 
@@ -186,7 +186,7 @@ func TestReviewExportStillsJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 	e = export()
-	if len(e.Blockers) != 1 || e.Blockers[0] != "s1 is marked redo" || e.Items[0].Verdict != "redo" {
+	if len(e.Blockers) != 1 || e.Blockers[0] != "s1 is marked redo" || e.Items[1].Verdict != "redo" {
 		t.Fatalf("export with a redo %+v", e)
 	}
 	if _, out := cav(t, false, "review", "export", path); !strings.Contains(out, "not approved: s1 is marked redo") || !strings.Contains(out, "s1  redo") {
@@ -224,6 +224,32 @@ func TestReopenAfterApprovalClearsIt(t *testing.T) {
 	}
 	if code, _ := cav(t, false, "review", "resolve", "c_01", "--note", "fixed", path); code != exitOK {
 		t.Fatal("resolve")
+	}
+}
+
+func TestWaitAndExportNeverSayApprovedForATargetThatDoesNotLoad(t *testing.T) {
+	path := stillsProject(t)
+	approveAll(t, path)
+	// A storyboard in the middle of an edit: valid JSON, but it fails the board's own checks.
+	if err := os.WriteFile(path, []byte(`{"schema":"cav-board/1","shots":[]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	code, out := cav(t, false, "review", "export", path)
+	if code != exitOK || !strings.Contains(out, "approval unknown: "+path+" does not load") || strings.Contains(out, "approved by") {
+		t.Fatalf("export: exit %d\n%s", code, out)
+	}
+	code, out = cav(t, true, "review", "export", path)
+	var e struct {
+		Approved        bool
+		ApprovalUnknown bool
+		ItemsError      string
+	}
+	if json.Unmarshal([]byte(out), &e) != nil || code != exitOK || e.Approved || !e.ApprovalUnknown || e.ItemsError == "" {
+		t.Fatalf("export json: exit %d\n%s", code, out)
+	}
+	code, out = cav(t, false, "review", "wait", path, "--timeout", "3s")
+	if code != exitOK || !strings.Contains(out, "approval unknown") || strings.Contains(out, "is approved by") || strings.Contains(out, "Go on to the next stage") || !strings.Contains(out, "Do not go on") {
+		t.Fatalf("wait: exit %d\n%s", code, out)
 	}
 }
 

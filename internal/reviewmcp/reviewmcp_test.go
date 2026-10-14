@@ -19,7 +19,7 @@ import (
 	"github.com/rock3r/cav/internal/review"
 )
 
-const page = `<!doctype html><html><head><title>cav review</title></head><body><video id="video" src="/video"></video><script>/* page */</script></body></html>`
+const page = `<!doctype html><html><head><title>cav review</title><meta name="cav-nonce" content="__CAV_NONCE__"></head><body><video id="video" src="/video"></video><script>/* page */</script></body></html>`
 
 // connect starts the server with a fake Prepare (no ffmpeg) and returns a client session
 // and a counter of the prepares.
@@ -478,7 +478,7 @@ func TestDoServesAFileUpToTheLimit(t *testing.T) {
 }
 
 func TestAppPageWithoutHead(t *testing.T) {
-	got := string(AppPage([]byte("<p>hi</p>"), []byte("/* shim */")))
+	got := string(AppPage([]byte("<p>hi</p>"), []byte("/* shim */"), "n"))
 	if !strings.HasPrefix(got, `<meta name="color-scheme"`) || !strings.HasSuffix(got, "<p>hi</p>") || !strings.Contains(got, "/* shim */") {
 		t.Errorf("got %q", got)
 	}

@@ -53,6 +53,10 @@ type Options struct {
 	// Prepare probes a video and makes its preview proxy. Tests replace it; nil uses
 	// ffprobe and ffmpeg.
 	Prepare func(ctx context.Context, video, cacheDir string) (review.Source, string, error)
+	// Nonce is the secret that the page sends with an approval (see review.Server.Nonce).
+	// The host may send the page's requests to another server process than the one that
+	// served the page, so the processes of one person share it. Empty: a random one.
+	Nonce string
 }
 
 // New builds the MCP server: the page resource, show_review for the model and
@@ -60,6 +64,9 @@ type Options struct {
 func New(o Options) *mcp.Server {
 	if o.Prepare == nil {
 		o.Prepare = Prepare
+	}
+	if o.Nonce == "" {
+		o.Nonce = review.NewNonce()
 	}
 	h := &handler{o: o, open: map[string]*session{}, stores: map[string]*review.Store{}}
 	s := mcp.NewServer(&mcp.Implementation{Name: "cav", Title: "cav review", Version: o.Version}, &mcp.ServerOptions{
@@ -85,7 +92,7 @@ func New(o Options) *mcp.Server {
 		Description: "The cav review page: play a render, step frames, draw and leave notes for the agent."},
 		func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
 			return &mcp.ReadResourceResult{Contents: []*mcp.ResourceContents{{
-				URI: PageURI, MIMEType: AppMIME, Text: string(AppPage(o.Page, o.Shim)), Meta: pageMeta,
+				URI: PageURI, MIMEType: AppMIME, Text: string(AppPage(o.Page, o.Shim, o.Nonce)), Meta: pageMeta,
 			}}}, nil
 		})
 	mcp.AddTool(s, &mcp.Tool{
@@ -116,7 +123,7 @@ func New(o Options) *mcp.Server {
 // AppPage adds the shim and a content-sized layout to the review page. The page fills the
 // window height, but the host sizes the frame from the page's own height, so in the frame
 // the page takes its natural height and the wide layout a fixed one.
-func AppPage(page, shim []byte) []byte {
+func AppPage(page, shim []byte, nonce string) []byte {
 	// The page stacks the sheet under the stage below 760 pixels. Chat frames are often 600
 	// to 800 pixels wide and about 600 tall, so in the chat the two columns hold down to 600
 	// pixels, with a narrower sheet, and the whole page takes the frame's height.
@@ -140,6 +147,9 @@ func AppPage(page, shim []byte) []byte {
 		"@media (max-width: 599px) { html.cav-mcp.cav-full .app { height: auto; min-height: 100dvh; } }\n" +
 		"</style>\n" +
 		"<script>\n" + string(shim) + "\n</script>\n"
+	// The nonce lets the page approve a stage. It goes only into this page, which the host
+	// shows to the person: never into a tool result.
+	page = review.PageWithNonce(page, nonce)
 	i := bytes.Index(page, []byte("</head>"))
 	if i < 0 {
 		return append([]byte(head), page...)
@@ -289,7 +299,7 @@ func (h *handler) stillsSession(abs string, kind review.Kind, create bool) (*ses
 			return nil, err
 		}
 	}
-	s := &session{kind: kind, srv: &review.Server{Store: store, Stills: &review.Stills{Kind: kind, Path: abs}, Author: h.o.Author}}
+	s := &session{kind: kind, srv: &review.Server{Store: store, Stills: &review.Stills{Kind: kind, Path: abs}, Author: h.o.Author, Nonce: h.o.Nonce}}
 	h.open[abs] = s
 	return s, nil
 }
@@ -432,7 +442,13 @@ func (h *handler) showStills(s *session, d *review.Doc) (*mcp.CallToolResult, sh
 			return nil, showOut{}, err
 		}
 	}
-	out := showOut{Video: st.Path, ReviewFile: s.srv.Store.DocPath, Kind: string(st.Kind), Items: len(items), Approved: d.Approved != nil, OpenNotes: []noteSummary{}}
+	counted := 0 // settings of the whole file are reviewed too, but are not "shots"
+	for _, it := range items {
+		if !it.Meta {
+			counted++
+		}
+	}
+	out := showOut{Video: st.Path, ReviewFile: s.srv.Store.DocPath, Kind: string(st.Kind), Items: counted, Approved: d.Approved != nil, OpenNotes: []noteSummary{}}
 	var b strings.Builder
 	for _, c := range d.Comments {
 		if c.Status != "open" {
@@ -457,7 +473,7 @@ func (h *handler) showStills(s *session, d *review.Doc) (*mcp.CallToolResult, sh
 		"With a shell, `cav review wait` with the path as its argument, quoted for your shell, works too; " +
 		"`cav review` with the same path opens the review in a browser."
 	text := fmt.Sprintf("Showing the review page of %s (%d %s). Notes: %d open, %d resolved.%s\nApproved: %s.\nPath: %s\n%s",
-		filepath.Base(st.Path), len(items), itemNouns[st.Kind], out.Open, out.Resolved, b.String(), approved, out.Video, out.Next)
+		filepath.Base(st.Path), counted, itemNouns[st.Kind], out.Open, out.Resolved, b.String(), approved, out.Video, out.Next)
 	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: text}}}, out, nil
 }
 

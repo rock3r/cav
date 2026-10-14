@@ -17,7 +17,8 @@ func TestHookFindsStillsReviewAtProjectRoot(t *testing.T) {
 	dir := t.TempDir()
 	// A stills review file sits next to its target in the project, not in renders/.
 	d := review.Doc{Schema: review.Schema, Kind: "storyboard", Source: review.Source{Render: "storyboard.json"},
-		Sends: []review.Send{{N: 1, At: time.Now(), Comments: []string{}, Approved: true}}}
+		Approved: &review.Approval{By: "seb", At: time.Now(), Items: map[string]string{"s1": "a"}},
+		Sends:    []review.Send{{N: 1, At: time.Now(), Comments: []string{}, Approved: true}}}
 	b, _ := json.Marshal(d)
 	if err := os.WriteFile(filepath.Join(dir, "storyboard.review.json"), b, 0o644); err != nil {
 		t.Fatal(err)
@@ -38,6 +39,32 @@ func TestHookFindsStillsReviewAtProjectRoot(t *testing.T) {
 	}
 	if !strings.Contains(strings.Join(found, " "), "moodboard.json") {
 		t.Fatalf("pending targets %v", found)
+	}
+}
+
+func TestHookDoesNotSayApprovedAfterTheApprovalWasRemoved(t *testing.T) {
+	t.Setenv("CAV_HOME", t.TempDir())
+	t.Setenv("CAV_OUT_DIR", "")
+	dir := t.TempDir()
+	for name, d := range map[string]review.Doc{
+		"cleared":   {ApprovalCleared: &review.Cleared{At: time.Now(), Reason: "s3 changed"}},
+		"withdrawn": {},
+	} {
+		d.Schema, d.Kind, d.Source = review.Schema, "storyboard", review.Source{Render: "storyboard.json"}
+		d.Sends = []review.Send{{N: 1, At: time.Now(), Comments: []string{}, Approved: true}}
+		b, _ := json.Marshal(d)
+		os.WriteFile(filepath.Join(dir, "storyboard.review.json"), b, 0o644)
+		ps := findPending(dir)
+		if len(ps) != 1 || ps[0].removed == "" {
+			t.Fatalf("%s: %+v", name, ps)
+		}
+		text, msg := hookMessage(ps)
+		if strings.Contains(text, "to confirm") || !strings.Contains(text, "then the approval was removed") || !strings.Contains(text, "Do not go on") || strings.Contains(msg, "approved storyboard") {
+			t.Errorf("%s: %q / %q", name, text, msg)
+		}
+		if name == "cleared" && !strings.Contains(text, "s3 changed") {
+			t.Errorf("the reason is missing: %q", text)
+		}
 	}
 }
 

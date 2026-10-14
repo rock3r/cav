@@ -14,7 +14,7 @@ import (
 func newStillsServer(t *testing.T) (*Server, http.Handler, string, string) {
 	t.Helper()
 	path, dir := writeBoard(t)
-	s := &Server{Store: Open(path), Stills: &Stills{Kind: KindStoryboard, Path: path}, Author: "seb", Page: []byte("<html>")}
+	s := &Server{Store: Open(path), Stills: &Stills{Kind: KindStoryboard, Path: path}, Author: "seb", Page: []byte("<html>"), Nonce: testNonce}
 	return s, s.Handler(), path, dir
 }
 
@@ -75,7 +75,7 @@ func postComment(t *testing.T, h http.Handler, body map[string]any, want int) Co
 
 func approveStage(t *testing.T, h http.Handler, st stillsState, want int) {
 	t.Helper()
-	w := do(t, h, "POST", "/api/approve", map[string]any{"items": st.shas()}, nil)
+	w := do(t, h, "POST", "/api/approve", map[string]any{"nonce": testNonce, "items": st.shas()}, nil)
 	if w.Code != want {
 		t.Fatalf("approve: %d %s (want %d)", w.Code, w.Body, want)
 	}
@@ -84,7 +84,7 @@ func approveStage(t *testing.T, h http.Handler, st stillsState, want int) {
 func TestStillsVerdictsAndNotes(t *testing.T) {
 	s, h, _, _ := newStillsServer(t)
 	st := getState(t, h)
-	if st.Kind != "storyboard" || len(st.Items) != 3 || strings.Join(st.Verdicts, ",") != "approve,redo" {
+	if st.Kind != "storyboard" || len(st.Items) != 4 || strings.Join(st.Verdicts, ",") != "approve,redo" {
 		t.Fatalf("state %+v", st)
 	}
 
@@ -191,7 +191,7 @@ func TestApproveRules(t *testing.T) {
 	if st.Approval.CanApprove || len(st.Approval.Blockers) != 1 || st.Approval.Blockers[0] != "s1 is marked redo" {
 		t.Fatalf("approval %+v", st.Approval)
 	}
-	w := do(t, h, "POST", "/api/approve", map[string]any{"items": st.shas()}, nil)
+	w := do(t, h, "POST", "/api/approve", map[string]any{"nonce": testNonce, "items": st.shas()}, nil)
 	var refused struct {
 		Error    string
 		Blockers []string
@@ -223,11 +223,11 @@ func TestApproveRules(t *testing.T) {
 	// The page approves what it showed: hashes that moved on are refused.
 	stale := st.shas()
 	stale["s2"] = old
-	if w := do(t, h, "POST", "/api/approve", map[string]any{"items": stale}, nil); w.Code != 409 || !strings.Contains(w.Body.String(), "look again") {
+	if w := do(t, h, "POST", "/api/approve", map[string]any{"nonce": testNonce, "items": stale}, nil); w.Code != 409 || !strings.Contains(w.Body.String(), "look again") {
 		t.Fatalf("stale hashes: %d %s", w.Code, w.Body)
 	}
 	delete(stale, "s2")
-	if w := do(t, h, "POST", "/api/approve", map[string]any{"items": stale}, nil); w.Code != 409 {
+	if w := do(t, h, "POST", "/api/approve", map[string]any{"nonce": testNonce, "items": stale}, nil); w.Code != 409 {
 		t.Fatalf("a missing item: %d %s", w.Code, w.Body)
 	}
 
@@ -243,7 +243,7 @@ func TestApproveRules(t *testing.T) {
 
 	// Taking the approval back does not make a send.
 	n := len(d.Sends)
-	if w := do(t, h, "POST", "/api/approve", map[string]any{"withdraw": true}, nil); w.Code != 200 {
+	if w := do(t, h, "POST", "/api/approve", map[string]any{"nonce": testNonce, "withdraw": true}, nil); w.Code != 200 {
 		t.Fatalf("withdraw: %d %s", w.Code, w.Body)
 	}
 	d, _ = s.Store.Load()
@@ -253,7 +253,7 @@ func TestApproveRules(t *testing.T) {
 
 	// A review of video has no approve.
 	_, vh := newTestServer(t)
-	if w := do(t, vh, "POST", "/api/approve", map[string]any{"items": map[string]string{}}, nil); w.Code != 404 {
+	if w := do(t, vh, "POST", "/api/approve", map[string]any{"nonce": testNonce, "items": map[string]string{}}, nil); w.Code != 404 {
 		t.Fatalf("video approve: %d", w.Code)
 	}
 }
@@ -264,7 +264,7 @@ func TestMoodboardVerdictsAndApprovalSend(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "a.jpg"), "a")
 	writeFile(t, filepath.Join(dir, "b.jpg"), "b")
 	writeFile(t, path, `{"schema":"cav-moodboard/1","items":[{"id":"a","file":"a.jpg"},{"id":"b","file":"b.jpg"}]}`)
-	s := &Server{Store: Open(path), Stills: &Stills{Kind: KindMoodboard, Path: path}, Author: "seb"}
+	s := &Server{Store: Open(path), Stills: &Stills{Kind: KindMoodboard, Path: path}, Author: "seb", Nonce: testNonce}
 	h := s.Handler()
 
 	keep := postComment(t, h, map[string]any{"item": "a", "verdict": "keep"}, 200)

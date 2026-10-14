@@ -56,6 +56,7 @@ func cmdMCP(a *app, args []string) error {
 		Page:     assets.ReviewPage,
 		Shim:     assets.ReviewAppShim,
 		Author:   defaultAuthor(),
+		Nonce:    sharedReviewNonce(),
 		CacheDir: filepath.Join(config.CacheDir(), "review-preview"),
 		Resolve: func(video string) (string, error) {
 			var pos []string

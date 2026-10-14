@@ -33,6 +33,14 @@
   - `wait`, `export`, `resolve`, `reopen`, the review hook, and the `show_review` and
     `review_notes` tools take the new targets. Reopening a note after the approval removes
     the approval.
+  - The page holds a secret that the server wrote into it, and an approval needs it. So the
+    agent cannot approve through the chat's `review_request` tool. This is a strong signal,
+    not a security boundary: an agent with a shell could still read the page and approve.
+  - A storyboard has an extra item, `board`, for its settings (tempo, size, offset, beat
+    grid, style). A change to them removes the approval. The hash of a mood board
+    reference also covers its words, link and thumbnail.
+  - If the target file does not load, `cav review wait` and `export` say "approval
+    unknown" and never "approved".
   - Video reviews are unchanged. The new fields in the review file are optional, and a
     video review file is saved without them. A review file that a newer cav wrote
     (`cav-review/2` or later) is refused with a message to update cav.

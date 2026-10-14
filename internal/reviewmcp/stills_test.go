@@ -1,9 +1,11 @@
 package reviewmcp
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -11,6 +13,70 @@ import (
 	"github.com/rock3r/cav/internal/board"
 	"github.com/rock3r/cav/internal/review"
 )
+
+// pageNonce reads the nonce the way the host does: from the page resource it shows the person.
+func pageNonce(t *testing.T, cs *mcp.ClientSession) string {
+	t.Helper()
+	res, err := cs.ReadResource(context.Background(), &mcp.ReadResourceParams{URI: PageURI})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := regexp.MustCompile(`name="cav-nonce" content="([0-9a-f]{32,})"`).FindStringSubmatch(res.Contents[0].Text)
+	if m == nil {
+		t.Fatalf("the page resource should carry a nonce:\n%.300s", res.Contents[0].Text)
+	}
+	return m[1]
+}
+
+func TestAgentCannotApproveThroughReviewRequest(t *testing.T) {
+	path := storyboardFile(t)
+	cs, _ := connectTo(t, path)
+	nonce := pageNonce(t, cs)
+	var shown showOut
+	shownRes := call(t, cs, "show_review", map[string]any{"video": path}, &shown)
+	items := shas(t, cs, path)
+	body := func(n string) string {
+		b, _ := json.Marshal(map[string]any{"items": items, "nonce": n})
+		return string(b)
+	}
+	for name, n := range map[string]string{"no nonce": "", "guessed nonce": "0123456789abcdef0123456789abcdef"} {
+		if r := request(t, cs, path, "POST", "/api/approve", body(n)); r.Status != 403 {
+			t.Errorf("%s: %+v", name, r)
+		}
+	}
+	if r := request(t, cs, path, "POST", "/api/approve", `{"withdraw":true}`); r.Status != 403 {
+		t.Errorf("withdraw: %+v", r)
+	}
+	if d, _ := review.Open(path).Load(); d.Approved != nil || len(d.Sends) != 0 {
+		t.Fatalf("the agent approved: %+v", d)
+	}
+
+	// The nonce is in the page and nowhere an agent reads: not in a tool result, not in the
+	// state, not in the notes, not in the review file.
+	var all strings.Builder
+	for _, c := range shownRes.Content {
+		all.WriteString(c.(*mcp.TextContent).Text)
+	}
+	b, _ := json.Marshal(shownRes.StructuredContent)
+	all.Write(b)
+	all.WriteString(request(t, cs, path, "GET", "/api/state", "").Body)
+	notes := call(t, cs, "review_notes", map[string]any{"video": path}, nil)
+	for _, c := range notes.Content {
+		if tc, ok := c.(*mcp.TextContent); ok {
+			all.WriteString(tc.Text)
+		}
+	}
+	b, _ = json.Marshal(notes.StructuredContent)
+	all.Write(b)
+	doc, _ := os.ReadFile(review.Open(path).DocPath)
+	all.Write(doc)
+	if strings.Contains(all.String(), nonce) {
+		t.Error("the nonce leaked into something an agent can read")
+	}
+	if r := request(t, cs, path, "POST", "/api/approve", body(nonce)); r.Status != 200 {
+		t.Errorf("the page, which has the nonce, can approve: %+v", r)
+	}
+}
 
 // storyboardFile writes a storyboard of two shots with a frame each.
 func storyboardFile(t *testing.T) string {
@@ -144,7 +210,7 @@ func TestReviewNotesReportsItemsAndApproval(t *testing.T) {
 	// The person resolves the note, approves, and the approval is one send of its own.
 	request(t, cs, path, "POST", "/api/comments/c_01", `{"status":"resolved"}`)
 	request(t, cs, path, "POST", "/api/comments", `{"item":"s1","verdict":"approve"}`)
-	body, _ := json.Marshal(map[string]any{"items": shas(t, cs, path)})
+	body, _ := json.Marshal(map[string]any{"items": shas(t, cs, path), "nonce": pageNonce(t, cs)})
 	if r := request(t, cs, path, "POST", "/api/approve", string(body)); r.Status != 200 {
 		t.Fatalf("approve: %+v", r)
 	}

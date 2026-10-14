@@ -85,13 +85,13 @@ func TestKindOf(t *testing.T) {
 func TestStoryboardItemHashes(t *testing.T) {
 	path, dir := writeBoard(t)
 	base, err := Items(KindStoryboard, path)
-	if err != nil || len(base) != 3 {
+	if err != nil || len(base) != 4 {
 		t.Fatalf("items %v, %v", base, err)
 	}
-	if !base[0].HasImage || base[2].HasImage || base[2].SHA == "" {
+	if !base[1].HasImage || base[3].HasImage || base[3].SHA == "" {
 		t.Fatalf("images: %+v", base)
 	}
-	if !strings.Contains(base[1].Text, "Camera: push in") {
+	if !strings.Contains(base[2].Text, "Camera: push in") {
 		t.Fatalf("text %q", base[1].Text)
 	}
 
@@ -127,13 +127,86 @@ func TestStoryboardItemHashes(t *testing.T) {
 	// A frame that is not there yet is fine, and the shot changes when it appears.
 	os.Remove(filepath.Join(dir, "board", "s1.png"))
 	missing, err := Items(KindStoryboard, path)
-	if err != nil || missing[0].HasImage || missing[0].SHA == what[0].SHA {
-		t.Errorf("missing frame: %+v, %v", missing[0], err)
+	if err != nil || missing[1].HasImage || missing[1].SHA == what[1].SHA {
+		t.Errorf("missing frame: %+v, %v", missing[1], err)
 	}
 	writeFile(t, filepath.Join(dir, "board", "s1.png"), "frame s1")
 	back, _ := Items(KindStoryboard, path)
-	if back[0].SHA == missing[0].SHA || !back[0].HasImage {
-		t.Errorf("a new frame should change the shot: %+v", back[0])
+	if back[1].SHA == missing[1].SHA || !back[1].HasImage {
+		t.Errorf("a new frame should change the shot: %+v", back[1])
+	}
+}
+
+func TestStoryboardSettingsAreAnItem(t *testing.T) {
+	path, _ := writeBoard(t)
+	base, _ := Items(KindStoryboard, path)
+	if base[0].ID != "board" || !base[0].Meta || base[0].Title != "Storyboard settings" {
+		t.Fatalf("first item %+v", base[0])
+	}
+	// Each setting changes "board" and no shot, so the approval reason reads "board changed".
+	for name, edit := range map[string]func(sb *board.Board){
+		"bpm":     func(sb *board.Board) { sb.BPM = 90 },
+		"fps":     func(sb *board.Board) { sb.FPS = 24 },
+		"seconds": func(sb *board.Board) { sb.Seconds = 30 },
+		"size":    func(sb *board.Board) { sb.Width, sb.Height = 1080, 1920 },
+		"offset":  func(sb *board.Board) { sb.Offset = 0.5 },
+		"style":   func(sb *board.Board) { sb.Style.Prompt = "neon" },
+		"palette": func(sb *board.Board) { sb.Style.Palette = []string{"#000"} },
+	} {
+		sb, _ := board.Load(path)
+		edit(sb)
+		sb.Save(path)
+		got, err := Items(KindStoryboard, path)
+		if err != nil || shaOf(got, "board") == shaOf(base, "board") {
+			t.Errorf("%s: the settings item should change (%v)", name, err)
+		}
+		for _, id := range []string{"s1", "s2", "s3"} {
+			if shaOf(got, id) != shaOf(base, id) {
+				t.Errorf("%s: %s should not change", name, id)
+			}
+		}
+		base, _ = Items(KindStoryboard, path) // the next edit starts from this one
+	}
+}
+
+func TestFrameBytesCountEvenWhenThePageWillNotShowThem(t *testing.T) {
+	path, dir := writeBoard(t)
+	outside := t.TempDir()
+	writeFile(t, filepath.Join(outside, "f.png"), "one")
+	if err := os.Symlink(filepath.Join(outside, "f.png"), filepath.Join(dir, "board", "link.png")); err != nil {
+		t.Skip("no symlinks here:", err)
+	}
+	sb, _ := board.Load(path)
+	sb.Shots[2].Frame = "board/link.png"
+	sb.Save(path)
+	a, _ := Items(KindStoryboard, path)
+	if a[3].HasImage {
+		t.Fatal("a link is not shown")
+	}
+	writeFile(t, filepath.Join(outside, "f.png"), "two")
+	b, _ := Items(KindStoryboard, path)
+	if shaOf(a, "s3") == shaOf(b, "s3") {
+		t.Error("new bytes in the frame must change the shot, shown or not")
+	}
+}
+
+func TestMoodboardHashCoversTakeURLAndThumb(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "moodboard.json")
+	writeFile(t, filepath.Join(dir, "a.jpg"), "a")
+	write := func(extra string) string {
+		writeFile(t, path, `{"items":[{"id":"a","file":"a.jpg"`+extra+`}]}`)
+		items, err := Items(KindMoodboard, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return items[0].SHA
+	}
+	base := write("")
+	for _, extra := range []string{`,"take":"the colour"`, `,"url":"https://x.test/a"`, `,"thumb":"t.png"`} {
+		if write(extra) == base {
+			t.Errorf("%s should change the reference", extra)
+		}
 	}
 }
 

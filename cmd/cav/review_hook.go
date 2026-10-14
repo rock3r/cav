@@ -40,6 +40,9 @@ type pendingSend struct {
 	url        string
 	// approved is set when the send is the reviewer approving a stage of stills.
 	approved bool
+	// removed is set when the approval in an approved send is gone from the review file: it
+	// was withdrawn, or an item changed. It says why.
+	removed string
 }
 
 // reviewHook runs as a command hook. When the reviewer has pressed "Send to agent" and no
@@ -192,10 +195,15 @@ func markSent(state map[string]time.Time, sends []pendingSend) {
 // hookMessage returns the text for the agent and a short message for the person.
 func hookMessage(fresh []pendingSend) (text, msg string) {
 	var lines []string
-	total, approvals := 0, 0
+	total, approvals, removed := 0, 0, 0
 	for _, p := range fresh {
 		total += p.notes
 		wait := codeSpan("cav review wait " + shellArg(p.video) + " --timeout 10s")
+		if p.approved && p.removed != "" {
+			removed++
+			lines = append(lines, fmt.Sprintf("- the reviewer approved %s (send #%d), then the approval was removed: %s. Do not go on: run %s", codeSpan(plainPath(p.video)), p.n, p.removed, wait))
+			continue
+		}
 		if p.approved {
 			approvals++
 			lines = append(lines, fmt.Sprintf("- the reviewer approved %s (send #%d, %d note(s) with it): run %s to confirm", codeSpan(plainPath(p.video)), p.n, p.notes, wait))
@@ -208,6 +216,8 @@ func hookMessage(fresh []pendingSend) (text, msg string) {
 		" Fix the notes (for a video, re-render to the same file; for a brief, mood board or storyboard, change the item in its file)," +
 		" then resolve each one with `cav review resolve <id> --note \"what changed\"`."
 	switch {
+	case removed == len(fresh) && total == 0:
+		msg = "cav review: an approval was removed, so the stage is not approved"
 	case approvals == 1 && len(fresh) == 1 && total == 0:
 		msg = "cav review: the reviewer approved " + plainPath(filepath.Base(fresh[0].video))
 	case approvals > 0:
@@ -270,6 +280,12 @@ func findPending(dir string) []pendingSend {
 				continue
 			}
 			p := pendingSend{key: fmt.Sprintf("%s#%d@%s", path, s.N, s.At.Format(time.RFC3339Nano)), video: video, n: s.N, notes: len(s.Comments), approved: s.Approved}
+			if s.Approved && d.Approved == nil {
+				p.removed = "the approval is no longer in the review file"
+				if d.ApprovalCleared != nil {
+					p.removed = plainPath(d.ApprovalCleared.Reason)
+				}
+			}
 			if d.Server != nil {
 				p.url = d.Server.URL
 			}

@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>cav review</title>
+<meta name="cav-nonce" content="__CAV_NONCE__">
 <style>
   /* The page is an animator's exposure sheet: frames run down ruled rows, and each note is
      written into the row of the frame it is about. Light is the base; dark applies when the
@@ -1303,6 +1304,9 @@ function startStills(s0) {
   $('here').hidden = true; $('help').hidden = true; $('colFrame').textContent = 'Item';
   $('bApprove').hidden = false; $('tally').hidden = false;
 
+  // The server wrote a secret into the page; an approval without it is refused. This is how
+  // the server tells the person's button from an agent that calls the API.
+  const nonce = (document.querySelector('meta[name="cav-nonce"]') || {}).content || '';
   const VLABEL = { approve: 'Approve', redo: 'Redo', keep: 'Keep', more: 'More like this', drop: 'Drop' };
   const VTONE = { approve: 'good', keep: 'good', redo: 'bad', drop: 'bad', more: 'neutral' };
   const NOUN = { storyboard: 'storyboard', moodboard: 'mood board', brief: 'brief' };
@@ -1319,7 +1323,7 @@ function startStills(s0) {
     $('name').textContent = $('name').title = s.name;
     document.title = s.name + ' · cav review';
     const f = (k, v) => `<span class="field"><span class="k">${k}</span><span class="v">${esc(v)}</span></span>`;
-    $('meta').innerHTML = f('Kind', NOUN[s.kind] || s.kind) + f('Items', String(s.items.length));
+    $('meta').innerHTML = f('Kind', NOUN[s.kind] || s.kind) + f('Items', String(s.items.filter(i => !i.meta).length));
     const b = $('banner');
     b.hidden = !s.targetError;
     if (s.targetError) b.textContent = `${s.name} has an error, so this page shows the last version that worked: ${s.targetError}`;
@@ -1604,10 +1608,14 @@ function startStills(s0) {
     $('sendNote').hidden = !lastSend;
     if (lastSend) $('sendNote').textContent = `Send #${lastSend.n}${lastSend.approved ? ' (approval)' : `, ${noteWord(lastSend.comments.length)}`}: ` + (lastSend.deliveredAt ? 'received by the agent' : 'waiting for the agent');
     const open = comments.filter(c => c.status === 'open' && isNote(c)).length;
-    const count = v => s.items.filter(i => i.verdict === v).length;
+    // Settings of the whole file (the storyboard's tempo and style) are not counted as items.
+    const counted = s.items.filter(i => !i.meta);
+    const count = v => counted.filter(i => i.verdict === v).length;
+    const fix = count('redo') + count('drop');
+    const toFix = fix ? ` · ${fix} to fix` : '';
     $('tally').textContent = s.kind === 'moodboard'
-      ? `${count('keep')} kept · ${count('more')} more · ${count('drop')} dropped`
-      : `${count('approve')} of ${s.items.length} approved · ${noteWord(open)} open`;
+      ? `${count('keep')} kept · ${count('more')} more · ${count('drop')} dropped · ${noteWord(open)} open`
+      : `${count('approve')} of ${counted.length} approved${toFix} · ${noteWord(open)} open`;
     const a = s.approval, noun = NOUN[s.kind] || 'stage';
     $('bApprove').hidden = a.approved;
     $('approvedNote').hidden = !a.approved;
@@ -1627,12 +1635,12 @@ function startStills(s0) {
   $('bApprove').addEventListener('click', async () => {
     const items = {};
     for (const i of s.items) items[i.id] = i.sha; // what the person has on screen
-    try { await api('POST', '/api/approve', { items }); toast(`Approved the ${NOUN[s.kind] || 'stage'}`); }
+    try { await api('POST', '/api/approve', { items, nonce }); toast(`Approved the ${NOUN[s.kind] || 'stage'}`); }
     catch (e) { toast(e.message); }
     await refresh(true).catch(() => {});
   });
   $('bWithdraw').addEventListener('click', async () => {
-    try { await api('POST', '/api/approve', { withdraw: true }); await refresh(true); toast('Approval withdrawn'); }
+    try { await api('POST', '/api/approve', { withdraw: true, nonce }); await refresh(true); toast('Approval withdrawn'); }
     catch (e) { toast(e.message); }
   });
 

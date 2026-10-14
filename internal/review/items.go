@@ -44,7 +44,10 @@ type Item struct {
 	// Image is the file the page shows; it never leaves the server (see SafeImage).
 	Image    string `json:"-"`
 	HasImage bool   `json:"hasImage"`
-	SHA      string `json:"sha"`
+	// Meta marks a setting of the whole file, such as the storyboard's tempo and style. It
+	// is reviewed like the rest but not counted as an item.
+	Meta bool   `json:"meta,omitempty"`
+	SHA  string `json:"sha"`
 }
 
 // Loader reads the items of one kind of target.
@@ -226,20 +229,52 @@ func storyboardItems(path string) ([]Item, error) {
 	if err != nil {
 		return nil, err
 	}
-	var items []Item
+	// The settings are an item of their own: tempo, format, offset, grid and style change what
+	// every shot means, so a change to them must remove the approval, whatever the shots say.
+	settings := *sb
+	settings.Shots = nil
+	sj, _ := json.Marshal(settings)
+	grid := ""
+	if sb.Grid != "" {
+		grid = "missing:" + sb.Grid
+		if d, err := cachedDigest(sb.Path(sb.Grid)); err == nil {
+			grid = d
+		}
+	}
+	id := "board"
 	for _, shot := range sb.Shots {
-		img, digest := "", ""
+		if shot.ID == id {
+			id = "storyboard-settings" // a shot already has the name
+		}
+	}
+	stext := fmt.Sprintf("%d x %d at %g fps, %g bpm, %g s", sb.Width, sb.Height, sb.FPS, sb.BPM, sb.Seconds)
+	if sb.Offset != 0 {
+		stext += fmt.Sprintf(", music offset %g s", sb.Offset)
+	}
+	if sb.Grid != "" {
+		stext += ", beat grid " + sb.Grid
+	}
+	if sb.Style.Prompt != "" {
+		stext += "\nStyle: " + sb.Style.Prompt
+	}
+	if len(sb.Style.Palette) > 0 {
+		stext += "\nPalette: " + strings.Join(sb.Style.Palette, ", ")
+	}
+	if len(sb.Style.Refs) > 0 {
+		stext += "\nStyle references: " + strings.Join(sb.Style.Refs, ", ")
+	}
+	items := []Item{{ID: id, Title: "Storyboard settings", Text: stext, Meta: true, SHA: sum("cav-item/1", "board", string(sj), grid)}}
+	for _, shot := range sb.Shots {
+		frame := sb.Path(shot.Frame)
+		digest := ""
 		if shot.Frame != "" {
-			img = SafeImage(path, sb.Path(shot.Frame))
+			// The bytes count even for a frame the page may not show (see SafeImage).
 			digest = "missing:" + shot.Frame
-			if img != "" {
-				if d, err := cachedDigest(img); err == nil {
-					digest = d
-				} else {
-					img = ""
-				}
+			if d, err := cachedDigest(frame); err == nil {
+				digest = d
 			}
 		}
+		img := SafeImage(path, frame)
 		j, _ := json.Marshal(shot)
 		text := shot.What
 		if shot.Camera != "" {
@@ -355,14 +390,16 @@ func moodboardItems(path string) ([]Item, error) {
 		if id == "" {
 			id = r.URL
 		}
-		sha := sum("cav-item/1", "url", r.URL)
+		// The file's bytes and every word the reviewer sees go into the hash.
+		digest := "url:" + r.URL
 		if r.File != "" {
 			d, err := cachedDigest(at(r.File))
 			if err != nil {
 				d = "missing:" + r.File
 			}
-			sha = d
+			digest = d
 		}
+		sha := sum("cav-item/1", "ref", digest, r.Take, r.URL, r.Thumb)
 		img := SafeImage(path, at(r.File))
 		if img == "" {
 			img = SafeImage(path, at(r.Thumb))
