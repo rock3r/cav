@@ -47,9 +47,18 @@ work="$(mktemp -d "${TMPDIR:-/tmp}/cav-smoke.XXXXXX")"
 logs="$work/logs"
 mkdir -p "$logs" "$work/.cav"
 cd "$work" || exit 70
-if [[ "$keep" != --keep ]]; then
-	trap 'rm -rf "$work"' EXIT
-fi
+# On exit, replace the smoke's own scratch scene with an empty one, so the next run (and the
+# user) does not find a scene with unsaved changes. A scene that is not the smoke's is left
+# alone. --keep keeps the files in $work, not the open scene.
+scratch_scene=
+finish() {
+	# Before "scene save", the smoke's scene is untitled; after it, it is smoke.cv in $work.
+	if [[ -n "$scratch_scene" ]] && "$cav" scene info 2>/dev/null | head -1 | grep -qE "\(untitled\)|/$(basename "$work")/"; then
+		"$cav" scene new --force >/dev/null 2>&1 || echo "note: could not close the smoke's scratch scene; close it in Cavalry before the next run"
+	fi
+	[[ "$keep" == --keep ]] || rm -rf "$work"
+}
+trap finish EXIT
 
 pass=0 fail=0 warn=0 n=0
 net_errors='deadline exceeded|timed? ?out|timeout|no such host|connection (refused|reset)|network is unreachable|dial tcp|tls|certificate|HTTP 5[0-9][0-9]|answered HTTP (429|5)|temporary failure|could not resolve|failed to fetch|failed to download'
@@ -138,6 +147,7 @@ if ! grep -q '640x360' "$(lastlog)"; then
 	echo "cav scene new did not start a scratch scene. Save or close the open scene, then run again."
 	exit 1
 fi
+scratch_scene=1
 step ok "scene comp" scene comp --motion-blur
 step ok "scene info" scene info
 cat >build.js <<'EOF'
