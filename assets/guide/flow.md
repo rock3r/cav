@@ -67,11 +67,11 @@ approval, every change costs a generation, a music take or a render.
 
 ## 6. Stage 4: music and animatic
 
-1. Music: use the user's track, or make one with `cav music gen`. Skip this when the user
-   brings a track.
-2. Beat grid: `cav beats music.wav -o build/grid.json`. Set `"grid"` in `storyboard.json`.
+1. Music: use the user's track, or make one with `cav music gen` (it writes takes into
+   `music/`). Call the chosen file `<track>` below.
+2. Beat grid: `cav beats <track> -o build/grid.json`. Set `"grid"` in `storyboard.json`.
 3. Optional moving shots: `cav board motion --only s2,s5`.
-4. Animatic: `cav board animatic --audio music.wav`. It uses the approved frames as they are,
+4. Animatic: `cav board animatic --audio <track>`. It uses the approved frames as they are,
    so the user does not approve the frames a second time. The review is only about timing
    against the music: `cav review renders/animatic.mp4`, then `cav review wait`.
 
