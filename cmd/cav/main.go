@@ -315,6 +315,7 @@ var commandHints = map[string]string{
 	"export":     "use `cav render -o out.mp4`",
 	"bpm":        "use `cav beats <audio>`",
 	"search":     "use `cav api <words>` (API) or `cav docs <words>` (docs)",
+	"reframe":    "use `cav scene reframe --to 9:16` (or 1:1)",
 	"wait":       "use `cav job wait <id>`",
 	"jobs":       "use `cav job wait <id>` (the id is printed when a run takes longer than its timeout)",
 	"pro":        "cav.pro(type) is a helper for scripts: cav run -e \"return cav.pro('glowFilter')\"",

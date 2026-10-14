@@ -1,0 +1,455 @@
+const test = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs'), path = require('node:path'), vm = require('node:vm')
+const source = fs.readFileSync(path.join(__dirname, '..', 'reframe.js'), 'utf8')
+const helpers = fs.readFileSync(path.join(__dirname, '..', '..', 'helpers', 'cav-helpers.js'), 'utf8')
+
+// Layer specs: {name, type, children, pos, scale, keyed, box:[l, r, t, b] (world), size, in, out, ref}.
+// A leaf has a box; a group has children. fakeCavalry models comps, layers and the calls that change them.
+function fakeCavalry(spec) {
+	const comps = {}, layers = {}, mutations = []
+	let n = 0, active = 'compNode#1', frame = 0
+	const comp = (name, w, h, tops) => {
+		const id = 'compNode#' + ++n
+		comps[id] = { id, name, w, h, start: 0, end: 119, top: tops || [], guides: [] }
+		return id
+	}
+	const make = (compId, s, parent) => {
+		const id = (s.type || (s.children ? 'group' : 'basicShape')) + '#' + ++n
+		layers[id] = {
+			id, comp: compId, parent, name: s.name, type: s.type || (s.children ? 'group' : 'basicShape'), children: [],
+			pos: s.pos || { x: 0, y: 0 }, scale: s.scale || { x: 1, y: 1 }, keyed: !!s.keyed, box: s.box, size: s.size,
+			noT: !!s.noTransform, inF: s.in === undefined ? 0 : s.in, outF: s.out === undefined ? 119 : s.out, opacity: 100, hidden: false, ref: s.ref,
+		}
+		layers[id].children = (s.children || []).map(c => make(compId, c, id))
+		return id
+	}
+	const source = comp('Launch', spec.w || 1920, spec.h || 1080)
+	comps[source].top = spec.layers.map(l => make(source, l, null))
+	active = source
+	const fail = {}
+	const track = (fn, ...targets) => mutations.push({ fn, targets, comp: active })
+	const list = id => { const l = layers[id]; return l.parent ? layers[l.parent].children : comps[l.comp].top }
+	const remove = id => { const a = list(id); a.splice(a.indexOf(id), 1) }
+	const api = {
+		getComps: () => Object.keys(comps),
+		getActiveComp: () => active,
+		setActiveComp: id => { active = id },
+		getFrame: () => frame,
+		setFrame: f => { frame = f },
+		getNiceName: id => (comps[id] || layers[id] || { name: id }).name,
+		getLayerType: id => layers[id].type,
+		getInFrame: id => layers[id].inF,
+		getOutFrame: id => layers[id].outF,
+		getChildren: id => layers[id].children.slice(),
+		getParent: id => layers[id].parent,
+		getCompLayers: top => {
+			if (top) return comps[active].top.slice()
+			const out = [], walk = l => l.forEach(i => { out.push(i); walk(layers[i].children) })
+			walk(comps[active].top)
+			return out
+		},
+		getAnimatedAttributes: id => layers[id].keyed ? ['position.x', 'position.y'] : [],
+		getInConnection: () => '',
+		getBoundingBox: id => {
+			const b = layers[id].box
+			return { left: b[0], right: b[1], top: b[2], bottom: b[3], width: b[1] - b[0], height: b[2] - b[3] }
+		},
+		getCompFromReference: id => layers[id].ref,
+		get: (id, attr) => {
+			if (comps[id]) return { resolution: { x: comps[id].w, y: comps[id].h }, startFrame: comps[id].start, endFrame: comps[id].end }[attr]
+			const l = layers[id]
+			return { position: l.noT ? undefined : l.pos, scale: l.noT ? undefined : l.scale, opacity: l.opacity, hidden: l.hidden, fontSize: l.size }[attr]
+		},
+		select: () => {},
+		duplicate: id => {
+			track('duplicate', id)
+			const c = comps[id], nid = comp(c.name, c.w, c.h)
+			const copy = (lid, parent) => {
+				const o = layers[lid], cid = o.type + '#' + ++n
+				layers[cid] = Object.assign({}, o, { id: cid, comp: nid, parent, pos: Object.assign({}, o.pos), scale: Object.assign({}, o.scale) })
+				layers[cid].children = o.children.map(k => copy(k, cid))
+				return cid
+			}
+			comps[nid].top = c.top.map(t => copy(t, null))
+			return nid
+		},
+		rename: (id, name) => { track('rename', id); if (fail.rename) throw new Error('rename failed'); (comps[id] || layers[id]).name = name },
+		set: (id, v) => {
+			track('set', id)
+			if (fail.set && v['position.x'] !== undefined) throw new Error('set failed')
+			if (comps[id]) { if (v.resolution) { comps[id].w = v.resolution[0]; comps[id].h = v.resolution[1] } return }
+			const l = layers[id]
+			if (v['position.x'] !== undefined) l.pos = { x: v['position.x'], y: v['position.y'] }
+			if (v['scale.x'] !== undefined) l.scale = { x: v['scale.x'], y: v['scale.y'] }
+		},
+		create: (type, name) => {
+			track('create', active)
+			const id = type + '#' + ++n
+			layers[id] = { id, comp: active, parent: null, name, type, children: [], pos: { x: 0, y: 0 }, scale: { x: 1, y: 1 }, inF: 0, outF: 119, opacity: 100, hidden: false }
+			comps[active].top.unshift(id)
+			return id
+		},
+		reorder: (a, below) => {
+			track('reorder', a, below)
+			remove(a)
+			const arr = list(below)
+			arr.splice(arr.indexOf(below) + 1, 0, a)
+		},
+		parent: (child, p) => {
+			track('parent', child, p)
+			remove(child)
+			layers[child].parent = p
+			layers[p].children.push(child)
+		},
+		deleteLayer: id => { track('deleteLayer', id); delete comps[id] },
+		addGuide: (c, vertical, pos) => { track('addGuide', c); comps[c].guides.push([vertical, pos]); return 1 },
+		setInFrame: id => track('setInFrame', id),
+		setOutFrame: id => track('setOutFrame', id),
+	}
+	return { api, comps, layers, mutations, source, fail, state: () => ({ active, frame }) }
+}
+
+// Run the job like the CLI does: the helpers are loaded first, then the job body.
+function run(cv, opts) {
+	const o = Object.assign({ source: '', to: [9, 16], name: '', key: [], scale: 0, samples: 3, minText: 28, dryRun: false }, opts)
+	const ctx = vm.createContext({ api: cv.api, cavalry: {}, console: { warn() {}, log() {} }, opts: o })
+	ctx.globalThis = ctx
+	vm.runInContext(helpers, ctx)
+	return JSON.parse(JSON.stringify(vm.runInContext('(function(){' + source + '\n})()', ctx)))
+}
+
+const FULL = [-960, 960, 540, -540]
+// A launch-style scene: a full-frame bg plane, and a rig with a card, a 40 px title and a bar.
+const launch = (extra) => Object.assign({
+	layers: [
+		{ name: 'rig', children: [
+			{ name: 'card', box: [-800, 800, 400, -400] },
+			{ name: 'title', type: 'textShape', size: 40, box: [-300, 300, 360, 320] },
+			{ name: 'bar', box: FULL },
+		] },
+		{ name: 'bg', box: FULL },
+	],
+}, extra || {})
+const topNamed = (cv, comp, name) => Object.values(cv.layers).find(l => l.comp === comp && l.name === name)
+const near = (a, b, e) => assert.ok(Math.abs(a - b) < (e || 1e-9), a + ' vs ' + b)
+
+test('a full-frame rig is fitted into the middle half of a 1080x1920 copy', () => {
+	const cv = fakeCavalry(launch())
+	const r = run(cv, {})
+	assert.deepEqual([r.target.w, r.target.h, r.target.name], [1080, 1920, 'Launch 9x16'])
+	near(r.scale, 0.50625)
+	near(r.offset[0], 0); near(r.offset[1], 0)
+	near(r.cover, 1920 / 1080)
+	assert.equal(cv.comps[r.target.id].w, 1080)
+	assert.equal(cv.comps[r.target.id].h, 1920)
+	assert.deepEqual(cv.state(), { active: r.target.id, frame: 0 })
+	const rig = topNamed(cv, r.target.id, 'rig'), bg = topNamed(cv, r.target.id, 'bg')
+	near(rig.scale.x, 0.50625)
+	near(bg.scale.x, 1920 / 1080)
+	assert.deepEqual(r.backgrounds.map(b => b.name), ['bg'])
+	assert.deepEqual(r.key.layers.map(k => k.name), ['rig'])
+	assert.equal(r.key.mode, 'rig')
+	// The guides mark the middle half and the safe area.
+	assert.equal(cv.comps[r.target.id].guides.length, 4)
+})
+
+test('the same rig is fitted into a 1080x1080 square', () => {
+	const cv = fakeCavalry(launch())
+	const r = run(cv, { to: [1, 1] })
+	assert.deepEqual([r.target.w, r.target.h, r.target.name], [1080, 1080, 'Launch 1x1'])
+	// The middle half of a square is 972 x 540, so the height limits the fit: 540 / 1080.
+	near(r.scale, 0.5)
+	near(r.cover, 1)
+})
+
+test('a small key group is never enlarged unless --scale says so', () => {
+	const spec = { layers: [{ name: 'rig', children: [{ name: 'dot', box: [-200, 200, 100, -100] }] }] }
+	let r = run(fakeCavalry(spec), {})
+	assert.equal(r.scale, 1)
+	near(r.offset[0], 0); near(r.offset[1], 0)
+	r = run(fakeCavalry(spec), { scale: 2 })
+	assert.equal(r.scale, 2)
+})
+
+test('the fit centres a rig that sits off-centre in the original', () => {
+	const cv = fakeCavalry({ layers: [{ name: 'rig', children: [{ name: 'card', box: [100, 500, 300, 100] }] }] })
+	const r = run(cv, {})
+	// Centre (300, 200) must land on the centre of the middle half (0, 0).
+	near(r.offset[0], -300); near(r.offset[1], -200)
+})
+
+test('a frame-sized comp reference is not a background, a frame-sized shape is', () => {
+	const cv = fakeCavalry({ layers: [
+		{ name: 'scene', type: 'compositionReference', ref: 'compNode#99', box: FULL },
+		{ name: 'wash', box: FULL },
+		{ name: 'rig', children: [{ name: 'card', box: [-400, 400, 200, -200] }] },
+	] })
+	const r = run(cv, {})
+	assert.deepEqual(r.backgrounds.map(b => b.name), ['wash'])
+	const ref = topNamed(cv, r.target.id, 'scene')
+	assert.equal(ref.scale.x, r.scale)
+})
+
+test('a keyed rig is wrapped in a group, in the order create, reorder, parent, set', () => {
+	const cv = fakeCavalry({ layers: [
+		{ name: 'rig', keyed: true, pos: { x: 50, y: 20 }, children: [{ name: 'card', box: FULL }] },
+		{ name: 'logo', pos: { x: 100, y: 40 }, scale: { x: 2, y: 2 }, box: [-100, 100, 60, 20] },
+	] })
+	const r = run(cv, {})
+	const after = cv.mutations.slice(cv.mutations.findIndex(m => m.fn === 'create'))
+	assert.deepEqual(after.slice(0, 4).map(m => m.fn), ['create', 'reorder', 'parent', 'set'])
+	const rig = topNamed(cv, r.target.id, 'rig'), group = cv.layers[rig.parent]
+	assert.equal(group.name, 'reframe rig')
+	// The keyed layer keeps its own values; the group carries the fit.
+	assert.deepEqual(rig.pos, { x: 50, y: 20 })
+	assert.deepEqual(rig.scale, { x: 1, y: 1 })
+	near(group.scale.x, r.scale)
+	assert.equal(r.wrapped.length, 1)
+	assert.equal(r.wrapped[0].group, group.id)
+	// The static layer is composed directly: position and scale follow the affine.
+	const logo = topNamed(cv, r.target.id, 'logo')
+	near(logo.pos.x, r.scale * 100 + r.offset[0])
+	near(logo.scale.x, r.scale * 2)
+})
+
+test('a world point of a static layer with a pivot maps through the reframe affine', () => {
+	// world = position + scale * (p - pivot); the pivot is a local offset, so it does not change the mapping.
+	const world = (l, pivot, p) => ({ x: l.pos.x + l.scale.x * (p.x - pivot.x), y: l.pos.y + l.scale.y * (p.y - pivot.y) })
+	const cv = fakeCavalry({ layers: [{ name: 'rig', children: [{ name: 'card', box: [-800, 800, 400, -400] }] }, { name: 'badge', pos: { x: 300, y: -120 }, scale: { x: 1.5, y: 1.5 }, box: [250, 350, -80, -160] }] })
+	const before = world(cv.layers[cv.comps[cv.source].top[1]], { x: 20, y: 10 }, { x: 40, y: 30 })
+	const r = run(cv, {})
+	const after = world(topNamed(cv, r.target.id, 'badge'), { x: 20, y: 10 }, { x: 40, y: 30 })
+	near(after.x, r.scale * before.x + r.offset[0])
+	near(after.y, r.scale * before.y + r.offset[1])
+})
+
+test('no change ever reaches the original comp or its layers', () => {
+	const cv = fakeCavalry(launch({ layers: launch().layers.concat([{ name: 'spin', keyed: true, box: [-50, 50, 50, -50] }]) }))
+	const sourceLayers = new Set(Object.keys(cv.layers))
+	const r = run(cv, {})
+	const mutating = cv.mutations.filter(m => m.fn !== 'duplicate')
+	assert.ok(mutating.length > 5)
+	for (const m of mutating) {
+		for (const t of m.targets) {
+			assert.ok(!sourceLayers.has(t), m.fn + ' targeted source layer ' + t)
+			assert.notEqual(t, cv.source, m.fn + ' targeted the source comp')
+		}
+	}
+	// The only call that names the source comp is the read-only copy.
+	assert.deepEqual(cv.mutations.filter(m => m.targets.includes(cv.source)).map(m => m.fn), ['duplicate'])
+	assert.equal(cv.comps[cv.source].w, 1920)
+	assert.notEqual(r.target.id, cv.source)
+})
+
+test('--dry-run makes no mutating call and leaves the comp count and view as they were', () => {
+	const cv = fakeCavalry(launch())
+	const r = run(cv, { dryRun: true })
+	assert.equal(cv.mutations.length, 0)
+	assert.equal(Object.keys(cv.comps).length, 1)
+	assert.deepEqual(cv.state(), { active: cv.source, frame: 0 })
+	assert.equal(r.dryRun, true)
+	assert.equal(r.target.id, null)
+	near(r.scale, 0.50625)
+})
+
+test('an existing comp name is refused and nothing is copied', () => {
+	const cv = fakeCavalry(launch())
+	assert.throws(() => run(cv, { name: 'Launch' }), /already exists/)
+	assert.equal(Object.keys(cv.comps).length, 1)
+	assert.equal(cv.mutations.length, 0)
+	assert.throws(() => { const c = fakeCavalry(launch()); run(c, { source: c.source }); run(c, { source: c.source }) }, /already exists/)
+})
+
+test('a failure while building deletes the partial copy and restores the comp and frame', () => {
+	const cv = fakeCavalry(launch())
+	cv.api.setFrame(7)
+	cv.fail.set = true
+	assert.throws(() => run(cv, {}), /set failed/)
+	assert.deepEqual(Object.keys(cv.comps), [cv.source])
+	assert.deepEqual(cv.state(), { active: cv.source, frame: 7 })
+})
+
+test('an unknown --key is an error and the aspect of the source is refused', () => {
+	assert.throws(() => run(fakeCavalry(launch()), { key: ['nope'] }), /no layer named/)
+	assert.throws(() => run(fakeCavalry({ w: 1080, h: 1920, layers: [{ name: 'a', box: [-1, 1, 1, -1] }] }), {}), /already 9:16/)
+})
+
+test('findings: small text, cut-off and off-frame content under a partial --key, shared pre-comps', () => {
+	const cv = fakeCavalry({ layers: [
+		{ name: 'rig', children: [
+			{ name: 'card', box: [-400, 400, 200, -200] },
+			{ name: 'title', type: 'textShape', size: 40, box: [-100, 100, 40, 0] },
+		] },
+		{ name: 'side', children: [{ name: 'wide panel', box: [-940, 940, 100, -100] }, { name: 'rail', box: [1500, 1700, 100, -100] }] },
+		{ name: 'clip', ref: 'compNode#99', type: 'compositionReference', box: [-200, 200, 50, -50] },
+	] })
+	// Make the shared pre-comp name resolvable.
+	cv.api.getNiceName = ((f) => id => id === 'compNode#99' ? 'Shared UI' : f(id))(cv.api.getNiceName)
+	const r = run(cv, { key: ['rig'], scale: 1 })
+	const kinds = r.findings.map(f => f.kind + ':' + (f.name || ''))
+	const small = r.findings.find(f => f.kind === 'small-text')
+	assert.equal(small, undefined, '40 px text at scale 1 is not small')
+	const r2 = run(fakeCavalry({ layers: [
+		{ name: 'rig', children: [{ name: 'title', type: 'textShape', size: 40, box: [-100, 100, 40, 0] }, { name: 'card', box: FULL }] },
+	] }), {})
+	const t = r2.findings.find(f => f.kind === 'small-text')
+	assert.ok(t && /20 px/.test(t.detail), JSON.stringify(r2.findings))
+	assert.ok(kinds.includes('offframe:rail'), kinds.join())
+	assert.ok(kinds.includes('clipped:wide panel') || kinds.includes('outside-key:wide panel'), kinds.join())
+	const shared = r.findings.find(f => f.kind === 'shared-precomp')
+	assert.ok(shared && /Shared UI/.test(shared.detail) && /duplicate/.test(shared.fix))
+	assert.equal(r.findings[r.findings.length - 1].kind, 'space')
+})
+
+test('content that reaches the right rail is reported as unsafe', () => {
+	// Full-width rig at scale 0.506 fills 972 px; the safe area ends 129.6 px before the right edge.
+	const r = run(fakeCavalry(launch()), {})
+	assert.ok(r.findings.some(f => f.kind === 'unsafe'), JSON.stringify(r.findings.map(f => f.kind)))
+})
+
+test('findings carry ids in the new comp', () => {
+	const cv = fakeCavalry(launch())
+	const r = run(cv, {})
+	const f = r.findings.find(x => x.kind === 'small-text')
+	assert.equal(cv.layers[f.layer].comp, r.target.id)
+	assert.equal(cv.layers[f.layer].name, 'title')
+})
+
+test('a layer cap and a time budget mark the coverage as incomplete', () => {
+	const many = { layers: [{ name: 'rig', children: Array.from({ length: 450 }, (_, i) => ({ name: 'dot' + i, box: [-10, 10, 10, -10] })) }] }
+	const cv = fakeCavalry(many)
+	cv.api.duplicate = () => { throw new Error('stop') }
+	let r = run(cv, { dryRun: true })
+	assert.equal(r.coverageComplete, false)
+	assert.ok(r.skipped >= 50)
+	r = run(fakeCavalry(launch()), { dryRun: true, budgetMs: -1 })
+	assert.equal(r.coverageComplete, false)
+	assert.equal(run(fakeCavalry(launch()), { dryRun: true }).coverageComplete, true)
+})
+
+test('layers hidden or outside their in and out frames do not count toward the key box', () => {
+	const cv = fakeCavalry({ layers: [{ name: 'rig', children: [
+		{ name: 'card', box: [-400, 400, 200, -200] },
+		{ name: 'later', box: [-900, 900, 500, -500], in: 500, out: 600 },
+	] }] })
+	const r = run(cv, { dryRun: true })
+	assert.equal(r.key.box.r, 400)
+})
+
+test('top-level layers after the layer cap are still transformed, and a late bg still covers the frame', () => {
+	const dots = Array.from({ length: 450 }, (_, i) => ({ name: 'dot' + i, box: [-10, 10, 10, -10] }))
+	const cv = fakeCavalry({ layers: [{ name: 'rig', children: dots }, { name: 'bg', box: FULL }, { name: 'late', pos: { x: 100, y: 0 }, box: [90, 110, 10, -10] }] })
+	const r = run(cv, { scale: 0.5 })
+	assert.equal(r.coverageComplete, false)
+	assert.deepEqual(r.backgrounds.map(b => b.name), ['bg'])
+	near(topNamed(cv, r.target.id, 'bg').scale.x, 1920 / 1080)
+	const late = topNamed(cv, r.target.id, 'late')
+	near(late.scale.x, r.scale)
+	near(late.pos.x, r.scale * 100 + r.offset[0])
+})
+
+test('top-level nodes without position and scale (sound, noise) are kept untouched and listed', () => {
+	const cv = fakeCavalry({ layers: [
+		{ name: 'rig', children: [{ name: 'card', box: FULL }] },
+		{ name: 'music', type: 'sound', noTransform: true },
+		{ name: 'wobble', type: 'noise', noTransform: true },
+	] })
+	const r = run(cv, {})
+	assert.deepEqual(r.kept.map(k => [k.name, k.type]), [['music', 'sound'], ['wobble', 'noise']])
+	for (const name of ['music', 'wobble']) {
+		const copy = topNamed(cv, r.target.id, name), src = Object.values(cv.layers).find(l => l.comp === cv.source && l.name === name)
+		assert.deepEqual(copy.pos, { x: 0, y: 0 })
+		assert.deepEqual(copy.scale, { x: 1, y: 1 })
+		assert.ok(!cv.mutations.some(m => m.targets.includes(copy.id) || m.targets.includes(src.id)), name + ' was changed')
+	}
+	assert.equal(r.direct.length + r.wrapped.length, 1)
+	assert.equal(run(fakeCavalry({ layers: [{ name: 'rig', children: [{ name: 'card', box: FULL }] }] }), { dryRun: true }).kept.length, 0)
+})
+
+test('an incomplete key measurement refuses to build, unless --scale is given', () => {
+	const big = () => fakeCavalry({ layers: [{ name: 'rig', children: Array.from({ length: 450 }, (_, i) => ({ name: 'dot' + i, box: [-10, 10, 10, -10] })) }] })
+	const cv = big()
+	assert.throws(() => run(cv, {}), /the fit would be a guess: pass --key with fewer layers, or --scale S/)
+	assert.deepEqual(Object.keys(cv.comps), [cv.source])
+	assert.equal(cv.mutations.length, 0)
+	const d = run(big(), { dryRun: true })
+	assert.ok(d.warnings.some(w => /partial box/.test(w)))
+	const ok = run(big(), { scale: 0.5 })
+	assert.equal(ok.scale, 0.5)
+	assert.ok(ok.warnings.some(w => /partial box/.test(w)))
+	// A time budget hit while sampling counts the same way.
+	assert.throws(() => run(fakeCavalry(launch()), { budgetMs: -1 }), /the fit would be a guess/)
+})
+
+test('a layer named in --key is never treated as a background', () => {
+	const spec = () => ({ layers: [{ name: 'bg', box: FULL }, { name: 'rig', children: [{ name: 'card', box: [-400, 400, 200, -200] }] }] })
+	assert.deepEqual(run(fakeCavalry(spec()), { dryRun: true }).backgrounds.map(b => b.name), ['bg'])
+	const r = run(fakeCavalry(spec()), { key: ['bg'], dryRun: true })
+	assert.deepEqual(r.backgrounds, [])
+	assert.deepEqual(r.key.layers.map(k => k.name), ['bg'])
+})
+
+test('--key resolves against the whole comp and measures its subtree past the cap of the rest', () => {
+	const cv = fakeCavalry({ layers: [
+		{ name: 'deco', children: Array.from({ length: 450 }, (_, i) => ({ name: 'dot' + i, box: [-10, 10, 10, -10] })) },
+		{ name: 'rig', children: [{ name: 'card', box: [-300, 300, 100, -100] }] },
+	] })
+	const r = run(cv, { key: ['rig'] })
+	assert.equal(r.coverageComplete, false)
+	assert.equal(r.scale, 1)
+	assert.equal(r.key.box.r, 300)
+	assert.deepEqual(r.key.layers.map(k => k.name), ['rig'])
+	// A nested layer deep in the comp resolves by name too, and by id.
+	const nested = fakeCavalry({ layers: [{ name: 'deco', children: Array.from({ length: 450 }, (_, i) => ({ name: 'dot' + i, box: [-10, 10, 10, -10] })) }, { name: 'rig', children: [{ name: 'card', box: [-300, 300, 100, -100] }] }] })
+	assert.equal(run(nested, { key: ['card'], dryRun: true }).key.box.l, -300)
+})
+
+test('a nested --key layer under a bg group keeps that group out of the backgrounds', () => {
+	const cv = fakeCavalry({ layers: [
+		{ name: 'bg', children: [{ name: 'panel', box: FULL }] },
+		{ name: 'rig', children: [{ name: 'card', box: [-300, 300, 100, -100] }] },
+	] })
+	assert.deepEqual(run(cv, { dryRun: true }).backgrounds.map(b => b.name), ['bg'])
+	const r = run(fakeCavalry({ layers: [
+		{ name: 'bg', children: [{ name: 'panel', box: FULL }] },
+		{ name: 'rig', children: [{ name: 'card', box: [-300, 300, 100, -100] }] },
+	] }), { key: ['panel'], dryRun: true })
+	assert.deepEqual(r.backgrounds, [])
+	assert.deepEqual(r.key.layers.map(k => k.name), ['panel'])
+})
+
+test('small text is judged at 1080p and the fix is in target pixels (3840x2160 source)', () => {
+	const spec = { w: 3840, h: 2160, layers: [{ name: 'rig', children: [{ name: 'card', box: [-1920, 1920, 1080, -1080] }, { name: 'title', type: 'textShape', size: 100, box: [-300, 300, 100, 0] }] }] }
+	const r = run(fakeCavalry(spec), { dryRun: true })
+	assert.deepEqual([r.target.w, r.target.h], [2160, 3840])
+	const t = r.findings.find(f => f.kind === 'small-text')
+	// 100 px x 0.50625 = 50.6 px in the 2160-wide copy = 25.3 px at 1080p, below 28.
+	assert.ok(t && /25 px \(at 1080p\)/.test(t.detail), JSON.stringify(r.findings))
+	assert.match(t.fix, /at least 56 px tall in the 2160x3840 copy/)
+	// Large enough text raises no finding.
+	spec.layers[0].children[1].size = 120
+	assert.ok(!run(fakeCavalry(spec), { dryRun: true }).findings.some(f => f.kind === 'small-text'))
+})
+
+test('the suggested font size divides by the inherited scale too', () => {
+	// rig scale 0.5 x fit 0.50625: 100 px text renders at 25.3 px; 28 px needs font size 28 / (0.50625 * 0.5) = 110.6.
+	const cv = fakeCavalry({ layers: [{ name: 'rig', scale: { x: 0.5, y: 0.5 }, children: [{ name: 'card', box: FULL }, { name: 'title', type: 'textShape', size: 100, box: [-300, 300, 100, 0] }] }] })
+	const t = run(cv, { dryRun: true }).findings.find(f => f.kind === 'small-text')
+	assert.ok(t, 'no small-text finding')
+	assert.match(t.fix, /at least 28 px tall/)
+	assert.match(t.fix, /font size 111 before the fit and inherited scales/)
+})
+
+test('a dry run reports a comp name clash too, without changing anything', () => {
+	const cv = fakeCavalry(launch())
+	assert.throws(() => run(cv, { name: 'Launch', dryRun: true }), /already exists/)
+	assert.equal(cv.mutations.length, 0)
+	assert.deepEqual(cv.state(), { active: cv.source, frame: 0 })
+})
+
+test('only identical target dimensions are refused: near-9:16 and near-square comps are reframed', () => {
+	const a = run(fakeCavalry({ w: 1080, h: 1900, layers: [{ name: 'a', box: [-100, 100, 100, -100] }] }), { dryRun: true })
+	assert.deepEqual([a.target.w, a.target.h], [1080, 1920])
+	const b = run(fakeCavalry({ w: 1080, h: 1070, layers: [{ name: 'a', box: [-100, 100, 100, -100] }] }), { to: [1, 1], dryRun: true })
+	assert.deepEqual([b.target.w, b.target.h], [1070, 1070])
+	assert.throws(() => run(fakeCavalry({ w: 1080, h: 1080, layers: [{ name: 'a', box: [-1, 1, 1, -1] }] }), { to: [1, 1] }), /already 1:1/)
+})

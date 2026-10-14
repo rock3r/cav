@@ -277,3 +277,17 @@ func TestBridgeDownCheck(t *testing.T) {
 		t.Errorf("unknown: %+v", unknown)
 	}
 }
+
+func TestTextScaleUsesTheShortSide(t *testing.T) {
+	for _, c := range []struct{ w, h, want float64 }{
+		{1920, 1080, 1}, {3840, 2160, 0.5}, {1080, 1920, 1}, {1080, 1080, 1}, {0, 1080, 1},
+	} {
+		if got := textScale(c.w, c.h); got != c.want {
+			t.Errorf("textScale(%v, %v) = %v, want %v", c.w, c.h, got, c.want)
+		}
+	}
+	// 30 px text in a 1080x1920 comp is 30 px at 1080p, above the default 28 px floor.
+	if px := 30 * textScale(1080, 1920); px < 28 {
+		t.Errorf("30 px text reads as %.1f px in a portrait comp", px)
+	}
+}

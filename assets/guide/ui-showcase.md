@@ -132,6 +132,13 @@ walkthroughs. Read this with `cav guide design` (recipe 12 shows how to rebuild 
 - **16:9 for YouTube is the default.** Make other formats only when the user asks. At the
   end of production, offer social formats as further work if the user has not asked for
   them: 9:16 and 1:1 (re-lay out the scene, do not just crop it, and keep the key UI in the
-  middle half), and 15 s or 6 s cuts with one message each. Ask whether short cuts should
+  middle half), and 15 s or 6 s cuts with one message each.
+  `cav scene reframe --to 9:16` (or `--to 1:1`) does the mechanical part. It makes a copy of
+  the comp at the new size, fits the `rig` group (or the layers in `--key`) into the middle
+  half, scales the background to cover the frame, and lists what to fix. Use `--dry-run`
+  first to read the plan. The original comp is never changed. Then refine the copy: move
+  titles and captions into the free bands above and below the middle half (`cav.safeArea()`
+  gives the numbers), raise text that became small, retime if the shorter frame needs it,
+  and check it with `cav sheet --comp "<new name>"` and `cav check --comp "<new name>"`. Ask whether short cuts should
   loop. The last frame should work as a thumbnail, and the video should make sense with the
   sound off.

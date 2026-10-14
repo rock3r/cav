@@ -313,7 +313,7 @@ shapes.forEach(function (s) {
     }
   }
 });
-return { failures:failures, skipped:skipped, evaluations:evaluations,  start: start, end: end, fps: api.get(comp, 'fps'), height: res.y, segs: segs, texts: texts, late: late.slice(0, 20), off: off.slice(0, 20), clipped: clipped.slice(0, 20), tight: tight.slice(0, 20), overflow: overflow.slice(0, 20), hidden: hidden.slice(0, 20), layers: ids.length };
+return { failures:failures, skipped:skipped, evaluations:evaluations,  start: start, end: end, fps: api.get(comp, 'fps'), height: res.y, width: res.x, segs: segs, texts: texts, late: late.slice(0, 20), off: off.slice(0, 20), clipped: clipped.slice(0, 20), tight: tight.slice(0, 20), overflow: overflow.slice(0, 20), hidden: hidden.slice(0, 20), layers: ids.length };
 } finally { api.setFrame(original); }`
 
 type checkData struct {
@@ -321,6 +321,7 @@ type checkData struct {
 	End    int          `json:"end"`
 	FPS    float64      `json:"fps"`
 	Height float64      `json:"height"`
+	Width  float64      `json:"width"`
 	Segs   [][3]float64 `json:"segs"` // start, end, 1 when the layer is small
 	Texts  []struct {
 		ID    string  `json:"id"`
@@ -365,6 +366,17 @@ type checkData struct {
 	Layers   int              `json:"layers"`
 	Failures []map[string]any `json:"failures"`
 	Skipped  []map[string]any `json:"skipped"`
+}
+
+// textScale converts a size in comp pixels to pixels at a 1080 short side. A 1080x1920 comp
+// is 1080p across, so its text is not scaled down for being tall. A width of 0 (an older
+// result) falls back to the height.
+func textScale(width, height float64) float64 {
+	short := height
+	if width > 0 && width < short {
+		short = width
+	}
+	return 1080 / short
 }
 
 func cmdSceneCheck(a *app, args []string) error {
@@ -508,7 +520,7 @@ func cmdSceneCheck(a *app, args []string) error {
 	} else if d.Layers > 0 {
 		skipped = append(skipped, map[string]any{"inspection": "stillness", "reason": "incomplete visual motion coverage; whole-comp stillness cannot be established"})
 	}
-	scale := 1080 / d.Height
+	scale := textScale(d.Width, d.Height)
 	for _, t := range d.Texts {
 		if px := t.Size * scale; px < *minText {
 			out = append(out, finding{Kind: "text", Layer: t.ID, Name: t.Name,

@@ -415,3 +415,26 @@ test('sound connects the audio asset and maps the level to min..max', () => {
 	api.filePathExists = () => false
 	assert.throws(() => cav.sound('/missing.wav', r, 'scale.y'), /file not found/)
 })
+
+test('safeArea gives the key and safe boxes for portrait, square and wide comps', () => {
+	const { cav } = mockEnv()
+	// Portrait 1080x1920: the middle half is 972 x 960; overlays take 12 % top, 20 % bottom.
+	let z = cav.safeArea(1080, 1920)
+	assert.deepEqual([z.frame.width, z.frame.height], [1080, 1920])
+	assert.deepEqual([z.key.width, z.key.height, z.key.top, z.key.bottom], [972, 960, 480, -480])
+	assert.deepEqual(z.key.centre, [0, 0])
+	assert.ok(Math.abs(z.safe.top - (960 - 230.4)) < 1e-9)
+	assert.ok(Math.abs(z.safe.bottom - (-960 + 384)) < 1e-9)
+	assert.ok(Math.abs(z.safe.left - -486) < 1e-9 && Math.abs(z.safe.right - (540 - 129.6)) < 1e-9)
+	// Square 1080x1080: 5 % each side, middle half 972 x 540.
+	z = cav.safeArea(1080, 1080)
+	assert.deepEqual([z.key.width, z.key.height], [972, 540])
+	assert.ok(Math.abs(z.safe.width - 972) < 1e-9 && Math.abs(z.safe.height - 972) < 1e-9)
+	// Wide 1920x1080 uses the same rule as the comp: no portrait margins.
+	z = cav.safeArea(1920, 1080)
+	assert.deepEqual([z.key.width, z.key.height], [1728, 540])
+	assert.ok(Math.abs(z.safe.left + 864) < 1e-9)
+	// Without arguments it reads the active comp (the mock is 1920x1080).
+	assert.deepEqual(cav.safeArea().frame, z.frame)
+	assert.throws(() => cav.safeArea(0, 10), /positive/)
+})
