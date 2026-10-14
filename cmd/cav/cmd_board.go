@@ -289,6 +289,27 @@ func fileExists(p string) bool {
 	return err == nil
 }
 
+// withSketch adds sketch to an image order just before greybox, or at the end when the order
+// has no greybox. Every other service keeps its place, so a free choice stays ahead of a paid one.
+func withSketch(order []string) []string {
+	out := make([]string, 0, len(order)+1)
+	added := false
+	for _, n := range order {
+		if n == "sketch" {
+			return append([]string(nil), order...)
+		}
+		if n == "greybox" && !added {
+			out = append(out, "sketch")
+			added = true
+		}
+		out = append(out, n)
+	}
+	if !added {
+		out = append(out, "sketch")
+	}
+	return out
+}
+
 func boardFrames(a *app, args []string) (err error) {
 	fs := flag.NewFlagSet("board frames", flag.ContinueOnError)
 	service := fs.String("service", "", "image service (default: the image order in cav config)")
@@ -402,14 +423,8 @@ func boardFrames(a *app, args []string) (err error) {
 			}
 		}
 		if len(withSVG) > 0 {
-			order := []string{}
-			for _, n := range c.OrderFor("image") {
-				if n != "greybox" && n != "sketch" {
-					order = append(order, n)
-				}
-			}
 			notes = append(notes, fmt.Sprintf("%s in %s exist but the image order has no sketch: cav config order image %s",
-				strings.Join(withSVG, ", "), *dir, strings.Join(append(order, "sketch", "greybox"), ",")))
+				strings.Join(withSVG, ", "), *dir, strings.Join(withSketch(c.OrderFor("image")), ",")))
 		}
 	}
 	var sess *sketchSession

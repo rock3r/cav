@@ -79,12 +79,13 @@ func closedBridge(t *testing.T) {
 
 // fakeSketchCavalry answers the jobs of a sketch run and records their order.
 type fakeSketchCavalry struct {
-	mu      sync.Mutex
-	state   map[string]any
-	jobs    []string
-	svgs    map[string]string // the normalized SVG that each render job was given
-	failure string            // a render job fails with this message
-	codes   map[string]string // the code of the last job of each kind
+	mu           sync.Mutex
+	state        map[string]any
+	jobs         []string
+	svgs         map[string]string // the normalized SVG that each render job was given
+	failure      string            // a render job fails with this message
+	failTempComp bool              // the temporary comp setup returns no comp id
+	codes        map[string]string // the code of the last job of each kind
 }
 
 func (f *fakeSketchCavalry) kinds() []string {
@@ -140,13 +141,18 @@ func newFakeSketchCavalry(t *testing.T, state map[string]any) *fakeSketchCavalry
 			kind, value = "state", f.state
 		case strings.Contains(code, "createComp('cav.sketch')"):
 			kind, value = "temp-comp", "comp#8"
+			if f.failTempComp {
+				f.jobs = append(f.jobs, kind)
+				fixtureFailure(t, req.ID, "timed out")
+				return
+			}
 		case strings.Contains(code, "api.newScene()"):
 			kind, value = "scratch-scene", "comp#7"
 		case strings.Contains(code, "api.openScene("):
 			kind = "reopen"
 		case strings.Contains(code, "opened scene changed"):
 			kind, value = "reopened-check", map[string]any{"unsaved": false, "path": f.state["path"]}
-		case strings.Contains(code, "api.deleteLayer(tmp)"):
+		case strings.Contains(code, "var doomed"):
 			kind = "temp-comp-restore"
 		default:
 			t.Errorf("unexpected job:\n%s", code)
@@ -450,7 +456,7 @@ func TestSketchWhenCavalryIsNotOpen(t *testing.T) {
 
 func TestSketchNoteWhenTheOrderHasNoSketch(t *testing.T) {
 	_, path := sketchProject(t)
-	cfg := `{"order":{"image":["gemini","greybox"]}}`
+	cfg := `{"order":{"image":["greybox","openai"]}}`
 	if err := os.WriteFile(services.Path(), []byte(cfg), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -459,7 +465,7 @@ func TestSketchNoteWhenTheOrderHasNoSketch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if note, _ := got["sketchNote"].(string); !strings.Contains(note, "s1.svg in board exist but the image order has no sketch: cav config order image gemini,sketch,greybox") {
+	if note, _ := got["sketchNote"].(string); !strings.Contains(note, "s1.svg in board exist but the image order has no sketch: cav config order image sketch,greybox,openai") {
 		t.Errorf("note: %v", got["sketchNote"])
 	}
 }

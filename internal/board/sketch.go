@@ -36,6 +36,15 @@ var sketchElements = map[string]bool{
 	"clipPath": true, "use": true,
 }
 
+// presentationAttrs are the root attributes that child shapes inherit. The wrapper group
+// carries them, so a sketch that sets fill on <svg> keeps its look.
+var presentationAttrs = map[string]bool{
+	"fill": true, "stroke": true, "stroke-width": true, "stroke-linecap": true, "stroke-linejoin": true,
+	"stroke-opacity": true, "fill-opacity": true, "fill-rule": true, "opacity": true,
+	"font-family": true, "font-size": true, "font-weight": true, "font-style": true, "text-anchor": true,
+	"style": true,
+}
+
 // AspectLabel names the standard aspect ratio closest to w:h, such as "16:9".
 func AspectLabel(w, h int) string {
 	r := float64(w) / float64(h)
@@ -72,6 +81,7 @@ func ReadSketch(path string) ([]byte, error) {
 type sketchInfo struct {
 	vbX, vbY, vbW, vbH float64
 	xmlns              []xml.Attr // the root's xmlns:* declarations
+	rootPresentation   []xml.Attr // the root's fill, stroke, font and similar attributes
 	innerStart         int64
 	innerEnd           int64
 }
@@ -153,6 +163,10 @@ func analyzeSketch(data []byte, w, h int) (*sketchInfo, error) {
 				for _, a := range t.Attr {
 					if a.Name.Space == "xmlns" {
 						info.xmlns = append(info.xmlns, a)
+					}
+					// The attributes were checked above like any other element's.
+					if a.Name.Space == "" && presentationAttrs[a.Name.Local] {
+						info.rootPresentation = append(info.rootPresentation, a)
 					}
 				}
 			case name == "svg":
@@ -303,7 +317,13 @@ func NormalizeSketch(data []byte, w, h int, bg string) ([]byte, error) {
 	}
 	fmt.Fprintf(&b, ` width="%d" height="%d" viewBox="0 0 %d %d">`, w, h, w, h)
 	fmt.Fprintf(&b, `<rect width="%d" height="%d" fill="%s"/>`, w, h, bg)
-	fmt.Fprintf(&b, `<g transform="translate(%s %s) scale(%s %s)">`, num(-info.vbX*sx), num(-info.vbY*sy), num(sx), num(sy))
+	fmt.Fprintf(&b, `<g transform="translate(%s %s) scale(%s %s)"`, num(-info.vbX*sx), num(-info.vbY*sy), num(sx), num(sy))
+	for _, a := range info.rootPresentation {
+		var v bytes.Buffer
+		_ = xml.EscapeText(&v, []byte(a.Value))
+		fmt.Fprintf(&b, ` %s="%s"`, a.Name.Local, v.String())
+	}
+	b.WriteString(">")
 	if info.innerEnd > info.innerStart {
 		b.Write(data[info.innerStart:info.innerEnd])
 	}

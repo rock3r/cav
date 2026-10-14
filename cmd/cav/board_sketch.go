@@ -47,12 +47,13 @@ type sketchSession struct {
 	bg      string
 	version string
 
-	prevPath  string // the scene to open again (sketchScene)
-	prevComp  string
-	prevFrame int
-	comp      string // the comp the sketches are drawn in
-	started   bool   // something in Cavalry was changed, so close must restore it
-	closed    bool
+	prevPath    string // the scene to open again (sketchScene)
+	prevComp    string
+	prevFrame   int
+	compsBefore []string // the comps that existed before the temporary one
+	comp        string   // the comp the sketches are drawn in
+	started     bool     // something in Cavalry was changed, so close must restore it
+	closed      bool
 }
 
 const (
@@ -63,7 +64,7 @@ const (
 )
 
 const sketchStateJS = `var w = ` + sceneWorkJS + `;
-w.comp = api.getActiveComp(); w.frame = api.getFrame(); w.version = api.getCavalryVersion();
+w.comp = api.getActiveComp(); w.frame = api.getFrame(); w.version = api.getCavalryVersion(); w.comps = api.getComps();
 return w;`
 
 // sketchSetup builds the scratch scene or the temporary comp. %s: resolution and colour.
@@ -89,10 +90,15 @@ try {
 return comp;`
 
 const sketchTempCompRestoreJS = `
-var prev = %s, frame = %d, tmp = %s;
+var prev = %s, frame = %d, tmp = %s, before = %s;
 if (prev !== api.getActiveComp() && api.getComps().indexOf(prev) >= 0) api.setActiveComp(prev);
 if (api.getFrame() !== frame) api.setFrame(frame);
-try { api.deleteLayer(tmp) } catch (e) { if (api.getComps().indexOf(tmp) >= 0) throw e }
+// With no id for the temporary comp the setup job's outcome is unknown: delete only a comp that
+// was not there before this run and is named cav.sketch.
+var doomed = tmp ? [tmp] : api.getComps().filter(function (c) { return before.indexOf(c) < 0 && api.getNiceName(c) === 'cav.sketch' });
+doomed.forEach(function (c) {
+  try { api.deleteLayer(c) } catch (e) { if (api.getComps().indexOf(c) >= 0) throw e }
+});
 return true;`
 
 // sketchReopenedJS puts the user's composition and playhead back after their scene is open again.
@@ -117,9 +123,10 @@ func startSketch(a *app, sb *board.Board, boardDir string) (*sketchSession, erro
 	}
 	var st struct {
 		sceneWork
-		Comp    string `json:"comp"`
-		Frame   int    `json:"frame"`
-		Version string `json:"version"`
+		Comp    string   `json:"comp"`
+		Frame   int      `json:"frame"`
+		Version string   `json:"version"`
+		Comps   []string `json:"comps"`
 	}
 	if err := json.Unmarshal(o.result.Value, &st); err != nil {
 		return nil, err
@@ -135,7 +142,10 @@ func startSketch(a *app, sb *board.Board, boardDir string) (*sketchSession, erro
 		return nil, err
 	}
 	s := &sketchSession{a: a, w: sb.Width, h: sb.Height, bg: board.SketchBackground(sb.Style.Palette), version: st.Version,
-		stage: stage, prevPath: st.Path, prevComp: st.Comp, prevFrame: st.Frame}
+		stage: stage, prevPath: st.Path, prevComp: st.Comp, prevFrame: st.Frame, compsBefore: st.Comps}
+	if s.compsBefore == nil {
+		s.compsBefore = []string{}
+	}
 	js := sketchTempCompJS
 	s.mode = sketchComp
 	if st.Path != "" {
@@ -208,9 +218,6 @@ func (s *sketchSession) close() error {
 		return nil
 	}
 	s.closed = true
-	if s.mode == sketchComp && s.comp == "" {
-		return nil // the setup job removed its own temporary comp when it failed
-	}
 	restoreErr := func(err error) error {
 		return &cliError{code: exitError, msg: "could not restore Cavalry after drawing sketches: " + err.Error(), hint: s.restoreHint()}
 	}
@@ -232,11 +239,19 @@ func (s *sketchSession) close() error {
 			fmt.Fprintln(os.Stderr, "note: Cavalry reports unsaved changes in "+s.prevPath+" after reopening it")
 		}
 	default:
-		if err := s.a.jsCall(fmt.Sprintf(sketchTempCompRestoreJS, jsString(s.prevComp), s.prevFrame, jsString(s.comp)), sketchSetupTimeout, nil); err != nil {
+		if err := s.a.jsCall(fmt.Sprintf(sketchTempCompRestoreJS, jsString(s.prevComp), s.prevFrame, jsString(s.comp), jsJSON(s.compsBefore)), sketchSetupTimeout, nil); err != nil {
 			return restoreErr(err)
 		}
 	}
 	// The copies and staged images are only needed while Cavalry draws.
 	_ = os.RemoveAll(s.stage)
 	return nil
+}
+
+func jsJSON(v any) string {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return "[]"
+	}
+	return string(b)
 }

@@ -197,8 +197,9 @@ generating service can run.
   fewer than about 100 shapes. Use flat fills from `style.palette`: the first colour is the
   background, the second is the foreground, and the accent goes only on the subject. Leave
   a lot of empty space. Show text as grey bars unless the shot is about the words. Show
-  movement as a faint copy of the shape at its start position, and a thin line along its
-  path.
+  movement as a faint copy of the shape at its start position, and a thin solid line along
+  its path. Cavalry's SVG import draws `stroke-dasharray` as a solid line, so do not rely on
+  dashes.
 - Refused: scripts, event attributes (`onclick`), `image`, `foreignObject`, `style`
   elements, links to other files, `url(` that does not point inside the file, a `DOCTYPE`,
   files over 512 KiB, more than 2000 elements, and nesting deeper than 32. cav lists every

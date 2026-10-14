@@ -212,3 +212,47 @@ func TestReadSketch(t *testing.T) {
 		t.Errorf("missing file: %v", err)
 	}
 }
+
+func TestNormalizeSketchKeepsRootPresentationAttributes(t *testing.T) {
+	in := `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" fill="#ffffff" stroke="#ff0000" stroke-width="4" ` +
+		`font-family="Inter" font-size="40" opacity="0.5" style="fill-opacity:0.8" id="x"><path d="M0 0L10 10"/></svg>`
+	out, err := NormalizeSketch([]byte(in), 1920, 1080, "#000000")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(out)
+	i := strings.Index(s, "<g transform=")
+	j := strings.Index(s, "<path")
+	if i < 0 || j < i {
+		t.Fatalf("no wrapper group before the path: %s", s)
+	}
+	group := s[i:j]
+	for _, want := range []string{`fill="#ffffff"`, `stroke="#ff0000"`, `stroke-width="4"`, `font-family="Inter"`, `font-size="40"`, `opacity="0.5"`, `style="fill-opacity:0.8"`} {
+		if !strings.Contains(group, want) {
+			t.Errorf("the wrapper group lacks %s: %s", want, group)
+		}
+	}
+	if strings.Contains(group, `id="x"`) {
+		t.Error("an attribute that is not presentation was copied")
+	}
+	// The background rectangle is outside the group, so it keeps its own fill.
+	if strings.Index(s, `fill="#000000"`) > i {
+		t.Error("the background is not drawn before the group")
+	}
+	if err := CheckSketch(out, 1920, 1080); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestNormalizeSketchDoesNotCarryUnsafeRootStyle(t *testing.T) {
+	in := `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" style="fill:url(http://x/a)"/>`
+	if _, err := NormalizeSketch([]byte(in), 1920, 1080, "#000000"); err == nil {
+		t.Fatal("an unsafe root style was accepted")
+	}
+}
+
+func TestCheckSketchAllowsDashes(t *testing.T) {
+	if p := problems(t, wrap(`<line x1="0" y1="0" x2="9" y2="9" stroke="#fff" stroke-dasharray="20 14"/>`)); p != nil {
+		t.Fatalf("stroke-dasharray refused: %v", p)
+	}
+}
