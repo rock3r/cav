@@ -61,7 +61,7 @@ finish() {
 trap finish EXIT
 
 pass=0 fail=0 warn=0 n=0
-net_errors='deadline exceeded|timed? ?out|timeout|no such host|connection (refused|reset)|network is unreachable|dial tcp|tls|certificate|HTTP 5[0-9][0-9]|answered HTTP (429|5)|temporary failure|could not resolve|failed to fetch|failed to download'
+net_errors='deadline exceeded|: EOF|timed? ?out|timeout|no such host|connection (refused|reset)|network is unreachable|dial tcp|tls|certificate|HTTP 5[0-9][0-9]|answered HTTP (429|5)|temporary failure|could not resolve|failed to fetch|failed to download'
 covered=" "
 failed=()
 
