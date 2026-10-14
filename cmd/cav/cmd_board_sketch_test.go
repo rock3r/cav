@@ -84,6 +84,7 @@ type fakeSketchCavalry struct {
 	jobs         []string
 	svgs         map[string]string // the normalized SVG that each render job was given
 	failure      string            // a render job fails with this message
+	refuseScene  bool              // the scratch scene setup finds the scene changed
 	failTempComp bool              // the temporary comp setup returns no comp id
 	codes        map[string]string // the code of the last job of each kind
 }
@@ -148,6 +149,11 @@ func newFakeSketchCavalry(t *testing.T, state map[string]any) *fakeSketchCavalry
 			}
 		case strings.Contains(code, "api.newScene()"):
 			kind, value = "scratch-scene", "comp#7"
+			if f.refuseScene {
+				f.jobs = append(f.jobs, kind)
+				fixtureFailure(t, req.ID, sketchRefusedPrefix+"/work/intro.cv")
+				return
+			}
 		case strings.Contains(code, "api.openScene("):
 			kind = "reopen"
 		case strings.Contains(code, "opened scene changed"):
@@ -546,5 +552,30 @@ func TestSketchRunLeavesAnExistingStagingFolderAlone(t *testing.T) {
 	}
 	if left, _ := filepath.Glob("board/.cav-sketch-*"); len(left) != 0 {
 		t.Errorf("cav's own staging folder was left behind: %v", left)
+	}
+}
+
+// The scene may change between cav reading it and the setup job. The setup job checks again and
+// refuses before it touches the scene; cav then reports the same unsaved-changes refusal and does
+// not try to reopen anything.
+func TestSketchSetupRefusesWhenTheSceneChangedAfterTheRead(t *testing.T) {
+	sketchProject(t)
+	f := newFakeSketchCavalry(t, savedScene())
+	f.refuseScene = true
+	writeSVG(t, "s1", testSketch)
+	_, _, err := framesJSON(t, "--only", "s1", "storyboard.json")
+	var ce *cliError
+	if !errors.As(err, &ce) || !strings.Contains(ce.msg, "unsaved changes in /work/intro.cv") || !strings.Contains(ce.hint, "cav scene save") {
+		t.Fatalf("got %v", err)
+	}
+	if got, want := strings.Join(f.kinds(), ","), "state,scratch-scene"; got != want {
+		t.Errorf("jobs %s, want %s: a refused setup must not be followed by a reopen", got, want)
+	}
+	if left, _ := filepath.Glob("board/.cav-sketch*"); len(left) != 0 {
+		t.Errorf("staging folder left behind: %v", left)
+	}
+	code := f.codes["scratch-scene"]
+	if code != "" && strings.Index(code, "sceneHasUnsavedChanges") > strings.Index(code, "api.newScene()") {
+		t.Error("the check comes after newScene")
 	}
 }

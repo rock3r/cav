@@ -301,6 +301,10 @@ func prefixedAttrProblem(a xml.Attr, isRoot, xlinkOnRoot bool) string {
 
 // checkAttr refuses event handlers, links to other files, scripts and external urls.
 func checkAttr(a xml.Attr, element string, bad func(string, ...any)) {
+	if strings.Contains(a.Value, `\`) {
+		bad("%s on <%s> has a backslash: backslash escapes are not allowed in a sketch", a.Name.Local, element)
+		return
+	}
 	n := strings.ToLower(a.Name.Local)
 	if strings.HasPrefix(n, "on") && a.Name.Space != "xmlns" {
 		bad("%s=… on <%s> is not allowed: a sketch has no scripts", a.Name.Local, element)

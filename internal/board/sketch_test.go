@@ -353,3 +353,16 @@ func TestCheckSketchRefusesNamespaceResetsAndRootXMLAttributes(t *testing.T) {
 		t.Errorf("inner xml attributes refused: %v", p)
 	}
 }
+
+func TestCheckSketchRefusesBackslashEscapes(t *testing.T) {
+	for _, in := range []string{
+		`<rect fill="u\72l(http://x/a)" width="1" height="1"/>`,
+		`<rect style="fill:\75rl(http://x/a)" width="1" height="1"/>`,
+		`<text font-family="a\b">x</text>`,
+	} {
+		p := problems(t, wrap(in))
+		if len(p) == 0 || !strings.Contains(strings.Join(p, "\n"), "backslash escapes are not allowed in a sketch") {
+			t.Errorf("%s: problems %v", in, p)
+		}
+	}
+}

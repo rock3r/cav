@@ -8,6 +8,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/rock3r/cav/assets"
@@ -69,12 +70,21 @@ w.comp = api.getActiveComp(); w.frame = api.getFrame(); w.version = api.getCaval
 return w;`
 
 // sketchSetup builds the scratch scene or the temporary comp. %s: resolution and colour.
+// It first checks again that the open scene is still the saved one it read, because the person
+// may have changed it since: if not, it throws sketchRefusedPrefix and touches nothing.
 const sketchNewSceneJS = `
+var expectedPath = %s;
+if (String(api.getSceneFilePath()).replace(/\\/g, '/') !== expectedPath || api.sceneHasUnsavedChanges())
+  throw new Error('` + sketchRefusedPrefix + `' + api.getSceneFilePath());
 api.newScene();
 var comp = api.getActiveComp();
 api.set(comp, {resolution: [%d, %d], backgroundColor: %s});
 api.setFrame(api.get(comp, 'startFrame'));
 return comp;`
+
+// sketchRefusedPrefix starts the error that the scratch scene setup throws when the open scene
+// has changed since cav read it.
+const sketchRefusedPrefix = "cav-sketch-refused: "
 
 const sketchTempCompJS = `
 var prev = api.getActiveComp();
@@ -159,9 +169,27 @@ func startSketch(a *app, sb *board.Board, boardDir string) (*sketchSession, erro
 	if st.Path != "" {
 		js, s.mode = sketchNewSceneJS, sketchScene
 	}
-	// From here Cavalry changes, so a failure after this point still needs close.
+	code := fmt.Sprintf(js, s.w, s.h, jsString(s.bg))
+	if s.mode == sketchScene {
+		code = fmt.Sprintf(js, jsString(filepath.ToSlash(st.Path)), s.w, s.h, jsString(s.bg))
+	}
+	// From here Cavalry may change, so a failure after this point still needs close.
 	s.started = true
-	if err := a.jsCall(fmt.Sprintf(js, s.w, s.h, jsString(s.bg)), sketchSetupTimeout, &s.comp); err != nil {
+	o, execErr := a.execJS(code, execOpts{timeout: sketchSetupTimeout, source: "cav board frames"})
+	if execErr != nil {
+		return s, execErr
+	}
+	if !o.result.OK {
+		if o.result.Error != nil && strings.HasPrefix(o.result.Error.Message, sketchRefusedPrefix) {
+			// The scene was not touched: nothing to restore.
+			s.started = false
+			_ = os.RemoveAll(s.stage)
+			return nil, fail(exitError, "unsaved changes in "+st.name(),
+				"cav renders sketches in a scratch scene and reopens yours afterwards: save it (cav scene save), then run again")
+		}
+		return s, scriptErr(o)
+	}
+	if err := json.Unmarshal(o.result.Value, &s.comp); err != nil {
 		return s, err
 	}
 	return s, nil
