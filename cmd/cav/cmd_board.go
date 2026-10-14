@@ -30,8 +30,11 @@ func init() {
 A storyboard is storyboard.json: the piece's tempo and size, a shared style, and shots
 timed in beats (like the plan table cav guide asks for).
 
-  cav board init [--bpm 120 --fps 60 --seconds 16 --shots 6] [-o storyboard.json]
-        writes a starting storyboard; edit "what" for each shot.
+  cav board init [--bpm 120 --fps 60 --seconds 16 --width 1920 --height 1080 --shots 6]
+        [--brief brief.json | --no-brief] [-o storyboard.json]
+        writes a starting storyboard; edit "what" for each shot. Values you do not give come
+        from brief.json when it exists (size, fps, length, tempo and title); flags win. It
+        prints what it took from the brief.
   cav board frames [storyboard.json] [--service S] [--only s1,s3] [--force]
         makes one frame per shot into board/. The free path draws greybox cards; with an
         image key (cav config) it generates frames, sending style.refs with every one so
@@ -107,17 +110,37 @@ func boardInit(a *app, args []string) error {
 	height := fs.Int("height", 1080, "height")
 	out := fs.String("o", "storyboard.json", "file to write")
 	force := fs.Bool("force", false, "overwrite an existing file")
+	briefPath, noBrief := briefFlags(fs)
 	if _, err := parseFlags(fs, args); err != nil {
 		return err
 	}
 	if _, err := os.Stat(*out); err == nil && !*force {
 		return fail(exitError, *out+" already exists", "edit it, or pass --force to start over")
 	}
+	b, err := briefFor(fs, *briefPath, *noBrief)
+	if err != nil {
+		return err
+	}
+	p := compParams{W: *width, H: *height, FPS: *fps, Secs: *seconds, BPM: *bpm}
+	use := applyBrief(&p, b, *briefPath, func(key string) string {
+		return flagsGiven(fs, map[string][]string{"size": {"width", "height"}, "fps": {"fps"}, "seconds": {"seconds"}, "bpm": {"bpm"}}[key])
+	}, true)
+	title := ""
+	if b != nil {
+		title = b.Title
+		if title != "" {
+			use.Took["title"] = title
+		}
+		if b.BPM == 0 && !flagSet(fs, "bpm") {
+			use.Notes = append(use.Notes, fmt.Sprintf("%s has no bpm; using %g. Set --bpm or the brief's bpm when there is music", *briefPath, *bpm))
+		}
+	}
+	*width, *height, *fps, *seconds, *bpm = p.W, p.H, p.FPS, p.Secs, p.BPM
 	if *shots < 1 || *bpm <= 0 || *seconds <= 0 {
 		return usageErr("--shots, --bpm and --seconds must be positive")
 	}
 	total := math.Floor(*seconds * *bpm / 60)
-	sb := &board.Board{BPM: *bpm, FPS: *fps, Seconds: *seconds, Width: *width, Height: *height,
+	sb := &board.Board{Title: title, BPM: *bpm, FPS: *fps, Seconds: *seconds, Width: *width, Height: *height,
 		Style: board.Style{Prompt: "flat motion-design look, clean shapes, generous empty space", Palette: []string{"#0b0d12", "#f5f7fa", "#ff4d2e"}}}
 	// Split the beats into whole bars where possible, so cuts land on downbeats.
 	per := total / float64(*shots)
@@ -136,7 +159,12 @@ func boardInit(a *app, args []string) error {
 	if err := sb.Save(*out); err != nil {
 		return err
 	}
-	a.emit(map[string]any{"file": *out, "shots": len(sb.Shots), "beats": total}, func() {
+	data := map[string]any{"file": *out, "shots": len(sb.Shots), "beats": total}
+	if use != nil {
+		data["fromBrief"] = use
+	}
+	a.emit(data, func() {
+		use.say(os.Stdout)
 		fmt.Printf("wrote %s: %d shots over %g beats (%g s at %g bpm)\nEdit \"what\" for each shot, then: cav board frames\n", *out, len(sb.Shots), total, *seconds, *bpm)
 	})
 	return nil
