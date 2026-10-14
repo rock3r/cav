@@ -137,10 +137,10 @@ func (sb *Board) Time(beat float64) float64 {
 
 // pathSafeID says whether a shot id can be a file name (board/<id>.png) without leaving the
 // board folder: it is not empty, at most 64 bytes, has no slash, backslash or control
-// character, is not "." or "..", and does not start with a dot. Dots, spaces and non-ASCII
+// character, and is not "." or "..". Other dots (a leading one too), spaces and non-ASCII
 // letters are fine, so older boards still load.
 func pathSafeID(id string) bool {
-	if id == "" || len(id) > 64 || id[0] == '.' {
+	if id == "" || len(id) > 64 || id == "." || id == ".." {
 		return false
 	}
 	for _, r := range id {
@@ -164,7 +164,7 @@ func (sb *Board) Validate() error {
 			return fmt.Errorf("shot %d has no id", i+1)
 		}
 		if !pathSafeID(s.ID) {
-			return fmt.Errorf("shot id %q cannot be a file name: use 1 to 64 characters, no / or \\, and no leading dot", s.ID)
+			return fmt.Errorf("shot id %q cannot be a file name: use 1 to 64 characters, no / or \\, and not . or ..", s.ID)
 		}
 		if seen[s.ID] {
 			return fmt.Errorf("two shots are called %s", s.ID)

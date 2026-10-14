@@ -211,7 +211,7 @@ generating service can run.
   an SVG is missing.
 - Edit loop: change the SVG, then run `cav board frames --only s3`. A sketch is drawn
   again when its SVG is newer than its PNG; other frames are kept. The SVG stays in
-  `board/` for editing.
+  `board/` for editing. To redraw a sketch, save its SVG again or delete its PNG.
 - Cavalry must be open with the bridge. cav draws in a scratch scene and opens your scene
   again afterwards, so it refuses when the open scene has unsaved changes: ask the user to
   save (`cav scene save`) first. An empty untitled scene is fine. Cavalry shows the scratch
