@@ -62,6 +62,8 @@ its method and results.
 
 | Path | Written by | Contents |
 |---|---|---|
+| `flow.md` (project folder) | the user | Replaces the standard production flow. Read by `cav guide flow` through `internal/flow`. Never written by cav. |
+| `~/.cav/flow.md` | the user | The same, for every project without its own `flow.md`. The standard flow (`assets/flow/standard.md`) is the last choice. |
 | `~/.cav/token` | `cav setup` | 64 hex characters, mode 0600. Every request must carry it. |
 | `~/.cav/jobs/<id>.js` | `cav` | The job script. Deleted after the job finishes. |
 | `~/.cav/jobs/<id>.json` | bridge | The job result. Kept for a day, so `cav job wait <id>` works after the fact. |

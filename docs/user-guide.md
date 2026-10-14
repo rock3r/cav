@@ -383,7 +383,36 @@ impacts, kinetic type, transitions, beat sync), so any agent with a shell can le
 `cav` itself. The `cavalry` skill is a short entry point: it tells the agent when to use
 `cav`, how to check the setup, and to read `cav guide`. When something fails silently,
 `cav guide --search <symptom>` prints the matching sections of every guide (at most about
-4 KB), so the agent does not need to know which guide covers it. Install it in Claude Code:
+4 KB), so the agent does not need to know which guide covers it.
+
+### Your own flow
+
+The production flow is the list of stages that `cav guide flow` prints: brief, mood board,
+storyboard, music and animatic, build. To use other stages, write a `flow.md` file. cav uses
+the first file it finds: `flow.md` in the project folder, then `~/.cav/flow.md`, then the
+standard flow built into cav. A flow file replaces the standard flow completely. Each stage
+starts with a line `## name`. These lines have a meaning:
+
+```markdown
+## style frames
+Make three frames before anything else. Show them to me.
+outputs: style/*.png
+review: no
+use: cav gen image
+```
+
+- `outputs:` lists the files the stage writes, separated by commas. A path is relative to the
+  project. `*` matches inside one folder. A path that ends in `/` is a folder.
+- `review: yes` or `review: no` says if you approve the stage in `cav review`. The approval
+  belongs to the first output, which must then be one `.json` file.
+- `use:` is a note for the agent, for example the commands to use. cav prints it and never
+  runs it.
+
+All other text is for the agent. If the file has a mistake, `cav guide flow` prints the file
+anyway and warns on stderr with the line number. To start from the standard flow, copy it:
+it is the file `assets/flow/standard.md` in the cav source, and `cav guide flow` prints it.
+
+Install the skill in Claude Code:
 
 ```text
 /plugin marketplace add rock3r/cav

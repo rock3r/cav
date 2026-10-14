@@ -42,6 +42,27 @@
     of a reference now covers more than it did.
   - `--file` names another `moodboard.json`; the `--json` flag is the global JSON output flag.
 
+- A `flow.md` file can replace the standard production flow (#93). `cav guide flow` uses the
+  first of these that exists: `flow.md` in the project folder, `~/.cav/flow.md` (or
+  `$CAV_HOME/flow.md`), and the standard flow built into cav.
+  - Grammar: `## name` starts a stage. `outputs:` is a comma-separated list of paths inside
+    the project (`*` matches inside one folder, a path that ends in `/` is a folder).
+    `review: yes|no` says whether the user approves the stage in `cav review`; with `yes`, the
+    first output is the file that holds the approval. `use:` is free text for the agent; cav
+    prints it and never runs it. All other text is for the agent.
+  - `cav guide flow` prints the general rules, then the flow in effect, word for word, under a
+    header that names the file. The stage table in the guide is gone; the standard flow is now
+    a file in the same format (`assets/flow/standard.md`) that a user can copy. A file with a
+    mistake is still printed, with a warning on stderr that names the line. cav never falls
+    back to the next file. `cav guide flow --json` has a `flow` field with `source`
+    (`project`, `user` or `standard`), `path`, `valid` (and `error` when the file does not
+    parse), `stages` and `warnings`. The source and path are kept for a file with a mistake.
+  - A `review: yes` stage whose first output `cav review` cannot approve (a pattern, a folder,
+    a video, another file type, or a `.json` file that is not `brief.json`, `moodboard.json` or
+    `storyboard.json` and does not hold their schema) is not a parse error, but `cav guide flow` warns about it on
+    stderr and in `warnings`, naming the file, line and stage.
+  - `cav guide --search` also finds the standard flow's stages.
+
 - New command `cav brief` (#92) for stage 1 of `cav guide flow`, the creative director brief.
   - `cav brief init` writes `brief.json` (schema `cav-brief/1`): title, goal, audience, tone,
     seconds, bpm, format (width, height, fps), deliverables, mustHave, avoid, music and refs.

@@ -12,6 +12,7 @@ import (
 
 	"github.com/rock3r/cav/assets"
 	"github.com/rock3r/cav/internal/config"
+	"github.com/rock3r/cav/internal/flow"
 	"github.com/rock3r/cav/internal/guide"
 
 	"github.com/rock3r/cav/internal/bridge"
@@ -94,7 +95,9 @@ func init() {
 Without a topic, prints the scene guide. Read it before your first build.
 
   scene     the build-review-check-render loop, script rules and a done checklist
-  flow      production flow: brief, mood board, storyboard, music and animatic, build loop
+  flow      production flow: the rules, then the flow in effect (flow.md in the project,
+            ~/.cav/flow.md, or the standard flow: brief, mood board, storyboard, music
+            and animatic, build)
   design    motion recipes: entrances, impacts, kinetic type, transitions, holds
   music     beat grids and syncing motion to music
   traps     Cavalry scripting behaviours that fail silently, and how cav avoids them
@@ -144,10 +147,70 @@ func cmdGuide(a *app, args []string) error {
 		return fmt.Errorf("unknown guide %q: choose one of %s", topic, strings.Join(guideTopics, ", "))
 	}
 	text := guide.StripAliases(string(b))
-	a.emit(map[string]any{"topic": topic, "topics": guideTopics, "text": text}, func() {
+	data := map[string]any{"topic": topic, "topics": guideTopics}
+	if topic == "flow" {
+		var info map[string]any
+		var warns []string
+		text, info, warns = flowGuideText(text)
+		data["flow"] = info
+		for _, w := range warns {
+			fmt.Fprintf(os.Stderr, "warning: %s\n", w)
+		}
+	}
+	data["text"] = text
+	a.emit(data, func() {
 		fmt.Print(text)
 	})
 	return nil
+}
+
+// flowGuideText adds the flow in effect to the rules in flow.md: the project's flow.md, then
+// ~/.cav/flow.md, then the standard flow. A file that does not parse is still printed, and
+// the problems come back as warnings. info is the "flow" field of --json: it always has
+// the source and path of the file in effect, and "valid" says whether the file parsed.
+// Stages that ask for a review that cannot hold an approval are warnings too.
+func flowGuideText(rules string) (text string, info map[string]any, warns []string) {
+	f, err := flow.Load(".")
+	path, source := flow.Find(".")
+	var body, label string
+	switch {
+	case err == nil:
+		body, label = f.Text, f.Label()
+		warns = f.Warnings(".")
+		info = flowInfo(f)
+	case path != "":
+		b, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return rules, map[string]any{"source": source, "path": path, "valid": false, "error": readErr.Error(), "stages": []any{}, "warnings": []string{}}, []string{readErr.Error()}
+		}
+		body = strings.TrimPrefix(string(b), "\xef\xbb\xbf")
+		label = (&flow.Flow{Source: source, Path: path}).Label()
+		warns = strings.Split(err.Error(), "\n")
+		info = map[string]any{"source": source, "path": path, "valid": false, "error": err.Error(), "stages": []any{}, "warnings": warns}
+	default:
+		return rules, map[string]any{"source": source, "path": "", "valid": false, "error": err.Error(), "stages": []any{}, "warnings": []string{}}, []string{err.Error()}
+	}
+	var sb strings.Builder
+	sb.WriteString(strings.TrimRight(rules, "\n"))
+	sb.WriteString("\n\n## The flow in effect: " + label + "\n\n")
+	if path != "" {
+		sb.WriteString("cav reads its stages from " + path + ".\n\n")
+	}
+	sb.WriteString(strings.TrimRight(body, "\n") + "\n")
+	return sb.String(), info, warns
+}
+
+// flowInfo is the "flow" field of cav guide flow --json for a flow that parsed.
+func flowInfo(f *flow.Flow) map[string]any {
+	stages := []map[string]any{}
+	for _, s := range f.Stages {
+		outs := s.Outputs
+		if outs == nil {
+			outs = []string{}
+		}
+		stages = append(stages, map[string]any{"name": s.Name, "outputs": outs, "review": s.Review, "use": s.Use})
+	}
+	return map[string]any{"source": f.Source, "path": f.Path, "valid": true, "stages": stages, "warnings": f.Warnings(".")}
 }
 
 func flagSet(fs *flag.FlagSet, name string) bool {
@@ -167,6 +230,8 @@ func guideSearch(a *app, q string, n int) error {
 	if err != nil {
 		return err
 	}
+	// The standard flow is not a guide topic, so index it with the flow guide.
+	ix = guide.New(append(ix.Sections, guide.Split("flow", string(assets.StandardFlow))...))
 	hits, dropped := guide.Cap(ix.Search(q, n), guideHitBytes, guideTotalBytes)
 	if hits == nil {
 		hits = []guide.Hit{}
