@@ -125,7 +125,11 @@ func briefInit(a *app, args []string) error {
 	a.emit(map[string]any{"file": *out, "brief": b, "missing": nonNil(missing), "notes": nonNil(notes)}, func() {
 		fmt.Printf("wrote %s\n", *out)
 		printGaps(missing, notes)
-		fmt.Printf("Check it: cav brief show %s\nThen ask the user to review it: cav review %s &\n", *out, *out)
+		show, review := "cav brief show", "cav review "+*out
+		if *out != brief.FileName {
+			show += " " + *out
+		}
+		fmt.Printf("Check it: %s\nThen ask the user to review it: %s &\n", show, review)
 	})
 	return nil
 }
@@ -181,7 +185,11 @@ func briefShow(a *app, args []string) error {
 	}
 	refs := briefRefStates(b)
 	missing, notes := b.Missing(), b.Notes()
-	a.emit(map[string]any{"file": path, "brief": b, "extra": b.Extra, "missing": nonNil(missing), "notes": nonNil(notes), "refs": refs}, func() {
+	data := map[string]any{"file": path, "brief": b, "missing": nonNil(missing), "notes": nonNil(notes), "refs": refs}
+	if len(b.Extra) > 0 {
+		data["extra"] = b.Extra
+	}
+	a.emit(data, func() {
 		printBrief(path, b, refs)
 		printGaps(missing, notes)
 		for _, r := range refs {
