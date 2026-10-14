@@ -118,11 +118,15 @@ cav credits -o CREDITS.txt      # the credit lines the licences require
 has the command details.
 
 ```bash
+cav brief init --title "Launch day sting" --goal "Announce the launch" --audience "Existing users" \
+  --tone confident --tone playful --seconds 15 --bpm 120 --width 1080 --height 1920 --fps 30
+cav brief show                              # problems stop here; "Still to fill" lists the gaps
+cav review brief.json &                     # the user approves the brief before you plan
 cav ref search "neon city night"            # pick refs; each hit has a service:id ref
 cav ref get openverse:<id>                  # into moodboard/, with licence and credit
 cav ref arena https://www.are.na/<user>/<channel>   # the user's Are.na board, reference only
 cav board mood                              # renders/moodboard.png: look at it
-cav board init --bpm 120 --seconds 16 --shots 6
+cav board init --shots 6                    # size, fps, length, tempo and title come from brief.json
 # edit storyboard.json: "what" per shot, "style" (prompt, refs, palette)
 cav board frames                            # one frame per shot into board/
 cav board sheet                             # renders/board.png: look at it
@@ -587,5 +591,6 @@ slow or paid work starts.
   the approval is removed (`approvalCleared` says why). Ask the user to look and approve
   again. A change to one shot does not touch the verdicts on the others.
 - A mood board or brief review needs `moodboard.json` or `brief.json`; cav reads their items
-  from the same file name. The hook and `cav mcp` (`show_review`, `review_notes`) work with
+  from the same file name. `cav brief show` checks a brief first: a brief with a problem does
+  not open in review. The hook and `cav mcp` (`show_review`, `review_notes`) work with
   all three targets.

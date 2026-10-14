@@ -279,6 +279,12 @@ and add notes. "Send to agent" hands the open notes to an agent waiting in
 frame and the drawing. A re-render to the same file reloads the page; W compares it with
 the earlier render (wipe, difference) or shows an onion skin.
 
+**Brief.** `cav brief init` writes `brief.json`: title, goal, audience, tone, length, tempo,
+format, deliverables, things it must show or avoid, music and references. The agent fills it
+in with you. `cav brief show` checks it and lists what is still empty. `cav board init` and
+`cav scene new` take size, fps and length from it when it exists, and print what they took.
+A flag always wins. Pass `--no-brief` to ignore the file.
+
 `cav review` also reviews stills, so that you can approve each stage before slow or paid
 work starts: `cav review storyboard.json` (or `brief.json`, `moodboard.json`). The page
 shows a grid of items: the shots of a storyboard, the references of a mood board, or the

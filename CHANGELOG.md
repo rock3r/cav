@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+- New command `cav brief` (#92) for stage 1 of `cav guide flow`, the creative director brief.
+  - `cav brief init` writes `brief.json` (schema `cav-brief/1`): title, goal, audience, tone,
+    seconds, bpm, format (width, height, fps), deliverables, mustHave, avoid, music and refs.
+    Each field has a flag. List flags repeat (`--tone confident --tone playful`); a comma stays
+    inside one value. With no flags it writes a template. It does not overwrite a file unless
+    you pass `--force`.
+  - `cav brief show` checks the file and prints it. A value cav cannot use (`"seconds":
+    "fifteen"`) is a problem and the command fails, with a plain message. A required field
+    that is still empty (title, goal, audience, tone, seconds, format) is listed under "Still
+    to fill" and does not fail. A field cav does not know is kept, with a note.
+  - `cav board init` and `cav scene new` take size, fps and length from `brief.json` when it
+    exists, and `cav board init` also takes the tempo and the title. Flags win. Both print what
+    they took and which flags replaced a value. `--brief <file>` names another brief and
+    `--no-brief` ignores it. Width and height come from the brief together: giving one of them
+    takes neither from the brief. A brief with a problem stops the command and the message
+    names `--no-brief`. `cav scene comp` does not read the brief.
+  - The brief's refs are the first mood board items. `cav brief show` says for each one whether
+    it is a link (it stays an embed and is never downloaded), a recorded file with its licence,
+    or a file that still needs `cav ref add`.
+  - `cav review brief.json` reads the brief through the new package, so a brief with a problem
+    does not open in review. Earlier verdicts and approvals stay valid: the hash of each field
+    is the same as before. The page now shows readable titles, lists joined with `;`, and the
+    format as `1080 x 1920 at 60 fps`. A single-word `tone` loads as a list of one.
+
 - `cav board frames` and `cav board motion` now refuse shots whose `"what"` is still the
   placeholder text from `cav board init`, before any call to a paid service. They name the
   shots, for example "s1, s2: write what happens in the shot first". `--force` does not skip
@@ -51,9 +75,9 @@
   - Video reviews are unchanged. The new fields in the review file are optional, and a
     video review file is saved without them. A review file that a newer cav wrote
     (`cav-review/2` or later) is refused with a message to update cav.
-  - A mood board and a brief can be reviewed once `moodboard.json` and `brief.json` exist
-    (#90 and #92). Until then cav reads a small form of them: `{"items": [{"id", "file",
-    "url", "thumb", "take"}]}` for the mood board, and one item per field for the brief.
+  - A mood board can be reviewed once `moodboard.json` exists (#90). Until then cav reads a
+    small form of it: `{"items": [{"id", "file", "url", "thumb", "take"}]}`. The brief has its
+    own package now (#92).
   - Known limit: an older cav that runs `cav review resolve` on a stills review file drops
     the new fields from it. Update cav before you use stills reviews.
 - The guides now say how to animate software UI: app screens, UI walkthroughs and product
