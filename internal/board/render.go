@@ -265,3 +265,6 @@ func Mood(ctx context.Context, tiles []MoodTile, out string, cols int) (int, int
 	}
 	return sheet.Build(st, out, sheet.Options{Cols: cols, Gap: 8, Scale: 2})
 }
+
+// IsImageFile says whether a file name has an image extension that cav board mood lays out.
+func IsImageFile(name string) bool { return imageExt[strings.ToLower(filepath.Ext(name))] }

@@ -59,9 +59,19 @@ timed in beats (like the plan table cav guide asks for).
         the current frames and timing, keeping their parent and transforms (delete one to
         have it fitted again), and leaves alone a shot whose name a built layer (a group, a
         shape) already uses.
-  cav board mood [moodboard/] [-o renders/moodboard.png]
-        lays a folder of references out as one picture, each with its source and licence
-        from the manifest (cav ref get fills the folder).
+  cav board mood [moodboard/] [-o renders/moodboard.png] [--file moodboard.json]
+        syncs moodboard.json (beside the folder) with the images and clips in it and the
+        videos added with cav ref add <youtube or vimeo link>, makes a contact sheet of
+        each clip, and lays everything out as one picture, each with its source and
+        licence from the manifest (cav ref get fills the folder). Items keep their id and
+        take line when files come and go. It lists the items that have no take line yet.
+        The page the person reviews is cav review moodboard.json.
+  cav board mood take <id> "what to take from it" [--dir moodboard] [--file moodboard.json]
+        writes the item's "take from it" line: the one thing to take from this reference
+        (a colour, a rhythm, a layout), in plain words. Editing the file by hand works too.
+  cav board mood drop <id>
+        takes an item off the board. The file stays, and cav never brings the item back.
+        A renamed file counts as one gone and one new item.
 
 With "grid": "build/grid.json" (from cav beats --json) beats follow the real track
 instead of a fixed bpm. Generated frames are recorded in .cav/manifest.json with the
@@ -140,9 +150,6 @@ func boardInit(a *app, args []string) error {
 		return usageErr("--shots, --bpm and --seconds must be positive")
 	}
 	total := math.Floor(*seconds * *bpm / 60)
-	if total < 1 {
-		return fail(exitError, fmt.Sprintf("%g s at %g bpm is less than one beat", *seconds, *bpm), "make the piece longer, or raise --bpm")
-	}
 	sb := &board.Board{Title: title, BPM: *bpm, FPS: *fps, Seconds: *seconds, Width: *width, Height: *height,
 		Style: board.Style{Prompt: "flat motion-design look, clean shapes, generous empty space", Palette: []string{"#0b0d12", "#f5f7fa", "#ff4d2e"}}}
 	// Split the beats into whole bars where possible, so cuts land on downbeats.
@@ -688,54 +695,6 @@ func boardPlace(a *app, args []string) error {
 		for _, n := range notes {
 			fmt.Fprintln(os.Stderr, "note: "+n)
 		}
-	})
-	return nil
-}
-
-func boardMood(a *app, args []string) error {
-	fs := flag.NewFlagSet("board mood", flag.ContinueOnError)
-	out := fs.String("o", filepath.Join(outDir(), "moodboard.png"), "output PNG")
-	cols := fs.Int("cols", 0, "columns (default: 3 or 4)")
-	pos, err := parseFlags(fs, args)
-	if err != nil {
-		return err
-	}
-	dir := boardPath(pos, "moodboard")
-	imgs, err := board.MoodImages(dir)
-	if err != nil {
-		return fail(exitError, err.Error(), "put reference images in "+dir+", for example with cav ref get")
-	}
-	if len(imgs) == 0 {
-		return fail(exitError, "no images in "+dir, "add some with cav ref search / cav ref get")
-	}
-	root := library.Root()
-	m, _ := library.Load(root)
-	byPath := map[string]library.Entry{}
-	if m != nil {
-		for _, e := range m.Assets {
-			byPath[e.Path] = e
-		}
-	}
-	var tiles []board.MoodTile
-	for _, p := range imgs {
-		cap := filepath.Base(p)
-		if e, ok := byPath[library.Rel(root, p)]; ok {
-			cap = e.Source + "  " + library.LicenceName(e.Licence)
-			if e.Author != "" {
-				cap += "  " + e.Author
-			}
-		}
-		tiles = append(tiles, board.MoodTile{Path: p, Caption: cap})
-	}
-	if err := os.MkdirAll(filepath.Dir(*out), 0o755); err != nil {
-		return err
-	}
-	w, h, err := board.Mood(context.Background(), tiles, *out, *cols)
-	if err != nil {
-		return fail(exitError, err.Error(), "")
-	}
-	a.emit(map[string]any{"file": *out, "images": len(tiles), "width": w, "height": h}, func() {
-		fmt.Printf("%s (%d images, %dx%d)\n", *out, len(tiles), w, h)
 	})
 	return nil
 }

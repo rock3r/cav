@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+- The mood board is a page with images, video and a "take from it" line per item (#90).
+  - `cav board mood` now writes `moodboard.json` (schema `cav-moodboard/1`) beside the
+    `moodboard/` folder, and still writes `renders/moodboard.png`. Each item has an id, a kind
+    (`image`, `clip` or `embed`), source, licence and credit (copied from the manifest), a
+    `take` line, who added it (`user`, `agent` or `brief`) and a status. Ids and takes stay
+    when files come and go. A file that is gone is marked `missing` and comes back with its
+    take. An item the person dropped is never brought back. It lists the items with no take.
+    A renamed file counts as one gone and one new item.
+  - `cav board mood take <id> "..."` writes the take line. `cav board mood drop <id>` drops an
+    item. You can also edit the file by hand.
+  - Local clips (`.mp4`, `.mov`, `.webm`, `.m4v`) are items. cav makes a contact sheet of six
+    frames with ffmpeg into `moodboard/.thumbs/` for the agent, and the PNG shows it.
+  - `cav ref add <youtube or vimeo link>` adds a web video as an embed. cav never downloads
+    it: it reads the title and author from the site's oEmbed address and saves the thumbnail
+    from the site's own image host (`i.ytimg.com`, `*.vimeocdn.com`), recorded as
+    `reference-only`. Other web links are refused. `--take` and `--by user|brief|agent` set
+    the new item's take line and who added it. When the site cannot be reached the video is
+    still added, without a thumbnail.
+  - `cav review moodboard.json` (and `show_review`) is the mood board page. A clip and a
+    video play on the item when pressed. The embed address is always built from the video id
+    read again from the item's link, never from the text in the file, and only for the
+    privacy hosts `www.youtube-nocookie.com` and `player.vimeo.com`. The chat page declares
+    them as frame domains, and routes links through the host's open-link request.
+  - The hash of an item covers its file (or video link), take, licence and credit, and not the thumbnails or contact sheets cav makes, so a sync
+    that changes nothing keeps earlier verdicts, and a new take line asks for a new look.
+  - Verdicts given on a mood board before this change show as changed once, because the hash
+    of a reference now covers more than it did.
+  - `--file` names another `moodboard.json`; the `--json` flag is the global JSON output flag.
+
 - New command `cav brief` (#92) for stage 1 of `cav guide flow`, the creative director brief.
   - `cav brief init` writes `brief.json` (schema `cav-brief/1`): title, goal, audience, tone,
     seconds, bpm, format (width, height, fps), deliverables, mustHave, avoid, music and refs.
@@ -75,9 +104,8 @@
   - Video reviews are unchanged. The new fields in the review file are optional, and a
     video review file is saved without them. A review file that a newer cav wrote
     (`cav-review/2` or later) is refused with a message to update cav.
-  - A mood board can be reviewed once `moodboard.json` exists (#90). Until then cav reads a
-    small form of it: `{"items": [{"id", "file", "url", "thumb", "take"}]}`. The brief has its
-    own package now (#92).
+  - A mood board can be reviewed once `moodboard.json` exists (see the entry on the mood
+    board page). The brief has its own package now (#92).
   - Known limit: an older cav that runs `cav review resolve` on a stills review file drops
     the new fields from it. Update cav before you use stills reviews.
 - The guides now say how to animate software UI: app screens, UI walkthroughs and product

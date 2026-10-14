@@ -323,6 +323,17 @@
   .card-title { margin: 0; color: var(--graphite); font-size: 11px; overflow-wrap: anywhere; }
   .card-text { margin: 0; font-size: 13px; line-height: 1.42; white-space: pre-wrap; overflow-wrap: anywhere; }
   .card-text a { color: var(--mark-ink); }
+  .card-img { position: relative; }
+  .card-img.playing { cursor: default; }
+  .card-img video, .card-img iframe { display: block; width: 100%; height: 100%; border: 0; background: #000; }
+  .card-img .play { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; align-items: center; justify-content: center; width: 52px; height: 52px; padding: 0; border: 2px solid #fff; border-radius: 50%; background: rgba(0, 0, 0, 0.55); color: #fff; cursor: pointer; }
+  .card-img .play:hover, .card-img .play:focus-visible { background: rgba(0, 0, 0, 0.8); }
+  .card-img .play::before { content: ''; margin-left: 4px; border-style: solid; border-width: 9px 0 9px 15px; border-color: transparent transparent transparent #fff; }
+  .card-tags { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; }
+  .card-tags span { padding: 1px 6px; border: 1px solid var(--rule-2); border-radius: 9px; color: var(--graphite); font-size: 11px; }
+  .card-take b { font-weight: 600; }
+  .card-take.none { color: var(--graphite); font-style: italic; }
+  .card-credit { margin: 0; color: var(--graphite); font-size: 11px; overflow-wrap: anywhere; }
   .verdicts { display: flex; flex-wrap: wrap; gap: 4px; }
   .vbtn { height: 28px; padding: 0 10px; border: 1px solid var(--rule-2); border-radius: 4px; background: transparent; color: var(--ink-2); font-size: 12px; font-weight: 600; cursor: pointer; }
   .vbtn:hover { background: var(--hover); color: var(--ink); }
@@ -1336,17 +1347,41 @@ function startStills(s0) {
   function oldVerdict(it) {
     return it.outdated ? `<span class="old" title="The item changed after this verdict, so it no longer counts"><s>${esc(VLABEL[it.oldVerdict] || it.oldVerdict)}</s> · changed since</span>` : '';
   }
+  // A clip or a video embed is played on request, never when the page loads: a player loads
+  // a lot, and the chat view fetches every video source it sees.
+  const playing = new Set();
+  const clipURL = i => `/api/item/${encodeURIComponent(i.id)}/clip?v=${sha12(i)}`;
+  const playable = it => !!(it.hasClip || it.embed);
+  function player(it) {
+    if (it.hasClip) return `<video controls autoplay playsinline ${it.hasImage && !document.documentElement.classList.contains('cav-mcp') ? `poster="${imgURL(it)}"` : ''} src="${clipURL(it)}"></video>`;
+    return `<iframe src="${esc(it.embed)}" title="${esc(it.title || it.id)}" allow="autoplay; fullscreen; picture-in-picture; encrypted-media" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
+  }
+  function cardImage(it) {
+    if (playable(it) && playing.has(it.id)) return `<div class="card-img playing">${player(it)}</div>`;
+    const img = it.hasImage ? `<img loading="lazy" src="${imgURL(it)}" alt="${esc(it.id)}">` : `<span class="noimg">${playable(it) ? 'no thumbnail' : 'no frame yet'}</span>`;
+    const badge = playable(it) ? `<button class="play" data-play="${esc(it.id)}" aria-label="Play ${esc(it.title || it.id)}"></button>` : '';
+    return `<div class="card-img" data-open="${esc(it.id)}" title="Open to draw and leave a note">${img}${badge}</div>`;
+  }
   function card(it) {
-    const showBox = it.hasImage || (s.kind === 'storyboard' && !it.meta);
+    const showBox = it.hasImage || playable(it) || (s.kind === 'storyboard' && !it.meta);
     const link = it.link ? (safeLink(it.link) ? `<a href="${esc(it.link)}" target="_blank" rel="noopener noreferrer">${esc(it.link)}</a>` : esc(it.link)) : '';
-    const text = [it.text ? esc(it.text) : '', link].filter(Boolean).join('\n');
+    const mood = s.kind === 'moodboard';
+    // The take is the agent's line about what to take from the reference.
+    const take = mood ? (it.text ? `<p class="card-text card-take"><b>Take from it:</b> ${esc(it.text)}</p>` : '<p class="card-text card-take none">No take line yet.</p>') : '';
+    const text = mood ? '' : [it.text ? esc(it.text) : '', link].filter(Boolean).join('\n');
+    const tags = it.tags && it.tags.length ? `<p class="card-tags">${it.tags.map(t => `<span>${esc(t)}</span>`).join('')}</p>` : '';
+    const credit = it.credit ? `<p class="card-credit">${esc(it.credit)}</p>` : '';
     const open = it.openNotes ? `<span>${it.openNotes} open note${it.openNotes > 1 ? 's' : ''}</span>` : '';
     return `<article class="card${focus === it.id ? ' sel' : ''}" data-id="${esc(it.id)}">
-      ${showBox ? `<div class="card-img" data-open="${esc(it.id)}" title="Open to draw and leave a note">${it.hasImage ? `<img loading="lazy" src="${imgURL(it)}" alt="${esc(it.id)}">` : '<span class="noimg">no frame yet</span>'}</div>` : ''}
+      ${showBox ? cardImage(it) : ''}
       <div class="card-body">
         <div class="card-head"><b>${esc(it.id)}</b><span class="sha" title="${it.sha}">${it.sha.slice(0, 7)}</span></div>
         ${it.title && it.title !== it.id ? `<p class="card-title">${esc(it.title)}</p>` : ''}
+        ${tags}
+        ${take}
         ${text ? `<p class="card-text">${text}</p>` : ''}
+        ${mood && link ? `<p class="card-text">${link}</p>` : ''}
+        ${credit}
         <div class="verdicts" role="group" aria-label="Verdict for ${esc(it.id)}">${verdictButtons(it)}<button class="vbtn neutral" data-open="${esc(it.id)}" aria-label="Add a note on ${esc(it.id)}">Note</button></div>
         <div class="card-meta">${oldVerdict(it)}${open}</div>
       </div>
@@ -1381,6 +1416,14 @@ function startStills(s0) {
     } catch (e) { toast(e.message); }
   }
   $('grid').addEventListener('click', e => {
+    const pl = e.target.closest('[data-play]');
+    if (pl) {
+      const it = item(pl.dataset.play);
+      const box = pl.closest('.card-img');
+      if (it && box) { playing.add(it.id); box.classList.add('playing'); box.removeAttribute('data-open'); box.removeAttribute('title'); box.innerHTML = player(it); }
+      return;
+    }
+    if (e.target.closest('.card-img.playing')) return;
     const v = e.target.closest('[data-v]');
     if (v) { setVerdict(v.closest('.card').dataset.id, v.dataset.v); return; }
     const o = e.target.closest('[data-open]');

@@ -11,3 +11,4 @@ __pycache__/
 # Impeccable review captures (local)
 .impeccable/review/
 .impeccable/questions/
+/cav

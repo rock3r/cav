@@ -231,7 +231,9 @@ licence problems; `cav check` reports them too.
 
 ```bash
 cav ref search "neon city night" && cav ref get openverse:<id>   # into moodboard/
-cav board mood                                   # renders/moodboard.png
+cav ref add https://www.youtube.com/watch?v=...  # a web video: embedded, never downloaded
+cav board mood                                   # moodboard.json and renders/moodboard.png
+cav board mood take <id> "what to take from it"  # the line shown under the item
 cav board init --bpm 120 --seconds 16 --shots 6  # then describe each shot in storyboard.json
 cav board frames                                 # greybox cards, or generated with a key
 cav board sheet                                  # renders/board.png
@@ -286,7 +288,8 @@ in with you. `cav brief show` checks it and lists what is still empty. `cav boar
 A flag always wins. Pass `--no-brief` to ignore the file.
 
 `cav review` also reviews stills, so that you can approve each stage before slow or paid
-work starts: `cav review storyboard.json` (or `brief.json`, `moodboard.json`). The page
+work starts: `cav review storyboard.json` (or `brief.json`, `moodboard.json`). A mood board page plays
+clips and YouTube and Vimeo videos, and shows the agent's "take from it" line under each. The page
 shows a grid of items: the shots of a storyboard, the references of a mood board, or the
 fields of a brief. Give each item a verdict (a storyboard or brief: Approve or Redo; a
 mood board: Keep, More like this or Drop). Click an item to draw on it and write a note.

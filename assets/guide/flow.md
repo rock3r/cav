@@ -15,7 +15,7 @@ stage. When the user has no preference, follow the standard flow below.
 | Stage | Commands | Files written | Review | Skip when |
 |---|---|---|---|---|
 | 1. Brief | `cav brief init`, `cav brief show`, `cav review brief.json`; you work as a creative director | `brief.json` | The user presses Approve in `cav review brief.json`; `cav review export brief.json --json` shows approved | The user gives a complete brief |
-| 2. Mood board | `cav ref search`, `get`, `arena`, `add`; `cav board mood` | `moodboard/`, `renders/moodboard.png` | Show `renders/moodboard.png` to the user | The user brings a style guide or frames |
+| 2. Mood board | `cav ref search`, `get`, `arena`, `add`; `cav board mood`, `cav board mood take`; `cav review moodboard.json` | `moodboard/`, `moodboard.json`, `renders/moodboard.png` | The user reviews `moodboard.json` (keep, more, drop) | The user brings a style guide or frames |
 | 3. Storyboard | `cav board init`, `frames`, `sheet`, `cav review` | `storyboard.json`, `board/`, `renders/board.png` | The user presses Approve storyboard in `cav review storyboard.json`; `cav review export storyboard.json --json` shows approved | The piece is under about 8 seconds, or has one shot |
 | 4. Music and animatic | `cav music gen`, `cav beats -o build/grid.json`, `cav board motion`, `cav board animatic`, `cav review` | `music/`, `build/grid.json`, `renders/animatic.mp4` | The user reviews the animatic (`cav review renders/animatic.mp4`) | Skip music generation when the user brings a track. Without music, or without a storyboard, skip the animatic; use the track directly in the build. |
 | 5. Build loop | `cav board place` (with a storyboard), `cav run`, `cav sheet`, `cav onion`, `cav check`, `cav render`, `cav review` | `build/*.js`, `scenes/*.cv`, `renders/` | The user approves the render | Never |
@@ -47,20 +47,48 @@ Work like an agency creative director. Do not start with the tools.
   second terminal), give the user its URL, then run `cav review wait brief.json`. The user
   gives a verdict on each field and presses Approve. Do not start stage 2 until
   `cav review export brief.json --json` shows `approved` as `true`.
-- The brief's references become the first mood board items. A link stays a link. For a
-  local file, copy it into `moodboard/` and record it with `cav ref add`, as stage 2 says.
+- The brief's references become the first mood board items. A YouTube or Vimeo link becomes
+  an embed: run `cav ref add <link> --by brief`. cav never downloads it. For a local file,
+  copy it into `moodboard/` and record it with `cav ref add moodboard/<file> --licence <id>
+  --by brief`, as stage 2 says. A link to any other site stays a link in the brief.
 
 ## 4. Stage 2: the mood board
 
 Find references with `cav ref search`, save them with `cav ref get` (it records the licence
 and credit), read a user's Are.na channel with `cav ref arena`, and add the user's own files: copy each one
-into `moodboard/`, then record it with `cav ref add moodboard/<file> --licence <id>`. Then run `cav board mood` and look at `renders/moodboard.png`. Show it to
-the user and ask what to keep and what to drop.
+into `moodboard/`, then record it with `cav ref add moodboard/<file> --licence <id>`. A clip
+you have goes into `moodboard/` the same way (`.mp4`, `.mov`, `.webm`, `.m4v`).
+
+A video on the web stays on the web. Run `cav ref add <youtube or vimeo link>`. cav asks the
+site for the title and a thumbnail, records the video as reference only, and never downloads
+it. The user plays it on the review page. Links to other sites cannot be embedded: save a
+picture with `cav ref get`.
+
+Then run `cav board mood`. It writes `moodboard.json` (one item per image, clip or video)
+and `renders/moodboard.png`. Look at the picture. A clip is shown there as a contact sheet
+of six frames, and a web video as its thumbnail. cav keeps each item's id and take line when
+files come and go.
 
 **A reference teaches. It is not a template.** For each reference, write down what you take
 from it: the essence. This can be a colour relationship, a rhythm, a type mood or a kind of
 motion. Never copy a layout, a frame, a character or a sequence. The one exception is a user
 who asks for a copy directly.
+
+Write that line for every item with `cav board mood take <id> "<one thing to take>"`. The
+page shows it under the item as "Take from it". `cav board mood` lists the items that have no
+line yet.
+
+Then let the user review the board. Start the review page in the background
+(`cav review moodboard.json &`; on Windows, in a second terminal), give the user its URL,
+then run `cav review wait moodboard.json`. The user gives each item Keep, More like this or
+Drop, and can leave notes. Act on each verdict:
+
+- Drop: run `cav board mood drop <id>`. The file stays, and cav never brings the item back.
+- More like this: search for more references like it and add them.
+- A note that corrects a take line: change it with `cav board mood take <id> "..."`.
+
+Then resolve the notes (`cav review resolve`). Do not start stage 3 until the user approves
+(`cav review export moodboard.json --json` shows `approved` as `true`).
 
 A reference is for looking at. It goes into the render only when its licence allows it and
 the user asks for it (`cav guide production`, "Licences come first").
@@ -71,8 +99,8 @@ Run `cav board init --shots 6`. It takes the size, fps, length, tempo and title 
 `brief.json` and says what it took. Without a brief, give them as flags, for example
 `cav board init --width 1080 --height 1920 --fps 30 --seconds 15 --bpm 120 --shots 6`.
 Then carry the approved direction into `storyboard.json`: set `style.prompt` to the look in a
-few words, `style.palette` to the chosen colours, and `style.refs` to the mood board images that
-show it. `cav board frames` sends these with every frame. Write what happens in each shot,
+few words, `style.palette` to the chosen colours, and `style.refs` to the kept mood board images that
+show it. Use image items only: a clip's contact sheet and a video thumbnail are not references to send. `cav board frames` sends these with every frame. Write what happens in each shot,
 then run `cav board frames` and `cav board sheet`. Look at `renders/board.png` and fix the weak shots.
 
 Then let the user review the storyboard. Start the review page in the background

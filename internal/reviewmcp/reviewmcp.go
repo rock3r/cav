@@ -75,13 +75,18 @@ func New(o Options) *mcp.Server {
 			"Read the notes with review_notes, or with `cav review wait` or `cav review export` when you have a shell.",
 	})
 	// Borderless, so the page blends into the conversation; the CSP lets the page load the
-	// host's own font files, which Claude serves from assets.claude.ai.
+	// host's own font files, which Claude serves from assets.claude.ai. frameDomains lets a
+	// mood board show YouTube and Vimeo players (the privacy hosts cav embeds); a host that
+	// ignores it still shows the link under the item.
 	// ChatGPT and Codex read the display modes from openai/ui before the page starts, and
 	// open a review full screen, as OpenAI advises for interactive apps. Other hosts ignore it.
 	pageMeta := mcp.Meta{
 		"ui": map[string]any{
 			"prefersBorder": false,
-			"csp":           map[string]any{"resourceDomains": []string{"https://assets.claude.ai"}},
+			"csp": map[string]any{
+				"resourceDomains": []string{"https://assets.claude.ai"},
+				"frameDomains":    []string{"https://www.youtube-nocookie.com", "https://player.vimeo.com"},
+			},
 		},
 		"openai/ui": map[string]any{
 			"availableDisplayModes": []string{"inline", "fullscreen"},
@@ -100,6 +105,7 @@ func New(o Options) *mcp.Server {
 		Title: "Show a review page",
 		Description: "Show the cav review page for a rendered video in the chat, so the person can play it, draw on frames and leave notes. " +
 			"It also takes brief.json, moodboard.json or storyboard.json: the page then shows the items (fields, references or shots), and the person gives verdicts, leaves notes and approves the stage. " +
+			"A mood board shows images, local clips and YouTube or Vimeo embeds with the agent's take-from-it line under each; a host that blocks the players still shows the link. " +
 			"Without a path it shows the newest review or MP4 in the renders folder. The result lists the notes so far. " +
 			"After the person presses Send to agent or approves, read the notes with review_notes. Only the person approves.",
 		Meta: mcp.Meta{"ui": map[string]any{"resourceUri": PageURI}, "ui/resourceUri": PageURI},
@@ -874,7 +880,12 @@ func Do(hd http.Handler, method, path, body string) requestOut {
 	switch {
 	case w.over:
 		out.Status, out.ContentType = http.StatusRequestEntityTooLarge, "application/json"
-		out.Body = fmt.Sprintf(`{"error":"the preview is more than the %d MB the chat view takes: review it in the browser with cav review"}`, MaxInline>>20)
+		msg := fmt.Sprintf("the preview is more than the %d MB the chat view takes: review it in the browser with cav review", MaxInline>>20)
+		if strings.HasSuffix(path, "/clip") || strings.Contains(path, "/clip?") {
+			msg = fmt.Sprintf("this clip is more than %d MB, too large to play in chat: run cav review moodboard.json to play it in the browser", MaxInline>>20)
+		}
+		b, _ := json.Marshal(map[string]string{"error": msg})
+		out.Body = string(b)
 	case isText(ct):
 		out.Body = w.body.String()
 	default:

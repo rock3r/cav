@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/rock3r/cav/internal/library"
+	"github.com/rock3r/cav/internal/moodboard"
 	"github.com/rock3r/cav/internal/music"
 	"github.com/rock3r/cav/internal/services"
 	"github.com/rock3r/cav/internal/sources"
@@ -44,7 +45,7 @@ commercial hides NC sounds; nc-ok shows them. Without a setting, everything show
 marked. cav credits prints the credit lines; cav check warns about licences that do not fit.`
 	register(command{
 		name:    "ref",
-		args:    "search <words> [--service S] [--licence any|commercial|nc-ok] [--limit N] | get <service:id> [-o moodboard/] [--original] | arena <channel or URL> [--limit 30] | add <file> --licence ID [--author A] [--source S] [--url U]",
+		args:    "search <words> [--service S] [--licence any|commercial|nc-ok] [--limit N] | get <service:id> [-o moodboard/] [--original] | arena <channel or URL> [--limit 30] | add <file> --licence ID [--author A] [--source S] [--url U] [--take T] [--by user|brief|agent] | add <youtube or vimeo link> [--take T] [--by user|brief|agent] [--title T]",
 		summary: "Find reference images for mood boards, download them, and record their credits.",
 		run:     func(a *app, args []string) error { return cmdSources(a, "ref", "image", "moodboard", args) },
 	})
@@ -57,7 +58,16 @@ out as one picture. Reference images are for looking at: check the licence befor
 one in the final piece.
 cav ref arena https://www.are.na/<user>/<channel> [--limit 30] copies a channel's images
 into moodboard/ (a public channel needs no token; ARENA_TOKEN or cav config set-key arena
-for a private one). They are recorded as reference-only: Are.na blocks carry no licence.`
+for a private one). They are recorded as reference-only: Are.na blocks carry no licence.
+cav ref add https://www.youtube.com/watch?v=... (or a vimeo.com link) puts a web video on the
+mood board as an embed. cav never downloads the video: it asks the site's oEmbed address for
+the title and author, saves the thumbnail into moodboard/.thumbs/ (only from the site's own
+image hosts), and records it as reference-only. The review page plays it from the site.
+Other web links are refused: only YouTube and Vimeo can be embedded; save a picture with
+cav ref get. A clip you already have is added like an image: cav ref add clip.mp4 --licence ID.
+--take "..." writes the item's take-from-it line at once, and --by says who asked for it:
+user (the person gave it), brief (it came from brief.json refs) or agent (the default). If the
+site cannot be reached the video is still added, without a thumbnail; give --title by hand.`
 	register(command{
 		name:    "credits",
 		args:    "[show] [--all] [-o CREDITS.txt] | check | licence nc-ok|commercial | list",
@@ -97,7 +107,7 @@ func cmdSources(a *app, cmd, kind, defaultDir string, args []string) error {
 	case "get":
 		return sourcesGet(a, cmd, kind, defaultDir, root, args)
 	case "add":
-		return sourcesAdd(a, kind, root, args)
+		return sourcesAdd(a, kind, root, defaultDir, args)
 	case "index":
 		if kind != "audio" {
 			break
@@ -305,30 +315,183 @@ func recordAndReport(a *app, root string, e library.Entry) error {
 	return nil
 }
 
-func sourcesAdd(a *app, kind, root string, args []string) error {
+func sourcesAdd(a *app, kind, root, defaultDir string, args []string) error {
 	fs := flag.NewFlagSet("add", flag.ContinueOnError)
 	lic := fs.String("licence", "", "licence id (CC0-1.0, CC-BY-4.0, CC-BY-NC-4.0, Pexels, ...), a Creative Commons URL, or a name")
 	author := fs.String("author", "", "who made it")
 	source := fs.String("source", "manual", "where it came from")
 	url := fs.String("url", "", "the page it came from")
 	credit := fs.String("credit", "", "the exact credit line to use")
+	take := fs.String("take", "", "ref only: what to take from it (the mood board line)")
+	by := fs.String("by", "", "ref only: who asked for it: user, brief or agent (default agent)")
+	title := fs.String("title", "", "ref only: the title of a web video, if the site cannot be reached")
 	pos, err := parseFlags(fs, args)
 	if err != nil {
 		return err
 	}
+	if kind == "image" {
+		if *by != "" && *by != moodboard.ByUser && *by != moodboard.ByBrief && *by != moodboard.ByAgent {
+			return usageErr("--by is user, brief or agent")
+		}
+		if len(pos) == 1 && strings.Contains(pos[0], "://") {
+			if _, _, _, ok := moodboard.ParseVideoURL(pos[0]); !ok {
+				return fail(exitError, "cav ref add takes a YouTube or Vimeo link, or a file: "+pos[0],
+					"only YouTube and Vimeo videos can be embedded; save a picture from a page with cav ref get, or download it yourself and cav ref add <file>")
+			}
+			return refAddVideo(a, root, defaultDir, pos[0], *take, *by, *title)
+		}
+	} else if *take != "" || *by != "" || *title != "" {
+		return usageErr("--take, --by and --title are for cav ref add")
+	}
 	if len(pos) != 1 || *lic == "" {
-		return usageErr("usage: cav sfx|ref add <file> --licence ID [--author A] [--source S] [--url U] [--credit TEXT]")
+		return usageErr("usage: cav sfx|ref add <file> --licence ID [--author A] [--source S] [--url U] [--credit TEXT]; cav ref add <youtube or vimeo link>")
 	}
 	if _, err := os.Stat(pos[0]); err != nil {
 		return fail(exitError, "cannot read "+pos[0], "")
 	}
 	e := library.Entry{Path: pos[0], Kind: kind, Title: strings.TrimSuffix(filepath.Base(pos[0]), filepath.Ext(pos[0])),
 		Source: *source, URL: *url, Author: *author, Attribution: *credit, RetrievedAt: time.Now().UTC()}
+	if kind == "image" && moodboard.KindOfFile(pos[0]) == moodboard.KindClip {
+		e.Kind = "video"
+	}
 	termsFor(*lic).Apply(&e)
 	if e.Attribution == "" && e.AttributionRequired {
 		e.Attribution = library.DefaultAttribution(e)
 	}
-	return recordAndReport(a, root, e)
+	if err := recordAndReport(a, root, e); err != nil {
+		return err
+	}
+	if kind == "image" && (*take != "" || *by != "") {
+		return moodMark(defaultDir, "", pos[0], *take, *by, "")
+	}
+	return nil
+}
+
+// moodMark sets the take and the author of an item that was just added, after a sync has
+// made the item. The item is found by its file or, for a video, by its id.
+func moodMark(dir, id, file, take, by, title string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	jsonFile := moodFile(dir)
+	b, _, notes, err := moodSync(ctx, dir, jsonFile)
+	if err != nil {
+		return err
+	}
+	for _, n := range notes {
+		fmt.Fprintln(os.Stderr, "note: "+n)
+	}
+	var it *moodboard.Item
+	if id != "" {
+		it = b.Find(id)
+	} else if abs, err := filepath.Abs(file); err == nil {
+		for i := range b.Items {
+			if b.Items[i].File != "" && filepath.Clean(b.Path(b.Items[i].File)) == abs {
+				it = &b.Items[i]
+			}
+		}
+	}
+	if it == nil {
+		fmt.Fprintf(os.Stderr, "note: %s is not in %s, so --take and --by were not used\n", firstNonEmpty(id, file), dir)
+		return nil
+	}
+	if take != "" {
+		it.Take = strings.TrimSpace(take)
+	}
+	if by != "" {
+		it.AddedBy = by
+	}
+	if title != "" && it.Title == "" {
+		it.Title = title
+	}
+	return b.Save()
+}
+
+func firstNonEmpty(a, b string) string {
+	if a != "" {
+		return a
+	}
+	return b
+}
+
+// refAddVideo puts a YouTube or Vimeo video on the mood board. It downloads no video: only
+// the page's oEmbed answer and the thumbnail from the site's own image host.
+func refAddVideo(a *app, root, dir, link, take, by, title string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	emb, oerr := sources.OEmbed(ctx, link)
+	if emb.ID == "" {
+		return fail(exitError, oerr.Error(), "")
+	}
+	id := moodboard.EmbedID(emb.Provider, emb.ID)
+	var notes []string
+	if oerr != nil {
+		notes = append(notes, "could not reach "+emb.Provider+" ("+oerr.Error()+"): added without a thumbnail; give --title by hand")
+	}
+	if emb.Title == "" {
+		emb.Title = title
+	}
+	thumb := ""
+	if emb.ThumbURL != "" {
+		out := filepath.Join(dir, moodboard.ThumbDir, id+".jpg")
+		if err := sources.SaveThumb(ctx, emb.ThumbURL, out); err != nil {
+			notes = append(notes, "no thumbnail: "+err.Error())
+		} else {
+			thumb = out
+		}
+	}
+	credit := ""
+	if emb.Author != "" {
+		credit = "by " + emb.Author
+	}
+	if thumb != "" {
+		e := library.Entry{Path: thumb, Kind: "embed", Title: emb.Title, Source: emb.Provider, URL: emb.PageURL,
+			Author: emb.Author, AuthorURL: emb.AuthorURL, Attribution: credit, RetrievedAt: time.Now().UTC()}
+		sources.ReferenceOnly.Apply(&e)
+		if err := library.Update(root, func(m *library.Manifest) error { m.Put(root, e); return nil }); err != nil {
+			return err
+		}
+	}
+	jsonFile := moodFile(dir)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	m, _ := library.Load(root)
+	b, _, err := moodboard.Sync(jsonFile, dir, m, root)
+	if err != nil {
+		return fail(exitError, err.Error(), "")
+	}
+	it := b.Find(id)
+	if it == nil {
+		// No thumbnail, so no manifest entry: the item is written by hand.
+		b.Items = append(b.Items, moodboard.Item{ID: id, Kind: moodboard.KindEmbed, URL: emb.PageURL, Title: emb.Title,
+			Source: emb.Provider, Licence: sources.ReferenceOnly.ID, Credit: credit, AddedBy: moodboard.ByAgent})
+		it = &b.Items[len(b.Items)-1]
+	}
+	it.Status = "" // asking for it again brings a dropped video back
+	if take != "" {
+		it.Take = strings.TrimSpace(take)
+	}
+	if by != "" {
+		it.AddedBy = by
+	}
+	if err := b.Save(); err != nil {
+		return err
+	}
+	a.emit(map[string]any{"id": id, "kind": moodboard.KindEmbed, "provider": emb.Provider, "url": emb.PageURL, "title": emb.Title,
+		"thumb": thumb, "licence": sources.ReferenceOnly.ID, "json": jsonFile, "notes": nonNil(notes)}, func() {
+		for _, n := range notes {
+			fmt.Fprintln(os.Stderr, "note: "+n)
+		}
+		fmt.Printf("added %s: %s\n  embedded from %s, not downloaded; reference only\n", id, firstNonEmpty(emb.Title, emb.PageURL), emb.Provider)
+		if thumb != "" {
+			fmt.Printf("  thumbnail: %s\n", thumb)
+		}
+		fmt.Printf("  %s\n", jsonFile)
+		if take == "" {
+			fmt.Printf("write what to take from it: cav board mood take %s \"...\"\n", id)
+		}
+	})
+	return nil
 }
 
 func sfxGen(a *app, root, dir string, args []string) error {
