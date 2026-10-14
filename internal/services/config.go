@@ -59,9 +59,11 @@ var JobHelp = map[string]string{
 // DefaultOrder is the order cav uses when the config does not set one: services with a
 // key first, then free and local ones. A service without a key is skipped, so with no keys
 // at all the free entries win. mflux runs only on Apple silicon, and only once its model is
-// downloaded (cav gen image --service mflux, once).
+// downloaded (cav gen image --service mflux, once). sketch draws a shot from an SVG the agent
+// wrote and renders it through Cavalry; cav board frames falls back to greybox for shots with
+// no SVG.
 var DefaultOrder = map[string][]string{
-	"image":        {"gemini", "openai", "openrouter", "fal", "mflux", "comfyui", "greybox"},
+	"image":        {"gemini", "openai", "openrouter", "fal", "mflux", "comfyui", "sketch", "greybox"},
 	"image.alpha":  {"openai", "recraft", "rembg"},
 	"image.vector": {"recraft", "vtracer", "potrace"},
 	"video":        {"veo"},

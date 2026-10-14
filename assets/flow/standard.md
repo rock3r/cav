@@ -32,7 +32,8 @@ use: cav ref search, cav ref get, cav ref add, then cav board mood, then cav boa
 Plan the shots, make a frame for each one, and look at the sheet. The user gives a verdict on
 each shot and approves the storyboard in `cav review storyboard.json`. Do not start anything
 slow or costly before that. Skip this stage when the piece is under about 8 seconds, or has
-one shot.
+one shot. With no image service, write a `board/<id>.svg` of simple shapes for each shot first:
+cav draws them through Cavalry as sketch frames (`cav guide production`, "Sketch frames").
 
 outputs: storyboard.json, board/
 review: yes

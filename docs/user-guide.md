@@ -236,7 +236,7 @@ cav ref add https://www.youtube.com/watch?v=...  # a web video: embedded, never 
 cav board mood                                   # moodboard.json and renders/moodboard.png
 cav board mood take <id> "what to take from it"  # the line shown under the item
 cav board init --bpm 120 --seconds 16 --shots 6  # then describe each shot in storyboard.json
-cav board frames                                 # greybox cards, or generated with a key
+cav board frames                                 # generated with a key, else your board/<id>.svg sketches, else greybox
 cav board sheet                                  # renders/board.png
 cav board animatic --audio music.wav             # renders/animatic.mp4, cut on the beat
 cav board place                                  # frames as placeholder layers (needs the bridge)

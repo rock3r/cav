@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"math"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -36,9 +38,13 @@ timed in beats (like the plan table cav guide asks for).
         from brief.json when it exists (size, fps, length, tempo and title); flags win. It
         prints what it took from the brief.
   cav board frames [storyboard.json] [--service S] [--only s1,s3] [--force]
-        makes one frame per shot into board/. The free path draws greybox cards; with an
-        image key (cav config) it generates frames, sending style.refs with every one so
-        the look stays consistent. A shot whose "frame" points at an image you made (for
+        makes one frame per shot into board/. With an image key (cav config) it generates
+        frames, sending style.refs with every one so the look stays consistent. With no
+        image service, a shot with board/<id>.svg (simple shapes, written by you) is
+        rendered through Cavalry as a sketch, and the others get greybox cards.
+        --service sketch renders only sketches. A sketch is drawn again when its SVG is
+        newer than its PNG. Needs Cavalry open; the open scene must be saved or empty, and
+        is reopened afterwards. A shot whose "frame" points at an image you made (for
         example with cav frame) keeps it.
   cav board motion [storyboard.json] --only s2,s4 | --all [--service veo] [--force]
         turns a shot's frame into a moving clip (Veo 3.1 Lite by default, with the Gemini
@@ -184,19 +190,7 @@ func boardInit(a *app, args []string) error {
 }
 
 // aspectOf picks the standard aspect ratio closest to w:h.
-func aspectOf(w, h int) string {
-	r := float64(w) / float64(h)
-	best, diff := "16:9", 9.0
-	for _, a := range []struct {
-		s string
-		v float64
-	}{{"16:9", 16.0 / 9}, {"9:16", 9.0 / 16}, {"1:1", 1}, {"4:3", 4.0 / 3}, {"3:4", 3.0 / 4}, {"3:2", 1.5}, {"2:3", 2.0 / 3}, {"21:9", 21.0 / 9}, {"4:5", 0.8}, {"5:4", 1.25}} {
-		if d := math.Abs(a.v - r); d < diff {
-			best, diff = a.s, d
-		}
-	}
-	return best
-}
+func aspectOf(w, h int) string { return board.AspectLabel(w, h) }
 
 // shotPlaceholder is the "what" that cav board init writes. A shot that still has it is not described yet.
 const shotPlaceholder = "describe what happens in this shot"
@@ -256,7 +250,67 @@ func framePrompt(sb *board.Board, s board.Shot) string {
 	return b.String()
 }
 
-func boardFrames(a *app, args []string) error {
+// frameCurrent says whether the shot's frame stands as it is. A frame that is missing is not
+// current. When sketches are being drawn and the shot has an SVG, a greybox card is not
+// current (the sketch replaces it), and nor is a sketch frame older than its SVG. A frame
+// from any other source stands: --force remakes it.
+func frameCurrent(sb *board.Board, s board.Shot, svgAbs string, sketching bool) bool {
+	if s.Frame == "" {
+		return false
+	}
+	png, err := os.Stat(sb.Path(s.Frame))
+	if err != nil {
+		return false
+	}
+	if !sketching {
+		return true
+	}
+	svg, err := os.Stat(svgAbs)
+	if err != nil {
+		return true
+	}
+	switch s.Source {
+	case "greybox":
+		return false
+	case "sketch":
+		return !svg.ModTime().After(png.ModTime())
+	}
+	return true
+}
+
+// sketchFiles gives the SVG of a shot: its path inside the board folder, and absolute.
+func sketchFiles(sb *board.Board, dir, id string) (rel, abs string) {
+	rel = filepath.ToSlash(filepath.Join(dir, id+".svg"))
+	return rel, sb.Path(rel)
+}
+
+func fileExists(p string) bool {
+	_, err := os.Lstat(p)
+	return err == nil
+}
+
+// withSketch adds sketch to an image order just before greybox, or at the end when the order
+// has no greybox. Every other service keeps its place, so a free choice stays ahead of a paid one.
+func withSketch(order []string) []string {
+	out := make([]string, 0, len(order)+1)
+	added := false
+	for _, n := range order {
+		if n == "sketch" {
+			return append([]string(nil), order...)
+		}
+		if n == "greybox" && !added {
+			out = append(out, "sketch")
+			added = true
+		}
+		out = append(out, n)
+	}
+	if !added {
+		out = append(out, "sketch")
+	}
+	return out
+}
+
+func boardFrames(a *app, args []string) (err error) {
 	fs := flag.NewFlagSet("board frames", flag.ContinueOnError)
 	service := fs.String("service", "", "image service (default: the image order in cav config)")
 	only := fs.String("only", "", "comma-separated shot ids")
@@ -275,17 +329,23 @@ func boardFrames(a *app, args []string) error {
 	for _, id := range splitList(*only) {
 		want[id] = true
 	}
-	// Refuse before any service call: a placeholder "what" makes the image service invent content.
-	if err := placeholderShots(sb, func(s board.Shot) bool {
+	hasSVG := func(s board.Shot) bool {
+		_, abs := sketchFiles(sb, *dir, s.ID)
+		return fileExists(abs)
+	}
+	// needsFrame says whether the run makes a frame for the shot.
+	needsFrame := func(s board.Shot, sketching bool) bool {
 		if len(want) > 0 && !want[s.ID] {
 			return false
 		}
-		if s.Frame != "" && !*force {
-			if _, err := os.Stat(sb.Path(s.Frame)); err == nil {
-				return false
-			}
-		}
-		return true
+		_, abs := sketchFiles(sb, *dir, s.ID)
+		return *force || !frameCurrent(sb, s, abs, sketching)
+	}
+	// Refuse before any service call: a placeholder "what" makes the image service invent content.
+	// A shot with an SVG may be drawn as a sketch, which does not use "what".
+	maybeSketch := *service == "" || *service == "sketch"
+	if err := placeholderShots(sb, func(s board.Shot) bool {
+		return needsFrame(s, maybeSketch) && !(maybeSketch && hasSVG(s))
 	}); err != nil {
 		return err
 	}
@@ -299,6 +359,51 @@ func boardFrames(a *app, args []string) error {
 	if err != nil {
 		return fail(exitError, err.Error(), "see cav config")
 	}
+	explicitSketch := *service == "sketch"
+	sketching := ch.Service == "sketch"
+	// The sketches to draw, each checked now: one bad SVG stops the run before any frame is made.
+	sketchIDs := map[string]bool{}
+	var needSketch []string
+	if sketching {
+		var missing, problems []string
+		for _, s := range sb.Shots {
+			if !needsFrame(s, true) {
+				continue
+			}
+			rel, abs := sketchFiles(sb, *dir, s.ID)
+			if !fileExists(abs) {
+				missing = append(missing, s.ID)
+				continue
+			}
+			sketchIDs[s.ID] = true
+			raw, err := board.ReadSketch(abs)
+			if err == nil {
+				err = board.CheckSketch(raw, sb.Width, sb.Height)
+			}
+			var se *board.SketchError
+			switch {
+			case errors.As(err, &se):
+				problems = append(problems, rel+": "+strings.Join(se.Problems, "; "))
+			case err != nil:
+				problems = append(problems, rel+": "+err.Error())
+			}
+		}
+		if len(problems) > 0 {
+			return fail(exitError, strings.Join(problems, "\n"), "a sketch uses simple shapes only: cav guide production (Sketch frames)")
+		}
+		if explicitSketch && len(missing) > 0 {
+			files := make([]string, len(missing))
+			for i, id := range missing {
+				files[i], _ = sketchFiles(sb, *dir, id)
+			}
+			return fail(exitError, strings.Join(missing, ", ")+": write "+strings.Join(files, ", ")+" first",
+				"a sketch is an SVG of simple shapes drawn by you: cav guide production (Sketch frames)")
+		}
+		needSketch = missing
+	}
+	if err := placeholderShots(sb, func(s board.Shot) bool { return needsFrame(s, sketching) && !sketchIDs[s.ID] }); err != nil {
+		return err
+	}
 	var refs []string
 	for _, r := range sb.Style.Refs {
 		refs = append(refs, sb.Path(r))
@@ -307,6 +412,55 @@ func boardFrames(a *app, args []string) error {
 	// A broken manifest stops the run before the first paid call.
 	if _, err := library.Load(root); err != nil {
 		return err
+	}
+	var notes []string
+	// A free run that picked greybox does not know about the SVGs unless sketch is in the order.
+	if ch.Service == "greybox" && *service == "" {
+		var withSVG []string
+		for _, s := range sb.Shots {
+			if (len(want) == 0 || want[s.ID]) && hasSVG(s) {
+				withSVG = append(withSVG, s.ID+".svg")
+			}
+		}
+		if len(withSVG) > 0 {
+			notes = append(notes, fmt.Sprintf("%s in %s exist but the image order has no sketch: cav config order image %s",
+				strings.Join(withSVG, ", "), *dir, strings.Join(withSketch(c.OrderFor("image")), ",")))
+		}
+	}
+	var sess *sketchSession
+	closeSketch := func() error { return sess.close() }
+	defer func() {
+		if cerr := closeSketch(); cerr != nil {
+			if err == nil {
+				err = cerr
+			} else {
+				fmt.Fprintln(os.Stderr, "error: "+cerr.Error())
+			}
+		}
+	}()
+	if len(sketchIDs) > 0 {
+		var serr error
+		sess, serr = startSketch(a, sb, sb.Path(*dir))
+		var un *sketchUnavailable
+		switch {
+		case errors.As(serr, &un) && !explicitSketch:
+			// Cavalry is not open: the shots with an SVG get cards, like the others.
+			notes = append(notes, "sketch: Cavalry is not answering; open Cavalry with the cav bridge, then run cav board frames again")
+			for id := range sketchIDs {
+				needSketch = append(needSketch, id)
+			}
+			sketchIDs, sketching = map[string]bool{}, false
+			if err := placeholderShots(sb, func(s board.Shot) bool { return needsFrame(s, false) }); err != nil {
+				return err
+			}
+		case serr != nil:
+			return serr
+		}
+	}
+	// The service that draws the cards: with no sketch to draw, a sketch run is a greybox run.
+	svc := ch.Service
+	if svc == "sketch" && len(sketchIDs) == 0 {
+		svc = "greybox"
 	}
 	type made struct {
 		Shot   string `json:"shot"`
@@ -322,15 +476,21 @@ func boardFrames(a *app, args []string) error {
 		if len(want) > 0 && !want[s.ID] {
 			continue
 		}
-		if s.Frame != "" && !*force {
-			if _, err := os.Stat(sb.Path(s.Frame)); err == nil {
-				done = append(done, made{Shot: s.ID, Frame: s.Frame, Source: s.Source, Kept: true})
-				continue
-			}
+		svgRel, svgAbs := sketchFiles(sb, *dir, s.ID)
+		if !*force && frameCurrent(sb, *s, svgAbs, sketching) {
+			done = append(done, made{Shot: s.ID, Frame: s.Frame, Source: s.Source, Kept: true})
+			continue
 		}
 		var im *imagegen.Image
 		prompt := framePrompt(sb, *s)
-		if ch.Service == "greybox" {
+		switch {
+		case sketchIDs[s.ID]:
+			fmt.Fprintf(os.Stderr, "%s: drawing %s through Cavalry…\n", s.ID, svgRel)
+			im, err = sess.render(s.ID, svgAbs)
+			if err != nil {
+				return fail(exitError, s.ID+": "+err.Error(), "the frames made so far are saved; fix the problem and run again to continue")
+			}
+		case svc == "greybox" || svc == "sketch":
 			lines := []string{s.What}
 			if s.Camera != "" {
 				lines = append(lines, "camera: "+s.Camera)
@@ -341,7 +501,7 @@ func boardFrames(a *app, args []string) error {
 				return err
 			}
 			im = &imagegen.Image{Data: data, MIME: "image/png", Provider: "greybox"}
-		} else {
+		default:
 			fmt.Fprintf(os.Stderr, "%s: generating with %s…\n", s.ID, ch.Service)
 			im, err = imagegen.Generate(ctx, c, ch, imagegen.Request{Prompt: prompt, Refs: refs, Aspect: aspectOf(sb.Width, sb.Height)})
 			if err != nil {
@@ -369,6 +529,11 @@ func boardFrames(a *app, args []string) error {
 			e := library.Entry{Path: out, Kind: "image", Title: "storyboard " + s.ID, Source: im.Provider,
 				Licence: "generated", CommercialOK: true, RetrievedAt: time.Now().UTC(), SHA256: sum,
 				Generated: &library.Generated{Provider: im.Provider, Model: im.Model, Prompt: prompt, Refs: sb.Style.Refs}}
+			if im.Provider == "sketch" {
+				// The picture comes from the SVG, not from a prompt.
+				e.Title = "storyboard " + s.ID + " (sketch)"
+				e.Generated = &library.Generated{Provider: im.Provider, Model: im.Model, Refs: []string{svgRel}}
+			}
 			if err := library.Update(root, func(m *library.Manifest) error {
 				m.Put(root, e)
 				return nil
@@ -378,9 +543,29 @@ func boardFrames(a *app, args []string) error {
 		}
 		done = append(done, made{Shot: s.ID, Frame: rel, Source: im.Provider, DroppedClip: dropped})
 	}
-	a.emit(map[string]any{"storyboard": path, "service": ch.Service, "skipped": ch.Skipped, "frames": done}, func() {
+	// Give Cavalry back before reporting.
+	if err := closeSketch(); err != nil {
+		return err
+	}
+	data := map[string]any{"storyboard": path, "service": svc, "skipped": ch.Skipped, "frames": done}
+	if len(needSketch) > 0 && !explicitSketch {
+		sort.Strings(needSketch)
+		files := make([]string, len(needSketch))
+		for i, id := range needSketch {
+			files[i], _ = sketchFiles(sb, *dir, id)
+		}
+		notes = append(notes, "write "+strings.Join(files, ", ")+" for sketch frames instead of text cards (cav guide production, Sketch frames), then run cav board frames again")
+		data["needSketch"] = needSketch
+	}
+	if len(notes) > 0 {
+		data["sketchNote"] = strings.Join(notes, "; ")
+	}
+	a.emit(data, func() {
 		for _, s := range ch.Skipped {
 			fmt.Fprintln(os.Stderr, "note: skipped "+s)
+		}
+		for _, n := range notes {
+			fmt.Fprintln(os.Stderr, "note: "+n)
 		}
 		for _, d := range done {
 			state := "made with " + d.Source

@@ -112,6 +112,27 @@
     stderr and in `warnings`, naming the file, line and stage.
   - `cav guide --search` also finds the standard flow's stages.
 
+- Sketch storyboard frames (#91). With no image service, `cav board frames` renders a
+  shot from `board/<id>.svg`, an SVG of simple shapes that the agent writes, through Cavalry.
+  - `sketch` is a new `image` service, after comfyui and before greybox. Shots with no SVG still
+    get greybox cards, and the command lists them. `--service sketch [--only s3]` renders only
+    sketches and refuses when an SVG is missing. If the image order has no `sketch`, a run that
+    finds SVGs prints the `cav config order image …` line that adds it.
+  - cav checks every SVG first and refuses with each problem and its line: scripts, event
+    attributes, `image`, `foreignObject`, links to other files, a `DOCTYPE`, files over 512 KiB,
+    more than 2000 elements, nesting deeper than 32, or a canvas that does not fit the storyboard.
+    No frame is made until all pass. Cavalry imports a cleaned copy in a temporary `board/.cav-sketch-*` folder that cav removes,
+    never your file.
+  - cav draws in a scratch scene and opens your scene again afterwards. It refuses when the open
+    scene has unsaved changes, and never overrides that. An empty untitled scene uses a temporary
+    comp that cav deletes. If Cavalry is not open, the default order falls back to greybox cards.
+  - A sketch is drawn again when its SVG is newer than its PNG, and a greybox card is replaced when
+    its SVG appears. The shot's `source` is `sketch`, and the manifest records the SVG.
+  - `cav guide production` has a "Sketch frames" section; `cav guide flow` stage 3 explains the
+    frame order.
+  - `tools/release-smoke.sh` now writes a `"what"` for each shot after `board init`, since
+    `board frames` refuses the placeholder text.
+
 - New command `cav brief` (#92) for stage 1 of `cav guide flow`, the creative director brief.
   - `cav brief init` writes `brief.json` (schema `cav-brief/1`): title, goal, audience, tone,
     seconds, bpm, format (width, height, fps), deliverables, mustHave, avoid, music and refs.
