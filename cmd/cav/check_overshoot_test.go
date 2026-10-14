@@ -87,6 +87,8 @@ func TestOvershootFindings(t *testing.T) {
 		{"position never counts", []structureLayer{{ID: "a", Name: "progress bar", Motion: []motionAttr{eased("position.x", spring), eased("opacity", spring), eased("rotation.z", spring)}}}, nil, 0, "", 0},
 		{"a counter feeds a text layer", []structureLayer{{ID: "n", Type: "stringGenerator", Name: "Headline number", Motion: []motionAttr{eased("generator.number", &keyEase{Magic: 32})}}, textShape},
 			[]structureEdge{{From: "n", FromAttr: "id", To: "txt", ToAttr: "text"}}, 1, "text", 0},
+		{"a counter feeds text.string", []structureLayer{{ID: "n", Type: "stringGenerator", Name: "Headline", Motion: []motionAttr{eased("generator.precision", &keyEase{Magic: 32})}}, textShape},
+			[]structureEdge{{From: "n", FromAttr: "id", To: "txt", ToAttr: "text.string"}}, 1, "text", 0},
 		{"a keyed number is data by its attribute name", []structureLayer{{ID: "n", Type: "stringGenerator", Name: "Headline", Motion: []motionAttr{eased("generator.number", &keyEase{Magic: 32})}}}, nil, 1, "attr", 0},
 		{"a keyed size that feeds nothing and has a plain name", []structureLayer{{ID: "n", Name: "Headline", Motion: []motionAttr{eased("generator.dimensions.x", &keyEase{Magic: 32})}}}, nil, 0, "", 0},
 		{"an attribute called value", []structureLayer{{ID: "n", Name: "Thing", Motion: []motionAttr{eased("generator.value", spring)}}}, nil, 1, "attr", 0},

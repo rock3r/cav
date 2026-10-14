@@ -5,6 +5,7 @@ import (
 	"math"
 	"regexp"
 	"sort"
+	"strings"
 
 	"github.com/rock3r/cav/internal/board"
 )
@@ -457,7 +458,7 @@ func overshootFindings(d structureData) (flagged []finding, skipped []map[string
 	}
 	feedsText := map[string]bool{}
 	for _, e := range d.Edges {
-		if e.ToAttr == "text" && types[e.To] == "textShape" {
+		if (e.ToAttr == "text" || strings.HasPrefix(e.ToAttr, "text.")) && types[e.To] == "textShape" {
 			feedsText[e.From] = true
 		}
 	}
