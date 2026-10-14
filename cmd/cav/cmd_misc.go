@@ -233,8 +233,9 @@ func flowRoot() string {
 	if wd, err := os.Getwd(); err != nil || root == wd {
 		return "."
 	}
-	// A .cav folder that is the global cav home (~/.cav) does not make its parent a project.
-	if sameFolder(filepath.Join(root, ".cav"), config.Home()) {
+	// The default cav home ($HOME/.cav) does not make its parent a project. A CAV_HOME that
+	// is set on purpose, for example <project>/.cav, does.
+	if os.Getenv("CAV_HOME") == "" && sameFolder(filepath.Join(root, ".cav"), config.Home()) {
 		return "."
 	}
 	return root

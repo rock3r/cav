@@ -356,6 +356,28 @@ func TestGuideFlowDoesNotTakeTheHomeFolderForAProject(t *testing.T) {
 	}
 }
 
+func TestGuideFlowKeepsTheProjectRootWhenCavHomeIsSetToIt(t *testing.T) {
+	project := t.TempDir()
+	cavHome := filepath.Join(project, ".cav")
+	if err := os.Mkdir(cavHome, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("CAV_HOME", cavHome)
+	if err := os.WriteFile(filepath.Join(project, "flow.md"), []byte("## mine\noutputs: a.json\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sub := filepath.Join(project, "scenes")
+	if err := os.Mkdir(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(sub)
+	_, _, data := flowGuide(t, true)
+	info := data["flow"].(map[string]any)
+	if info["source"] != "project" || !strings.HasSuffix(info["path"].(string), "flow.md") {
+		t.Errorf("flow = %v; the project root was not used", info)
+	}
+}
+
 func TestGuideFlowJSONKeepsThePathOfABrokenFile(t *testing.T) {
 	project, home := flowEnv(t)
 	broken := "## a\nreview: maybe\n"
