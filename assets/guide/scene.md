@@ -132,6 +132,8 @@ Details: `cav guide music`.
   mistake, or off-screen.
 - `cav check` shows no finding that you have not fixed or explained.
 - Every moving element has an ease; hits land on beat frames when there is music.
+- For a 9:16 or 1:1 version, make it with `cav scene reframe --to 9:16` (it leaves the
+  original comp as it is), then fix what it lists and look at it with `cav sheet --comp`.
 - Scene saved with `cav scene save`; final MP4 rendered with `cav render`, and the frame
   count matches.
 - Tell the user the file paths, and what you could not check (for example, you cannot hear

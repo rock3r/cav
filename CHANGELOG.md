@@ -13,6 +13,22 @@
   - The review page shows `Why:` in the shot text. A shot that gets a `why` changes, so its
     verdict becomes outdated once.
 
+- New command `cav scene reframe --to 9:16|1:1` (#115) makes a vertical or square copy of a
+  comp. The original comp is never changed.
+  - The copy is 1080x1920 or 1080x1080 (from the short side of the source). The group named
+    `rig`, or the layers in `--key`, are fitted into the middle half of the frame. Content is
+    never enlarged unless you pass `--scale`. Backgrounds are scaled to cover the frame. Layers
+    with keyed or connected position or scale keep their keys and go inside a fit group.
+  - The command measures the original on up to 12 frames (`--samples`) and predicts what will
+    go wrong: text that becomes too small, content cut off by the frame or under the platform
+    buttons and captions, content outside the middle half, shared pre-comps and cameras. It
+    prints the free bands for titles. `--dry-run` prints the plan and changes nothing.
+  - It refuses a comp name that is already used (`--name` sets it). If a step fails, it
+    deletes the partial copy.
+  - The new helper `cav.safeArea(w?, h?)` returns the frame, the middle half and the safe area
+    for a size. The numbers are approximate.
+- `cav check` judged text in a vertical comp by its height, so 28 px text at 1080x1920 was
+  reported as about 16 px. It now uses the short side of the comp.
 - The mood board is a page with images, video and a "take from it" line per item (#90).
   - `cav board mood` now writes `moodboard.json` (schema `cav-moodboard/1`) beside the
     `moodboard/` folder, and still writes `renders/moodboard.png`. Each item has an id, a kind

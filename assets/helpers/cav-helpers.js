@@ -1140,9 +1140,45 @@
 	//@     In the run that created a layer, Cavalry 2.8.0 keeps a child's world box at its first
 	//@     value even when an animated parent moves; read it again in a later `cav run`.
 	//@ cav.keys(layer)   {attr: [frames]} for every animated attribute
+	//@ cav.safeArea(w?, h?)   -> {frame, key, safe}, each a box {left, right, top, bottom, width,
+	//@     height, centre:[x, y]} in comp coordinates, for the active comp or a given size.
+	//@     frame is the whole comp. key is the middle half: the part a feed crops to (a 9:16
+	//@     video shown as a 4:5 or square preview), so keep the main content there. safe is
+	//@     the part clear of platform overlays: in a portrait comp 12 % top, 20 % bottom, 5 % left,
+	//@     12 % right are kept free; in a wide or square comp 5 % on each side. The numbers are
+	//@     approximate: check them against the platform's own template before you ship.
+	//@     The bands between key and frame are free for titles and captions.
 	cav.bbox = function (l) {
 		l = checkLayer(l, 'cav.bbox')
 		return api.getBoundingBox(l, true)
+	}
+
+	function box(left, right, top, bottom) {
+		return {
+			left: left,
+			right: right,
+			top: top,
+			bottom: bottom,
+			width: right - left,
+			height: top - bottom,
+			centre: [(left + right) / 2, (top + bottom) / 2],
+		}
+	}
+	cav.safeArea = function (w, h) {
+		if (w === undefined || h === undefined) {
+			var c = cav.comp()
+			w = c.width
+			h = c.height
+		}
+		if (!(w > 0 && h > 0)) fail('cav.safeArea: width and height must be positive')
+		var portrait = h / w > 1.5,
+			m = portrait ? { t: 0.12, b: 0.2, l: 0.05, r: 0.12 } : { t: 0.05, b: 0.05, l: 0.05, r: 0.05 }
+		return {
+			frame: box(-w / 2, w / 2, h / 2, -h / 2),
+			// The middle half: 90 % of the width and half of the height of the frame.
+			key: box(-w / 2 + 0.05 * w, w / 2 - 0.05 * w, h / 4, -h / 4),
+			safe: box(-w / 2 + m.l * w, w / 2 - m.r * w, h / 2 - m.t * h, -h / 2 + m.b * h),
+		}
 	}
 
 	cav.keys = function (l) {

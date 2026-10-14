@@ -37,7 +37,8 @@ the numbers, run it with `cav run`, and check it with `cav sheet`. Frames assume
 ## 2. Scene structure
 
 Build each section in its own group with in/out frames. Put everything under one top-level `rig`
-group so camera shake and zooms move the whole picture.
+group so camera shake and zooms move the whole picture. `cav scene reframe` also fits the group
+named `rig` into the middle half of a 9:16 or 1:1 copy, so keep the UI that must stay readable in it.
 
 ```js
 var c = cav.comp(), b = cav.beats(120)

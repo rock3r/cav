@@ -52,3 +52,8 @@ var Diagnostics embed.FS
 //
 //go:embed board/place.js
 var BoardPlace string
+
+// Reframe is the native job of cav scene reframe.
+//
+//go:embed reframe/reframe.js
+var Reframe string

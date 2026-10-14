@@ -134,6 +134,7 @@ not resume a render. Keep the original scene and inputs unchanged during recover
 | Retrieve scene metadata and structure | `cav scene info`, `cav tree` |
 | Inspect a layer (position, bounding box, keys) | `cav layer <id>`, `cav layer <id> --attrs` |
 | Change the comp size, length or background | `cav scene comp --seconds 8 --bg '#101014'` |
+| Make a 9:16 or 1:1 copy of a comp | `cav scene reframe --to 9:16` (`--dry-run` first; the original comp is not changed) |
 | Render one frame | `cav frame 90 -o renders/f90.png` |
 | Review chosen frames | `cav sheet 0,30,60,90`, or every 30th frame: `cav sheet 0-600:30` |
 | See how one move travels (path, easing, overshoot) | `cav onion 0-60` writes `renders/onion.png` |

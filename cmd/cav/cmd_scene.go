@@ -18,7 +18,7 @@ import (
 func init() {
 	register(command{
 		name:    "scene",
-		args:    "new|open|save|info [options]",
+		args:    "new|open|save|info|reframe [options]",
 		summary: "Create, open, save or describe the scene and its active comp.",
 		run:     cmdScene,
 	})
@@ -36,6 +36,16 @@ cav scene new [--width 1920 --height 1080 --fps 60 --seconds 10 | --frames 600] 
     bpm is for the storyboard, not the comp. The command prints what it took.
 cav scene comp [--width W --height H --fps F --seconds S | --frames N] [--bg #hex] [--motion-blur]
     Change the active comp's settings without touching its layers.
+cav scene reframe --to 9:16|1:1 [--comp ID|name] [--name NEW] [--key name,...] [--scale S]
+                  [--samples 12] [--min-text 28] [--dry-run] [--timeout 2m]
+    Make a copy of the comp at a vertical (1080x1920) or square (1080x1080) size, with the
+    key content fitted into the middle half of the frame. The key content is the group
+    named rig, or the layers in --key. Backgrounds are scaled to cover the frame, and keyed
+    layers are wrapped in a fit group. The original comp is never changed; the copy becomes
+    the active comp. It refuses a name that is already used. --dry-run prints the plan and
+    the predicted findings (small text, content cut off by the frame or under platform
+    overlays) and changes nothing. Then refine the copy: use the free bands above and below
+    for titles, raise small text, check it with cav sheet --comp and cav check --comp.
 cav scene open <file.cv> [--force] [--timeout 10m]
     Wait for the scene to finish opening, including the follow-up scene-info job.
     On timeout, resume the operation ID; do not open the scene a second time.
@@ -58,7 +68,7 @@ cav scene save [<file.cv>] [--timeout 5m]
 
 func cmdScene(a *app, args []string) error {
 	if len(args) == 0 {
-		return usageErr("usage: cav scene new|open|save|info|comp")
+		return usageErr("usage: cav scene new|open|save|info|comp|reframe")
 	}
 	sub, rest := args[0], args[1:]
 	switch sub {
@@ -66,6 +76,8 @@ func cmdScene(a *app, args []string) error {
 		return sceneInfo(a)
 	case "new", "comp":
 		return sceneNew(a, sub, rest)
+	case "reframe":
+		return sceneReframe(a, rest)
 	case "open":
 		fs := flag.NewFlagSet("scene open", flag.ContinueOnError)
 		force := fs.Bool("force", false, "open even if the current scene has unsaved changes")
