@@ -193,8 +193,14 @@ Use the screenshot only as a reference, to check that the rebuild matches the re
 ```js
 // ...build the window from cav.rect / cav.text / cav.path icons first...
 // then load the guide last, so it sits on top of the rebuild:
-var ref = cav.image('/abs/path/screen.png', 'REF screenshot (hide before render)', { opacity: 30 })
-api.set(ref, { hidden: true })   // once the rebuild matches
+cav.image('/abs/path/screen.png', 'REF screenshot', { opacity: 30 })
+```
+
+Leave the guide visible while you compare. Variables do not survive between runs, so hide it
+later, in its own run, by name:
+
+```js
+api.set(cav.find('REF screenshot'), { hidden: true })
 ```
 
 Animate the parts in with small staggered `slideIn`s (dy 20-30, 3-4 frame steps), then show one
