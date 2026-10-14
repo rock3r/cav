@@ -42,7 +42,11 @@ type Flow struct {
 	Source string // project, user or standard
 	Path   string // the file, empty for the standard flow
 	Text   string // the file as it was read, without a byte order mark
-	Stages []Stage
+
+	// Unclosed is the line of a <!-- that is never closed, or 0. The rest of the file
+	// after it is ignored.
+	Unclosed int
+	Stages   []Stage
 }
 
 // LineError is a problem on one line of a flow file.
@@ -67,7 +71,7 @@ func Parse(file string, src []byte) (*Flow, error) {
 	if len(p.errs) > 0 {
 		return nil, errors.Join(p.errs...)
 	}
-	return &Flow{Text: text, Stages: p.stages}, nil
+	return &Flow{Text: text, Stages: p.stages, Unclosed: p.unclosed}, nil
 }
 
 type parser struct {
@@ -81,6 +85,7 @@ type parser struct {
 	reviewLine  int
 	useLine     int
 	seenStageAt map[string]int
+	unclosed    int // line of the last <!-- that opened a comment (valid when still open)
 }
 
 func (p *parser) fail(line int, format string, args ...any) {
@@ -104,7 +109,11 @@ func (p *parser) run(text string) {
 			continue
 		}
 		// What is left of the line outside <!-- --> comments.
+		was := inComment
 		t = strings.TrimSpace(stripComments(line, &inComment))
+		if inComment && !was {
+			p.unclosed = n
+		}
 		if m := fenceMarker(t); m != "" {
 			fence = m
 			continue
@@ -116,6 +125,9 @@ func (p *parser) run(text string) {
 		if key, val, ok := keyLine(t); ok {
 			p.key(n, key, val)
 		}
+	}
+	if !inComment {
+		p.unclosed = 0
 	}
 	p.endStage()
 	if len(p.stages) == 0 && len(p.errs) == 0 {
@@ -246,7 +258,7 @@ func stripComments(line string, inComment *bool) string {
 			*inComment = false
 			continue
 		}
-		start := strings.Index(line, "<!--")
+		start := commentStart(line)
 		if start < 0 {
 			out.WriteString(line)
 			return out.String()
@@ -255,6 +267,31 @@ func stripComments(line string, inComment *bool) string {
 		line = line[start+len("<!--"):]
 		*inComment = true
 	}
+}
+
+// commentStart is the index of the first <!-- that is not inside an inline code span, or -1.
+// A code span starts with a run of backticks and ends at the next run of the same length.
+// A run with no closer is plain text.
+func commentStart(line string) int {
+	for i := 0; i < len(line); {
+		switch {
+		case line[i] == '`':
+			n := 1
+			for i+n < len(line) && line[i+n] == '`' {
+				n++
+			}
+			if end := codeSpanEnd(line, i+n, n); end >= 0 {
+				i = end
+			} else {
+				i += n
+			}
+		case strings.HasPrefix(line[i:], "<!--"):
+			return i
+		default:
+			i++
+		}
+	}
+	return -1
 }
 
 // indentedCode reports whether a line is indented by four or more spaces, or a tab. As in
@@ -397,6 +434,9 @@ func (f *Flow) Warnings(root string) []string {
 		file = f.Path
 	}
 	out := []string{}
+	if f.Unclosed > 0 {
+		out = append(out, fmt.Sprintf("%s line %d: <!-- is never closed; the rest of the file is ignored", file, f.Unclosed))
+	}
 	for _, s := range f.Stages {
 		if !s.Review || len(s.Outputs) == 0 {
 			continue
@@ -406,4 +446,24 @@ func (f *Flow) Warnings(root string) []string {
 		}
 	}
 	return out
+}
+
+// codeSpanEnd returns the index just after the first run of exactly n backticks at or after
+// from, or -1.
+func codeSpanEnd(line string, from, n int) int {
+	for j := from; j < len(line); {
+		if line[j] != '`' {
+			j++
+			continue
+		}
+		k := j
+		for k < len(line) && line[k] == '`' {
+			k++
+		}
+		if k-j == n {
+			return k
+		}
+		j = k
+	}
+	return -1
 }

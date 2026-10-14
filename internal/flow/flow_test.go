@@ -198,6 +198,40 @@ func TestHTMLCommentsDisableStages(t *testing.T) {
 	}
 }
 
+func TestHTMLCommentMarkerInsideACodeSpanIsText(t *testing.T) {
+	src := "## one\nUse `<!--` to start a comment, or ``a ` <!-- b`` too.\noutputs: a.json\n\n## two\noutputs: b.json\n"
+	f, err := Parse("flow.md", []byte(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(f.Stages) != 2 || f.Unclosed != 0 {
+		t.Errorf("stages = %+v, unclosed %d", f.Stages, f.Unclosed)
+	}
+	// A lone backtick has no closer, so it is text and the comment after it starts.
+	f, err = Parse("flow.md", []byte("## one\noutputs: a.json\nit` <!-- hidden\n## two\noutputs: b.json\n"))
+	if err != nil || len(f.Stages) != 1 || f.Unclosed != 3 {
+		t.Errorf("lone backtick: %+v, %v", f, err)
+	}
+}
+
+func TestUnclosedCommentIsAWarning(t *testing.T) {
+	src := "## one\noutputs: a.json\n\n<!-- forgot to close\n## two\noutputs: b.json\n"
+	f, err := Parse("flow.md", []byte(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.Path = "flow.md"
+	want := []string{"flow.md line 4: <!-- is never closed; the rest of the file is ignored"}
+	if got := f.Warnings(""); !reflect.DeepEqual(got, want) || len(f.Stages) != 1 {
+		t.Errorf("warnings %q, stages %+v", got, f.Stages)
+	}
+	// A comment that is closed later in the file is not a warning.
+	f, err = Parse("flow.md", []byte("## one\noutputs: a.json\n<!-- a -->\n<!-- b\n-->\n"))
+	if err != nil || f.Unclosed != 0 || len(f.Warnings("")) != 0 {
+		t.Errorf("closed comments: %+v, %v", f, err)
+	}
+}
+
 func TestHTMLCommentInsideIndentedCodeIsNotAComment(t *testing.T) {
 	f, err := Parse("flow.md", []byte("## one\n    <!--\noutputs: a.json\n"))
 	if err != nil || len(f.Stages[0].Outputs) != 1 {
