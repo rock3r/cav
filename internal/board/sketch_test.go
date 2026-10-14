@@ -37,7 +37,7 @@ func TestCheckSketchAcceptsSimpleShapes(t *testing.T) {
 		t.Fatalf("valid sketch refused: %v", p)
 	}
 	ok := wrap(`<defs><linearGradient id="a"><stop offset="0" stop-color="#000"/></linearGradient></defs>` +
-		`<rect id="r" width="10" height="10" fill="url(#a)" style="stroke:url(#a)"/><use href="#r"/><use xlink:href="#r" xmlns:xlink="http://www.w3.org/1999/xlink"/>`)
+		`<rect id="r" width="10" height="10" fill="url(#a)" style="stroke:url(#a)"/><use href="#r"/>`)
 	if p := problems(t, ok); p != nil {
 		t.Fatalf("gradients and local references refused: %v", p)
 	}
@@ -58,7 +58,7 @@ func TestCheckSketchRefusals(t *testing.T) {
 		{"script", wrap(`<script>alert(1)</script>`), "<script> is not allowed"},
 		{"foreignObject", wrap(`<foreignObject/>`), "<foreignObject> is not allowed"},
 		{"image", wrap(`<image href="http://example.com/a.png"/>`), "<image> is not allowed in a sketch: use simple shapes"},
-		{"use of a file", wrap(`<use xlink:href="file.svg#a" xmlns:xlink="http://www.w3.org/1999/xlink"/>`), "href on <use>"},
+		{"use of a file", xlinkDoc(`<use xlink:href="file.svg#a"/>`), "href on <use>"},
 		{"event handler", wrap(`<rect onload="x()" width="1" height="1"/>`), "onload"},
 		{"external url", wrap(`<rect style="fill:url(http://x/a)" width="1" height="1"/>`), "url(#name)"},
 		{"css import", wrap(`<rect style="@import 'x'" width="1" height="1"/>`), "script or an import"},
@@ -275,20 +275,41 @@ func TestCheckSketchRefusesAnythingAfterTheRoot(t *testing.T) {
 	}
 }
 
-func TestCheckSketchRefusesUnboundPrefixes(t *testing.T) {
-	if p := problems(t, wrap(`<path foo:bar="x"/>`)); len(p) == 0 || !strings.Contains(strings.Join(p, "\n"), `prefix "foo"`) {
-		t.Errorf("an undeclared prefix was accepted: %v", p)
+func xlinkDoc(inner string) []byte {
+	return []byte(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1920 1080">` + inner + `</svg>`)
+}
+
+func TestCheckSketchAllowsOnlyXlinkAndXMLPrefixedAttributes(t *testing.T) {
+	if p := problems(t, xlinkDoc(`<rect id="a" width="1" height="1"/><use xlink:href="#a"/><text xml:space="preserve" xml:lang="en">a</text>`)); p != nil {
+		t.Errorf("allowed attributes refused: %v", p)
 	}
-	// A declaration on a parent covers its children; a sibling's does not.
-	ok := `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1920 1080"><rect id="a" width="1" height="1"/><use xlink:href="#a"/><g xmlns:q="urn:q"><path q:x="1"/></g></svg>`
+	for name, in := range map[string][]byte{
+		"undeclared prefix":      wrap(`<path foo:bar="x"/>`),
+		"declared on a child":    []byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080"><g xmlns:q="urn:q"><path q:x="1"/></g></svg>`),
+		"declared on the root":   []byte(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:q="urn:q" viewBox="0 0 1920 1080"><path q:x="1"/></svg>`),
+		"xlink on a child":       wrap(`<use xlink:href="#a" xmlns:xlink="http://www.w3.org/1999/xlink"/>`),
+		"xlink with another URI": []byte(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="urn:other" viewBox="0 0 1920 1080"><use xlink:href="#a"/></svg>`),
+		"xlink undeclared":       wrap(`<use xlink:href="#a"/>`),
+		"other xml attribute":    wrap(`<path xml:base="http://x/"/>`),
+	} {
+		if p := problems(t, in); len(p) == 0 {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+}
+
+func TestCheckSketchRefusesProcessingInstructionsAfterTheRootStarts(t *testing.T) {
+	ok := `<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080"/>`
 	if p := problems(t, []byte(ok)); p != nil {
-		t.Errorf("declared prefixes refused: %v", p)
+		t.Errorf("<?xml?> before the root refused: %v", p)
 	}
-	leak := `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080"><g xmlns:q="urn:q"/><path q:x="1"/></svg>`
-	if p := problems(t, []byte(leak)); len(p) == 0 {
-		t.Error("a prefix declared on a closed sibling was accepted")
-	}
-	if p := problems(t, wrap(`<text xml:space="preserve">a</text>`)); p != nil {
-		t.Errorf("xml:space refused: %v", p)
+	for name, in := range map[string]string{
+		"inside":   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080"><?xml version="1.0"?></svg>`,
+		"after":    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080"/><?xml version="1.0"?>`,
+		"other PI": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080"><?php x ?></svg>`,
+	} {
+		if p := problems(t, []byte(in)); len(p) == 0 {
+			t.Errorf("%s: accepted", name)
+		}
 	}
 }

@@ -22,6 +22,7 @@ const (
 	maxSketchProblems = 10
 	svgNS             = "http://www.w3.org/2000/svg"
 	xmlURL            = "http://www.w3.org/XML/1998/namespace"
+	xlinkURL          = "http://www.w3.org/1999/xlink"
 )
 
 // SketchError lists everything wrong with a sketch SVG, so one run shows all of it.
@@ -127,21 +128,7 @@ func analyzeSketch(data []byte, w, h int) (*sketchInfo, error) {
 	info := &sketchInfo{}
 	depth, elements := 0, 0
 	rootSeen := false
-	// scopes holds, per open element, the namespace URLs its xmlns declarations bind.
-	var scopes [][]string
-	bound := func(space string) bool {
-		if space == "xmlns" || space == xmlURL || space == svgNS {
-			return true
-		}
-		for _, sc := range scopes {
-			for _, u := range sc {
-				if u == space {
-					return true
-				}
-			}
-		}
-		return false
-	}
+	xlinkOnRoot := false
 	for {
 		prev := d.InputOffset()
 		tok, err := d.Token()
@@ -157,21 +144,17 @@ func analyzeSketch(data []byte, w, h int) (*sketchInfo, error) {
 		case xml.Directive:
 			add(line, "<!%s…> is not allowed in a sketch (no DOCTYPE or ENTITY)", firstWord(string(t)))
 		case xml.ProcInst:
-			if t.Target != "xml" {
+			switch {
+			case t.Target != "xml":
 				add(line, "<?%s?> is not allowed in a sketch", t.Target)
+			case rootSeen:
+				add(line, "<?xml?> is allowed only before the <svg> element")
 			}
 		case xml.CharData:
 			if info.innerEnd > 0 && len(bytes.TrimSpace(t)) > 0 {
 				add(line, "nothing may follow the closing </svg>")
 			}
 		case xml.StartElement:
-			var declared []string
-			for _, a := range t.Attr {
-				if a.Name.Space == "xmlns" || (a.Name.Space == "" && a.Name.Local == "xmlns") {
-					declared = append(declared, a.Value)
-				}
-			}
-			scopes = append(scopes, declared)
 			if info.innerEnd > 0 {
 				add(line, "nothing may follow the closing </svg>")
 				break
@@ -193,6 +176,9 @@ func analyzeSketch(data []byte, w, h int) (*sketchInfo, error) {
 				for _, a := range t.Attr {
 					if a.Name.Space == "xmlns" {
 						info.xmlns = append(info.xmlns, a)
+						if a.Name.Local == "xlink" && a.Value == xlinkURL {
+							xlinkOnRoot = true
+						}
 					}
 					// The attributes were checked above like any other element's.
 					if a.Name.Space == "" && !structuralRootAttrs[a.Name.Local] && !hasAttr(info.rootPresentation, a.Name.Local) {
@@ -213,17 +199,13 @@ func analyzeSketch(data []byte, w, h int) (*sketchInfo, error) {
 				add(line, "groups are nested more than %d deep", maxSketchDepth)
 			}
 			for _, a := range t.Attr {
-				// The decoder leaves the prefix of an attribute in Space when no xmlns declares it.
-				if a.Name.Space != "" && !bound(a.Name.Space) {
-					add(line, "the prefix %q of %s=… on <%s> is not declared with xmlns:%s", a.Name.Space, a.Name.Space+":"+a.Name.Local, name, a.Name.Space)
+				if msg := prefixedAttrProblem(a, elements == 1, xlinkOnRoot); msg != "" {
+					add(line, "%s on <%s>", msg, name)
 					continue
 				}
 				checkAttr(a, name, func(f string, args ...any) { add(line, f, args...) })
 			}
 		case xml.EndElement:
-			if len(scopes) > 0 {
-				scopes = scopes[:len(scopes)-1]
-			}
 			depth--
 			if depth == 0 && info.innerEnd == 0 {
 				info.innerEnd = prev
@@ -255,6 +237,31 @@ func firstWord(s string) string {
 
 var forbiddenValue = regexp.MustCompile(`(?i)javascript:|@import|expression\s*\(|data:text/html`)
 var urlCall = regexp.MustCompile(`(?i)url\s*\(\s*['"]?\s*(.?)`)
+
+// prefixedAttrProblem allows only these prefixed attributes: xmlns:xlink on <svg> with the real
+// XLink URI, xlink:* when that declaration is on <svg>, and xml:space and xml:lang. Sketches are
+// hand-written SVG, so nothing else is needed. The decoder puts the namespace URL (or, when no
+// xmlns declares the prefix, the prefix itself) in Name.Space. It returns "" when the attribute is fine.
+func prefixedAttrProblem(a xml.Attr, isRoot, xlinkOnRoot bool) string {
+	switch a.Name.Space {
+	case "":
+		return ""
+	case "xmlns":
+		if isRoot && a.Name.Local == "xlink" && a.Value == xlinkURL {
+			return ""
+		}
+		return "xmlns:" + a.Name.Local + " is not allowed (only xmlns:xlink=\"" + xlinkURL + "\" on <svg>)"
+	case xmlURL:
+		if a.Name.Local == "space" || a.Name.Local == "lang" {
+			return ""
+		}
+	case xlinkURL:
+		if xlinkOnRoot {
+			return ""
+		}
+	}
+	return "a prefixed attribute (" + a.Name.Local + ") is not allowed (only xlink:*, with xmlns:xlink declared on <svg>, xml:space and xml:lang)"
+}
 
 // checkAttr refuses event handlers, links to other files, scripts and external urls.
 func checkAttr(a xml.Attr, element string, bad func(string, ...any)) {

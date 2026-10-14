@@ -22,6 +22,7 @@ function fakeCavalry(opts) {
 		filePathExists: () => opts.noPng !== true,
 		layerExists: id => layers.has(id),
 		deleteLayer: id => {
+			if (opts.deleteThrows) throw new Error('cannot delete')
 			calls.deleted.push(id)
 			layers.delete(id)
 			if (id === 'group#2') { layers.delete('child#3'); layers.delete('child#4') }
@@ -74,4 +75,15 @@ test('a stray top-level layer made by the import is deleted too', () => {
 	run(cv)
 	assert.equal(cv.layers.size, 0)
 	assert.ok(cv.calls.deleted.includes('stray#5'))
+})
+
+test('stops with the layers named when they cannot be deleted', () => {
+	const cv = fakeCavalry({ layers: ['keep#1'], deleteThrows: true })
+	assert.throws(() => run(cv), /could not remove the sketch layers from the scratch comp: group#2/)
+	assert.ok(cv.layers.has('keep#1'))
+})
+
+test('names the leftover layers and the first error when both happen', () => {
+	const cv = fakeCavalry({ deleteThrows: true, noPng: true })
+	assert.throws(() => run(cv), /could not remove the sketch layers.*after: Cavalry did not write/)
 })

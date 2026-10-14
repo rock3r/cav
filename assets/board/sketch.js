@@ -13,6 +13,7 @@ if (api.getActiveComp() !== sample.comp) throw new Error('the scratch comp chang
 
 var before = api.getCompLayers(true)
 var ids = []
+var failure = null
 try {
 	ids = api.convertSVGToLayers(sample.svg)
 	if (!ids || !ids.length) throw new Error('Cavalry imported nothing from ' + sample.svg)
@@ -22,20 +23,33 @@ try {
 	api.setFrame(api.get(sample.comp, 'startFrame'))
 	api.renderPNGFrame(sample.out, sample.scale)
 	if (!api.filePathExists(sample.out + '.png')) throw new Error('Cavalry did not write ' + sample.out + '.png')
-} finally {
-	// Delete the import's top-level group (it holds the shapes) and anything else that is
-	// new at the top level, then any imported layer that is still there.
-	var drop = []
-	api.getCompLayers(true).forEach(function (id) {
-		if (before.indexOf(id) < 0) drop.push(id)
-	})
-	;(ids || []).forEach(function (id) {
-		if (drop.indexOf(id) < 0) drop.push(id)
-	})
-	drop.forEach(function (id) {
-		try {
-			if (api.layerExists(id)) api.deleteLayer(id)
-		} catch (e) {}
-	})
+} catch (e) {
+	failure = e
 }
+
+// Delete the import's top-level group (it holds the shapes) and anything else that is new at
+// the top level, then any imported layer that is still there.
+var drop = []
+api.getCompLayers(true).forEach(function (id) {
+	if (before.indexOf(id) < 0) drop.push(id)
+})
+;(ids || []).forEach(function (id) {
+	if (drop.indexOf(id) < 0) drop.push(id)
+})
+drop.forEach(function (id) {
+	try {
+		if (api.layerExists(id)) api.deleteLayer(id)
+	} catch (e) {}
+})
+// A layer that could not be deleted would be drawn into the next sketch, so the run stops here.
+var left = drop.filter(function (id) {
+	return api.layerExists(id)
+})
+api.getCompLayers(true).forEach(function (id) {
+	if (before.indexOf(id) < 0 && left.indexOf(id) < 0) left.push(id)
+})
+if (left.length) {
+	throw new Error('could not remove the sketch layers from the scratch comp: ' + left.join(', ') + (failure ? ' (after: ' + failure.message + ')' : ''))
+}
+if (failure) throw failure
 return { png: sample.out + '.png', layers: ids.length }
