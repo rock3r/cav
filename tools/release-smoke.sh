@@ -344,6 +344,25 @@ for s in d["shots"]:
     s["what"] = "smoke test shot " + s["id"]
 json.dump(d, open(p, "w"), indent=2)' storyboard.json
 step ok "board frames (greybox)" board frames storyboard.json --service greybox
+# Sketch frames: a shot with board/<id>.svg is drawn through Cavalry. The scene must be saved
+# (cav reopens it afterwards), so save it in place first. The SVG is written after the
+# greybox PNG, so it is newer and the sketch is drawn.
+shot1="$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1]))["shots"][0]["id"])' storyboard.json)"
+mkdir -p board
+cat >"board/$shot1.svg" <<'SVG'
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080">
+  <rect x="0" y="0" width="1920" height="1080" fill="#202028"/>
+  <circle cx="960" cy="540" r="240" fill="#ff6633"/>
+  <rect x="660" y="840" width="600" height="60" fill="#ffffff"/>
+</svg>
+SVG
+step ok "scene save (before sketch)" scene save --timeout 2m
+step ok "board frames (sketch)" board frames storyboard.json --service sketch --only "$shot1" --timeout 5m
+check "sketch wrote a PNG for the shot" test -s "board/$shot1.png"
+# The new check passes read storyboard.json in this folder: seams (full check), dead time and
+# shot-why (also in --quick). Findings never change the exit code, so only the exit is asserted.
+step ok "check --quick (dead time, shot why)" check --quick --board storyboard.json
+step ok "check (seams)" check --board storyboard.json --max-seams 4 --timeout 10m
 step ok "board sheet" board sheet storyboard.json -o renders/board.png
 step ok "board animatic" board animatic storyboard.json --audio click.wav -o renders/animatic.mp4
 step ok "board place" board place storyboard.json
@@ -388,6 +407,15 @@ step ok "credits licence" credits licence nc-ok
 step ok "credits check" credits check
 step ok "score" score storyboard.json --video renders/smoke.mp4 --audio click.wav -o score/project.rpp
 check "score wrote a REAPER project" grep -q REAPER_PROJECT score/project.rpp
+# cav plan only reads: the folder (apart from the logs) must be the same after it.
+listing() { find . -path ./logs -prune -o -print | LC_ALL=C sort; }
+listing >plan-before.txt
+step ok "plan" plan
+step ok "plan --json" plan --json
+check "plan --json is valid JSON" json "$(lastlog)" 'd'
+listing >plan-after.txt
+check "plan wrote no file" diff plan-before.txt plan-after.txt
+rm -f plan-before.txt plan-after.txt
 
 # --- Review, MCP, relay -------------------------------------------------------------
 covered+="review "
@@ -424,6 +452,15 @@ step ok "relay --once" relay --spool "$work/spool" --once
 wait "$relay_run"
 check "a spooled run went through the relay" grep -q 'via relay' "$logs/relay-run.log"
 
+# --- Reframe ------------------------------------------------------------------------
+# Late on purpose: reframe makes the copy the active comp, and every step above uses the
+# original. finish() closes the dirty scene.
+reframe_name="Smoke square $$"
+step ok "scene reframe --dry-run" scene reframe --to 9:16 --dry-run
+step ok "scene reframe" scene reframe --to 1:1 --name "$reframe_name" --timeout 2m
+step ok "sheet --comp (reframed)" sheet --comp "$reframe_name" --count 2 --scale 20 -o sheet-reframe.png
+check "reframed sheet exists" test -s sheet-reframe.png
+
 # --- Docs and guides ----------------------------------------------------------------
 step ok "api" api keyframe -n 3
 step ok "docs" docs duplicator -n 2
@@ -433,6 +470,18 @@ done
 step ok "guide --search" guide --search "keys dropped" -n 2
 check "guide --search finds the rotation trap" grep -q "rotation" "$(lastlog)"
 step refuse="flag needs an argument: -search" "guide --search: no words" guide --search
+# A flow.md in the project replaces the standard flow in `cav guide flow`.
+cat >flow.md <<'EOF'
+# Smoke flow
+
+## smoke stage
+outputs: smoke.cv
+review: no
+use: free text for the agent
+EOF
+step ok "guide flow with flow.md" guide flow
+check "guide flow shows the flow.md stage" grep -q "smoke stage" "$(lastlog)"
+rm -f flow.md
 
 # --- Update (never installs here) ---------------------------------------------------
 # With --json and without --yes, cav update refuses to install; when cav is current it
