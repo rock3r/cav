@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -266,6 +267,150 @@ func TestPendingOperationBlocksNewSubmissions(t *testing.T) {
 	r, e := operation.Load(config.Home(), a.op.ID)
 	if e != nil || r.Status != "abandoned" || len(r.Jobs) != 1 {
 		t.Fatalf("abandon: %v %v", r, e)
+	}
+}
+
+// A command refused by the gate sent nothing, so its own record must not claim an
+// unknown native outcome, must not gate later work and must not need abandon.
+func TestRefusedCommandRecordsDefiniteStateAndBlocksNothing(t *testing.T) {
+	posts := []bridge.Request{}
+	fixtureBridge(t, func(req bridge.Request) {
+		posts = append(posts, req)
+		fixtureResult(t, req.ID, 1)
+	})
+	blocker := &operation.Record{Schema: 1, ID: "unknown-blocker", Command: []string{"run"}, Host: config.Host(), Port: config.Port(), Status: "unknown", Phase: "execution", Jobs: []*operation.Job{{ID: "lost-job", Phase: "execution", Submission: "accepted", State: bridge.StateUnknown}}}
+	if err := operation.Save(config.Home(), blocker); err != nil {
+		t.Fatal(err)
+	}
+
+	refused := &app{json: true}
+	err := refused.startOperation([]string{"run", "-e", "return 2", "--async", "--no-helpers"}, cmdRun)
+	var ce *cliError
+	if !errors.As(err, &ce) || ce.code != exitStillRunning {
+		t.Fatalf("refusal: %v", err)
+	}
+	for _, want := range []string{"cav operation status unknown-blocker", "cav operation abandon unknown-blocker --acknowledge-unknown-outcome", "cav operation resume " + refused.op.ID} {
+		if !strings.Contains(ce.hint, want) {
+			t.Fatalf("hint %q lacks %q", ce.hint, want)
+		}
+	}
+	if ce.data["blockedBy"] != "unknown-blocker" || ce.data["status"] != "refused" || ce.data["operation"] != refused.op.ID {
+		t.Fatalf("refusal data: %v", ce.data)
+	}
+	if len(posts) != 0 {
+		t.Fatalf("refused command posted %d jobs", len(posts))
+	}
+	r, err := operation.Load(config.Home(), refused.op.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Status != "refused" || r.FailureReason != "blocked-by-operation" || len(r.Jobs) != 1 || r.Jobs[0].Submission != "prepared" {
+		t.Fatalf("refused record: status=%s reason=%s jobs=%+v", r.Status, r.FailureReason, r.Jobs)
+	}
+	// Status must not turn the unsent job into an unknown outcome.
+	stdout := os.Stdout
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = writer
+	c := (&app{json: true}).dispatch([]string{"operation", "status", r.ID})
+	os.Stdout = stdout
+	writer.Close()
+	var shown struct {
+		Operation operation.Record `json:"operation"`
+	}
+	if err = json.NewDecoder(reader).Decode(&shown); err != nil || c != exitOK || shown.Operation.Status != "refused" || len(shown.Operation.Jobs) != 1 || shown.Operation.Jobs[0].State != stateNotSubmitted {
+		t.Fatalf("status exit=%d shown=%+v %v", c, shown.Operation, err)
+	}
+
+	if c := (&app{json: true}).dispatch([]string{"operation", "abandon", blocker.ID, "--acknowledge-unknown-outcome"}); c != exitOK {
+		t.Fatal(c)
+	}
+	// The refused record stays as it is, and a third command runs.
+	third := &app{json: true}
+	if c := third.dispatch([]string{"run", "-e", "return 3", "--async", "--no-helpers"}); c != exitOK {
+		t.Fatalf("third command exit %d", c)
+	}
+	if len(posts) != 1 || posts[0].ID == r.Jobs[0].ID {
+		t.Fatalf("third command posts=%+v", posts)
+	}
+	// The refused command can still continue, and it submits its prepared job once.
+	if c := (&app{json: true}).dispatch([]string{"operation", "resume", r.ID, "--timeout", "2s"}); c != exitOK {
+		t.Fatalf("resume refused exit %d", c)
+	}
+	if len(posts) != 2 || posts[1].ID != r.Jobs[0].ID {
+		t.Fatalf("resume posts=%+v", posts)
+	}
+	if r, err = operation.Load(config.Home(), r.ID); err != nil || r.Status != "complete" {
+		t.Fatalf("resumed record: %+v %v", r, err)
+	}
+}
+
+// A refused render releases its output path. Its resume reserves the path again, so
+// it stops before any render work when another render has published there.
+func TestRefusedRenderReleasesAndRechecksItsOutput(t *testing.T) {
+	var mu sync.Mutex
+	posts := []bridge.Request{}
+	blockNext := true
+	fixtureBridge(t, func(req bridge.Request) {
+		mu.Lock()
+		posts = append(posts, req)
+		block := blockNext
+		blockNext = false
+		mu.Unlock()
+		code, err := os.ReadFile(req.File)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		if !strings.Contains(string(code), "filePath:") {
+			renderMetadataFixture(t, req.ID)
+			if block {
+				blocker := &operation.Record{Schema: 1, ID: "unknown-blocker", Command: []string{"run"}, Host: config.Host(), Port: config.Port(), Status: "unknown", Phase: "execution", Jobs: []*operation.Job{{ID: "lost-job", Phase: "execution", Submission: "accepted", State: bridge.StateUnknown}}}
+				if err := operation.Save(config.Home(), blocker); err != nil {
+					t.Error(err)
+				}
+			}
+			return
+		}
+		if err := os.WriteFile(filepath.Join(renderFixtureStage(t, req), "video.mp4"), []byte("fixture video"), 0600); err != nil {
+			t.Error(err)
+		}
+		fixtureResult(t, req.ID, map[string]any{"ms": 1})
+	})
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "ffprobe"), []byte("#!/bin/sh\necho 6\n"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	out := filepath.Join(t.TempDir(), "final.mp4")
+
+	refused := &app{json: true}
+	if c := refused.dispatch([]string{"render", "-o", out, "--timeout", "2s"}); c != exitStillRunning {
+		t.Fatalf("refused render exit %d", c)
+	}
+	r, err := operation.Load(config.Home(), refused.op.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Status != "refused" || len(r.Outputs) != 0 || len(posts) != 1 {
+		t.Fatalf("refused render: status=%s outputs=%v posts=%d", r.Status, r.Outputs, len(posts))
+	}
+	if c := (&app{json: true}).dispatch([]string{"operation", "abandon", "unknown-blocker", "--acknowledge-unknown-outcome"}); c != exitOK {
+		t.Fatal(c)
+	}
+	if c := (&app{json: true}).dispatch([]string{"render", "-o", out, "--timeout", "2s"}); c != exitOK {
+		t.Fatalf("second render exit %d", c)
+	}
+	if len(posts) != 3 {
+		t.Fatalf("second render posts=%d", len(posts))
+	}
+	if c := (&app{json: true}).dispatch([]string{"operation", "resume", r.ID, "--timeout", "2s"}); c != exitError {
+		t.Fatalf("resume over a published output exit %d", c)
+	}
+	if len(posts) != 3 {
+		t.Fatalf("resume rendered again: posts=%d", len(posts))
 	}
 }
 

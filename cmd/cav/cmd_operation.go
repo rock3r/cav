@@ -37,6 +37,9 @@ and bridge session intact until done.
 A kernel lock serializes operation clients; crashes release the lock automatically.
 abandon <id> --acknowledge-unknown-outcome marks only local recovery abandoned after
 manual reconciliation. It does not cancel native work.
+A command that another operation's unfinished job stops is recorded as refused: cav
+sent nothing for it. A refused record blocks no later work and needs no abandon. The
+error names the blocking operation; resume the refused one after that is cleared.
 A refused bridge connection or changed session ends the wait with exit 4 and an unknown
 native outcome. Status exposes unvalidated staged render artifacts; file growth or age
 is not proof of completion or a crash. Preserve them and reconcile before retrying.
@@ -135,7 +138,17 @@ func (a *app) executeOperation(run func(*app, []string) error, resumeBudget time
 		a.op.FailureReason = operationFailureReason(err)
 		a.op.Status = "failed"
 		var ce *cliError
-		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, bridge.ErrStillRunning) || errors.Is(err, bridge.ErrLost) || errors.Is(err, bridge.ErrUnknownJob) || errors.Is(err, bridge.ErrUnavailable) || (errors.As(err, &ce) && ce.code == exitStillRunning) {
+		var blocked *blockedError
+		if errors.As(err, &blocked) {
+			// cav sent nothing for the refused job, so its outcome is definite.
+			// A refused record does not gate later work: its unsubmitted job is
+			// still "prepared", and every earlier job already has its result.
+			a.op.Status = "refused"
+			a.op.FailureReason = "blocked-by-operation"
+			// Release a render's output reservation, so that a later command may use
+			// the path. A resume checks and reserves the path again before rendering.
+			a.op.Outputs = nil
+		} else if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, bridge.ErrStillRunning) || errors.Is(err, bridge.ErrLost) || errors.Is(err, bridge.ErrUnknownJob) || errors.Is(err, bridge.ErrUnavailable) || (errors.As(err, &ce) && ce.code == exitStillRunning) {
 			a.op.Status = "unknown"
 			if len(a.op.Jobs) > 0 && a.op.Jobs[len(a.op.Jobs)-1].Result == nil {
 				a.op.Status = string(a.op.Jobs[len(a.op.Jobs)-1].State)
@@ -160,7 +173,15 @@ func (a *app) executeOperation(run func(*app, []string) error, resumeBudget time
 			code = exitLost
 			hint = fmt.Sprintf("Inspect with cav operation status %s. Preserve staged artifacts and reconcile the native outcome before resuming or abandoning. A partial file is not completion; do not retry the original command.", a.op.ID)
 		}
-		return &cliError{code: code, msg: err.Error(), hint: hint, data: map[string]any{"operation": a.op.ID, "phase": a.op.Phase, "status": a.op.Status, "failureReason": a.op.FailureReason, "jobs": operation.View(a.op).Jobs, "partial": json.RawMessage(a.op.Data), "renderProgress": renderProgress(a.op)}}
+		data := map[string]any{"operation": a.op.ID, "phase": a.op.Phase, "status": a.op.Status, "failureReason": a.op.FailureReason, "jobs": operation.View(a.op).Jobs, "partial": json.RawMessage(a.op.Data), "renderProgress": renderProgress(a.op)}
+		var blocked *blockedError
+		if errors.As(err, &blocked) {
+			hint = blocked.hint() + fmt.Sprintf(" Then continue this command with cav operation resume %s. It needs no abandon.", a.op.ID)
+			for k, v := range blocked.data() {
+				data[k] = v
+			}
+		}
+		return &cliError{code: code, msg: err.Error(), hint: hint, data: data}
 	}
 	if a.outputData != nil {
 		a.emitting = true
@@ -195,9 +216,16 @@ func cmdOperation(a *app, args []string) error {
 		c.Port = r.Port
 		c.Spool = r.Spool
 		c.ExpectedSession = r.Session
+		// Status only shows this copy; the saved record keeps its state.
+		for _, j := range r.Jobs {
+			if j.Result == nil && j.Submission == "prepared" {
+				j.State = stateNotSubmitted
+			}
+		}
 		if r.Status != "complete" && r.Status != "abandoned" && len(r.Jobs) > 0 {
 			j := r.Jobs[len(r.Jobs)-1]
-			if j.Result == nil {
+			// A prepared job was never sent, so the bridge cannot know it.
+			if j.Result == nil && j.Submission != "prepared" {
 				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 				defer cancel()
 				state, result, inspectionErr := c.Inspect(ctx, j.ID)
@@ -459,12 +487,46 @@ func pendingOperation(ctx context.Context, c *bridge.Client, excludeID string) e
 					return err
 				}
 				if state != bridge.StateDone {
-					return &cliError{code: exitStillRunning, msg: fmt.Sprintf("operation %s still has a %s job; no new work submitted", r.ID, state), hint: "inspect or resume that operation; stale/unknown outcomes require manual reconciliation before operation abandon --acknowledge-unknown-outcome", data: map[string]any{"operation": r.ID, "job": j.ID, "status": state, "phase": r.Phase}}
+					return &blockedError{operation: r.ID, job: j.ID, state: state, phase: r.Phase}
 				}
 			}
 		}
 	}
 	return nil
+}
+
+// stateNotSubmitted is shown by operation status for a job that cav prepared but
+// never sent. The bridge cannot know such a job, so its outcome is not unknown.
+const stateNotSubmitted bridge.State = "not-submitted"
+
+// blockedError means cav refused to submit a job because another operation still
+// has native work that is not done. Nothing was submitted for the refused command.
+type blockedError struct {
+	operation, job, phase string
+	state                 bridge.State
+}
+
+func (e *blockedError) Error() string {
+	return fmt.Sprintf("operation %s still has a job in state %s; no new work submitted", e.operation, e.state)
+}
+
+// hint names the blocking operation and the steps that clear it.
+func (e *blockedError) hint() string {
+	return fmt.Sprintf("Check the blocking operation with cav operation status %s, or wait for it with cav operation resume %s. "+
+		"If its native outcome stays unknown, check Cavalry and its outputs yourself, then clear it with cav operation abandon %s --acknowledge-unknown-outcome.",
+		e.operation, e.operation, e.operation)
+}
+
+func (e *blockedError) data() map[string]any {
+	return map[string]any{"blockedBy": e.operation, "blockingJob": e.job, "blockingStatus": e.state, "blockingPhase": e.phase}
+}
+
+// The refusal itself is a cliError so that callers outside an operation record,
+// such as restartChunk, keep the same exit code and hint.
+func (e *blockedError) cli() *cliError {
+	d := e.data()
+	d["operation"] = e.operation
+	return &cliError{code: exitStillRunning, msg: e.Error(), hint: e.hint(), data: d}
 }
 
 func (a *app) recordJobResult(r *bridge.Result) {
