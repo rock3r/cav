@@ -412,7 +412,7 @@ func moodboardItems(path string) ([]Item, error) {
 			it.Image = SafeImage(path, mb.Path(r.Thumb))
 		}
 		it.HasImage = it.Image != ""
-		it.SHA = sum("cav-item/1", "ref", kind, digest, r.Take, r.URL, r.Title, r.Licence, r.Credit)
+		it.SHA = sum("cav-item/1", "ref", kind, digest, r.Take, r.URL, r.Title, r.Licence, r.Credit, r.Source, r.AddedBy)
 		items = append(items, it)
 	}
 	return items, nil

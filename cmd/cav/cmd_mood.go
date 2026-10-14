@@ -142,7 +142,7 @@ func boardMood(a *app, args []string) error {
 	a.emit(map[string]any{"file": *out, "json": *file, "images": len(tiles), "items": total, "counts": counts,
 		"added": nonNil(ch.Added), "missing": nonNil(ch.Missing), "revived": nonNil(ch.Revived), "noTake": nonNil(noTake),
 		"notes": nonNil(notes), "width": w, "height": h}, func() {
-		fmt.Printf("%s (%d items: %d images, %d clips, %d web videos, %dx%d)\n", *out, total, counts[moodboard.KindImage], counts[moodboard.KindClip], counts[moodboard.KindEmbed], w, h)
+		fmt.Printf("%s (%s, %dx%d)\n", *out, moodCounts(total, counts), w, h)
 		fmt.Printf("%s\n", *file)
 		if len(ch.Added) > 0 {
 			fmt.Println("added: " + strings.Join(ch.Added, ", "))
@@ -243,4 +243,16 @@ func moodDrop(a *app, args []string) error {
 		fmt.Printf("%s dropped; its file stays in %s and cav will not bring it back\n", it.ID, *dir)
 	})
 	return nil
+}
+
+// moodCounts says "4 items: 2 images, 1 clip, 1 web video", with the right plural.
+func moodCounts(total int, counts map[string]int) string {
+	noun := func(n int, one, many string) string {
+		if n == 1 {
+			return fmt.Sprintf("1 %s", one)
+		}
+		return fmt.Sprintf("%d %s", n, many)
+	}
+	return noun(total, "item", "items") + ": " + noun(counts[moodboard.KindImage], "image", "images") + ", " +
+		noun(counts[moodboard.KindClip], "clip", "clips") + ", " + noun(counts[moodboard.KindEmbed], "web video", "web videos")
 }

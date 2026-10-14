@@ -204,6 +204,14 @@ func TestMoodboardHashCoversTakeAndURLButNotThumbnails(t *testing.T) {
 		return items[0].SHA
 	}
 	base := write("")
+	for _, extra := range []string{`,"source":"openverse"`, `,"addedBy":"brief"`} {
+		if write(extra) == base {
+			t.Errorf("%s is shown on the page, so it should change the item", extra)
+		}
+	}
+	if write(`,"seconds":3`) != base {
+		t.Error("seconds follows from the clip file and stays out of the hash")
+	}
 	if write(`,"thumb":"t.png"`) != base {
 		t.Error("a generated thumbnail must not change the item")
 	}

@@ -419,8 +419,19 @@ func Sync(jsonPath, dir string, m *library.Manifest, root string) (*Board, Chang
 		if err != nil {
 			continue
 		}
-		it := b.Find(id)
+		// Only the same video is reused. A file whose name makes the same id is another item.
+		var it *Item
+		for i := range b.Items {
+			if b.Items[i].EffectiveKind() != KindEmbed {
+				continue
+			}
+			if p2, id2, _, ok := ParseVideoURL(b.Items[i].URL); ok && p2 == provider && id2 == vid {
+				it = &b.Items[i]
+				break
+			}
+		}
 		if it == nil {
+			id = b.uniqueID(id)
 			b.Items = append(b.Items, Item{ID: id, Kind: KindEmbed, URL: PageURL(provider, vid, hash), AddedBy: ByAgent})
 			it = &b.Items[len(b.Items)-1]
 			ch.Added = append(ch.Added, id)
@@ -430,7 +441,7 @@ func Sync(jsonPath, dir string, m *library.Manifest, root string) (*Board, Chang
 		}
 		it.Thumb = filepath.ToSlash(thumb)
 		apply(it, e)
-		seenEmbed[id] = true
+		seenEmbed[it.ID] = true
 	}
 
 	for i := range b.Items {
