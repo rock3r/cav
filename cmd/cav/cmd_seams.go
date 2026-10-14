@@ -168,31 +168,11 @@ func cmdSeams(a *app, args []string) error {
 				paths[f] = filepath.Join(dir, fmt.Sprintf("video_%04d.png", i+1))
 			}
 		} else {
-			st, e := getScene(a)
+			images, e := a.renderSeamFrames(d, samples, *scale, dir, *maxEvaluated)
 			if e != nil {
 				return e
 			}
-			if st.Comp.ID != d.Comp || st.ScenePath != d.ScenePath {
-				return fmt.Errorf("seam scene changed")
-			}
-			if err = a.checkpoint("rendering-seam-frames"); err != nil {
-				return err
-			}
-			var images []string
-			if needsChronological(d) {
-				if samples[len(samples)-1]-d.Start+1 > *maxEvaluated {
-					return usageErr("seams need more than --max-evaluated frames; use a finished --video")
-				}
-				images, err = a.renderChronologicalFrames(samples, *scale, dir, st)
-			} else {
-				images, err = a.renderFrames(samples, *scale, dir, st)
-			}
-			if err != nil {
-				return err
-			}
-			for i, f := range samples {
-				paths[f] = images[i]
-			}
+			paths = images
 		}
 	}
 	results := make([]seamResult, 0, len(boundaries))
@@ -223,6 +203,38 @@ func cmdSeams(a *app, args []string) error {
 		fmt.Printf("%d boundaries inspected, %d omitted; source=%s; differences are review signals\n", len(results), omitted, source)
 	})
 	return nil
+}
+
+// renderSeamFrames renders the frames of a scene into dir and returns their paths by frame.
+// A scene with simulations is evaluated from its start, which --max-evaluated bounds.
+func (a *app) renderSeamFrames(d structureData, samples []int, scale int, dir string, maxEvaluated int) (map[int]string, error) {
+	st, err := getScene(a)
+	if err != nil {
+		return nil, err
+	}
+	if st.Comp.ID != d.Comp || st.ScenePath != d.ScenePath {
+		return nil, fmt.Errorf("seam scene changed")
+	}
+	if err = a.checkpoint("rendering-seam-frames"); err != nil {
+		return nil, err
+	}
+	var images []string
+	if needsChronological(d) {
+		if samples[len(samples)-1]-d.Start+1 > maxEvaluated {
+			return nil, usageErr("seams need more than --max-evaluated frames; use a finished --video")
+		}
+		images, err = a.renderChronologicalFrames(samples, scale, dir, st)
+	} else {
+		images, err = a.renderFrames(samples, scale, dir, st)
+	}
+	if err != nil {
+		return nil, err
+	}
+	paths := map[int]string{}
+	for i, f := range samples {
+		paths[f] = images[i]
+	}
+	return paths, nil
 }
 
 func readSeamImage(ctx context.Context, path string) (image.Image, error) {

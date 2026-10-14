@@ -9,6 +9,7 @@ import (
 
 // checkGuide points cav check finding kinds at the guide sections that explain them: the
 // topic, then a prefix of each heading (and of the table row's first cell for a trap).
+// A last element that starts with "- " names one bullet of that section, by its bold lead.
 // cav check prints these sections with its findings, so the agent does not have to search.
 var checkGuide = map[string][][]string{
 	"offframe": {
@@ -19,7 +20,8 @@ var checkGuide = map[string][][]string{
 	"font":                  {{"traps", "Look and render", "Missing font"}},
 	"sksl-input-redeclared": {{"traps", "Launch-video observations", "Redeclaring a SkSL input uniform"}},
 	"group-filter":          {{"traps", "Launch-video observations", "A filter attached to a group"}},
-	"shot-why":              {{"ui-showcase", "2. Story and message"}},
+	"shot-why":              {{"ui-showcase", "2. Story and message", "- Explain every feature you show"}},
+	"seam":                  {{"ui-showcase", "5. Motion and continuity", "- Check both sides of every boundary"}},
 	"perf-sampled-keys":     {{"native", "Dense animation curves"}},
 	"perf-keyframe-volume":  {{"native", "Dense animation curves"}},
 	"perf-copy-javascript":  {{"native", "Per-copy JavaScript"}},
@@ -31,6 +33,21 @@ const (
 	checkGuideHitBytes   = 1500
 	checkGuideTotalBytes = 4000
 )
+
+// guideRef finds the sections a checkGuide reference names.
+func guideRef(ix *guide.Index, ref []string) []guide.Section {
+	last := ref[len(ref)-1]
+	if !strings.HasPrefix(last, "- ") {
+		return ix.Find(ref[0], ref[1:]...)
+	}
+	var out []guide.Section
+	for _, s := range ix.Find(ref[0], ref[1:len(ref)-1]...) {
+		if b, ok := s.Bullet(strings.TrimPrefix(last, "- ")); ok {
+			out = append(out, b)
+		}
+	}
+	return out
+}
 
 // guideForFindings sets each finding's Guide to the paths of its sections and returns
 // those sections once each, in the order the findings first need them.
@@ -50,7 +67,7 @@ func guideForFindings(out []finding) []guide.Hit {
 			}
 		}
 		for _, ref := range refs {
-			for _, s := range ix.Find(ref[0], ref[1:]...) {
+			for _, s := range guideRef(ix, ref) {
 				path := strings.Join(append([]string{s.Topic}, s.Path...), " › ")
 				out[i].Guide = append(out[i].Guide, path)
 				if !seen[path] {

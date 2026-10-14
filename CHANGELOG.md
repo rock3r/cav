@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- `cav check` looks at every section boundary for pop-ins, flashes and jumps (#114).
+  - A full `cav check` renders the frames around each boundary (25 % scale) and compares
+    them. A boundary is flagged with kind `seam` when the picture changes by 5 % or more in
+    one frame, and at least twice as much as in the frames next to it. A cross-fade or a pan
+    is not flagged. The finding has the Before and After images.
+  - Boundaries are the start of each storyboard shot after the first. Without a storyboard,
+    they are the in-frames of top-level groups and pre-comps.
+  - A shot with `"cut": true`, or a frame in `--allow-cuts F,...`, is an intended cut. It is
+    listed in the new `intended` list and is not counted as a finding.
+    Every marked cut is listed, also when the picture barely changes there (the text says so).
+  - With `--comp`, the storyboard is not used: that comp's own top-level groups and pre-comps
+    give the boundaries.
+  - New flags: `--max-seams` (24), `--seam-threshold` (0.05), `--allow-cuts`.
+  - `--quick` skips this pass. So do scenes with simulations (use `cav seams --video`).
+  - The shot `cut` field is new and optional. A shot that gets `cut` changes, so its review
+    verdict becomes outdated once.
+  - Guide links for a finding can now name one bullet of a section. The `shot-why` finding
+    now links only "Explain every feature you show".
+
 - Storyboard shots say why they are in the video, and `cav check` reads it (#113).
   - A shot has a new optional `why` line: what the viewer learns or feels from it. The agent
     writes it. `cav board init` fills it with a placeholder.

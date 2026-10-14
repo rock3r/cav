@@ -150,6 +150,9 @@ cav board place                             # the frames as placeholder layers i
   user. `cav board init` fills it with a placeholder, and `cav check` warns about every
   shot whose `why` is empty or still the placeholder. If you cannot say why a shot is there,
   cut or merge it. `cav board frames` and `motion` do not need it.
+- Set `"cut": true` on a shot when the change into it is a hard cut on purpose. `cav check`
+  compares the frames around each shot start and flags a jump. A shot with `cut` is listed
+  as intended and not flagged. Do this only when the user asked for cuts.
 - Time shots in beats, like the plan table in `cav guide`. Put cuts on bar starts
   (multiples of 4 in 4/4). With real music, set `"grid": "build/grid.json"` from
   `cav beats music.wav --json -o build/grid.json` so beats follow the track.

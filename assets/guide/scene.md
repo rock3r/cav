@@ -35,6 +35,8 @@ If it reports `blocked: a sandbox`, your sandbox stops `cav`: show the user the 
    bounding box, keys).
 6. **Check**: start with `cav check --quick --json` for structural performance warnings.
    `cav check` adds bounded visual checks; `--profile` optionally measures a small frame set.
+   It also compares the frames around each section boundary (a "seam" finding is a pop-in,
+   flash or jump; look at its Before and After images). `--quick` skips this.
    Quick metadata includes referenced pre-comps. For later slow regions, select
    `--profile-frames F,...`; simulations render intervening frames from the comp start,
    so set `--max-warmup` explicitly when more than 600 extra frames are needed.

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -19,7 +20,7 @@ import (
 func init() {
 	register(command{
 		name:    "check",
-		args:    "[--quick] [--profile [--profile-render]] [--samples 3 | --profile-frames F,...] [--max-warmup 600] [--timeout 2m]",
+		args:    "[--quick] [--profile [--profile-render]] [--samples 3 | --profile-frames F,...] [--max-warmup 600] [--max-seams 24 --seam-threshold 0.05 --allow-cuts F,...] [--timeout 2m]",
 		summary: "Find structural performance risks and bounded visual problems before rendering.",
 		run:     cmdSceneCheck,
 	})
@@ -48,11 +49,21 @@ Findings do not change the exit code; timeout returns 3 with partial results and
 operation ID to resume. Use --json for agents.
 A finding whose kind a guide explains (offframe, hidden, font, sksl-input-redeclared,
 group-filter, perf-sampled-keys, perf-keyframe-volume, perf-copy-javascript,
-perf-simulation, shot-why) names that guide section, and the sections are printed once after the
+perf-simulation, shot-why, seam) names that guide section, and the sections are printed once after the
 findings ("guide" in JSON, at most about 4 KB).
 A storyboard.json in the current folder (or --board FILE) is read too: a shot with no
 "why" (empty, or still the placeholder from cav board init) is a shot-why warning. This also
 runs with --quick.
+A full check also renders the frames around every section boundary (25 % scale, 4 per
+boundary) and flags a boundary where the picture changes by --seam-threshold (0.05) or
+more in one frame, and at least twice as much as in the frames next to it: a pop-in, a
+flash or a jump. A cross-fade or a pan is not flagged. Boundaries are the start of each
+storyboard shot after the first (not with --comp), or else the in-frames of top-level groups and pre-comps.
+A shot with "cut": true in storyboard.json, or a frame in --allow-cuts, is an intended cut:
+it is listed under "intended" and not counted. --max-seams (24) bounds the boundaries;
+the rest is skipped. --quick skips this pass, and so do simulations (use cav seams --video).
+Evidence has the Before and After images. cav seams has no such rule: it reports every
+boundary against its --threshold. check is stricter.
 --min-text (28) and --max-still (1.5 seconds) tune visual findings.`
 }
 
@@ -394,13 +405,26 @@ func cmdSceneCheck(a *app, args []string) error {
 	maxLayers := fs.Int("max-layers", 1000, "metadata layers (1..10000); visual cap is 200")
 	timeout := fs.Duration("timeout", 2*time.Minute, "total operation wait budget")
 	boardPath := fs.String("board", "", "storyboard file (default ./storyboard.json when it exists)")
+	maxSeams := fs.Int("max-seams", 24, "maximum section boundaries to compare (1..200)")
+	seamThreshold := fs.Float64("seam-threshold", 0.05, "changed-pixel fraction that makes a boundary a pop (0..1)")
+	cuts := fs.String("allow-cuts", "", "intended cut frames (not flagged)")
 	pos, err := parseFlags(fs, args)
 	if err != nil {
 		return err
 	}
 	a.compSelector = *comp
-	if len(pos) > 0 || *maxWarmup < 0 || *maxWarmup > 100000 || *maxScan < 1 || *maxScan > 100000 || *samples < 1 || *samples > 12 || *maxLayers < 1 || *maxLayers > 10000 || *timeout <= 0 || *minText <= 0 || *maxStill < 0 {
+	if len(pos) > 0 || *maxWarmup < 0 || *maxWarmup > 100000 || *maxScan < 1 || *maxScan > 100000 || *samples < 1 || *samples > 12 || *maxLayers < 1 || *maxLayers > 10000 || *timeout <= 0 || *minText <= 0 || *maxStill < 0 || *maxSeams < 1 || *maxSeams > 200 || *seamThreshold < 0 || *seamThreshold > 1 || math.IsNaN(*seamThreshold) {
 		return usageErr("invalid check limits")
+	}
+	allowedCuts := map[int]bool{}
+	if *cuts != "" {
+		frames, e := parseFrameListLimit(*cuts, 1000)
+		if e != nil {
+			return e
+		}
+		for _, f := range frames {
+			allowedCuts[f] = true
+		}
 	}
 	if *profileSpec != "" {
 		*profile = true
@@ -491,6 +515,27 @@ func cmdSceneCheck(a *app, args []string) error {
 				reason = "chronological profile sampled selected frames after warm-up; not whole-comp coverage"
 			}
 			skipped = append(skipped, map[string]any{"inspection": "profile-coverage", "reason": reason})
+		}
+	}
+	if *quick {
+		skipped = append(skipped, map[string]any{"inspection": "seams", "reason": "quick mode"})
+	} else {
+		// The storyboard describes the comp cav board place fills, which is the active comp.
+		// With --comp, the check looks at another comp, so its boundaries come from its layers.
+		seamBoard := a.checkShots
+		if *comp != "" {
+			seamBoard = nil
+		}
+		flagged, intended, checks, seamSkipped, seamFailures, seamErr := a.seamsPass(metadata, seamBoard, allowedCuts, *maxSeams, *seamThreshold)
+		perf = append(perf, flagged...)
+		a.checkIntended, a.checkSeams = intended, checks
+		skipped = append(skipped, seamSkipped...)
+		failures = append(failures, seamFailures...)
+		if seamErr != nil {
+			if a.ctx.Err() != nil || (len(a.op.Jobs) > 0 && a.op.Jobs[len(a.op.Jobs)-1].Result == nil) {
+				return a.partialCheck(perf, failures, skipped, measured, seamErr, warmup)
+			}
+			failures = append(failures, map[string]any{"inspection": "seams", "error": seamErr.Error()})
 		}
 	}
 	var out = perf
@@ -623,6 +668,7 @@ func (a *app) checkStoryboard(explicit string) (string, []finding, []map[string]
 	if err != nil {
 		return abs, nil, []map[string]any{{"inspection": "storyboard", "error": err.Error()}}, nil
 	}
+	a.checkShots = sb
 	return abs, shotWhyFindings(sb), nil, nil
 }
 
@@ -674,7 +720,10 @@ func (a *app) partialCheck(out []finding, failures, skipped []map[string]any, me
 	}
 	complete := len(failures) == 0 && len(skipped) == 0
 	related := guideForFindings(out)
-	data := map[string]any{"findings": out, "count": len(out), "complete": complete, "clean": complete && len(out) == 0, "failures": failures, "skipped": skipped, "profile": measured}
+	data := map[string]any{"findings": out, "count": len(out), "complete": complete, "clean": complete && len(out) == 0, "failures": failures, "skipped": skipped, "profile": measured, "intended": append([]finding{}, a.checkIntended...)}
+	if len(a.checkSeams) > 0 {
+		data["seams"] = a.checkSeams
+	}
 	if len(related) > 0 {
 		data["guide"] = related
 	}
@@ -709,6 +758,9 @@ func (a *app) partialCheck(out []finding, failures, skipped []map[string]any, me
 			for _, g := range f.Guide {
 				fmt.Printf("  guide: %s\n", g)
 			}
+		}
+		for _, f := range a.checkIntended {
+			fmt.Printf("intended %s %q: %s\n", f.Kind, f.Name, f.Detail)
 		}
 		if len(related) > 0 {
 			fmt.Println("\nGuide sections for these findings:")

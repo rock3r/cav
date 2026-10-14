@@ -260,6 +260,40 @@ func (ix *Index) Find(topic string, prefixes ...string) []Section {
 	return out
 }
 
+// Bullet returns the part of a prose section that holds one bullet: the heading line, then
+// the bullet whose bold lead starts with lead, up to the next bullet or blank line. The
+// path gets the lead as its last element. ok is false when the section has no such bullet.
+func (s Section) Bullet(lead string) (Section, bool) {
+	lines := strings.Split(s.Text, "\n")
+	start := -1
+	for i, l := range lines {
+		if strings.HasPrefix(l, "- **"+lead) {
+			start = i
+			break
+		}
+	}
+	if start < 0 {
+		return Section{}, false
+	}
+	end := start + 1
+	for end < len(lines) && strings.TrimSpace(lines[end]) != "" && !strings.HasPrefix(lines[end], "- ") {
+		end++
+	}
+	text := strings.Join(lines[start:end], "\n")
+	if len(lines) > 0 && strings.HasPrefix(lines[0], "#") {
+		text = lines[0] + "\n\n" + text
+	}
+	name := strings.TrimPrefix(lines[start], "- **")
+	if i := strings.Index(name, "**"); i >= 0 {
+		name = name[:i]
+	}
+	name = strings.TrimSuffix(strings.TrimSpace(name), ".")
+	b := s
+	b.Path = append(append([]string{}, s.Path...), name)
+	b.Text = text
+	return b, true
+}
+
 // Hit is a ranked section.
 type Hit struct {
 	Section

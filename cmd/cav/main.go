@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/rock3r/cav/assets"
+	"github.com/rock3r/cav/internal/board"
 	"github.com/rock3r/cav/internal/bridge"
 	"github.com/rock3r/cav/internal/operation"
 )
@@ -43,6 +44,9 @@ type app struct {
 	requireSaved    bool
 	compSelector    string
 	checkBoard      string // the storyboard cav check read, for its output
+	checkShots      *board.Board
+	checkIntended   []finding   // seams that are intended cuts: reported, not counted
+	checkSeams      []seamCheck // every boundary cav check compared
 	json            bool
 	started         time.Time
 	argv            []string

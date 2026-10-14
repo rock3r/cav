@@ -40,6 +40,8 @@ type Shot struct {
 	// Clip is a moving version of the shot (cav board motion fills it); the animatic plays it
 	// instead of holding the frame.
 	Clip string `json:"clip,omitempty"`
+	// Cut says the change into this shot is a hard cut on purpose; cav check does not flag it.
+	Cut bool `json:"cut,omitempty"`
 }
 
 type Board struct {
@@ -157,6 +159,33 @@ func (sb *Board) Validate() error {
 		}
 	}
 	return nil
+}
+
+// ShotFrame is the comp frame where a shot starts.
+type ShotFrame struct {
+	ID    string
+	Frame int
+	Cut   bool
+}
+
+// StartFrames returns the start frame of every shot after the first, for a comp that runs
+// at fps and starts at compStart. It uses the same rule as assets/board/place.js: time 0 is
+// the comp start, and a shot that starts before time 0 starts there. A shot that place.js
+// skips (it ends before time 0, or is shorter than one frame once rounded) is left out.
+func (sb *Board) StartFrames(fps float64, compStart int) []ShotFrame {
+	var out []ShotFrame
+	for i, s := range sb.Shots {
+		if i == 0 {
+			continue
+		}
+		a := max(0, int(math.Round(sb.Time(s.Beats[0])*fps)))
+		// place.js drops a shot that ends before time 0 or has no frame of its own.
+		if last := int(math.Round(sb.Time(s.Beats[1])*fps)) - 1; last < 0 || last < a {
+			continue
+		}
+		out = append(out, ShotFrame{ID: s.ID, Frame: compStart + a, Cut: s.Cut})
+	}
+	return out
 }
 
 // Label is the caption under a frame.

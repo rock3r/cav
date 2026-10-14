@@ -101,7 +101,8 @@ walkthroughs. Read this with `cav guide design` (recipe 12 shows how to rebuild 
   or vanish: a one-frame flash, a font weight jump, a dot off centre, the wrong layer
   order. Also look for elements that appear or vanish a few frames too early or too late,
   such as a circular reveal that shows as a small circle a few frames before its animation
-  starts.
+  starts. `cav check` does the first look for you: it flags a boundary where the picture
+  jumps in one frame. Mark a hard cut on purpose with `"cut": true` on the shot.
 - **One hero at a time, and stagger the rest.** Staggering is almost always good: it gives
   the motion a direction and points at what matters. Choose the step for the move: 3-4
   frames for small, quick items, longer for big or slow moves.

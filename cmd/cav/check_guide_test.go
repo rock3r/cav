@@ -19,7 +19,7 @@ func TestCheckGuideLinksResolve(t *testing.T) {
 	}
 	for kind, refs := range checkGuide {
 		for _, ref := range refs {
-			if got := ix.Find(ref[0], ref[1:]...); len(got) != 1 {
+			if got := guideRef(ix, ref); len(got) != 1 {
 				t.Errorf("%s: %v names %d sections, want 1", kind, ref, len(got))
 			}
 		}
