@@ -960,6 +960,10 @@
 	//@     Per-letter animation on ONE text layer (Sub-Mesh + Stagger). Returns the sub-mesh id.
 	//@ cav.counter(textLayer, f0, f1, from, to, {prefix, suffix, decimals=0, ease='outCubic'})
 	//@     Drives the text with an animated number (String Generator). Returns the generator id.
+	//@ cav.role(layer, 'data' | 'container')   tell cav check what the layer shows (saved in the scene)
+	//@     'data' = a number, bar or ring: springs and bounces on it are warned about.
+	//@     'container' = a card or panel: springs are fine. Use it when the name or the attribute
+	//@     makes cav check think a layer is data. Returns the layer id.
 	//@ cav.oscillate(layer, attr, {min, max, freq=1})   sine wave on an attribute (freq in cycles per second)
 	//@ cav.wiggle(layer, attr, {min, max, freq=1, seed})  smooth noise on an attribute
 	//@     attr can be one channel ('position.y', 'rotation.z', 'scale.x'), or a duplicator's
@@ -1069,6 +1073,13 @@
 		cav.key(sg, 'generator.number', [[f0, from, o.ease || 'outCubic'], [f1, to]])
 		api.connect(sg, 'id', text, 'text')
 		return sg
+	}
+
+	cav.role = function (layer, role) {
+		layer = checkLayer(layer, 'cav.role')
+		if (role !== 'data' && role !== 'container') fail('cav.role: role must be "data" or "container", got ' + JSON.stringify(role))
+		api.setUserData(layer, 'cavRole', role)
+		return layer
 	}
 
 	cav.oscillate = function (layer, attr, o) {

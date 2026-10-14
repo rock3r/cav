@@ -19,6 +19,28 @@ type motionAttr struct {
 	Values []*float64 `json:"values"`
 	Interp []int      `json:"interp"`
 	Span   []float64  `json:"span"`
+	// Eases holds, for each key, the ease of the segment that starts at it (nil for a plain
+	// one). It is set only when at least one key has an ease.
+	Eases []*keyEase `json:"eases,omitempty"`
+}
+
+// keyEase is what a key says about the segment that starts at it. Magic is Cavalry's Magic
+// Easing number (Custom is 34, and Custom is then the range structure.js measured). Right and
+// Left are the Bezier handles as offsets from the key, in frames and in value units.
+type keyEase struct {
+	Magic  int         `json:"magic,omitempty"`
+	Custom *customEase `json:"custom,omitempty"`
+	Right  []float64   `json:"right,omitempty"`
+	Left   []float64   `json:"left,omitempty"`
+}
+
+// customEase is the range a Custom ease formula reaches for x from 0 to 1. Error is set when
+// the formula was not evaluated.
+type customEase struct {
+	Min   float64 `json:"min"`
+	Max   float64 `json:"max"`
+	Mono  bool    `json:"mono"`
+	Error string  `json:"error,omitempty"`
 }
 
 // motionInfo says whether the motion metadata of every layer was read.
@@ -311,4 +333,197 @@ func insideSpan(gap [2]float64, spans []frameSpan) bool {
 		}
 	}
 	return false
+}
+
+// magicEases names Cavalry's Magic Easing numbers (data.easing) that overshoot or bounce. The
+// other ones (1-3 and 10-12) are monotonic; 34 is Custom.
+var magicEases = map[int]string{
+	22: "SpringIn", 23: "SpringOut", 24: "SpringInSpringOut",
+	25: "SmallSpringIn", 26: "SmallSpringOut", 27: "SmallSpringInSmallSpringOut",
+	28: "AnticipateIn", 29: "OvershootOut", 30: "AnticipateInOvershootOut",
+	31: "BounceIn", 32: "BounceOut", 33: "BounceInBounceOut",
+}
+
+const (
+	easeCustom = 34
+	// A custom ease may leave 0..1 by this much before it counts as an overshoot.
+	easeSlack = 0.005
+	// A Bezier segment may leave the range of its two key values by this share of the move.
+	bezierSlack = 0.005
+)
+
+// easeOvershoots says whether the segment from a key with ease e0 to the next key with ease
+// e1, going from value v0 to v1, overshoots or bounces, and why. v0 and v1 are nil when a key
+// holds no plain number; only a Bezier needs them. Linear, step and the plain Magic Easing
+// names never overshoot.
+func easeOvershoots(e0, e1 *keyEase, v0, v1 *float64) (bool, string) {
+	if e0 == nil {
+		return false, ""
+	}
+	if name, ok := magicEases[e0.Magic]; ok {
+		return true, name
+	}
+	if e0.Magic == easeCustom && e0.Custom != nil && e0.Custom.Error == "" {
+		c := e0.Custom
+		switch {
+		case c.Max > 1+easeSlack:
+			return true, fmt.Sprintf("a custom ease that goes to %.0f %% of the move", 100*c.Max)
+		case c.Min < -easeSlack:
+			return true, fmt.Sprintf("a custom ease that first goes %.0f %% the wrong way", -100*c.Min)
+		case !c.Mono:
+			return true, "a custom ease that moves back and forth"
+		}
+		return false, ""
+	}
+	if e0.Magic == 0 && len(e0.Right) == 2 && e1 != nil && len(e1.Left) == 2 && v0 != nil && v1 != nil {
+		return bezierOvershoots(e0.Right[1], e1.Left[1], *v0, *v1)
+	}
+	return false, ""
+}
+
+// bezierOvershoots evaluates the values of the cubic that the handles draw: the first handle
+// is the Right handle of the key that starts the segment, the second is the Left handle of
+// the key that ends it. Both are offsets from their key, so the value of a handle point is
+// the key value plus the offset. The time of the handles does not change the range.
+func bezierOvershoots(rightY, leftY, v0, v1 float64) (bool, string) {
+	move := math.Abs(v1 - v0)
+	if move < 1e-9 {
+		return false, ""
+	}
+	y := [4]float64{v0, v0 + rightY, v1 + leftY, v1}
+	lo, hi := math.Min(v0, v1), math.Max(v0, v1)
+	worst := 0.0
+	for i := 0; i <= 32; i++ {
+		t := float64(i) / 32
+		u := 1 - t
+		v := u*u*u*y[0] + 3*u*u*t*y[1] + 3*u*t*t*y[2] + t*t*t*y[3]
+		worst = math.Max(worst, math.Max(lo-v, v-hi))
+	}
+	if worst > bezierSlack*move {
+		return true, fmt.Sprintf("a curve that goes %.0f %% past the end value", 100*worst/move)
+	}
+	return false, ""
+}
+
+// Names in an attribute or layer that mean the value is data.
+var (
+	dataAttrName  = regexp.MustCompile(`(?i)(^|\.)(value|number|percent(age)?|progress|amount|level)$`)
+	dataLayerName = regexp.MustCompile(`(?i)\b(bar|meter|progress|gauge|ring|arc|donut|pie|chart|graph|value|count(er)?|number|percent|stat|score|kpi|level|battery|volume)\b`)
+	// Attributes that draw a length. The ring and arc of an ellipse are drawn with the stroke trim.
+	lengthAttr = regexp.MustCompile(`^(scale\.[xy]|generator\.dimensions(\.[xy])?|stroke\.trim(Start|End))$`)
+	// Attributes that place a layer; they never show a value.
+	neverDataAttr = regexp.MustCompile(`^(position|rotation)(\.[xyz])?$|^opacity$`)
+)
+
+// dataRole says why an attribute of a layer shows data: "userData" (cav.role), "text" (it
+// feeds a text layer), "attr" (the attribute name) or "name" (the layer name and a length
+// attribute). It is empty when the attribute is not data. The first rule that applies wins.
+func dataRole(l structureLayer, attr string, hasChildren, feedsText bool) string {
+	switch l.Role {
+	case "data":
+		return "userData"
+	case "container":
+		return ""
+	}
+	if l.Type == "group" || l.Type == "compositionReference" || hasChildren || neverDataAttr.MatchString(attr) {
+		return ""
+	}
+	switch {
+	case feedsText:
+		return "text"
+	case dataAttrName.MatchString(attr):
+		return "attr"
+	case lengthAttr.MatchString(attr) && dataLayerName.MatchString(l.Name):
+		return "name"
+	}
+	return ""
+}
+
+// overshootFindings reports data that eases with a spring, a back, a bounce or any other ease
+// that leaves the range between its two values (see dataRole for what counts as data). One
+// finding per attribute, for the first segment that overshoots. A Custom ease that structure.js
+// could not evaluate on a data attribute is listed in skipped. It reads metadata only.
+func overshootFindings(d structureData) (flagged []finding, skipped []map[string]any) {
+	if d.Motion == nil {
+		return
+	}
+	hasChildren := map[string]bool{}
+	for _, l := range d.Layers {
+		hasChildren[l.Parent] = true
+	}
+	types := map[string]string{}
+	for _, l := range d.Layers {
+		types[l.ID] = l.Type
+	}
+	feedsText := map[string]bool{}
+	for _, e := range d.Edges {
+		if e.ToAttr == "text" && types[e.To] == "textShape" {
+			feedsText[e.From] = true
+		}
+	}
+	done := map[string]bool{}
+	for _, l := range d.Layers {
+		for _, m := range l.Motion {
+			if len(m.Eases) == 0 {
+				continue
+			}
+			role := dataRole(l, m.Attr, hasChildren[l.ID], feedsText[l.ID])
+			if role == "" {
+				continue
+			}
+			unread := false
+			for i := 0; i+1 < len(m.Times) && i < len(m.Eases); i++ {
+				var v0, v1 *float64
+				if i+1 < len(m.Values) {
+					v0, v1 = m.Values[i], m.Values[i+1]
+				}
+				if v0 != nil && v1 != nil && math.Abs(*v0-*v1) < 1e-9 {
+					continue
+				}
+				if i < len(m.Interp) && m.Interp[i] == interpStep {
+					continue
+				}
+				e := m.Eases[i]
+				if e != nil && e.Magic == easeCustom && (e.Custom == nil || e.Custom.Error != "") {
+					unread = true
+				}
+				var e1 *keyEase
+				if i+1 < len(m.Eases) {
+					e1 = m.Eases[i+1]
+				}
+				if bad, why := easeOvershoots(e, e1, v0, v1); bad {
+					flagged = append(flagged, overshootFinding(l, m.Attr, m.Times[i], why, role))
+					done[l.ID+"\x00"+m.Attr] = true
+					unread = false
+					break
+				}
+			}
+			if unread {
+				skipped = append(skipped, map[string]any{"inspection": "ease", "layer": l.ID, "attr": m.Attr, "reason": "custom expression not evaluated"})
+			}
+		}
+	}
+	// A spring layer connected to a data attribute overshoots by itself.
+	byID := map[string]structureLayer{}
+	for _, l := range d.Layers {
+		byID[l.ID] = l
+	}
+	for _, e := range d.Edges {
+		l, ok := byID[e.To]
+		if !ok || types[e.From] != "spring" || done[e.To+"\x00"+e.ToAttr] {
+			continue
+		}
+		if role := dataRole(l, e.ToAttr, hasChildren[l.ID], feedsText[l.ID]); role != "" {
+			done[e.To+"\x00"+e.ToAttr] = true
+			flagged = append(flagged, overshootFinding(l, e.ToAttr, float64(d.Start), "a spring layer", role))
+		}
+	}
+	return
+}
+
+func overshootFinding(l structureLayer, attr string, frame float64, ease, role string) finding {
+	return finding{Kind: "data-overshoot", Layer: l.ID, Name: l.Name, Comp: l.Comp, CompPath: l.CompPath, Severity: "warning",
+		Evidence: map[string]any{"attr": attr, "frame": int(frame), "ease": ease, "role": role},
+		Detail:   fmt.Sprintf("%s on %s uses %s, which overshoots or bounces, so the data shows a wrong value for a moment", attr, l.Name, ease),
+		Fix:      "use an ease that settles without overshoot (outCubic, outQuint, outExpo, inOutCubic) on the value; keep the spring on its card or group; if this layer is not data, cav.role(layer, 'container')"}
 }
