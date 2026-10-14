@@ -202,7 +202,7 @@ generating service can run.
   dashes.
 - Refused: scripts, event attributes (`onclick`), `image`, `foreignObject`, `style`
   elements, links to other files, `url(` that does not point inside the file, a `DOCTYPE`,
-  files over 512 KiB, more than 2000 elements, and nesting deeper than 32. cav lists every
+  files over 512 KiB, more than 2000 elements, nesting deeper than 32, and percentages in shape sizes and positions (use numbers). cav lists every
   problem with its line number and makes no frame until you fix them.
 - Run `cav board frames`. cav checks all the SVGs, then renders each one through Cavalry
   and writes `board/<id>.png`; the shot's `source` is `sketch`. Shots with no SVG get a

@@ -313,3 +313,16 @@ func TestCheckSketchRefusesProcessingInstructionsAfterTheRootStarts(t *testing.T
 		}
 	}
 }
+
+func TestCheckSketchRefusesPercentagesInGeometry(t *testing.T) {
+	for _, attr := range []string{`width="50%"`, `x="10%"`, `cx="50%"`, `r="5%"`, `stroke-width="1%"`, `font-size="5%"`, `y2="100%"`} {
+		p := problems(t, wrap(`<rect `+attr+` height="1"/>`))
+		if len(p) == 0 || !strings.Contains(strings.Join(p, "\n"), "use numbers, not percentages") {
+			t.Errorf("%s: problems %v", attr, p)
+		}
+	}
+	// A percentage that is not a length (offset on a gradient stop, opacity) and plain numbers are fine.
+	if p := problems(t, wrap(`<defs><linearGradient id="g"><stop offset="50%" stop-color="#000"/></linearGradient></defs><rect width="10" height="10" opacity="50%"/>`)); p != nil {
+		t.Errorf("non-length percentages refused: %v", p)
+	}
+}
