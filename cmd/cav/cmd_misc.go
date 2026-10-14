@@ -14,6 +14,7 @@ import (
 	"github.com/rock3r/cav/internal/config"
 	"github.com/rock3r/cav/internal/flow"
 	"github.com/rock3r/cav/internal/guide"
+	"github.com/rock3r/cav/internal/library"
 
 	"github.com/rock3r/cav/internal/bridge"
 )
@@ -170,14 +171,15 @@ func cmdGuide(a *app, args []string) error {
 // the source and path of the file in effect, and "valid" says whether the file parsed.
 // Stages that ask for a review that cannot hold an approval are warnings too.
 func flowGuideText(rules string) (text string, info map[string]any, warns []string) {
-	f, err := flow.Load(".")
-	path, source := flow.Find(".")
+	root := flowRoot()
+	f, err := flow.Load(root)
+	path, source := flow.Find(root)
 	var body, label string
 	switch {
 	case err == nil:
 		body, label = f.Text, f.Label()
-		warns = f.Warnings(".")
-		info = flowInfo(f)
+		warns = f.Warnings(root)
+		info = flowInfo(f, warns)
 	case path != "":
 		b, readErr := os.ReadFile(path)
 		if readErr != nil {
@@ -201,7 +203,7 @@ func flowGuideText(rules string) (text string, info map[string]any, warns []stri
 }
 
 // flowInfo is the "flow" field of cav guide flow --json for a flow that parsed.
-func flowInfo(f *flow.Flow) map[string]any {
+func flowInfo(f *flow.Flow, warnings []string) map[string]any {
 	stages := []map[string]any{}
 	for _, s := range f.Stages {
 		outs := s.Outputs
@@ -210,7 +212,18 @@ func flowInfo(f *flow.Flow) map[string]any {
 		}
 		stages = append(stages, map[string]any{"name": s.Name, "outputs": outs, "review": s.Review, "use": s.Use})
 	}
-	return map[string]any{"source": f.Source, "path": f.Path, "valid": true, "stages": stages, "warnings": f.Warnings(".")}
+	return map[string]any{"source": f.Source, "path": f.Path, "valid": true, "stages": stages, "warnings": warnings}
+}
+
+// flowRoot is the project folder to look for flow.md in: the nearest folder above the working
+// directory with a .cav folder, as for the other project files. It is "." when that is the
+// working directory itself, or when there is no .cav folder.
+func flowRoot() string {
+	root := library.Root()
+	if wd, err := os.Getwd(); err != nil || root == wd {
+		return "."
+	}
+	return root
 }
 
 func flagSet(fs *flag.FlagSet, name string) bool {

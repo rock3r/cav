@@ -99,11 +99,14 @@ func (p *parser) run(text string) {
 			}
 			continue
 		}
+		if indentedCode(line) {
+			continue
+		}
 		if m := fenceMarker(t); m != "" {
 			fence = m
 			continue
 		}
-		if name, ok := stageName(line); ok {
+		if name, ok := stageName(t); ok {
 			p.startStage(n, name)
 			continue
 		}
@@ -223,6 +226,12 @@ func (p *parser) outputs(line int, val string) []string {
 		p.fail(line, "outputs: is empty")
 	}
 	return out
+}
+
+// indentedCode reports whether a line is indented by four or more spaces, or a tab. As in
+// CommonMark, such a line is code: it is neither a heading nor a key.
+func indentedCode(line string) bool {
+	return strings.HasPrefix(line, "    ") || strings.HasPrefix(line, "\t") || strings.HasPrefix(line, " \t") || strings.HasPrefix(line, "  \t") || strings.HasPrefix(line, "   \t")
 }
 
 // stageName reports whether line is a `## name` heading.

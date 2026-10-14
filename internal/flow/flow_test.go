@@ -150,6 +150,28 @@ func TestKeysInsideAFenceAreProse(t *testing.T) {
 	}
 }
 
+func TestIndentedCodeIsProse(t *testing.T) {
+	src := "## one\noutputs: a.json\n\n    review: maybe\n    ## fake\n\toutputs: /bad\n\n   review: yes\n"
+	f, err := Parse("flow.md", []byte(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Three spaces still count; four spaces and a tab are code.
+	if len(f.Stages) != 1 || !f.Stages[0].Review || !reflect.DeepEqual(f.Stages[0].Outputs, []string{"a.json"}) {
+		t.Errorf("stages = %+v", f.Stages)
+	}
+	// A heading indented by up to three spaces is still a heading.
+	f, err = Parse("flow.md", []byte("  ## two\noutputs: b.json\n"))
+	if err != nil || len(f.Stages) != 1 || f.Stages[0].Name != "two" {
+		t.Errorf("indented heading: %+v, %v", f, err)
+	}
+	// A fence opened with four spaces is code, not a fence.
+	f, err = Parse("flow.md", []byte("## one\n    ```\noutputs: a.json\n"))
+	if err != nil || len(f.Stages[0].Outputs) != 1 {
+		t.Errorf("indented fence: %+v, %v", f, err)
+	}
+}
+
 func TestOutputsAreNormalised(t *testing.T) {
 	f, err := Parse("flow.md", []byte("## one\nOutputs: `a.json`, renders\\final.mp4 ,, `board/`\n"))
 	if err != nil {

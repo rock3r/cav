@@ -301,6 +301,38 @@ func TestGuideFlowWarnsAboutReviewsThatCannotBeApproved(t *testing.T) {
 	}
 }
 
+func TestGuideFlowFindsTheProjectRootFromASubfolder(t *testing.T) {
+	root, _ := flowEnv(t)
+	if err := os.Mkdir(filepath.Join(root, ".cav"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body := "## style\noutputs: style.json\nreview: yes\n"
+	if err := os.WriteFile(filepath.Join(root, "flow.md"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// A schema in the project root makes style.json reviewable; from a subfolder, the check
+	// must look in the root and not in the subfolder.
+	if err := os.WriteFile(filepath.Join(root, "style.json"), []byte(`{"schema":"cav-moodboard/1"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sub := filepath.Join(root, "scenes", "intro")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(sub)
+	out, errOut, data := flowGuide(t, true)
+	info := data["flow"].(map[string]any)
+	if info["source"] != "project" || info["valid"] != true || !strings.HasSuffix(info["path"].(string), "flow.md") {
+		t.Errorf("flow = %v", info)
+	}
+	if w, _ := info["warnings"].([]any); len(w) != 0 {
+		t.Errorf("warnings = %v; the schema check did not look in the root", w)
+	}
+	if errOut != "" || !strings.Contains(out, "## style") {
+		t.Errorf("stderr %q", errOut)
+	}
+}
+
 func TestGuideFlowJSONKeepsThePathOfABrokenFile(t *testing.T) {
 	project, home := flowEnv(t)
 	broken := "## a\nreview: maybe\n"
