@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/rock3r/cav/assets"
+	"github.com/rock3r/cav/internal/board"
 	"github.com/rock3r/cav/internal/config"
 )
 
@@ -47,8 +48,11 @@ Findings do not change the exit code; timeout returns 3 with partial results and
 operation ID to resume. Use --json for agents.
 A finding whose kind a guide explains (offframe, hidden, font, sksl-input-redeclared,
 group-filter, perf-sampled-keys, perf-keyframe-volume, perf-copy-javascript,
-perf-simulation) names that guide section, and the sections are printed once after the
+perf-simulation, shot-why) names that guide section, and the sections are printed once after the
 findings ("guide" in JSON, at most about 4 KB).
+A storyboard.json in the current folder (or --board FILE) is read too: a shot with no
+"why" (empty, or still the placeholder from cav board init) is a shot-why warning. This also
+runs with --quick.
 --min-text (28) and --max-still (1.5 seconds) tune visual findings.`
 }
 
@@ -377,6 +381,7 @@ func cmdSceneCheck(a *app, args []string) error {
 	samples := fs.Int("samples", 3, "profile/visual samples (1..12)")
 	maxLayers := fs.Int("max-layers", 1000, "metadata layers (1..10000); visual cap is 200")
 	timeout := fs.Duration("timeout", 2*time.Minute, "total operation wait budget")
+	boardPath := fs.String("board", "", "storyboard file (default ./storyboard.json when it exists)")
 	pos, err := parseFlags(fs, args)
 	if err != nil {
 		return err
@@ -406,6 +411,11 @@ func cmdSceneCheck(a *app, args []string) error {
 	if err := a.beginOperationBudget(*timeout); err != nil {
 		return err
 	}
+	var whyFindings []finding
+	var boardFailures []map[string]any
+	if a.checkBoard, whyFindings, boardFailures, err = a.checkStoryboard(*boardPath); err != nil {
+		return err
+	}
 	if err = a.checkpoint("waiting-for-metadata"); err != nil {
 		return err
 	}
@@ -423,7 +433,8 @@ func cmdSceneCheck(a *app, args []string) error {
 		}
 	}
 	perf := append(performanceFindings(metadata), fontFindings(metadata)...)
-	failures := metadata.Failures
+	perf = append(perf, whyFindings...)
+	failures := append(metadata.Failures, boardFailures...)
 	skipped := metadata.Skipped
 	var measured []profileResult
 	var warmup *profileWarmup
@@ -558,6 +569,62 @@ func cmdSceneCheck(a *app, args []string) error {
 	return a.partialCheck(out, failures, skipped, measured, nil, warmup)
 }
 
+// checkStoryboard reads the storyboard for the shot-why finding. An explicit path that is
+// missing is a usage error. Without a path, ./storyboard.json is used if it exists, and
+// nothing is added if it does not. A storyboard that does not load is a failed inspection.
+func (a *app) checkStoryboard(explicit string) (string, []finding, []map[string]any, error) {
+	path := explicit
+	if path == "" {
+		if _, err := os.Stat("storyboard.json"); err != nil {
+			return "", nil, nil, nil
+		}
+		path = "storyboard.json"
+	} else if _, err := os.Stat(path); err != nil {
+		return "", nil, nil, usageErr("--board: no such file: %s", path)
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", nil, nil, err
+	}
+	digest, err := fileDigest(a.ctx, abs)
+	if err != nil {
+		return "", nil, nil, err
+	}
+	if a.op != nil {
+		if a.op.Inputs == nil {
+			a.op.Inputs = map[string]string{}
+		}
+		if previous, ok := a.op.Inputs[abs]; ok && previous != digest {
+			return "", nil, nil, fmt.Errorf("storyboard input changed since the operation started: %s", abs)
+		}
+		a.op.Inputs[abs] = digest
+	}
+	sb, err := board.Load(abs)
+	if err != nil {
+		return abs, nil, []map[string]any{{"inspection": "storyboard", "error": err.Error()}}, nil
+	}
+	return abs, shotWhyFindings(sb), nil, nil
+}
+
+// shotWhyFindings warns about each shot that has no reason to be in the video.
+func shotWhyFindings(sb *board.Board) []finding {
+	var out []finding
+	for _, s := range sb.Shots {
+		if !missingWhy(s) {
+			continue
+		}
+		what := []rune(s.What)
+		if len(what) > 60 {
+			what = what[:60]
+		}
+		out = append(out, finding{Kind: "shot-why", Name: s.ID, Severity: "warning",
+			Evidence: map[string]any{"shot": s.ID, "what": string(what)},
+			Detail:   fmt.Sprintf("shot %s has no \"why\": a feature shown with no reason means nothing to the viewer", s.ID),
+			Fix:      "write in storyboard.json \"why\" what the viewer learns from this shot; if there is nothing, cut or merge the shot"})
+	}
+	return out
+}
+
 func (a *app) partialCheck(out []finding, failures, skipped []map[string]any, measured []profileResult, cause error, warmups ...*profileWarmup) error {
 	out = append(out, licenceFindings()...)
 	if cause != nil {
@@ -568,6 +635,9 @@ func (a *app) partialCheck(out []finding, failures, skipped []map[string]any, me
 	data := map[string]any{"findings": out, "count": len(out), "complete": complete, "clean": complete && len(out) == 0, "failures": failures, "skipped": skipped, "profile": measured}
 	if len(related) > 0 {
 		data["guide"] = related
+	}
+	if a.checkBoard != "" {
+		data["board"] = a.checkBoard
 	}
 	var warmup *profileWarmup
 	if len(warmups) > 0 {

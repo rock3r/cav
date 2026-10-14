@@ -33,7 +33,8 @@ walkthroughs. Read this with `cav guide design` (recipe 12 shows how to rebuild 
 - **One message per section**, and end with a single next step (install, download, visit).
 - **Explain every feature you show.** The viewer has never seen the product: a command or a
   number with no context means nothing. Explain by showing, not by telling. Keep text on
-  screen to a minimum.
+  screen to a minimum. Write the reason for each shot in the storyboard's `why`; `cav check`
+  warns about a shot that has none.
 - **Show things in story order.** Do not call out or focus on a feature before its own
   section. An early overview shot of the whole app may still include later features, as
   long as it does not draw attention to them.

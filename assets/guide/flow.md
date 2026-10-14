@@ -100,7 +100,7 @@ Run `cav board init --shots 6`. It takes the size, fps, length, tempo and title 
 `cav board init --width 1080 --height 1920 --fps 30 --seconds 15 --bpm 120 --shots 6`.
 Then carry the approved direction into `storyboard.json`: set `style.prompt` to the look in a
 few words, `style.palette` to the chosen colours, and `style.refs` to the kept mood board images that
-show it. Use image items only: a clip's contact sheet and a video thumbnail are not references to send. `cav board frames` sends these with every frame. Write what happens in each shot,
+show it. Use image items only: a clip's contact sheet and a video thumbnail are not references to send. `cav board frames` sends these with every frame. Write what happens in each shot (`what`) and why it is there (`why`: what the viewer learns or feels; you write it, not the user),
 then run `cav board frames` and `cav board sheet`. Look at `renders/board.png` and fix the weak shots.
 
 Then let the user review the storyboard. Start the review page in the background

@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Storyboard shots say why they are in the video, and `cav check` reads it (#113).
+  - A shot has a new optional `why` line: what the viewer learns or feels from it. The agent
+    writes it. `cav board init` fills it with a placeholder.
+  - `cav check` reads `storyboard.json` in the current folder (or `--board FILE`), also with
+    `--quick`. It warns with kind `shot-why` about each shot whose `why` is empty or still the
+    placeholder, and links the showcase guide section "Story and message". No storyboard
+    means no warning.
+  - `cav board frames` and `cav board motion` do not need `why`.
+  - The review page shows `Why:` in the shot text. A shot that gets a `why` changes, so its
+    verdict becomes outdated once.
+
 - The mood board is a page with images, video and a "take from it" line per item (#90).
   - `cav board mood` now writes `moodboard.json` (schema `cav-moodboard/1`) beside the
     `moodboard/` folder, and still writes `renders/moodboard.png`. Each item has an id, a kind

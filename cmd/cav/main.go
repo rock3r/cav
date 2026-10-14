@@ -42,6 +42,7 @@ func register(c command) { commands = append(commands, c) }
 type app struct {
 	requireSaved    bool
 	compSelector    string
+	checkBoard      string // the storyboard cav check read, for its output
 	json            bool
 	started         time.Time
 	argv            []string

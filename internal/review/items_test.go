@@ -96,6 +96,17 @@ func TestStoryboardItemHashes(t *testing.T) {
 		t.Fatalf("text %q", base[1].Text)
 	}
 
+	// A "why" shows on the page and changes that shot only.
+	sbw, _ := board.Load(path)
+	sbw.Shots[0].Why = "the viewer sees the logo first"
+	sbw.Save(path)
+	withWhy, _ := Items(KindStoryboard, path)
+	if !strings.Contains(withWhy[1].Text, "Why: the viewer sees the logo first") || shaOf(withWhy, "s1") == shaOf(base, "s1") || shaOf(withWhy, "s2") != shaOf(base, "s2") {
+		t.Fatalf("why should show and change s1 only: %+v", withWhy[1])
+	}
+	sbw.Shots[0].Why = ""
+	sbw.Save(path)
+
 	// Writing the same shots with other spacing changes nothing.
 	b, _ := os.ReadFile(path)
 	var raw map[string]any
