@@ -28,7 +28,7 @@ The `cav` CLI does the work and carries its own guides. This skill only gets you
    `cav guide --search "rotation keys ignored"`.
    For app screens, UI walkthroughs and product demos, rebuild the UI as layers. Use a
    screenshot only as a guide to check the rebuild (`cav guide design`, recipe 12), and read
-   `cav guide showcase` first.
+   `cav guide ui-showcase` first.
 3. Work only in new scenes (`cav scene new`). Never use `--force` on the user's own work.
 4. You cannot see Cavalry: look at `cav sheet` images after every change, use
    `cav onion <start-end>` to see how one move travels, and run `cav check` before you render.

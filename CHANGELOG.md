@@ -8,7 +8,7 @@
   `cav frame` before you animate. A rebuilt UI can zoom, pan and animate each part; a
   screenshot blurs and cannot move its parts. See `cav guide design` (recipe 12), the new
   row in `cav guide traps`, and the cavalry skill.
-- A new guide, `cav guide showcase`, gives rules for software videos: launch videos,
+- A new guide, `cav guide ui-showcase`, gives rules for software videos: launch videos,
   product demos, feature videos and UI walkthroughs. It covers the story, a faithful UI
   (real components, real icons, real system chrome, realistic fake data), framing and
   camera moves, continuous motion between scenes, sound, timing and formats. The default
