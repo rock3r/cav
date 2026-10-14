@@ -145,6 +145,9 @@ func (a *app) executeOperation(run func(*app, []string) error, resumeBudget time
 			// still "prepared", and every earlier job already has its result.
 			a.op.Status = "refused"
 			a.op.FailureReason = "blocked-by-operation"
+			// Release a render's output reservation, so that a later command may use
+			// the path. A resume checks and reserves the path again before rendering.
+			a.op.Outputs = nil
 		} else if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, bridge.ErrStillRunning) || errors.Is(err, bridge.ErrLost) || errors.Is(err, bridge.ErrUnknownJob) || errors.Is(err, bridge.ErrUnavailable) || (errors.As(err, &ce) && ce.code == exitStillRunning) {
 			a.op.Status = "unknown"
 			if len(a.op.Jobs) > 0 && a.op.Jobs[len(a.op.Jobs)-1].Result == nil {

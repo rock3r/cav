@@ -347,6 +347,73 @@ func TestRefusedCommandRecordsDefiniteStateAndBlocksNothing(t *testing.T) {
 	}
 }
 
+// A refused render releases its output path. Its resume reserves the path again, so
+// it stops before any render work when another render has published there.
+func TestRefusedRenderReleasesAndRechecksItsOutput(t *testing.T) {
+	var mu sync.Mutex
+	posts := []bridge.Request{}
+	blockNext := true
+	fixtureBridge(t, func(req bridge.Request) {
+		mu.Lock()
+		posts = append(posts, req)
+		block := blockNext
+		blockNext = false
+		mu.Unlock()
+		code, err := os.ReadFile(req.File)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		if !strings.Contains(string(code), "filePath:") {
+			renderMetadataFixture(t, req.ID)
+			if block {
+				blocker := &operation.Record{Schema: 1, ID: "unknown-blocker", Command: []string{"run"}, Host: config.Host(), Port: config.Port(), Status: "unknown", Phase: "execution", Jobs: []*operation.Job{{ID: "lost-job", Phase: "execution", Submission: "accepted", State: bridge.StateUnknown}}}
+				if err := operation.Save(config.Home(), blocker); err != nil {
+					t.Error(err)
+				}
+			}
+			return
+		}
+		if err := os.WriteFile(filepath.Join(renderFixtureStage(t, req), "video.mp4"), []byte("fixture video"), 0600); err != nil {
+			t.Error(err)
+		}
+		fixtureResult(t, req.ID, map[string]any{"ms": 1})
+	})
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "ffprobe"), []byte("#!/bin/sh\necho 6\n"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	out := filepath.Join(t.TempDir(), "final.mp4")
+
+	refused := &app{json: true}
+	if c := refused.dispatch([]string{"render", "-o", out, "--timeout", "2s"}); c != exitStillRunning {
+		t.Fatalf("refused render exit %d", c)
+	}
+	r, err := operation.Load(config.Home(), refused.op.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Status != "refused" || len(r.Outputs) != 0 || len(posts) != 1 {
+		t.Fatalf("refused render: status=%s outputs=%v posts=%d", r.Status, r.Outputs, len(posts))
+	}
+	if c := (&app{json: true}).dispatch([]string{"operation", "abandon", "unknown-blocker", "--acknowledge-unknown-outcome"}); c != exitOK {
+		t.Fatal(c)
+	}
+	if c := (&app{json: true}).dispatch([]string{"render", "-o", out, "--timeout", "2s"}); c != exitOK {
+		t.Fatalf("second render exit %d", c)
+	}
+	if len(posts) != 3 {
+		t.Fatalf("second render posts=%d", len(posts))
+	}
+	if c := (&app{json: true}).dispatch([]string{"operation", "resume", r.ID, "--timeout", "2s"}); c != exitError {
+		t.Fatalf("resume over a published output exit %d", c)
+	}
+	if len(posts) != 3 {
+		t.Fatalf("resume rendered again: posts=%d", len(posts))
+	}
+}
+
 func TestResumeGatesQueuedAndUncertainOperationsBeforeNewSubmission(t *testing.T) {
 	for _, submission := range []string{"accepted", "uncertain"} {
 		t.Run(submission, func(t *testing.T) {
