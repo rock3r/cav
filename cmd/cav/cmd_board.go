@@ -32,7 +32,7 @@ timed in beats (like the plan table cav guide asks for).
 
   cav board init [--bpm 120 --fps 60 --seconds 16 --width 1920 --height 1080 --shots 6]
         [--brief brief.json | --no-brief] [-o storyboard.json]
-        writes a starting storyboard; edit "what" for each shot. Values you do not give come
+        writes a starting storyboard; edit "what" and "why" for each shot. Values you do not give come
         from brief.json when it exists (size, fps, length, tempo and title); flags win. It
         prints what it took from the brief.
   cav board frames [storyboard.json] [--service S] [--only s1,s3] [--force]
@@ -166,7 +166,7 @@ func boardInit(a *app, args []string) error {
 		if i == *shots-1 {
 			end = total
 		}
-		sb.Shots = append(sb.Shots, board.Shot{ID: fmt.Sprintf("s%d", i+1), Beats: [2]float64{start, end}, What: shotPlaceholder})
+		sb.Shots = append(sb.Shots, board.Shot{ID: fmt.Sprintf("s%d", i+1), Beats: [2]float64{start, end}, What: shotPlaceholder, Why: whyPlaceholder})
 		start = end
 	}
 	if err := sb.Save(*out); err != nil {
@@ -178,7 +178,7 @@ func boardInit(a *app, args []string) error {
 	}
 	a.emit(data, func() {
 		use.say(os.Stdout)
-		fmt.Printf("wrote %s: %d shots over %g beats (%g s at %g bpm)\nEdit \"what\" for each shot, then: cav board frames\n", *out, len(sb.Shots), total, *seconds, *bpm)
+		fmt.Printf("wrote %s: %d shots over %g beats (%g s at %g bpm)\nEdit \"what\" and \"why\" for each shot, then: cav board frames\n", *out, len(sb.Shots), total, *seconds, *bpm)
 	})
 	return nil
 }
@@ -200,6 +200,16 @@ func aspectOf(w, h int) string {
 
 // shotPlaceholder is the "what" that cav board init writes. A shot that still has it is not described yet.
 const shotPlaceholder = "describe what happens in this shot"
+
+// whyPlaceholder is the "why" that cav board init writes. cav check warns about a shot that still has it.
+// Unlike shotPlaceholder, it never stops cav board frames or motion: the image service does not use it.
+const whyPlaceholder = "why the viewer needs this shot"
+
+// missingWhy says whether a shot has no real reason yet: empty, or still the placeholder.
+func missingWhy(s board.Shot) bool {
+	w := strings.TrimSpace(s.Why)
+	return w == "" || w == whyPlaceholder
+}
 
 // noTextRule keeps the image service from drawing words the shot did not ask for.
 const noTextRule = "Do not draw any text, labels or captions unless the shot description asks for them."

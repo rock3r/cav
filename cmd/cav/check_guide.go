@@ -19,6 +19,7 @@ var checkGuide = map[string][][]string{
 	"font":                  {{"traps", "Look and render", "Missing font"}},
 	"sksl-input-redeclared": {{"traps", "Launch-video observations", "Redeclaring a SkSL input uniform"}},
 	"group-filter":          {{"traps", "Launch-video observations", "A filter attached to a group"}},
+	"shot-why":              {{"ui-showcase", "2. Story and message"}},
 	"perf-sampled-keys":     {{"native", "Dense animation curves"}},
 	"perf-keyframe-volume":  {{"native", "Dense animation curves"}},
 	"perf-copy-javascript":  {{"native", "Per-copy JavaScript"}},

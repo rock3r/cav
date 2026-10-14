@@ -292,6 +292,9 @@ func storyboardItems(path string) ([]Item, error) {
 		if shot.Camera != "" {
 			text += "\nCamera: " + shot.Camera
 		}
+		if shot.Why != "" {
+			text += "\nWhy: " + shot.Why
+		}
 		items = append(items, Item{ID: shot.ID, Title: sb.Label(shot), Text: text, Image: img, HasImage: img != "",
 			SHA: sum("cav-item/1", "shot", string(j), digest)})
 	}

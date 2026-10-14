@@ -32,6 +32,7 @@ type Shot struct {
 	ID     string     `json:"id"`
 	Beats  [2]float64 `json:"beats"` // start and end beat; the shot ends where the next starts
 	What   string     `json:"what"`
+	Why    string     `json:"why,omitempty"` // why the shot is in the video: what the viewer learns or feels; the agent writes it
 	Camera string     `json:"camera,omitempty"`
 	Prompt string     `json:"prompt,omitempty"` // extra words for the generated frame
 	Frame  string     `json:"frame,omitempty"`  // the image; cav board frames fills it

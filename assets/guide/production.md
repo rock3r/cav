@@ -130,7 +130,7 @@ cav board mood                              # moodboard.json + renders/moodboard
 cav board mood take <id> "the blue/orange split"   # one take-from-it line per item
 cav review moodboard.json &                 # the user: keep, more like this, drop
 cav board init --shots 6                    # size, fps, length, tempo and title come from brief.json
-# edit storyboard.json: "what" per shot, "style" (prompt, refs, palette)
+# edit storyboard.json: "what" and "why" per shot, "style" (prompt, refs, palette)
 cav board frames                            # one frame per shot into board/
 cav board sheet                             # renders/board.png: look at it
 cav review storyboard.json &                # the user judges the stills: a verdict per shot, then Approve
@@ -146,6 +146,10 @@ cav board place                             # the frames as placeholder layers i
   `cav review export storyboard.json --json`: its `approved` must be `true`. Fix every
   note and every shot marked redo first (see "Review stills" in section 6). You cannot
   approve for the user, and you must not edit `approved` by hand.
+- Give every shot a `why`: what the viewer learns or feels from it. You write it, not the
+  user. `cav board init` fills it with a placeholder, and `cav check` warns about every
+  shot whose `why` is empty or still the placeholder. If you cannot say why a shot is there,
+  cut or merge it. `cav board frames` and `motion` do not need it.
 - Time shots in beats, like the plan table in `cav guide`. Put cuts on bar starts
   (multiples of 4 in 4/4). With real music, set `"grid": "build/grid.json"` from
   `cav beats music.wav --json -o build/grid.json` so beats follow the track.
@@ -581,6 +585,8 @@ slow or paid work starts.
 - Approving counts as a send: `cav review wait storyboard.json` returns, also with no
   notes. It says "is approved by <name>". `cav review export storyboard.json --json` shows
   `approved`, the `items` with their verdicts, and `blockers`.
+- The page shows a shot's `why` under its text. Adding or changing `why` changes the shot, so
+  its verdict becomes outdated once and the user judges it again.
 - To fix a note, change the item in its file (for a shot: its `what`, or its frame with
   `cav board frames --force`), then run `cav review resolve <id> --note "what changed"`.
   Do not mark anything approved: there is no command for that, and you must never edit
