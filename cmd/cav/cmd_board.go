@@ -35,7 +35,7 @@ timed in beats (like the plan table cav guide asks for).
   cav board init [--bpm 120 --fps 60 --seconds 16 --width 1920 --height 1080 --shots 6]
         [--brief brief.json | --no-brief] [-o storyboard.json]
         writes a starting storyboard; edit "what" and "why" for each shot. Values you do not give come
-        from brief.json when it exists (size, fps, length, tempo and title); flags win. It
+        from brief.json when it exists (size, fps, length, tempo and title); flags override those values. It
         prints what it took from the brief.
   cav board frames [storyboard.json] [--service S] [--only s1,s3] [--force]
         makes one frame per shot into board/. With an image key (cav config) it generates
@@ -52,7 +52,7 @@ timed in beats (like the plan table cav guide asks for).
         the clip covers the shot, and a longer shot holds the clip's last frame. Each clip
         costs money, so name the shots or pass --all.
   cav board sheet [storyboard.json] [-o renders/board.png]
-        every frame in one labelled picture. Look at it.
+        combines every frame in one labelled picture. Review the shot order and composition.
   cav board animatic [storyboard.json] [--audio music.wav] [-o renders/animatic.mp4]
         each frame held for its beats (or its clip played), cut on the shot boundaries,
         with the music. Review it with cav review renders/animatic.mp4.

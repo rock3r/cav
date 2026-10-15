@@ -1,6 +1,6 @@
 ---
 name: cavalry
-description: Build professional motion graphics in Cavalry (the 2D motion design app) from the shell with the `cav` CLI - logo stings, kinetic type, lower thirds, charts, UI walkthroughs, transitions, and animations synced to music beats. Use when the user asks to create, animate, edit, inspect or render anything in Cavalry, or mentions .cv scenes.
+description: Build motion graphics in Cavalry (the 2D motion design app) from the shell with the `cav` CLI - logo stings, kinetic type, lower thirds, charts, UI walkthroughs, transitions, and animations synced to music beats. Use when the user asks to create, animate, edit, inspect or render anything in Cavalry, or mentions .cv scenes.
 license: MIT
 compatibility: Needs Cavalry 2.4+ (tested on 2.7.2 and 2.8.0) on macOS or Windows, the `cav` CLI, and ffmpeg. Cavalry must be running with the cav-bridge script open.
 metadata:

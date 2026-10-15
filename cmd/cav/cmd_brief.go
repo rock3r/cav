@@ -58,8 +58,8 @@ one word or a list.
         "Still to fill" and does not fail. Fields cav does not know are kept, with a note.
 
 cav board init and cav scene new take size, fps and length from brief.json when it
-exists; flags win. The brief's refs are the first mood board items: a link stays a link, and
-a file in the project should be recorded with cav ref add. Ask the user to review the brief:
+exists; flags override those values. Use the brief's refs as the first mood board items.
+Keep web references as URLs. Record project files with cav ref add. Ask the user to review the brief:
 cav review brief.json`
 }
 

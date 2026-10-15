@@ -186,12 +186,12 @@ components:
 
 The review page is an animator's exposure sheet. Frames run down ruled rows. Each note is written into the row of the frame it is about. The sheet scrolls with the playhead, so the current frame stays at the reading line. The page refuses the dark editing-suite panel with a rail of rounded comment cards.
 
-The material is printed sheet stock. In light it is white paper; in dark it is ink (#16181f) stock. Graphite hairlines rule the paper, in three weights. A condensed grotesk letters the sheet's heads and numerals, and every frame number and timecode uses tabular figures. One colour, cav orange, marks what is under the eye. The stage stays neutral black in both themes, so the surround never changes a colour judgement.
+Use a white background in light mode and #16181f in dark mode. Separate rows with graphite lines in three weights. Use a condensed sans-serif face for headings and numerals. Use tabular figures for frame numbers and timecodes. Mark the playhead row and its active note or drawing in cav orange. Keep the video stage neutral black in both themes so the surrounding colour stays consistent.
 
 The page is dense and quiet. Chrome is flat and thin, and it serves the frame. Light is the base. Dark applies when the system asks for it, unless the person chose light, or when the person chose dark.
 
 **Key Characteristics:**
-- Ruled rows, not cards. Depth comes from rule weight, not shadow.
+- Separate rows with lines. Use line weight to show hierarchy. Do not use cards or content shadows.
 - One reserved accent (cav orange) for the playhead and what sits on it.
 - A neutral black stage (#0b0c0e) in both themes.
 - An embedded condensed face for the sheet's lettering; the system sans for everything else.

@@ -32,7 +32,7 @@ walkthroughs. Read this with `cav guide design` (recipe 12 shows how to rebuild 
   tutorial) do not need to open on a problem.
 - **One message per section**, and end with a single next step (install, download, visit).
 - **Explain every feature you show.** The viewer has never seen the product: a command or a
-  number with no context means nothing. Explain by showing, not by telling. Keep text on
+  number needs context. Show the action and its result. Keep text on
   screen to a minimum. Write the reason for each shot in the storyboard's `why`; `cav check`
   warns about a shot that has none.
 - **Show things in story order.** Do not call out or focus on a feature before its own
@@ -59,7 +59,7 @@ walkthroughs. Read this with `cav guide design` (recipe 12 shows how to rebuild 
   notifications must look as they do on the real platform.
 - **Use the product's own shapes as the motif.** Build the video's graphics from the
   product's visual language (its bars, rings, cards, indicators), not from generic shapes.
-- **Use realistic fake data that sells the feature**, unless the user says otherwise. Use
+- **Use realistic sample data that shows what the feature does**, unless the user says otherwise. Use
   real provider and product names and believable numbers. Never use lorem ipsum, and never
   use private data.
 
@@ -76,14 +76,13 @@ walkthroughs. Read this with `cav guide design` (recipe 12 shows how to rebuild 
   field). Show the whole screen briefly, zoom to the part that matters, then pull back so
   the viewer stays oriented. Use rig tweens with `inOutCubic`, `cav.zoomThrough`, and a
   blur filter for depth of field.
-- **Few big zooms.** Zoom to the element that matters, not to where the pointer is. Keep
+- **Few big zooms.** Zoom to the element the viewer needs to see. Keep
   fast, dramatic zooms for 2-3 key moments. Zooms and pans also work as transitions between
   scenes.
 - **Use camera holds on purpose.** When the camera stops, use the time to show one element
   or feature, then move the camera again. Keep something alive during a hold (a slow drift,
   a clock that ticks over). `cav check` reports holds over about 2 s where nothing moves.
-  Use 2.5D camera and subject moves for drama, but rarely: not everything needs to fly at
-  the viewer.
+  Use 2.5D camera and subject moves only when depth helps explain the scene.
 - **Let every interaction finish.** A cursor move or a tap must complete its action, and the
   result must stay on screen long enough to register. If you cut away too soon, it reads as
   a glitch. Tween the cursor with `inOutCubic`, `punch` the button, then show the change.
@@ -104,8 +103,8 @@ walkthroughs. Read this with `cav guide design` (recipe 12 shows how to rebuild 
   such as a circular reveal that shows as a small circle a few frames before its animation
   starts. `cav check` does the first look for you: it flags a boundary where the picture
   jumps in one frame. Mark a hard cut on purpose with `"cut": true` on the shot.
-- **One hero at a time, and stagger the rest.** Staggering is almost always good: it gives
-  the motion a direction and points at what matters. Choose the step for the move: 3-4
+- **Emphasize one element at a time.** Stagger the other elements to guide the viewer's
+  attention. Choose the delay for the move: 3-4
   frames for small, quick items, longer for big or slow moves.
 - **Springs on containers, never on values.** Cards and panels may spring and overshoot as
   they enter. Numbers, bars and rings must settle with no overshoot, so the data never
@@ -120,18 +119,17 @@ walkthroughs. Read this with `cav guide design` (recipe 12 shows how to rebuild 
 - **Cut on the beat, from one timing file.** Get the beats with `cav beats`, keep every
   section frame in one `timing.json`, and let every script read it (`cav guide music`).
 - **Shape the music to the story**: a quiet build, a drop on the reveal, a change of texture
-  for each section, and silence just before the big hit. The hits and crescendos belong in
-  the music track, not in added sound effects.
+  for each section, and silence just before the big hit. Use the music track for hits
+  and crescendos.
 - **Use few sound effects, in quiet moments.** Place each one where the music is quiet, so
-  the effects and the music do not fight. Mix them so that the result sounds like one
-  piece; pan them in stereo when it helps.
+  the viewer can hear both. Mix their levels with the music and use stereo panning
+  when it helps locate an action.
 
 ## 7. Timing and formats
 
 - **Give text time to read, then move on.** Hold about 1 second per 3 words, with no text
   under 28-30 px at 1080p. Do not let a line stay after it has been read.
-- **About 60-80 seconds for a launch video.** One study of 100 product videos found a median
-  of about 75 s, with about 8 scene changes a minute.
+- **Choose the length with the user.** Use 60-80 seconds as a starting range for a launch video.
 - **16:9 for YouTube is the default.** Make other formats only when the user asks. At the
   end of production, offer social formats as further work if the user has not asked for
   them: 9:16 and 1:1 (re-lay out the scene, do not just crop it, and keep the key UI in the

@@ -113,8 +113,8 @@ func New(o Options) *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{
 		Name:  "review_notes",
 		Title: "Read review notes",
-		Description: "Read the review notes on a video, brief.json, moodboard.json or storyboard.json, with the frame or item each one is about, its verdict, its text, its drawings and a snapshot image with the drawing. " +
-			"When the person has pressed Send to agent or approved a stage, it returns that send (and says it is approved) and marks it received, as `cav review wait` does. " +
+		Description: "Read review notes on a video, brief.json, moodboard.json or storyboard.json. Each note includes its frame or item, verdict, text, drawings and a snapshot image with the drawing. " +
+			"After the person presses Send to agent or approves a stage, this tool returns that send and its approval state. It marks the send received, as `cav review wait` does. " +
 			"Otherwise it returns every open note. Use it in chats without a shell; with a shell, `cav review wait` works too.",
 	}, h.notes)
 	mcp.AddTool(s, &mcp.Tool{

@@ -199,6 +199,24 @@ found are in [the evaluation](docs/evaluation.md).
 - [Evaluation](docs/evaluation.md): how we measure it, and the results.
 - [Changelog](CHANGELOG.md) and [releasing](RELEASING.md).
 
+## Recovery, diagnostics and signed macOS bundles
+
+`scene open`, `frame`, `sheet`, `render`, `check` and `run` return an operation ID. After a timeout, use
+`cav operation status <id>` and `cav operation resume <id> --timeout 90m` instead of
+retrying the command. `cav check --quick --json` avoids playhead changes, bounds and renders;
+`--profile` adds a small measured frame set. Quick inspection follows referenced pre-comps
+without switching the active comp; findings include their composition paths. Select later
+frames with `--profile-frames 840,1560,1908`. Simulations require chronological PNG warm-up;
+explicitly allow those extra frames with `--max-warmup 2000` and an appropriate timeout. Failures and skipped coverage are explicit.
+A between-sample profile budget limit remains skipped coverage, including when no sample
+finishes; it is not an API failure.
+See [operation recovery](docs/recovery.md) for states, concurrency and remaining limits.
+
+macOS releases preserve a signed, notarized and stapled `Cav.app`; the installer exposes
+its executable on PATH through a symlink. Users of an already-shipped older updater should
+run the current installer once to migrate. Development builds stay credential-free; real
+release builds require signing. See [notarization](docs/NOTARIZATION.md).
+
 ## Development
 
 ```bash
@@ -220,21 +238,3 @@ claude plugin validate . --strict
   The Cavalry docs are not included; `cav docs update` downloads them to your own computer.
 
 Licence: MIT.
-
-## Recovery, diagnostics and signed macOS bundles
-
-`scene open`, `frame`, `sheet`, `render`, `check` and `run` return an operation ID. After a timeout, use
-`cav operation status <id>` and `cav operation resume <id> --timeout 90m` instead of
-retrying the command. `cav check --quick --json` avoids playhead changes, bounds and renders;
-`--profile` adds a small measured frame set. Quick inspection follows referenced pre-comps
-without switching the active comp; findings include their composition paths. Select later
-frames with `--profile-frames 840,1560,1908`. Simulations require chronological PNG warm-up;
-explicitly allow those extra frames with `--max-warmup 2000` and an appropriate timeout. Failures and skipped coverage are explicit.
-A between-sample profile budget limit remains skipped coverage, including when no sample
-finishes; it is not an API failure.
-See [operation recovery](docs/recovery.md) for states, concurrency and remaining limits.
-
-macOS releases preserve a signed, notarized and stapled `Cav.app`; the installer exposes
-its executable on PATH through a symlink. Users of an already-shipped older updater should
-run the current installer once to migrate. Development builds stay credential-free; real
-release builds require signing. See [notarization](docs/NOTARIZATION.md).

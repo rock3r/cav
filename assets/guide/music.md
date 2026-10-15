@@ -34,7 +34,7 @@ With a track, `cav beats` also prints the shape of the music:
 
 ## 2. Look at the track
 
-You cannot hear the music, but you can look at it:
+Use a spectrogram to inspect the track's frequencies and timing:
 
 ```bash
 cav spectrogram music.wav --fps 60                  # renders/spectrogram.png
