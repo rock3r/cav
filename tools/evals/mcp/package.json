@@ -3,6 +3,6 @@
   "name": "cav-eval-mcp",
   "description": "Pins pi-mcp-adapter for the eval harness's cavalry-mcp arm. Install with npm ci in this folder.",
   "dependencies": {
-    "pi-mcp-adapter": "^3.0.0"
+    "pi-mcp-adapter": "^5.3.0"
   }
 }
