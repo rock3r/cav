@@ -82,8 +82,8 @@ Simulations only advance when frames render in order: give a step-1 range for th
 	longHelp["render"] = `
 Renders the active comp through Cavalry's render queue (an operation-specific item),
 checks the frame count with ffprobe, and muxes --audio with ffmpeg (AAC, trimmed to
-the video length). A full render can take minutes: cav reports "still running"
-(exit code 3) after --timeout and continue the complete command with "cav operation resume <id>".
+the video length). A full render can take minutes. After --timeout, cav reports
+"still running" (exit code 3). Continue the operation with "cav operation resume <id>".
 The timeout includes metadata, render, mux and validation. Outputs are staged beside
 the destination and published without overwriting existing files. Staging is retained
 as recovery evidence. A refused bridge or changed session returns exit 4 with an unknown

@@ -25,8 +25,9 @@ func init() {
 cav picks one service per job. Jobs: image, image.alpha (transparent PNG), image.vector
 (SVG), video (moving animatic shots), music, sfx (sound search), ref (reference images),
 ears (critique of a track).
-Each job has an order; cav uses the first service it can use now, so everything works with
-no keys (greybox frames, Openverse, Wikimedia) and gets better as you add keys.
+Each job has a service order; cav uses the first available service.
+Without keys, cav can create greybox frames and search Openverse and Wikimedia.
+Add keys to use services that require authentication.
 
   cav config                        show the order per job and where each key lives
   cav config check [service...] [--live [--yes]]

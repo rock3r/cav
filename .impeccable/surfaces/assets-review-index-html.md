@@ -21,7 +21,7 @@ STORY: The designer sees the frame big, sees where every note sits in time on th
 
 FIRST VIEWPORT: Stage owns the left, black, at the video's aspect, with a thin transport bar and ruled timeline under it. To its right, the sheet: header row (FRAME, TC, NOTE), then a window of frame rows centred on the playhead, notes written in their rows with snapshot thumbs, open rows in ink, resolved in graphite. Composer sits as the playhead row of the sheet itself. Send to agent anchors the sheet's foot. Under 760px wide the sheet drops below the stage.
 
-FORM: Exposure Sheet, position 1 on my ordered list (chosen as the pick over the roll), seed key 43a13dfc.
+FORM: Exposure Sheet.
 
 SIGNATURE INTERACTION: the sheet rides the playhead: as frames step, the ruled rows scroll so the current frame row stays at the reading line, flagged in orange.
 

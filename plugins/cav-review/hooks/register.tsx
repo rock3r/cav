@@ -40,8 +40,8 @@ function summarize(x: Export): ReviewSummary {
 function wakePrompt(s: ReviewSummary): string {
   return (
     `The reviewer pressed "Send to agent" in cav review: ${s.pending?.notes ?? 0} note(s) on ${s.video}. ` +
-    `Run \`cav review wait ${s.video} --timeout 10s\` to read them (it prints each note's frame, text, drawing and snapshot path, ` +
-    `and marks the send received), look at each snapshot, fix the notes, re-render to the same file, then resolve each with ` +
+    `Run \`cav review wait ${s.video} --timeout 10s\` to read them. It prints each note's frame, text, drawing and snapshot path. ` +
+    `It also marks the send received. Look at each snapshot and address the feedback. Re-render to the same file. Resolve each note with ` +
     `\`cav review resolve <id> --note "what changed"\`.`
   )
 }

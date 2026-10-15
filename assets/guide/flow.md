@@ -44,7 +44,7 @@ before a render, and render with `cav render`.
 
 ## 3. Stage 1: the brief
 
-Work like an agency creative director. Do not start with the tools.
+Agree on the goal, audience and format before choosing tools.
 
 - Ask a few questions at a time, not all at once: goal, audience, tone, length, format,
   deliverables, music.
@@ -83,8 +83,8 @@ and `renders/moodboard.png`. Look at the picture. A clip is shown there as a con
 of six frames, and a web video as its thumbnail. cav keeps each item's id and take line when
 files come and go.
 
-**A reference teaches. It is not a template.** For each reference, write down what you take
-from it: the essence. This can be a colour relationship, a rhythm, a type mood or a kind of
+For each reference, write down the specific visual or timing detail to use.
+This can be a colour relationship, a rhythm, a type style or a kind of
 motion. Never copy a layout, a frame, a character or a sequence. The one exception is a user
 who asks for a copy directly.
 

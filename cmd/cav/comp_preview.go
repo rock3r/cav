@@ -42,7 +42,7 @@ func init() {
 Keep every Nth requested frame with --keep-every (default 1), up to 1000 retained PNGs.
 --max-evaluated bounds total evaluations (default 10000; maximum 100000).
 Requests are sorted/deduplicated. Unretained frames use one reusable warm-up PNG.
---comp accepts an ID or unique name. Composition and playhead restore in native finally.
+--comp accepts an ID or unique name. The native finally block restores the composition and playhead.
 The command is an operation: after timeout, resume its ID rather than retrying.`
 	register(command{name: "frames", args: "<start-end> [--keep-every N] [--comp ID|name] [--max-evaluated 10000] [-o dir]",
 		summary: "Preview simulations chronologically, retaining only selected PNG frames.", run: func(a *app, args []string) error {

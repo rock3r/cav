@@ -47,7 +47,7 @@ func init() {
 		run:     cmdSpectrogram,
 	})
 	longHelp["spectrogram"] = `
-You cannot hear a track, but you can look at it. This draws one image with all lanes on
+Draws the track's frequency, loudness and onset data in one image. All lanes share
 one time axis (seconds and frames at --fps):
   top     spectrogram: low notes at the bottom, high at the top, brighter = louder.
           White lines are bars (numbered above), short ticks are beats, yellow lines
@@ -78,12 +78,12 @@ the moments where the picture changes sharply with the beats:
 Each visual hit is reported with its distance in frames to the nearest beat (minus =
 early). Hits within a tolerance (about 35 ms) of a beat or half beat are on the grid.
 It also lists the strong musical moments (section starts, sudden rises, silences and
-the strongest kicks and stabs) that no visual hit answers.
+the strongest kicks and stabs) with no matching visual hit.
 The picture is the cav spectrogram view with one more lane, "pic": how much the picture
 changes per frame. Hits are marked green on the beat grid and red off it.
 A cut or flash should be on the beat. A pop or slam should peak on it (the move starts
-earlier). A move that lands on the beat shows as a stop on it. Treat the report as
-evidence, not a verdict: the grid itself can be a frame or two off on long tracks.`
+earlier). A move that lands on the beat shows as a stop on it. Review the reported
+offsets: the grid itself can be a frame or two off on long tracks.`
 }
 
 type beatGrid struct {

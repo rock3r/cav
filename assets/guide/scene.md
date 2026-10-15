@@ -31,8 +31,8 @@ If it reports `blocked: a sandbox`, your sandbox stops `cav`: show the user the 
    list, `--bpm 120` to see beat numbers. For one move (an entrance, a transition, a
    stagger), `cav onion 0-60` draws 8 frames on top of each other: the ghosts show the
    path, the spacing of the ease and any overshoot, and it reports holds and jumps.
-5. **Fix numbers, not guesses**: `cav tree` (ids and structure), `cav layer <id>` (position,
-   bounding box, keys).
+5. **Inspect values before changing them**: use `cav tree` for ids and structure, and
+   `cav layer <id>` for position, bounding box and keys.
 6. **Check**: start with `cav check --quick --json` for structural performance warnings.
    `cav check` adds bounded visual checks; `--profile` optionally measures a small frame set.
    It also compares the frames around each section boundary (a "seam" finding is a pop-in,
@@ -42,7 +42,8 @@ If it reports `blocked: a sandbox`, your sandbox stops `cav`: show the user the 
    so set `--max-warmup` explicitly when more than 600 extra frames are needed.
    Read warm-up time separately from sample time; repeat before claiming a speedup.
    Read failures and skipped coverage, and use a sheet to review blank starts/ends. Fix
-   each finding or explain why it is intended. Warnings describe risk, not measured blame.
+   each finding or explain why it is intended. Structural warnings identify possible risks.
+   Use profiling to measure their effect.
 7. **Save**: `cav scene save scenes/<name>.cv`.
 8. **Render**: `cav render -o renders/final.mp4 [--audio music.wav]`. Check the frame count
    it prints. Use the printed operation ID for waiting; do not replace it with a file-growth
@@ -93,7 +94,7 @@ Rules that keep scripts working:
   Use `cav operation status <id>` and `cav operation resume <id>`. Do not retry the
   original command. Raw `cav job wait <job-id>` finishes only one job, including metadata.
 
-## 4. Make it look professional
+## 4. Motion and layout
 
 Read `cav guide design` before a creative task. The short version:
 
@@ -103,13 +104,13 @@ Read `cav guide design` before a creative task. The short version:
   `cav.cascade`).
 - **Anticipation and overshoot**: wind up before a big move (`inBack`), land with a small
   overshoot (`outBack`, `spring`).
-- **Hierarchy**: one hero element at a time. Big headline, small kicker, lots of empty space.
+- **Hierarchy**: emphasize one element at a time. Use a large headline, a smaller label and empty space.
   Keep all text inside 90 % of the frame, including text in buttons and pills (make the pill
   wider than its text).
 - **Readable sizes at 1080p**: headlines 100-180 px, names 56-72 px, labels 30-40 px, nothing
   under 28 px. Secondary text in light grey (`#c3cad8`) on dark, never mid grey.
-- **Keep it moving**: during a hold, something large still moves a little (a slow drift, a
-  gentle scale breathe, `cav.oscillate`/`cav.wiggle`, staggered accents). Only the text stays
+- **Keep it moving**: during a hold, move a large element slightly (a slow position or scale
+  change, `cav.oscillate`/`cav.wiggle`, staggered accents). Only the text stays
   still enough to read. Every card, word and panel gets an entrance, not just a cut.
 - **Start fast**: something clearly visible within the first half second.
 - **Use the whole length**: end on a finished frame, not on seconds of empty screen.
