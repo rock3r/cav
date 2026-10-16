@@ -1,14 +1,13 @@
 # Releasing
 
-One version number covers the CLI, the plugin, the bridge script and the helper library:
-`vMAJOR.MINOR.PATCH` (semantic versioning). `tools/check-versions.sh` sets and checks it in
-every file, and a packaging test fails when the files disagree.
+The CLI, plugin, bridge script and helper library share one semantic version:
+`vMAJOR.MINOR.PATCH`. `tools/check-versions.sh` sets and checks it across files.
+A packaging test fails when versions differ.
 
-Compatibility between `cav` and a running bridge is a separate number: the protocol
-(`Protocol` in `internal/bridge/client.go`, `PROTOCOL` in `cav-bridge.js`). Change both only
-when the request or result format changes. A bridge refuses requests with another protocol,
-and `cav doctor` fails on a mismatch. When only the version differs, an older bridge keeps
-working, and `cav doctor` suggests a restart.
+The bridge protocol has a separate number: `Protocol` in `internal/bridge/client.go`
+and `PROTOCOL` in `cav-bridge.js`. Change both when request or result formats change.
+A bridge refuses another protocol, and `cav doctor` reports the mismatch as a failure.
+An older bridge with the same protocol keeps working; `cav doctor` suggests restarting it.
 
 | What changed | Bump |
 |---|---|
@@ -19,9 +18,9 @@ working, and `cav doctor` suggests a restart.
 
 ## Steps
 
-A release needs no Apple credentials on your machine. GitHub Actions builds and notarizes
-the archives with the repository secrets. Only the maintainer, or someone the maintainer
-asks, publishes a release. The examples use version `1.4.0`.
+GitHub Actions uses repository secrets to build and notarize release archives. The local
+machine needs no Apple credentials. The maintainer or a person they authorize publishes
+the release. These examples use version `1.4.0`.
 
 ### 1. Merge a release pull request
 
@@ -41,28 +40,28 @@ On a branch from `main`:
 
 ### 2. Build the signed archives in CI
 
-Start the notarize workflow on that commit. Pass the full 40-character SHA from
-`git rev-parse`. Do not type or shorten it: a wrong SHA fails with `not our ref`.
+Start the notarize workflow at the merge commit. Pass the full 40-character SHA from
+`git rev-parse`. A mistyped or shortened SHA can fail with `not our ref`.
 
 ```bash
 gh workflow run notarize-macos.yml -f version=1.4.0 -f ref=<full SHA>
 gh run watch <run id> --exit-status
 ```
 
-The workflow runs `tools/ci-macos-release.sh`, which runs `tools/release.sh`. It uploads
+The workflow runs `tools/ci-macos-release.sh`, then `tools/release.sh`. It uploads
 `dist/` as the `release-artifacts` artifact for seven days:
 
 - one archive per platform: `cav_<os>_<arch>.tar.gz` or `.zip`;
 - `checksums.txt`;
 - `install.sh` and `install.ps1`.
 
-The macOS archives hold the full signed, notarized and stapled `Cav.app`. The workflow
-never tags or publishes.
+macOS archives contain the full signed, notarized and stapled `Cav.app`. The workflow
+does not create a tag or publish a release.
 
-On a macOS host that has the Apple configuration, `tools/release.sh v1.4.0` builds the same
-`dist/` locally. Without credentials it fails before it changes anything. For test builds
-without credentials, use `tools/release.sh v<current-version> --dev`. Never publish a
-`--dev` build.
+On a configured macOS host, `tools/release.sh v1.4.0` can build the same `dist/` locally.
+Without credentials, it stops before making changes. Use
+`tools/release.sh v<current-version> --dev` for development archives without credentials.
+Do not publish a `--dev` build.
 
 ### 3. Check the archives
 
@@ -75,15 +74,15 @@ tools/verify-macos-bundle.sh <empty folder>/cav_darwin_arm64.tar.gz 1.4.0
 tools/verify-macos-bundle.sh <empty folder>/cav_darwin_amd64.tar.gz 1.4.0
 ```
 
-`verify-macos-bundle.sh` must end with `accepted` and `source=Notarized Developer ID` for
-both macOS archives. Also extract the archive for your machine and run `cav version`. It
-must print the new version.
+For both macOS archives, `verify-macos-bundle.sh` must report `accepted` and
+`source=Notarized Developer ID`. Extract the archive for the current machine and run
+`cav version`. Confirm that it prints the new version.
 
 ### 4. Run the live tests in Cavalry
 
-Use a cav built from the release commit, with Cavalry open and the bridge running
-(`cav doctor` says `ready`). `cav scene new --force` replaces the open scene, so first
-check with `cav scene info` that it holds nothing you need.
+Use a cav build from the release commit. Open Cavalry and start the bridge; `cav doctor`
+must report `ready`. Before `cav scene new --force`, use `cav scene info` to check that
+the open scene contains no work that needs preserving.
 
 ```bash
 cav setup                                   # installs the new bridge script
@@ -96,14 +95,14 @@ cav run assets/helpers/test/live-native.js  # expect "fail": 0
 `live.js` warns once that the font "Definitely Not A Font" is not installed. That warning
 is expected: a check uses a missing font on purpose.
 
-Then run the command smoke with the same cav. It runs every command once in a new scratch
-scene and a temporary folder, and fails when `cav help` lists a command it does not run:
+Run the command smoke with that cav. It runs commands in a scratch scene and temporary
+folder. It fails if `cav help` lists a command that the smoke did not run:
 
 ```bash
 tools/release-smoke.sh <path to cav>        # expect "0 failed"
 ```
 
-It starts its scene without `--force`, so save or close the open scene first. Install
+The smoke starts its scene without `--force`, so save or close the open scene first. Install
 potrace (`brew install potrace`) so it also covers `cav gen vector`; without a tracer that
 step is skipped. With uv installed it also runs `cav gen cutout` with rembg; its first run
 downloads the BiRefNet model (about 1 GB). It reads no
@@ -115,9 +114,8 @@ service again (for example `--keyed=freesound`).
 
 ### 5. Tag and publish
 
-Write the release notes from the version's section of `CHANGELOG.md`, without the heading.
-The changelog keeps the full detail. The release notes are for users, so rewrite them
-short (see [Release notes](#release-notes) below).
+Use the version's `CHANGELOG.md` section as the source for release notes. Remove its
+heading and shorten the text for users. See [Release notes](#release-notes).
 Then tag the merge commit and publish the archives from step 3:
 
 ```bash
@@ -127,63 +125,58 @@ gh release create v1.4.0 --title v1.4.0 --notes-file <notes file> --verify-tag \
   cav_windows_amd64.zip cav_windows_arm64.zip checksums.txt install.ps1 install.sh
 ```
 
-When the release is published, the `codex-plugin-zip.yml` workflow attaches
+After publication, `codex-plugin-zip.yml` attaches
 `cav-codex-plugin-1.4.0.zip` to it. Check that the release then lists the zip.
 
 ### 6. Plugin marketplaces
 
-The Claude Code plugin updates by itself from the version in
+The Claude Code plugin reads its update version from
 `plugins/cavalry/.claude-plugin/plugin.json`.
 
-For the OpenAI plugin marketplace, download `cav-codex-plugin-1.4.0.zip` from the release
-page and upload it. Do not upload while an earlier version is still waiting for review:
-a new upload loses its place in the review queue. Upload the newest version when that
-review is done.
+For the OpenAI plugin marketplace, download `cav-codex-plugin-1.4.0.zip` from the
+release and upload it. Wait for an earlier submission's review to finish first. A new
+upload loses its place in the review queue.
 
-To build the zip locally, `tools/package-codex-plugin.sh v1.4.0` zips the plugin folder at
-that tag into `build/cav-codex-plugin-1.4.0.zip`. The workflow and the script both fail
-when the tag and the plugin version differ.
+`tools/package-codex-plugin.sh v1.4.0` builds the zip locally from the plugin folder
+at that tag. It writes `build/cav-codex-plugin-1.4.0.zip`. The workflow and script fail
+if the tag and plugin version differ.
 
 ### 7. Update your own install
 
-Run `cav update`. An install that `cav update` cannot handle can use the release's
-installer instead: `CAV_VERSION=v1.4.0 sh install.sh`. An example is a bare executable
-from an old version or a local build. The installer checks the archive and installs the
-full `Cav.app`.
+Run `cav update` for a managed install. For an old bare executable or local build,
+use the release installer with `CAV_VERSION=v1.4.0 sh install.sh`. The installer checks
+the archive and installs the full `Cav.app`.
 
-`cav update` and the install scripts download from the latest GitHub release and check each
-archive against `checksums.txt`. The plugin updates through the marketplace, which reads the
-`version` in `plugins/cavalry/.claude-plugin/plugin.json`: bump it on every release, or users
-never see the update.
+`cav update` and installers download the latest GitHub release and check archives against
+`checksums.txt`. Plugin marketplaces read `version` in
+`plugins/cavalry/.claude-plugin/plugin.json`. Update that field for every release so
+users receive the new plugin.
 
-See [macOS notarization](docs/NOTARIZATION.md) for the seven repository secrets, temporary
-keychain/API-key cleanup, final extracted-artifact verification and the artifact-only
-`notarize-macos.yml` smoke. The reusable workflow requires a commit reachable from the
-default branch and matching manifest version before privileged work. It never publishes.
-Checksums follow every signing/stapling/archive mutation. Development archives are not
-signed release artifacts. Already-shipped old macOS updater binaries require migration
-through the current installer so that the full bundle survives.
+See [macOS notarization](docs/NOTARIZATION.md) for the seven secrets, temporary key and
+keychain cleanup, extracted-archive checks and the artifact-only workflow. The reusable
+workflow checks that the commit is reachable from the default branch and the manifest
+version matches before privileged work. It does not publish. Compute checksums after
+signing, stapling and archiving. Development archives are not signed release artifacts.
+Older shipped macOS updaters need the current installer to migrate to full bundles.
 
-The optional bridgeSession field and completed-ID deduplication retain protocol-1 request
-and result compatibility. They add capability for new bridges while the operation ledger
-also works with older running protocol-1 bridges. No tag or release is created by builds.
+The optional bridgeSession field and completed-ID deduplication keep protocol-1 request
+and result compatibility. New bridges gain those features. The operation ledger also
+works with older running protocol-1 bridges. Builds do not create tags or releases.
 
 ## Release notes
 
-Write release notes for the people who use cav, not for the people who build it.
+Write release notes for cav users.
 
-- Start with one line that says what the release gives the user.
+- Start with one line about what users can do with the release.
 - Then add short `## What's new` and `## Fixes` sections. Leave out a section that is empty.
   A small patch release can be one line and two or three bullets.
-- Each bullet says what the user can do now, or what problem is gone. Do not explain how it
-  works inside.
-- Use plain, simple English for readers who are not native speakers: short sentences,
-  common words, no idioms or slang.
-- Be concise. Keep the long detail in `CHANGELOG.md`.
+- State a new user action or fixed problem in each bullet. Leave implementation detail
+  in the changelog.
+- Use short sentences and common English words. Avoid idioms and slang.
+- Keep detailed changes in `CHANGELOG.md`.
 - Keep upgrade steps (for example `cav setup`, reopen **Scripts > cav-bridge**) when the
   user must do something.
-- Add an image only when it really helps, for example a new visual feature. Use output
-  from real runs, and upload images as release assets.
-- Never put spaces around a slash: write `a/b`, not `a / b`.
-- Describe only what shipped. No history, no plans, no non-goals.
-
+- Add images for visual changes when they help users understand the release. Use output
+  from real runs and upload the images as release assets.
+- Never put spaces around a slash. Write `a/b`; reject `a / b`.
+- Describe shipped behavior. Leave out history, plans and unrelated scope notes.

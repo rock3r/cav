@@ -1,60 +1,56 @@
 # Making motion graphics with cav
 
-You drive a running Cavalry app with `cav`. Your JavaScript runs inside Cavalry. You cannot
-see the viewport: render frames and look at them to know what you made.
+`cav` runs JavaScript inside an open Cavalry app. Render frames and inspect them to see
+the result. The CLI cannot show the Cavalry viewport.
 
-Other guides: `cav guide design` (motion recipes), `cav guide music` (beat sync),
-`cav guide traps` (silent failures), `cav guide native` (duplicators, filters, 3D, particles),
-`cav guide flow` (the stages before the build: brief, mood board, storyboard, animatic),
-`cav guide production` (storyboards, assets, music, licences, and review with the user),
-`cav guide ui-showcase` (software videos: launch videos, product demos, UI walkthroughs).
+Read `cav guide design` for motion recipes and `cav guide music` for beat timing.
+`cav guide traps` covers silent failures. `cav guide native` covers duplicators, filters,
+3D and particles. `cav guide flow` lists the planning stages. `cav guide production`
+covers assets, licences and review. `cav guide ui-showcase` covers software videos.
 
 ## 1. Check the setup
 
 Run `cav doctor`. If it reports `FAIL bridge`, ask the user to open Cavalry and click
-**Scripts > cav-bridge**, and keep its window open. Do not try other ways to reach Cavalry.
-If it reports `blocked: a sandbox`, your sandbox stops `cav`: show the user the fix it prints.
+**Scripts > cav-bridge**. The bridge window must stay open. Use this bridge to reach Cavalry.
+If it reports `blocked: a sandbox`, show the user the printed fix.
 
 ## 2. The build loop (follow it in order)
 
-1. **Plan first.** Write the timeline as a table: time (s), frame, what happens. With music,
-   plan in beats. Pick 2-4 colours and 1-2 fonts. For a longer piece, do the stages before
-   the build first (brief, mood board, storyboard, animatic) and let the user review them:
-   read `cav guide flow`.
+1. **Plan the piece.** Make a table with time in seconds, frame number and action. Plan
+   in beats when the piece has music. Choose 2-4 colours and 1-2 fonts. For longer work,
+   complete and review the brief, mood board, storyboard and animatic first. Read `cav guide flow`.
 2. **Start a new scene**: `cav scene new --width 1920 --height 1080 --fps 60 --seconds 8 --bg '#0b0d12'`.
-   It refuses when the open scene has unsaved changes. Never use `--force` on the user's own
-   work: ask first.
-3. **Write the build as script files** (for example `build/01_title.js`), one section per
-   file, and run them with `cav run build/01_title.js`. Files can be fixed and run again.
-4. **Review after every file**: `cav sheet` renders 12 frames into `renders/sheet.png`. Open
-   the image and look at it. `cav sheet 0-240:20` for a range, `cav sheet 30,60,90` for a
-   list, `--bpm 120` to see beat numbers. For one move (an entrance, a transition, a
-   stagger), `cav onion 0-60` draws 8 frames on top of each other: the ghosts show the
-   path, the spacing of the ease and any overshoot, and it reports holds and jumps.
-5. **Inspect values before changing them**: use `cav tree` for ids and structure, and
+   This command refuses to replace unsaved work. Ask before using `--force` on the user's scene.
+3. **Write script files** such as `build/01_title.js`, with one section per file. Run each
+   file with `cav run build/01_title.js`. Edit and run it again when needed.
+4. **Inspect every change.** `cav sheet` saves 12 frames to `renders/sheet.png`. Open the
+   image. Use `cav sheet 0-240:20` for a range or `cav sheet 30,60,90` for chosen frames.
+   Add `--bpm 120` to label beats. `cav onion 0-60` combines 8 frames of one move.
+   It shows the path, easing and overshoot, and reports holds and jumps.
+5. **Inspect values before editing.** Use `cav tree` for IDs and structure. Use
    `cav layer <id>` for position, bounding box and keys.
 6. **Check**: start with `cav check --quick --json` for structural performance warnings.
    `cav check` adds bounded visual checks; `--profile` optionally measures a small frame set.
-   It also compares the frames around each section boundary (a "seam" finding is a pop-in,
-   flash or jump; look at its Before and After images). `--quick` skips this.
+   It also compares frames at section boundaries. A "seam" finding can show a sudden
+   appearance, flash or jump. Inspect its Before and After images. `--quick` skips this.
    Quick metadata includes referenced pre-comps. For later slow regions, select
    `--profile-frames F,...`; simulations render intervening frames from the comp start,
    so set `--max-warmup` explicitly when more than 600 extra frames are needed.
-   Read warm-up time separately from sample time; repeat before claiming a speedup.
-   Read failures and skipped coverage, and use a sheet to review blank starts/ends. Fix
-   each finding or explain why it is intended. Structural warnings identify possible risks.
-   Use profiling to measure their effect.
+   Read warm-up time separately from sample time. Repeat measurements before claiming a
+   speedup. Inspect failures and skipped checks. Use a sheet to check blank starts and ends.
+   Fix each finding or explain its purpose. Structural warnings describe risks; profiling
+   measures their effect.
 7. **Save**: `cav scene save scenes/<name>.cv`.
-8. **Render**: `cav render -o renders/final.mp4 [--audio music.wav]`. Check the frame count
-   it prints. Use the printed operation ID for waiting; do not replace it with a file-growth
-   loop. A refused bridge or changed session returns exit 4: stop, inspect, and preserve
-   partial output. File size/age does not establish completion or explain an app exit.
+8. **Render** with `cav render -o renders/final.mp4 [--audio music.wav]`. Check its reported
+   frame count. Wait on the printed operation ID. If the bridge refuses or the session
+   changes, exit 4 requires inspection and preservation of partial output. File size and
+   age cannot establish completion or explain why Cavalry exited.
 
 ## 3. Writing scripts
 
-The helper library is the global `cav` in every `cav run`. `cav helpers` prints its
-reference; `cav helpers <word>` prints one part. Prefer helpers to raw `api.*` calls: they
-avoid the traps in `cav guide traps` and give clear errors.
+Every `cav run` loads the global `cav` helper library. `cav helpers` prints its reference,
+and `cav helpers <word>` prints a matching part. Use helpers where possible. They handle
+the failures in `cav guide traps` and report clear errors.
 
 ```js
 // build/01_title.js: a title that drops in on the beat, then leaves.
@@ -72,9 +68,9 @@ cav.fadeOut(bar, beat.beat(7), 12)
 return { title: title, bar: bar }
 ```
 
-Rules that keep scripts working:
+Follow these script rules:
 
-- (0, 0) is the **centre** of the comp, and **+y is up**. The top edge is `c.top`, not 0.
+- (0, 0) is the **centre** of the comp, and **+y is up**. The top edge has coordinate `c.top`.
 - Frames are whole numbers. Scale is a multiplier (1 = 100 %). Opacity is 0-100. Rotation is
   in degrees.
 - Keys: `cav.key(layer, 'position', [[0, [x, y], 'outExpo'], [30, [x2, y2]]])`. The ease on a
@@ -90,17 +86,17 @@ Rules that keep scripts working:
   up with `cav.find('name')`.
 - Look up API names with `cav api <word>` and node attributes with `cav docs <node name>` and
   `cav layer <id> --attrs`. Do not guess attribute names.
-- A long build is not a failure: if `cav run` exits with code 3, its native outcome is pending or unknown.
+- If `cav run` exits with code 3, its native outcome is pending or unknown.
   Use `cav operation status <id>` and `cav operation resume <id>`. Do not retry the
   original command. Raw `cav job wait <job-id>` finishes only one job, including metadata.
 
 ## 4. Motion and layout
 
-Read `cav guide design` before a creative task. The short version:
+Read `cav guide design` before designing motion. Use these rules while building:
 
-- **Every move has an ease.** Entrances `outExpo`/`outBack`, exits `inBack`/`inCubic`, loops
-  `inOut`. Linear only for constant drifts.
-- **Overlap and stagger**: elements arrive 2-6 frames apart, not all at once (`cav.stagger`,
+- **Set an ease for each move.** Use `outExpo`/`outBack` for entrances,
+  `inBack`/`inCubic` for exits and `inOut` for loops. Use linear motion for constant drifts.
+- **Overlap and stagger**: space element arrivals 2-6 frames apart (`cav.stagger`,
   `cav.cascade`).
 - **Anticipation and overshoot**: wind up before a big move (`inBack`), land with a small
   overshoot (`outBack`, `spring`).
@@ -109,11 +105,11 @@ Read `cav guide design` before a creative task. The short version:
   wider than its text).
 - **Readable sizes at 1080p**: headlines 100-180 px, names 56-72 px, labels 30-40 px, nothing
   under 28 px. Secondary text in light grey (`#c3cad8`) on dark, never mid grey.
-- **Keep it moving**: during a hold, move a large element slightly (a slow position or scale
-  change, `cav.oscillate`/`cav.wiggle`, staggered accents). Only the text stays
-  still enough to read. Every card, word and panel gets an entrance, not just a cut.
-- **Start fast**: something clearly visible within the first half second.
-- **Use the whole length**: end on a finished frame, not on seconds of empty screen.
+- **Add motion during holds.** Move a large element slightly with position, scale,
+  `cav.oscillate` or `cav.wiggle`. Keep text still enough to read. Give each card, word
+  and panel an entrance.
+- **Show content early.** Place a clear visual within the first half second.
+- **Finish the piece.** End on a complete frame without trailing empty seconds.
 - **Timing at 60 fps**: small moves 12-20 frames, big moves 20-40, holds long enough to read
   (about 1 s per 3 words).
 - **Impacts**: `cav.flash`, `cav.ring`, `cav.burst`, `cav.shake` on a top-level rig group, all
@@ -133,29 +129,31 @@ Details: `cav guide music`.
 
 - `cav sheet` reviewed after the last change: nothing missing, clipped, overlapping by
   mistake, or off-screen.
-- `cav check` shows no finding that you have not fixed or explained.
+- Every `cav check` finding has been fixed or explained.
 - Every moving element has an ease; hits land on beat frames when there is music.
-- For a 9:16 or 1:1 version, make it with `cav scene reframe --to 9:16` (it leaves the
-  original comp as it is), then fix what it lists and look at it with `cav sheet --comp`.
+- For a 9:16 or 1:1 version, run `cav scene reframe --to 9:16`.
+  It leaves the original comp unchanged. Fix the listed issues and inspect it with `cav sheet --comp`.
 - Scene saved with `cav scene save`; final MP4 rendered with `cav render`, and the frame
   count matches.
-- Tell the user the file paths, and what you could not check (for example, you cannot hear
-  the music; `cav listen` measures what it can).
+- Tell the user the file paths and any checks left incomplete (for example, audio that
+  could not be heard; `cav listen` measures what it can).
 - Offer a review: `cav review renders/final.mp4` in the background, then
   `cav review wait` for the user's notes.
 
 ## Operation recovery
 
 `render`, `check` and `run` record their phases and job IDs before submission. A render's
---timeout includes metadata, native rendering, postprocessing and validation. Status does
-not queue scene work. If the outcome is unknown, inspect the same operation; never stack
-retries. Resume preserves completed work and refuses to overwrite an existing final file.
-The updated bridge detects changed sessions; older bridges require you to confirm that the
+`--timeout` covers metadata, native rendering, postprocessing and validation. Status does
+not queue scene work. Inspect an unknown outcome through its existing operation ID.
+Resume keeps completed work and refuses to overwrite an existing final file.
+The updated bridge detects changed sessions; older bridges require confirmation that the
 original scene/session is still active. Keep inputs and the CLI build unchanged while
 recovering. Native calls cannot be interrupted by a heartbeat or CLI timeout.
 
-Scene opening, frame export and sheets also return operation IDs. Set `scene open
---timeout 15m` for large scenes. An open call returning can precede native scene readiness;
-resume the operation instead of opening twice. Frame/sheet jobs restore the playhead on
-recoverable errors and retain staging for recovery. Preserve the scene, inputs and CLI
-build until completion; do not retry an export while its native job is unresolved.
+Scene opening, frame export and sheets also return operation IDs. Use
+`scene open --timeout 15m` for large scenes. The native scene can remain unready after
+an open call returns. Resume that operation; opening the scene twice can conflict with
+the first call. Frame and sheet jobs restore the playhead after recoverable errors and
+retain staged output.
+Keep the scene, inputs and CLI build unchanged until completion. Wait for an unresolved
+native export before submitting another one.

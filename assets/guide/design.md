@@ -1,7 +1,7 @@
 # Motion recipes
 
-Each recipe is a working pattern built on the `cav` helpers. Copy it into a script file, change
-the numbers, run it with `cav run`, and check it with `cav sheet`. Frames assume 60 fps.
+These recipes use the `cav` helpers. Copy a recipe into a script file and adjust its values.
+Run the file with `cav run`, then inspect the result with `cav sheet`. Timing assumes 60 fps.
 
 ## Contents
 1. Design basics (colour, type, layout, timing)
@@ -20,25 +20,26 @@ the numbers, run it with `cav run`, and check it with `cav sheet`. Frames assume
 
 ## 1. Design basics
 
-- **Palette**: one dark background, one light text colour, one or two accents. Examples:
+- **Choose a palette.** Use one dark background, one light text colour and one or two accents. Examples:
   `#0b0d12 / #f5f7fa / #ff4d2e`, `#101820 / #fefae0 / #2ec4b6 / #ffbf69`, `#1b1033 / #ffffff / #7b5cff / #36f1cd`.
-- **Type**: one bold display font for headlines (`Inter` Black/Bold), one mono or regular font for
-  small labels. Headlines 100-180 px at 1080p; names 56-72 px; labels 30-40 px. **Nothing under
-  28 px at 1080p**: it is unreadable on a phone. Secondary text needs contrast too: light grey
-  (`#c3cad8`) on dark, not mid grey. Letter spacing 0 to -2 for big
-  bold words; +4 to +10 for small upper-case kickers.
-- **Layout**: keep text inside the middle 90 % (title safe). Align things to a few shared x/y lines.
-  One focal point at a time.
-- **Timing at 60 fps**: small UI moves 10-18 frames; big moves 20-40 frames; stagger steps 2-6
-  frames; hold readable text at least 60 frames (about 1 s per 3 words).
-- **Easing**: entrances `outExpo`, `outQuint` or `outBack`; exits `inBack` or `inCubic`;
-  moves between two rests `inOutCubic`; springy landings `spring`.
+- **Set type sizes.** Use one bold display font for headlines (`Inter` Black/Bold) and one
+  mono or regular font for small labels. At 1080p, set headlines to 100-180 px, names to
+  56-72 px and labels to 30-40 px. **Keep all text at least 28 px at 1080p** for phone
+  readability. Use light grey (`#c3cad8`) for secondary text on dark backgrounds.
+  Set letter spacing from 0 to -2 for large bold words and +4 to +10 for small uppercase labels.
+- **Place content.** Keep text inside the middle 90 % of the frame. Align elements to a
+  few shared x and y lines. Give the viewer one main element at a time.
+- **Set timing at 60 fps.** Give small UI moves 10-18 frames and large moves 20-40 frames.
+  Stagger elements by 2-6 frames. Hold readable text for at least 60 frames, or about
+  one second per three words.
+- **Choose easing.** Use `outExpo`, `outQuint` or `outBack` for entrances; `inBack` or
+  `inCubic` for exits; `inOutCubic` between rests; and `spring` for spring landings.
 
 ## 2. Scene structure
 
-Build each section in its own group with in/out frames. Put everything under one top-level `rig`
-group so camera shake and zooms move the whole picture. `cav scene reframe` also fits the group
-named `rig` into the middle half of a 9:16 or 1:1 copy, so keep the UI that must stay readable in it.
+Build each section in a group with its own in and out frames. Put scene content under
+the top-level `rig` group so shake and zoom affect it together. `cav scene reframe`
+fits `rig` into the middle half of a 9:16 or 1:1 copy. Keep essential UI inside `rig`.
 
 ```js
 var c = cav.comp(), b = cav.beats(120)
@@ -49,7 +50,7 @@ cav.plane('bg', '#0b0d12')              // background outside the rig so shake d
 cav.order(cav.find('bg'), rig)          // bg below the rig
 ```
 
-Look up a group in a later script with `cav.find('s1_intro')`.
+Later scripts can find this group with `cav.find('s1_intro')`.
 
 ## 3. Entrances, exits, anticipation, overshoot
 
@@ -64,14 +65,14 @@ cav.key(ball, 'scale', [[40, [1, 1], 'outQuad'], [48, [1.2, 0.8], 'inOutCubic'],
 
 ## 4. Kinetic type
 
-Letters one by one (one layer per glyph, measured with real kerning):
+Use one layer per glyph for individual letter motion. `cav.glyphs` measures the font's kerning:
 
 ```js
 var word = cav.glyphs('headline', 'MOTION', 160, { font: 'Inter', style: 'Black', color: '#f5f7fa', parent: s1 })
 cav.cascade(word, 20, { step: 3, dy: -120, dur: 22, ease: 'outBack', rotate: -12 })
 ```
 
-Word swap on the beat (slot machine): stack words in a masked group, move the column.
+For a beat-timed word change, stack words in a masked group and move the column.
 
 ```js
 var words = ['FAST', 'CLEAR', 'YOURS'], col = cav.group('col', { parent: s2 })
@@ -81,9 +82,9 @@ cav.mask(win, col)
 words.forEach(function (w, i) { if (i) cav.tween(col, 'position.y', b.beat(4 * i) - 10, b.beat(4 * i), (i - 1) * 170, i * 170, 'outBack') })
 ```
 
-Typewriter: `cav.typeOn(cav.glyphs('code', 'npm run dev', 48, { font: 'JetBrains Mono', align: 'left', x: -300 }), 60, { rate: 3 })`.
+For a typewriter effect, use `cav.typeOn(cav.glyphs('code', 'npm run dev', 48, { font: 'JetBrains Mono', align: 'left', x: -300 }), 60, { rate: 3 })`.
 
-Counters: text keys do not work. Stack digit layers in a masked column and move it (like the word swap).
+Text keys cannot animate counter values. Stack digit layers in a masked column and move it.
 
 ## 5. Impacts and silence before the hit
 
@@ -111,8 +112,8 @@ cav.drawOn(arc, 50, 45, 'inOutCubic')
 
 ## 7. Zoom-through transition
 
-Scale the rig into a point (for example a button) so it fills the screen, then start the next
-section from oversize and settle.
+Scale `rig` toward a target, such as a button, until that area fills the screen. Start the
+next section at a large scale and animate it to its normal size.
 
 ```js
 var target = [320, -180]                                       // the button's position in rig space
@@ -123,10 +124,12 @@ cav.flash(b.bar(4), { dur: 6, peak: 70 })
 
 ## 8. Other transitions
 
-- **Wipe**: a full-frame rectangle `cav.wipeIn(panel, f, {from: 'left'})`, then cut the old section's `out` to the frame where the panel covers the screen.
-- **Mask reveal**: animate a mask rect's width with `cav.wipeIn` while it masks the new section.
-- **Push**: tween section A to `x: -c.width` and section B from `x: c.width` to 0 on the same frames with `inOutCubic`.
-- **Flash cut**: `cav.flash(f, {dur: 8})` and switch sections on `f`.
+- **Wipe:** Run `cav.wipeIn(panel, f, {from: 'left'})` on a full-frame rectangle. End the
+  old section when the panel covers the screen.
+- **Mask reveal:** Animate a mask rectangle's width with `cav.wipeIn` over the new section.
+- **Push:** Use `inOutCubic` over the same frames to move section A to `x: -c.width`
+  and section B from `x: c.width` to 0.
+- **Flash cut:** Run `cav.flash(f, {dur: 8})` and switch sections at frame `f`.
 
 ## 9. Lower third
 
@@ -143,7 +146,7 @@ cav.slideOut(name, 270, { dx: -40, dy: 0 }); cav.slideOut(role, 266, { dx: -40, 
 
 ## 10. Bar chart from data
 
-Read CSV in the script (absolute path), then build bars that grow from a baseline.
+Read the CSV from an absolute path. Build each bar from the same baseline.
 
 ```js
 var rows = api.readFromFile('/abs/path/data.csv').trim().split('\n').slice(1).map(function (l) { var p = l.split(','); return { label: p[0], value: +p[1] } })
@@ -162,7 +165,8 @@ rows.forEach(function (r, i) {
 
 ## 11. Logo sting
 
-Pattern: dark frame, a small spark, build-up, hit on the downbeat, logo lands with overshoot, hold, glint.
+Start with a dark frame and a small visual accent. Increase the motion before the downbeat.
+Bring in the logo on the downbeat, let it overshoot slightly, then hold and add a brief glint.
 
 ```js
 var logo = cav.image('/abs/path/logo.png', 'logo', { scale: 0.5 })   // or build the mark from shapes
@@ -176,20 +180,18 @@ cav.slideIn(tag, 90, { dy: -30, dur: 24 })
 
 ## 12. UI rebuilt as components
 
-Use this for app screens, UI walkthroughs and product demos. Always rebuild the UI in Cavalry:
-shapes, text and icons as real layers. Never animate a screenshot. A rebuilt UI can pan, zoom,
-change its layout and animate each element: cards fly in, one screen morphs into the next, the
-camera pulls focus, a cursor drives the interaction. A screenshot is one flat picture. It blurs
-when you zoom in, you cannot split it into parts, and its contents cannot move.
+For app screens, walkthroughs and demos, build the UI from Cavalry shapes, text and icons.
+This gives each element its own position and animation. It also supports changes in layout,
+camera movement and cursor interaction. A screenshot has one image layer; zooming can blur it,
+and individual controls cannot move within it.
 
-Use the screenshot only as a reference, to check that the rebuild matches the real UI:
+Use a screenshot to check that the Cavalry layers match the real UI:
 
-1. Load it as a guide layer at low opacity, on top, at the size of the rebuilt window.
-2. Measure it, then rebuild at the same proportions: window rect, title bar, sidebar, buttons,
-   fields, icons, text. Copy its colours, fonts, font sizes, spacing and the exact text.
-3. Compare: `cav frame <n>` with the guide visible, then without it. Fix the layout until the
-   edges line up and the text matches. Do this before you add any animation.
-4. Hide or delete the guide before you render.
+1. Load the screenshot above the rebuilt window at low opacity and matching size.
+2. Measure its proportions. Rebuild the window, title bar, sidebar, buttons, fields, icons
+   and text. Match its colours, fonts, sizes, spacing and words.
+3. Run `cav frame <n>` with and without the guide. Align edges and text before animating.
+4. Hide or delete the guide before the final render.
 
 ```js
 // ...build the window from cav.rect / cav.text / cav.path icons first...
@@ -197,21 +199,21 @@ Use the screenshot only as a reference, to check that the rebuild matches the re
 cav.image('/abs/path/screen.png', 'REF screenshot', { opacity: 30 })
 ```
 
-Leave the guide visible while you compare. Variables do not survive between runs, so hide it
-later, in its own run, by name:
+Keep the guide visible during comparison. Variables do not survive between runs, so hide
+the guide by name in a later run:
 
 ```js
 api.set(cav.find('REF screenshot'), { hidden: true })
 ```
 
-Animate the parts in with small staggered `slideIn`s (dy 20-30, 3-4 frame steps), then show one
-interaction: a cursor (small path arrow) moves with `inOutCubic`, the button `punch`es, a new
-panel `pop`s. Keep the reference screenshot beside the rebuild in the review sheet. For a
-whole software video, read `cav guide ui-showcase`.
+Bring in UI parts with staggered `slideIn` moves (`dy` 20-30, steps of 3-4 frames).
+Show one interaction: move a cursor with `inOutCubic`, call `punch` on the button, then
+call `pop` on the new panel. Put the screenshot beside the rebuilt UI in the review sheet.
+For a longer software video, read `cav guide ui-showcase`.
 
 ## 13. The review loop
 
-1. After each script: `cav sheet` (or frames around the part you changed) and look at it.
-2. Something looks wrong -> check numbers: `cav layer <id>` shows the bounding box, parent and keys.
-3. Before rendering: `cav sheet 0-<end>:<step> --bpm <bpm>` over the whole piece.
-4. Render: `cav render -o renders/final.mp4 --audio <track>`; say what you could not check.
+1. After each script, run `cav sheet` and inspect the changed frames.
+2. If a layer looks wrong, use `cav layer <id>` to inspect its bounds, parent and keys.
+3. Before rendering, run `cav sheet 0-<end>:<step> --bpm <bpm>` across the piece.
+4. Render with `cav render -o renders/final.mp4 --audio <track>`. Report any checks left incomplete.

@@ -1,13 +1,12 @@
 # Production: plan, source, music and review
 
-These commands work around the Cavalry scene: planning before you build, finding and
-making assets and music, and getting feedback after you render. They need no Cavalry
-bridge, so you can use them before Cavalry is open. `cav board place` is the exception: it
-adds the storyboard to the open scene.
+These commands support planning, asset creation, music and review. Most work before
+Cavalry opens because they do not need its bridge. `cav board place` needs the bridge
+because it adds storyboard frames to the open scene.
 
-Every job works without API keys. With a key, cav uses a better service and says which
-one it used. `cav config` shows the order per job; `cav config check` (or
-`cav doctor --services`) tests every service with one free call.
+Every job has a path that requires no API key. When keys are available, cav selects a
+configured service and reports its name. `cav config` shows the service order for each
+job. `cav config check` or `cav doctor --services` makes one free check per service.
 
 ## 1. Set up the services (once)
 
@@ -18,37 +17,37 @@ cav config check --live         # also one small paid call per keyed service (as
 cav config set-key openai op://Private/OpenAI/api key    # or env:NAME, keychain:svc/acct
 ```
 
-Local models run on this machine. mflux runs open image models (default FLUX.2 klein 4B)
-through uv on Apple silicon, in about 20 s per 16:9 still. Its first run downloads about
-16 GB, so the default `image` order uses mflux only once the model is in the Hugging Face
-cache: after the keyed services, before comfyui, sketch and greybox. Run
-`cav gen image "<prompt>" --service mflux` once to download it (ask the user first).
-With `--ref`, mflux edits from all the reference images.
-rembg cuts the background out of an image with BiRefNet (`birefnet-general`), on any
-platform with uv. Its first run downloads the model, about 1 GB, into `~/.rembg`. It is
-last in the `image.alpha` order: OpenAI and Recraft make the transparency while they
-generate, which keeps soft edges and shadows, and they need no second step.
-ComfyUI, ACE-Step and YuE2 are servers the user runs:
-`cav config endpoint comfyui http://127.0.0.1:8188 <workflow-api.json>` (the workflow holds
-`{{prompt}}`, `"{{width}}"`, `"{{height}}"` and `"{{seed}}"`), and
-`cav config endpoint acestep http://127.0.0.1:8001` for ACE-Step 1.5 (`uv run acestep-api`
-in its repository; MIT licence, so its music can be used commercially), and
-`cav config endpoint yue2 http://127.0.0.1:8002` for YuE2 (the server in cav's
-`tools/yue2-server`; see "YuE2" below for setup and its licence).
+Local models run on the user's machine. On Apple silicon, mflux runs open image models
+through uv, using FLUX.2 klein 4B by default. One 16:9 still took about 20 s. The first
+run downloads about 16 GB. The default `image` order uses mflux after that model reaches
+the Hugging Face cache. It comes after keyed services and before comfyui, sketch and
+greybox. Ask the user before running `cav gen image "<prompt>" --service mflux` for the
+first download. With `--ref`, mflux uses all supplied reference images for an edit.
+rembg removes an image background with BiRefNet (`birefnet-general`) on platforms with
+uv. Its first run downloads about 1 GB into `~/.rembg`. It is last in the `image.alpha`
+order. OpenAI and Recraft produce transparency during generation and need no second pass.
+That can preserve soft edges and shadows.
+The user runs ComfyUI, ACE-Step and YuE2 as local servers. Configure ComfyUI with
+`cav config endpoint comfyui http://127.0.0.1:8188 <workflow-api.json>`.
+The workflow holds `{{prompt}}`, `"{{width}}"`, `"{{height}}"` and `"{{seed}}"`.
+Configure ACE-Step 1.5 with `cav config endpoint acestep http://127.0.0.1:8001`.
+Run its MIT-licensed server with `uv run acestep-api` in its repository; its music can be used commercially.
+Configure YuE2 with `cav config endpoint yue2 http://127.0.0.1:8002`.
+Its server is in `tools/yue2-server`; see "YuE2" below for setup and licence terms.
 
-ACE-Step downloads its models on the first request, so the first take can take many
-minutes. It picks the planner model by memory, and on a Mac with 64 GB it picks the 4B
-one (8.4 GB more). To keep the download smaller, start it with
+ACE-Step downloads models on its first request, which can take several minutes. It selects
+a planner by available memory. On a Mac with 64 GB, it selects the 4B model, adding
+8.4 GB to the download. To use a smaller download, start it with
 `ACESTEP_LM_MODEL_PATH=acestep-5Hz-lm-1.7B uv run acestep-api --lm-model-path acestep-5Hz-lm-1.7B`
 (about 9.5 GB of models in all). On an M1 Max a 24 s take then took about 20 s.
 
-A ComfyUI workflow that works: text to image with a Stable Diffusion 1.5 checkpoint. Put
+A tested ComfyUI workflow makes an image from text with Stable Diffusion 1.5. Put
 `v1-5-pruned-emaonly-fp16.safetensors` (2.1 GB, from Hugging Face
 `Comfy-Org/stable-diffusion-v1-5-archive`) in ComfyUI's `models/checkpoints`, save this as
 `sd15.json` and run `cav config endpoint comfyui http://127.0.0.1:8188 sd15.json`. Change
 `ckpt_name` for another checkpoint. On an M1 Max a 1024x576 image took about 1 minute.
-SD 1.5 was trained at 512 px, so at cav's sizes it can repeat or stretch the subject; an
-SDXL checkpoint suits those sizes better.
+Stable Diffusion 1.5 was trained at 512 px. At cav's larger sizes, it can repeat or
+stretch a subject. An SDXL checkpoint is better suited to those sizes.
 
 ```json
 {
@@ -62,48 +61,48 @@ SDXL checkpoint suits those sizes better.
 }
 ```
 
-Qwen3-Omni for the `ears` job also runs on OpenRouter (tested on 2026-10-13). Set the
-server, then give `qwen-omni` the source of your OpenRouter key. One critique cost less
-than 0.1 cent.
+The `ears` job can run Qwen3-Omni through OpenRouter, as tested on 2026-10-13. Configure
+the endpoint and give `qwen-omni` the OpenRouter key source. One critique cost less than
+0.1 cent in that test.
 
 ```bash
 cav config endpoint qwen-omni https://openrouter.ai/api/v1 qwen/qwen3.8-omni-flash
 cav config set-key qwen-omni <source of your OpenRouter key>
 ```
 
-Veo (video) and Lyria (music) use the Gemini key, so `cav config set-key gemini ...` sets
-all three. Give one of them its own key with `cav config set-key veo <source>`.
+Veo video and Lyria music use the Gemini key. `cav config set-key gemini ...` therefore
+configures all three. To use a separate Veo key, run `cav config set-key veo <source>`.
 
-fal.ai is one key for many image models. cav uses FLUX.2 (`fal-ai/flux-2`) unless you pick
-another fal model id: `cav config model fal fal-ai/flux-2-pro`, `fal-ai/ideogram/v3`
-(good with text in the image), `fal-ai/bytedance/seedream/v4.5/text-to-image` or
-`xai/grok-imagine-image`. With reference images, cav sends them to the model's edit
+One fal.ai key serves several image models. cav uses FLUX.2 (`fal-ai/flux-2`) by default.
+Other model ids include `fal-ai/flux-2-pro`, `fal-ai/ideogram/v3` (good with text),
+`fal-ai/bytedance/seedream/v4.5/text-to-image` and `xai/grok-imagine-image`.
+Choose one with `cav config model fal fal-ai/flux-2-pro`. With reference images, cav sends them to the model's edit
 endpoint (Ideogram takes them as style references). References go inline as data URIs, so
-keep them small (a few hundred KB each). Models take a limited number: Grok Imagine 3,
-FLUX.2 4, Seedream 10, Ideogram 10 MB in total. cav sends the first ones that fit and says
+keep them small (a few hundred KB each). Each model has a limit: Grok Imagine takes 3 images,
+FLUX.2 takes 4, Seedream takes 10, and Ideogram takes 10 MB in total. cav sends the first ones that fit and says
 which it left out.
 
-A key source says where the key lives; cav never prints or stores the key. If 1Password is
-locked, only the services that read it fail, with a fix line. Never ask the user to paste a
-key into the chat: ask them to run `cav config set-key` themselves.
+A key source identifies where cav reads a key. cav does not print or store its value.
+If 1Password is locked, services that depend on it fail and print a fix. Ask the user
+to run `cav config set-key` themselves. Keys must stay out of chat.
 
 | Job | Free | With a key |
 |---|---|---|
-| `image` (frames, stills) | sketch (your SVG per shot, rendered by Cavalry), greybox cards; mflux (Apple silicon), comfyui (your server) | gemini, openai, openrouter, fal |
+| `image` (frames, stills) | sketch (an agent-written SVG per shot, rendered by Cavalry), greybox cards; mflux (Apple silicon), comfyui (a user-run server) | gemini, openai, openrouter, fal |
 | `image.alpha` (transparent PNG) | rembg (through uv): cuts out an image that an `image` service made | openai, recraft |
 | `image.vector` (SVG) | vtracer, potrace (if installed) | recraft |
 | `video` (moving animatic shots) | none (the animatic holds each frame) | veo |
 | `ref` (reference images) | openverse, wikimedia | pexels, unsplash |
 | `sfx` (sound search) | openverse, indexed folders | freesound |
-| `music` | `cav music render` (a written score); acestep, yue2 (your servers); search with `cav sfx` | elevenlabs, stability, lyria |
-| `ears` (critique of a track) | none | gemini, qwen-omni (your server, or OpenRouter) |
+| `music` | `cav music render` (a written score); acestep, yue2 (user-run servers); search with `cav sfx` | elevenlabs, stability, lyria |
+| `ears` (critique of a track) | none | gemini, qwen-omni (a user-run server, or OpenRouter) |
 
 ## 2. Licences come first
 
-Set the project's licence once: `cav credits licence nc-ok` (non-commercial use) or
-`cav credits licence commercial`. Searches then hide assets the project cannot use.
-Every downloaded or generated asset is recorded in `.cav/manifest.json` with its licence,
-author and credit line. Before you hand over a piece:
+Set the project's licence with `cav credits licence nc-ok` for non-commercial use or
+`cav credits licence commercial`. Searches then hide incompatible assets. cav records
+each downloaded or generated asset in `.cav/manifest.json` with its licence, author and
+credit line. Before delivery, run:
 
 ```bash
 cav credits check               # NC in commercial work, share-alike, missing credits
@@ -114,8 +113,8 @@ cav credits -o CREDITS.txt      # the credit lines the licences require
 
 ## 3. Plan: mood board, storyboard, animatic
 
-`cav guide flow` says which stages to run, in what order, and when to skip one. This section
-has the command details.
+`cav guide flow` defines stage order and skip conditions. The commands below implement
+those stages.
 
 ```bash
 cav brief init --title "Launch day sting" --goal "Announce the launch" --audience "Existing users" \
@@ -141,61 +140,62 @@ cav review renders/animatic.mp4             # get the user's notes before buildi
 cav board place                             # the frames as placeholder layers in Cavalry
 ```
 
-- Start nothing slow or paid until the user approves the storyboard: not `cav board
-  motion`, not `cav music gen`, not the animatic. Check with
+- Wait for storyboard approval before starting slow or paid work, including `cav board motion`,
+  `cav music gen` and the animatic. Check with
   `cav review export storyboard.json --json`: its `approved` must be `true`. Fix every
-  note and every shot marked redo first (see "Review stills" in section 6). You cannot
-  approve for the user, and you must not edit `approved` by hand.
-- Give every shot a `why`: what the viewer learns or feels from it. You write it, not the
-  user. `cav board init` fills it with a placeholder, and `cav check` warns about every
-  shot whose `why` is empty or still the placeholder. If you cannot say why a shot is there,
-  cut or merge it. `cav board frames` and `motion` do not need it.
-- Set `"cut": true` on a shot when the change into it is a hard cut on purpose. `cav check`
-  compares the frames around each shot start and flags a jump. A shot with `cut` is listed
-  as intended and not flagged. Do this only when the user asked for cuts.
-- Set `"hold": true` on a shot where nothing needs to move. `cav check` reports a span
-  longer than about 2 seconds where no layer moves; a span inside a `hold` shot is listed as
-  intended and not flagged. Prefer a small drift or an oscillator over marking a hold.
+  note and every shot marked redo first (see "Review stills" in section 6). The agent cannot
+  approve for the user and must never edit `approved` by hand.
+- Give every shot a `why` that states what the viewer learns or feels. The agent writes it.
+  `cav board init` adds a placeholder, and `cav check` warns when the field remains empty
+  or unchanged. Remove or combine a shot if it has no purpose. `cav board frames` and
+  `motion` do not require this field.
+- Set `"cut": true` when the user requested a hard cut into a shot. `cav check` compares
+  frames around shot starts and flags sudden changes. It lists marked cuts as intended.
+- Set `"hold": true` when a shot needs no movement. `cav check` reports spans longer
+  than about 2 seconds with no moving layer. It lists marked holds as intended. Add
+  slight movement when it helps the shot.
 - Time shots in beats, like the plan table in `cav guide`. Put cuts on bar starts
   (multiples of 4 in 4/4). With real music, set `"grid": "build/grid.json"` from
   `cav beats music.wav --json -o build/grid.json` so beats follow the track.
-- Generated frames share `style.refs`, so the look stays consistent across shots.
-- `cav board motion` starts each clip from the shot's frame, so make and approve the frames
+- Generated frames use the same `style.refs` across shots.
+- `cav board motion` starts each clip from its shot frame. Make and approve those frames
   first. It uses Veo 3.1 Lite by default (`cav config model veo veo-3.1-fast-generate-preview`
-  for Fast). Veo makes 4, 6 or 8 seconds at 24 fps: cav picks the shortest length that
-  covers the shot, the animatic cuts the clip to the shot, and a longer shot holds the
-  clip's last frame. Veo adds its own sound; the animatic drops it and plays only the
-  music. Each clip costs money, so animate only the shots where movement changes the
-  decision, and name them with `--only` (or pass `--all`).
-- Greybox cards are text placeholders: they show no composition. With no image service,
-  write a sketch for each shot instead (see "Sketch frames" below). For a greybox made of
+  for Fast). Veo makes 4, 6 or 8 seconds at 24 fps. cav picks the shortest clip that
+  covers the shot. The animatic cuts the clip to the shot length or holds its last frame
+  for a longer shot. Veo adds sound, which the animatic removes before playing the chosen
+  music. Each clip costs money. Select shots whose movement matters with `--only`, or
+  pass `--all`.
+- Greybox cards contain text and do not show composition. Without an image service,
+  draw a sketch for each shot (see "Sketch frames" below). For a greybox made of
   real shapes in Cavalry, build it, render it with `cav frame <n> -o board/s3.png`, and set
   that shot's `"frame"`. `cav board frames` keeps frames that exist (`--force` remakes them).
-- `cav board place` starts the build. It adds each frame to the active composition as an
-  image layer named by its shot id (`s1`, `s2`, ...), shown from its start beat to its end
-  beat at the composition's frame rate, and scaled to fit. Time 0 of the music is the
-  composition's first frame, so beat 0 sits at the storyboard's `offset` (or the grid's
-  first beat), as in the music. Find a placeholder with
-  `cav.find('s3')`. When you build the shot, delete its placeholder and give the shot's
-  group the same name. Run `cav board place` again after you change beats or frames: it
-  updates the image layers in place (their parent, transforms and masks stay; delete a
-  placeholder to have it fitted again) and keeps any shot whose name a built layer
-  already uses.
+- `cav board place` adds each frame to the active composition as an
+  image layer named by its shot id (`s1`, `s2`, ...). It shows the image from the shot's
+  start beat to its end beat at the composition's frame rate, scaled to fit.
+  Time 0 of the music is the composition's first frame. Beat 0 sits at the storyboard's
+  `offset` (or the grid's first beat), as in the music. Find a placeholder with
+  `cav.find('s3')`. After building a shot, delete its placeholder and give the shot's
+  group the same name. Run `cav board place` again after changing beats or frames.
+  It updates the image layers in place and keeps their parent, transforms and masks.
+  Delete a placeholder to make cav fit it again. It keeps shots whose names built
+  layers already use.
   `--only s2,s3` places some shots; `--comp NAME` targets another composition.
 
 ### Sketch frames
 
-With no image service, `cav board frames` can draw each frame from an SVG that you write.
-This shows the composition, which a text card cannot. The image order is gemini, openai,
-openrouter, fal, mflux, comfyui, sketch, greybox, so a sketch is used only when no
-generating service can run.
+When no image generator is available, `cav board frames` can render a shot from an SVG written
+by the agent. The SVG shows the shot's composition. The image order is gemini, openai,
+openrouter, fal, mflux, comfyui, sketch, greybox. cav selects a sketch after all
+generating services are unavailable during service selection. If a selected generator's
+request fails, cav returns that error without switching to a sketch.
 
-- When: you have no image key, or you want exact control of one shot. Write one SVG per
+- Use sketches when no image key is available or when one shot needs exact control.
+  Write one SVG per
   shot, `board/<id>.svg` next to the storyboard (`board/s1.svg`), with the storyboard's
   size as its canvas. The root is `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0
   1920 1080">`; use the width and height from `storyboard.json`. A different shape of
   canvas is refused.
-- What to draw: the key moment of the shot as a composition, not a detailed picture. Use
+- Draw the shot's main visual arrangement at its key moment. Use
   only `rect`, `circle`, `ellipse`, `line`, `polyline`, `polygon`, `path` and `g`, and
   fewer than about 100 shapes. Use flat fills from `style.palette`: the first colour is the
   background, the second is the foreground, and the accent goes only on the subject. Leave
@@ -203,24 +203,25 @@ generating service can run.
   movement as a faint copy of the shape at its start position, and a thin solid line along
   its path. Cavalry's SVG import draws `stroke-dasharray` as a solid line, so do not rely on
   dashes.
-- Refused: scripts, event attributes (`onclick`), `image`, `foreignObject`, `style`
-  elements, links to other files, `url(` that does not point inside the file, a `DOCTYPE`,
-  files over 512 KiB, more than 2000 elements, nesting deeper than 32, and percentages in shape sizes and positions (use numbers). cav lists every
-  problem with its line number and makes no frame until you fix them.
+- cav refuses scripts, event attributes (`onclick`), `image`, `foreignObject` and `style`
+  elements. It also refuses links to other files, `url(` that does not point inside the file,
+  and a `DOCTYPE`. Files must be at most 512 KiB, have at most 2000 elements, and nest no
+  deeper than 32 levels. Use numbers for shape sizes and positions; percentages are refused.
+  cav lists every problem with its line number and makes no frame until they are fixed.
 - Run `cav board frames`. cav checks all the SVGs, then renders each one through Cavalry
   and writes `board/<id>.png`; the shot's `source` is `sketch`. Shots with no SVG get a
-  greybox card, and cav lists them so you can write the SVGs and run the command again.
+  greybox card, and cav lists them so the SVGs can be added before rerunning the command.
   `cav board frames --service sketch [--only s3]` renders only sketches and refuses when
   an SVG is missing.
-- Edit loop: change the SVG, then run `cav board frames --only s3`. A sketch is drawn
+- To revise a sketch, edit its SVG and run `cav board frames --only s3`. cav draws it
   again when its SVG is newer than its PNG; other frames are kept. The SVG stays in
   `board/` for editing. To redraw a sketch, save its SVG again or delete its PNG.
-- Cavalry must be open with the bridge. cav draws in a scratch scene and opens your scene
-  again afterwards, so it refuses when the open scene has unsaved changes: ask the user to
-  save (`cav scene save`) first. An empty untitled scene is fine. Cavalry shows the scratch
+- Cavalry must be open with the bridge. cav draws in a scratch scene, then reopens the
+  original scene. It refuses when the open scene has unsaved changes. Ask the user to save
+  (`cav scene save`) first. An empty untitled scene is fine. Cavalry shows the scratch
   scene for a few seconds. If Cavalry is not open, the default order falls back to cards
   and says so.
-- During review, redrawing a shot changes its frame, so the user's verdict on that shot
+- During review, redrawing a shot changes its frame. The user's verdict on that shot
   shows as outdated and the approval is removed. After the user approves, render only the
   shot that changed (`--only s3`); do not use `--force` on all shots.
 
@@ -246,21 +247,20 @@ cav gen vector assets/fox.png -o assets/fox.svg                          # trace
 cav gen cutout photo.png -o assets/fox.png                               # remove a background
 ```
 
-`--alpha` with rembg works in two steps: the first usable `image` service (for example
-Gemini, or mflux once its model is downloaded) makes the image, then rembg cuts it out on
-this machine. Ask for a plain, even background in the prompt; the cutout is cleaner. When
-only greybox can make an image, there is nothing to cut out, so cav says so. `cav gen cutout` works on any image you have, with
-rembg or Recraft (OpenAI cannot cut out an image it did not make). A cutout or a traced
-SVG keeps the licence and credit of the image it came from. An image that is not in the
-manifest gives it an unknown licence, so `cav credits check` asks about it.
+With rembg, `--alpha` first asks an available `image` service to make the image. rembg
+then removes its background locally. Ask for a plain, even background to improve the
+cutout. If only greybox is available, cav reports that there is no image to cut out.
+`cav gen cutout` works on existing images through rembg or Recraft. OpenAI cannot cut out
+an image it did not generate. A cutout or traced SVG keeps its source image's licence
+and credit. If the image is absent from the manifest, its licence is unknown and
+`cav credits check` reports it.
 
-Some services send another format than you ask for: Gemini sends JPEG, and Recraft sends
-WebP for a cutout. cav saves a `.png` name as a real PNG, and a WebP cutout keeps its
-transparency.
+Some services return another format. Gemini returns JPEG, and Recraft returns WebP for
+a cutout. cav converts output named `.png` to actual PNG. WebP cutouts keep transparency.
 
-Load an image into Cavalry with `cav.image('/abs/path.png', 'name')`. Turn an SVG into
-editable shapes with `api.convertSVGToLayers('/abs/path.svg')`, which returns the new
-layer ids; animate them like any shape.
+Load an image in Cavalry with `cav.image('/abs/path.png', 'name')`. Convert an SVG to
+editable shapes with `api.convertSVGToLayers('/abs/path.svg')`. The call returns new
+layer IDs, which scripts can animate.
 
 ## 5. Music and sound
 
@@ -276,61 +276,60 @@ cav music gen "English piano pop, warm female voice, 88 BPM" --lyrics song.txt -
 cav listen music/<take>.mp3 --board storyboard.json --brief "builds to a drop on s4"
 ```
 
-Lyria (`lyria-3.5`) has no length or section fields. cav writes them into the prompt: the
-total length, "instrumental only", and one `[m:ss - m:ss]` line per shot. Lyria follows
-them loosely, so check the cuts with `cav listen --board`. cav asks for WAV.
+Lyria (`lyria-3.5`) has no separate length or section fields. cav puts total length,
+"instrumental only" and one `[m:ss - m:ss]` line per shot into the prompt. Lyria can
+miss those timings. Check cuts with `cav listen --board`. cav requests WAV.
 `cav config model lyria lyria-3-clip-preview` makes a 30-second MP3 clip instead.
 
-The music is instrumental unless you give `--lyrics`; see "Songs with lyrics" below.
+Music is instrumental unless the command includes `--lyrics`. See "Songs with lyrics".
 
-`--ref <track>` (repeatable) makes variations of a track you have, `--takes` takes for each
-reference. Where the reference goes depends on the service:
+Repeat `--ref <track>` to use more than one source track. `--takes` sets the number of
+takes per reference. Services use a reference in different ways:
 
 | Service | What it gets | Result |
 |---|---|---|
 | Stable Audio | the audio (audio-to-audio) | a variation that keeps the reference's structure; `--keep` (0-1, default 0.4) sets how much |
 | ACE-Step | the audio, as a style reference | a new track with the reference's sound |
 | YuE2 | the audio, for a cover: SheetSage2 on the server transcribes its melody | an instrumental cover: the reference's melody on an instrument, in the prompt's style |
-| Lyria, ElevenLabs | a description of the audio, written by the audio model ("ears" job) | a new track written from words: a similar style, not a variation |
+| Lyria, ElevenLabs | a description of the audio, written by the audio model ("ears" job) | a new track written from the description in a similar style; variation of the source audio is unavailable |
 
-cav says on stderr (and in `refs` with `--json`) which way each reference went. For a real
-variation, pick Stable Audio or ACE-Step with `--service`.
+cav reports reference handling on stderr and in `refs` with `--json`. Select Stable Audio
+or ACE-Step with `--service` when the result must use the source audio.
 
-Every service sent takes with true peaks above 0 dBFS in tests. cav lowers the level of
-such a take to about -1.5 dBTP (gain only, no limiter) and says by how much; `--raw-level`
-keeps the level the service sent. Then set the loudness in your mix or with
-`cav render --audio`.
+In tests, every service returned takes with true peaks above 0 dBFS. cav reduces such
+takes to about -1.5 dBTP using gain alone and reports the reduction. `--raw-level`
+keeps the original level. Set final loudness in the mix or with `cav render --audio`.
 
 ### Music services
 
-What each service did in tests on 2026-10-09, one or two takes each. Treat these as
-observations, not guarantees.
+The table reports one or two takes per service tested on 2026-10-09. These are
+observations from that sample.
 
 | Service | Length | Storyboard plan | Reference track | Watch out for |
 |---|---|---|---|---|
-| Stable Audio | exact (matched the storyboard) | sections go into the prompt; with `--ref`, the reference's arc wins over the plan | sent as audio: MP3 or WAV, 6-190 s (cav converts and cuts) | follows the reference's arc, not the storyboard's: a reference with a quiet intro gives a take with no early hit |
+| Stable Audio | exact (matched the storyboard) | sections go into the prompt; with `--ref`, the reference's arc wins over the plan | sent as audio: MP3 or WAV, 6-190 s (cav converts and cuts) | the reference's arc takes precedence over the storyboard's; a reference with a quiet intro gives a take with no early hit |
 | Lyria | a prompt hint only (3 s too long) | one `[m:ss - m:ss]` line per shot; the drop landed on its cut | described in words | sends MP3 unless asked for WAV; cav asks, and the WAV came as 24-bit 48 kHz |
 | ElevenLabs | not kept (7 s too long with music_v1) | composition plan; section names are the shot ids only | described in words | music needs a paid plan (HTTP 402 on free); an API key can have its own credit cap below the plan's (HTTP 401 "exceeds your API key quota"); moderation refuses a plan or prompt that names a brand, product or artist |
-| ACE-Step | exact: ACE-Step ends its takes 2-6 s early, so for an instrumental cav asks for 8 s more, then cuts the take to length and fades out the last 2 s (tested 2026-10-13) | the prompt gets a timeline, and an instrumental also gets one `[shot - what]` tag per shot in its lyrics; with 8 s shots at 120 BPM, 7 of 8 takes changed near the first cut, but a cut at 4 s was ignored: it keeps its own 4-bar phrases | sent as audio, as a style reference; `--keep` does nothing | a server you run; a song with `--lyrics` is not cut, so listen to its end |
-| YuE2 | no length setting: cav, or its server, cuts the planned score at a phrase (see "YuE2" below) | not used: YuE2 knows only its own section names | a cover of its melody (see "YuE2 covers" below); in words when the server cannot transcribe | a server you run; the music is non-commercial for a company (see below) |
+| ACE-Step | exact: ACE-Step ends its takes 2-6 s early, so for an instrumental cav asks for 8 s more, then cuts the take to length and fades out the last 2 s (tested 2026-10-13) | the prompt gets a timeline, and an instrumental also gets one `[shot - what]` tag per shot in its lyrics; with 8 s shots at 120 BPM, 7 of 8 takes changed near the first cut; a cut at 4 s was ignored because it keeps its own 4-bar phrases | sent as audio, as a style reference; `--keep` does nothing | a user-run server; a song with `--lyrics` is not cut, so listen to its end |
+| YuE2 | no length setting: cav, or its server, cuts the planned score at a phrase (see "YuE2" below) | not used: YuE2 knows only its own section names | a cover of its melody (see "YuE2 covers" below); in words when the server cannot transcribe | a user-run server; the music is non-commercial for a company (see below) |
 
-How `--keep` behaved on one 74 s reference (one take each): 0.2 drifted to its own tempo
-and structure; 0.4 kept the reference's tempo and its groove, breakdown and re-drop
-within a fraction of a second, with new parts on top; 0.6 stayed closest, down to the
-same loudness range. Start at 0.4, and go lower for a looser take.
+On one 74 s reference, each `--keep` value produced one take. At 0.2, the take changed
+tempo and structure. At 0.4, it kept the tempo and major sections within a fraction of
+a second while adding new parts. At 0.6, it also kept a similar loudness range. Start
+at 0.4 and lower it if the result needs more change.
 
-A description written by the audio model changes from run to run: the same reference was
-described once as "F major electropop" and once as "A minor 1980s synthwave". Read the
-description cav prints, and if it is off, write the style into the prompt yourself.
+Audio-model descriptions can vary. One reference was described as "F major electropop"
+in one run and "A minor 1980s synthwave" in another. Read cav's description. If it
+does not fit, state the desired style in the prompt.
 Keep brand and product names out of prompts and the storyboard's music `prompt` fields:
 ElevenLabs refuses them, and they do not help any music model.
 
 ### Songs with lyrics
 
-`--lyrics song.txt` makes a song with vocals. Only the servers you run sing: YuE2 and
-ACE-Step. ElevenLabs, Stable Audio and Lyria get "no vocals" in every request, and cav
-refuses `--lyrics` for them. Write the lyrics as plain text, with one section tag on its
-own line before each section and a blank line between sections:
+`--lyrics song.txt` requests vocals from YuE2 or ACE-Step, which run on user-operated
+servers. cav sends "no vocals" to ElevenLabs, Stable Audio and Lyria and refuses
+`--lyrics` with those services. Use plain text lyrics. Put each section tag on its own
+line and separate sections with a blank line:
 
 ```text
 [Verse]
@@ -342,28 +341,27 @@ Let the day come into view
 Every road begins with you
 ```
 
-Put the language, the voice and the tempo in the prompt, for example "English, warm
-piano pop, expressive female voice, 88 BPM". The two services set the length in
-different ways:
+State the language, voice and tempo in the prompt. For example, use "English, warm
+piano pop, expressive female voice, 88 BPM". The services handle length differently:
 
 - ACE-Step keeps `--seconds` (or the storyboard's length). If the lyrics are too long for
   that length, the song can stop in the middle of a line. It takes at most 4096
   characters of lyrics; YuE2 takes 16000.
 - YuE2 sings all the lyrics, and the lyrics set the length. cav does not send
-  `--seconds`: YuE2's score has the vocal notes but not the words, so the server cannot
-  cut it without stopping in the middle of a sung line. For a shorter song, write fewer
-  or shorter sections, then trim or fade the take. cav prints how long it came out.
+  `--seconds`. YuE2's score contains vocal notes and lacks words. The server cannot cut it
+  without stopping in the middle of a sung line. For a shorter song, write fewer or
+  shorter sections, then trim or fade the take. cav prints how long it came out.
   In one take on 2026-10-11, a verse and a chorus of four lines each came out at 49.8 s
   (asked for 30 s), in 241 s on the M1 Max.
 
-With `--ref` as well, YuE2 makes a sung cover: it sings your lyrics to the melody that
-SheetSage2 transcribed from the track. The rules in "YuE2 covers" below still apply.
+With `--ref` as well, YuE2 makes a sung cover: it sings the supplied lyrics to the melody
+that SheetSage2 transcribed from the track. The rules in "YuE2 covers" below still apply.
 
 A take with lyrics has the same licence terms as an instrumental take from that service.
 
 ### YuE2
 
-YuE2 is an open music model. It has no HTTP server of its own, so cav has one:
+YuE2 is an open music model. The cav repository supplies an HTTP server for it:
 `tools/yue2-server/yue2_server.py` in the cav repository. It loads YuE2 once and keeps it in
 memory. Install YuE2 from https://github.com/multimodal-art-projection/YuE and let it
 download its weights (about 7 GB). Then start the server with that checkout's Python, and
@@ -377,18 +375,16 @@ cav config check
 cav music gen "warm synthwave, gated drums, builds to a drop, 112 BPM" --seconds 60 --service yue2
 ```
 
-YuE2 makes songs with vocals. With `--lyrics`, the server runs YuE2 as it is and sings
-them (see "Songs with lyrics"). Without lyrics, the server makes an instrumental the way the YuE2
-repository's instrumental helper does: YuE2 plans a score, the helper moves the vocal
-notes to an instrument, and YuE2 generates the audio from the changed score. In one take,
-YuE2 planned no vocal notes at all for an instrumental style.
+YuE2 can generate songs with vocals. With `--lyrics`, the server sings the supplied words.
+Without lyrics, it follows the YuE2 repository's instrumental method. YuE2 plans a score,
+the helper moves vocal notes to an instrument, and YuE2 generates audio from that score.
+In one instrumental take, the plan contained no vocal notes.
 
-YuE2 has no length setting, and for an instrumental its planner wrote 92 to 240 s whatever cav asked for. The
-audio follows the planned score, though: in 5 uncut takes it was within 3 s of the
-score's length. So the server cuts the score before it generates: it keeps the start up
-to a phrase (every four bars) or a section, then the outro. Asked for 60 s, the two cut
-takes came out at 64.8 s (cut score 57.4 s) and 60.4 s (cut score 61.1 s), so trim or fade
-a take to the storyboard.
+YuE2 has no length setting. Its instrumental planner wrote 92 to 240 s regardless of the
+requested duration. In five uncut takes, audio duration stayed within 3 s of the score.
+The server therefore cuts the score before generation at a four-bar phrase or section,
+then keeps the outro. Two takes requested at 60 s produced 64.8 s and 60.4 s of audio
+from scores cut to 57.4 s and 61.1 s. Trim or fade takes to match the storyboard.
 cav prints the length, and says when YuE2 stopped a part at its token limit
 (`truncated`).
 
@@ -399,35 +395,35 @@ Speed, measured on 2026-10-11 with `cav music gen ... --seconds 60` through the 
 | RTX 3080 Ti 12 GB, WSL2 Ubuntu | `--device cuda --budget 12` | 64.8 s of audio in 71 s |
 | M1 Max 64 GB | `--device mps --budget 24` | 60.4 s of audio in 476 s (about 8 minutes) |
 
-On the M1, most of the time goes to generating audio tokens (about 10 per second) and to
-the 32 synthesis steps. An uncut take of 90 s took about 10 minutes there. Earlier runs
-of YuE2's own command line, with the same flags, made 35.7 s of audio in 198 s on the M1
+On the M1, audio-token generation took about 10 tokens per second, followed by 32
+synthesis steps. An uncut 90 s take took about 10 minutes. Earlier runs
+of YuE2's own command line used the same flags. They made 35.7 s of audio in 198 s on the M1
 (peak memory 15.5 GB) and 59.2 s in 47.3 s on the 3080 Ti.
 
-The weights are CC BY-NC 4.0, with a permission for individuals: personal users, creators
-and musicians may use and sell what they make. A company that uses the weights
-commercially needs a licence from the YuE2 authors. cav cannot tell the two apart, so it
-records each take with YuE2's terms as non-commercial. A project set to
+The weights use CC BY-NC 4.0 with extra permission for individuals. Personal users,
+creators and musicians can use and sell their outputs. Companies need a licence from
+the YuE2 authors for commercial use of the weights. cav cannot determine the user's
+status, so it records each take as non-commercial. A project set to
 `cav credits licence nc-ok` accepts it. Otherwise `cav music gen` warns, and
-`cav credits check` lists the take with those terms. If you work as an individual
-creator, the take is yours to use; set the project to `nc-ok` or accept the warning.
+`cav credits check` lists the take under those terms. An individual creator can set
+the project to `nc-ok` or accept the warning, subject to YuE2's terms.
 
 #### YuE2-Turbo
 
-cav also works with [YuE2-Turbo](https://github.com/NoizAI/YuE2-Turbo), NOIZ's serving
-layer for YuE2 (Apache 2.0). cav's server speaks a subset of Turbo's job API, so the same
-`yue2` service talks to either one.
+cav also supports [YuE2-Turbo](https://github.com/NoizAI/YuE2-Turbo), NOIZ's Apache 2.0
+server for YuE2. cav's server implements part of Turbo's job API, so `yue2` can use
+either server.
 
-Turbo is fastest on a large NVIDIA GPU on Linux, with vLLM. NOIZ tested it on an RTX 5090
-(32 GB): with its default settings it uses about 18 GB at rest, writes a 60-second song in
-about 10 seconds, and runs several jobs at once. Without vLLM, Turbo also runs on a 12 GB
+Turbo runs fastest on a large NVIDIA GPU under Linux with vLLM. NOIZ tested it on an RTX 5090
+(32 GB). With its default settings, it uses about 18 GB at rest and writes a 60-second song
+in about 10 seconds. It runs several jobs at once. Without vLLM, Turbo also runs on a 12 GB
 GPU and on an Apple silicon Mac, with the low-memory settings below. There it is about as
 fast as cav's server, so either one works.
 
-Turbo has no instrumental mode and no length cut, and it refuses the extra fields that
-cav's server takes. cav then does that work itself, with the same steps as its server:
+Turbo has no instrumental mode or score-length cut. It also rejects the extra fields
+accepted by cav's server. cav performs those steps itself:
 
-1. A first job plans a song from your prompt. cav downloads its score
+1. A first job plans a song from the prompt. cav downloads its score
    (`GET /v1/jobs/{id}/score`) and does not use its audio.
 2. cav moves the vocal notes to the instrument voice, and cuts the score to about
    `--seconds` (the same cut as its server).
@@ -435,16 +431,17 @@ cav's server takes. cav then does that work itself, with the same steps as its s
 
 A cover (`--ref`, see "YuE2 covers" below) works the same way on Turbo. The first job is
 Turbo's own `POST /v1/covers`: SheetSage2 transcribes the track, and cav takes the melody
-from that job's score instead of a plan. Turbo turns covers off when
+from that job's score. It does not use a plan. Turbo turns covers off when
 `YUE2_SHEETSAGE_DEVICE=off`, and then cav describes the track in words.
 
-So each instrumental take costs two jobs on Turbo. At Turbo's speed, the extra job adds
+Each instrumental take uses two Turbo jobs. At Turbo's speed, the extra job adds
 about 10 to 40 seconds. A song with `--lyrics` needs neither the instrumental steps nor a
-cut, so it is one ordinary job on Turbo, as on cav's server. The take sounds the same as on cav's server for the same planned score: cav's Go
-code writes the same score as the server's Python code, byte for byte, in cav's tests.
+cut, so it is one ordinary job on Turbo, as on cav's server. For the same planned score,
+the take sounds the same as on cav's server. cav's tests show that its Go code writes the
+same score as the server's Python code, byte for byte.
 
-Turbo needs an API key of 16 characters or more, on every job route. Start it with the key,
-then give cav the same key:
+Turbo requires an API key of at least 16 characters on every job route. Configure the
+same key in Turbo and cav:
 
 ```bash
 # On the Turbo machine, in a YuE2-Turbo checkout installed as its README says:
@@ -465,19 +462,19 @@ export YUE2_BACKEND=torch YUE2_RESIDENT_MODELS=false YUE2_MEMORY_BUDGET_GIB=12 \
 # On a Mac, also: YUE2_DEVICE=mps YUE2_BACKEND=torch-eager, and a larger budget (24 on 64 GB).
 ```
 
-Turbo's `server` extra installs vLLM. Without it, install the server's other packages by
-hand. Covers also need `torchaudio`, and `setuptools` older than 81, because `pretty_midi`
-imports `pkg_resources`. On macOS 27, Turbo's pinned scipy 1.15.3 does not load: upgrade
-scipy. SheetSage2 downloads its parent model, `m-a-p/MERT-v2-FullSong` (2.4 GB), the
-first time. With `YUE2_LOCAL_FILES_ONLY=true`, download it first.
+Turbo's `server` extra installs vLLM. Without that extra, install the remaining server
+packages manually. Covers need `torchaudio` and `setuptools` older than 81 because
+`pretty_midi` imports `pkg_resources`. On macOS 27, upgrade Turbo's pinned scipy 1.15.3
+because it does not load. SheetSage2 first downloads its 2.4 GB parent model,
+`m-a-p/MERT-v2-FullSong`. Download it beforehand when `YUE2_LOCAL_FILES_ONLY=true`.
 
-Turbo does not say which model it loaded. cav records `YuE2-3B` with each take. If Turbo
+Turbo does not report its loaded model. cav records `YuE2-3B` with each take. If Turbo
 runs another model (`YUE2_MODEL`), give its name as the endpoint's model, so cav records
 that instead: `cav config endpoint yue2 http://<turbo-host>:8000 <model name>`.
 
-`cav config check` tells the two servers apart. cav's server lists `"extensions":
-["instrumental"]` in `/health/ready`, and Turbo lists none. For Turbo, the check also sends
-the key to `/internal/load`, so a wrong key shows up there and not in the middle of a take.
+`cav config check` distinguishes the servers. cav's server lists `"extensions": ["instrumental"]`
+in `/health/ready`; Turbo lists none. For Turbo, the check sends the
+key to `/internal/load` so it can report a wrong key before music generation.
 cav never prints the key.
 
 cav was tested against Turbo commit 7c88813 on 2026-10-12, with the low-memory settings
@@ -490,49 +487,45 @@ above:
 | RTX 3080 Ti | cover, `--ref` (60 s track), `--seconds 30` | 32.1 s | 100 s |
 | M1 Max, 64 GB | instrumental, `--seconds 30` | 32.4 s | 670 s |
 
-A large GPU with vLLM was not tested. cav's tests also use a fake Turbo server, written
-from Turbo's source (`src/yue2/service.py`), that refuses unknown fields as Turbo does.
+The cav tests did not run Turbo on a large GPU with vLLM. They also use a fake Turbo
+server based on `src/yue2/service.py`. It rejects unknown fields like Turbo.
 
 ### YuE2 covers
 
-With `--ref`, YuE2 makes an instrumental cover of the track:
+With `--ref`, YuE2 makes an instrumental cover from a source track:
 
 ```bash
 cav music gen "solo cello with warm piano accompaniment, intimate and gentle" --ref theme.mp3 --service yue2
 ```
 
-cav uploads the track to the server's `POST /v1/covers`, the same route and fields as
-YuE2-Turbo's (at most 40 MiB; cav converts a bigger file to MP3). SheetSage2, a
-transcription model, turns the track's melody into a score, without chords. The server
-moves the melody to an instrument, as for any instrumental take, and YuE2 plays it in the
-prompt's style with a new accompaniment. It does not copy the singer, the sound or the
-arrangement: only the tune. The cover is about as long as the track. `--seconds` cuts it
-at a phrase, as for other takes.
+cav uploads the track through `POST /v1/covers` using YuE2-Turbo's route and fields.
+The limit is 40 MiB; cav converts larger files to MP3. SheetSage2 transcribes the melody
+without chords. The server assigns it to an instrument, and YuE2 adds accompaniment in
+the requested style. The generated cover follows the tune and has roughly the source
+track's length. `--seconds` cuts it at a phrase, as with other takes.
 
-SheetSage2 needs its own Python environment and about 2.7 GB of weights, next to YuE2's
+SheetSage2 needs a separate Python environment and about 2.7 GB of weights alongside YuE2's
 (see `tools/yue2-server/README.md`). Without them, the server's covers are off. cav then
 describes the track in words, as for Lyria, and says why. cav does the same when
 SheetSage2 cannot transcribe a track.
 
-Measured on 2026-10-11 on an M1 Max 64 GB (`--device mps`), with a 38.4 s reference
-(Ode to Joy, rendered with `cav music render`): SheetSage2 transcribed it on MPS in 18 s,
-and the cover came back with 37.8 s of audio in 177 s. When SheetSage2 transcribed the
-cover again, it found the same 62-note melody as in the reference. One take, so treat
-this as one observation. A transcription is never exact: SheetSage2 can miss quiet or
-busy parts of a song.
+One measurement on 2026-10-11 used an M1 Max with 64 GB (`--device mps`) and a 38.4 s
+reference, Ode to Joy, made with `cav music render`. SheetSage2 transcribed it in 18 s.
+The 37.8 s cover took 177 s to generate. A second transcription found the same 62-note
+melody. This is one take. SheetSage2 can miss quiet or busy passages in other tracks.
 
-A cover plays someone else's song. cav records the reference track with the take
-(`generated.coverOf` in `.cav/manifest.json`), adds it to the take's licence note, and
-`cav credits` lists a credit line for it: `Cover of “theme” (melody from theme.mp3)`. Put
-the song's real title and writers in that line. To use the cover, you need the
-songwriter's permission or a cover licence, whatever YuE2's terms allow. SheetSage2's
+A cover uses another songwriter's melody. cav records the reference track with the take
+(`generated.coverOf` in `.cav/manifest.json`) and adds it to the take's licence note.
+`cav credits` lists a credit line: `Cover of “theme” (melody from theme.mp3)`. Put
+the song's real title and writers in that line. Using the cover requires the
+songwriter's permission or a cover licence, subject to YuE2's terms. SheetSage2's
 weights are CC BY-NC 4.0 as well, with no permission like YuE2's for selling what it
 makes.
 
 ### Write the music
 
-`cav music render score.json [--stems]` plays a score you write, locally and without a key.
-The score puts notes and hits on a beat grid:
+`cav music render score.json [--stems]` plays a written score locally without a key.
+The score places notes and hits on a beat grid:
 
 ```json
 {"bpm": 112, "beats": 32, "swing": 0.05,
@@ -551,7 +544,7 @@ The score puts notes and hits on a beat grid:
   `snare`, `hat`, `openhat`, `clap`; `sample:<path>`; `vst3:<path>` or `au:<path>`.
 - Per track: `gain` (dB), `pan` (-1 to 1), `reverb` and `delay` (0-1), and `duck` to dip
   under the kick. `humanize` sets timing and velocity drift.
-- A plugin track plays its default sound unless you give it a `preset`: a `.vstpreset`
+- A plugin track plays its default sound unless a `preset` is supplied: a `.vstpreset`
   (VST3), or a file with the bytes of pedalboard's `plugin.raw_state` (VST3 or AU). `params`
   sets parameters by their pedalboard names; an unknown name lists the real ones. macOS loads
   an AU only from `/Library/Audio/Plug-Ins/Components` or `~/Library/Audio/Plug-Ins/Components`.
@@ -563,7 +556,7 @@ The score puts notes and hits on a beat grid:
 
 ### Judge the music
 
-You cannot hear. `cav listen` gives you the parts you can judge:
+`cav listen` reports these checks for agents without audio playback:
 
 - **Numbers:** length against the piece, tempo, sections, and loudness (aim near
   -14 LUFS and a true peak of at most -1 dBFS for web).
@@ -574,19 +567,19 @@ You cannot hear. `cav listen` gives you the parts you can judge:
   quality, enjoyment, complexity, usefulness, 0-10) and, with `--brief`, how well the audio
   matches the brief (LAION CLAP). The first run downloads about 2 GB.
 - **A critique from an audio model**, when the `ears` job has a service. It is a model's
-  opinion; say so when you pass it on.
+  opinion; label it as such when passing it on.
 
-Compare takes with `cav listen a.mp3 b.mp3 --score --board storyboard.json` and let the user
-choose. Then sync with `cav beats` and `cav guide music`, and render with
+Compare takes with `cav listen a.mp3 b.mp3 --score --board storyboard.json`. Let the user
+choose, then sync with `cav beats` and `cav guide music`. Render with
 `cav render --audio`.
 
 ### Finish the music in REAPER
 
-`cav score storyboard.json --video renders/final.mp4 --audio music/take1.mp3` writes
-`score/project.rpp`: the tempo, a marker per shot, the render on a video track and each take
-on its own track. The user opens it in REAPER to pick a take, trim, fade and fix the sync by
-ear. The video track is silent, so only the takes are heard. `cav score render
-score/project.rpp` renders it to a WAV for `cav render --audio`.
+`cav score storyboard.json --video renders/final.mp4 --audio music/take1.mp3` creates
+`score/project.rpp` with tempo, one marker per shot, a video track and separate music
+takes. The user opens it in REAPER to choose a take, trim, fade and adjust timing by ear.
+The video track is silent. `cav score render score/project.rpp` makes a WAV for
+`cav render --audio`.
 
 ## 6. Review
 
@@ -602,33 +595,34 @@ cav review export renders/final.mp4         # every note
   `.claude/launch.json` entry such as
   `{"name": "cav review", "runtimeExecutable": "cav", "runtimeArgs": ["review"], "port": 8790}`.
   In the Codex app, use the in-app browser. Otherwise any browser works.
-- The page steps exact frames, shuttles with J/K/L, sets ranges with I/O, and draws
-  arrows, boxes, ellipses and freehand. It shows the audio waveform under the timeline.
-- When you re-render to the same file, the page loads the new render and keeps the earlier
-  one. W cycles the compare modes against it: an A/B wipe, a difference image, and an onion
-  skin of the frames around this one.
-- Each note has a frame or range, text, drawings and a snapshot PNG with the drawing
-  burned in. Look at the snapshot: it shows what the reviewer saw.
-- `wait` exits with code 3 when its timeout passes with nothing sent. Run it again.
+- The page steps through exact frames. J/K/L shuttles playback, and I/O sets ranges.
+  Reviewers can draw arrows, boxes, ellipses and freehand marks. The audio waveform
+  appears below the timeline.
+- Re-rendering to the same path loads the new video and keeps the earlier version.
+  W cycles through A/B wipe, difference image and onion-skin comparison modes.
+- Each note has a frame or range, text, drawings and a PNG with the drawings added to
+  the reviewed frame. Inspect the PNG to see the reviewer's exact view.
+- `wait` returns when the reviewer sends notes or approves a stage, including approval without notes.
+  It exits with code 3 if neither action occurs before the timeout. Run it again.
 - `cav review` needs to listen on 127.0.0.1. A sandbox that blocks local ports must run
   it outside.
-- The cavalry plugin for Claude Code and Codex adds a hook (`cav review hook`): when the
-  reviewer presses Send to agent and no `cav review wait` picks the notes up, the next prompt
-  or the end of your turn tells you once. Then run `cav review wait`. In the Antigravity CLI
-  the plugin adds the same hook (`cav review hook --host antigravity`); it tells you before a
-  model call or at the end of your turn.
-- In Claude Code, the optional cav-review plugin also shows the open notes above the prompt,
-  links to the page, and can start a turn when notes arrive.
+- The cavalry plugin for Claude Code and Codex adds a hook (`cav review hook`). When the
+  reviewer presses Send to agent and no `cav review wait` picks up the notes, the hook
+  notifies the agent at the next prompt or turn end. Then run `cav review wait`. In the
+  Antigravity CLI, the plugin adds the same hook (`cav review hook --host antigravity`);
+  it notifies the agent before a model call or at the end of the turn.
+- In Claude Code, the optional cav-review plugin displays open notes above the prompt,
+  links to the review page and can start a turn when notes arrive.
 - When `cav mcp` runs (the cavalry plugin starts it; see `cav help mcp`), the `show_review`
-  tool shows the page inside the chat instead, with a small preview of the render, in hosts
-  that draw MCP Apps. Other hosts show only the result: then give the user the browser page
+  tool shows the page inside the chat in hosts that draw MCP Apps. It includes a small
+  preview of the render. In other hosts, give the user the browser page
   with `cav review`. The notes go to the same review file, so `cav review wait` reads them
   as usual. Without a shell, read them with the `review_notes` tool: it returns the sent
   notes with their snapshot images and marks the send received.
 
 ### Review stills
 
-`cav review` also takes the stills of the plan, so the user can approve each stage before
+`cav review` also supports planning stills. The user can approve each stage before
 slow or paid work starts.
 
 | Target | Items | Verdicts | Review file |
@@ -637,30 +631,31 @@ slow or paid work starts.
 | `moodboard.json` | references: images, clips, video embeds | keep, more (more like this), drop | `moodboard.review.json` |
 | `storyboard.json` | shots | approve, redo | `storyboard.review.json` |
 
-- The page shows a grid of items. The user gives a verdict per item and can open an item
-  to draw on it and write a note. A note has an item, a verdict, text, drawings and a
-  snapshot PNG, as a note on a video has a frame.
+- The page shows items in a grid. The user sets a verdict for each item and can add
+  drawings and notes. Each note stores the item, verdict, text, drawings and a PNG.
 - The Approve button works only when no item is marked redo or drop and no note is open.
   An open "more" does not block. Approving writes `approved` into the review file.
-- Approving counts as a send: `cav review wait storyboard.json` returns, also with no
-  notes. It says "is approved by <name>". `cav review export storyboard.json --json` shows
-  `approved`, the `items` with their verdicts, and `blockers`.
+- Approval counts as a send. `cav review wait storyboard.json` returns even when there
+  are no notes and says "is approved by <name>". `cav review export storyboard.json --json`
+  reports `approved`, item verdicts and `blockers`.
 - The page shows a shot's `why` under its text. Adding or changing `why` changes the shot, so
   its verdict becomes outdated once and the user judges it again.
 - To fix a note, change the item in its file (for a shot: its `what`, its sketch SVG, or its frame with
   `cav board frames --force`), then run `cav review resolve <id> --note "what changed"`.
-  Do not mark anything approved: there is no command for that, and you must never edit
+  Do not mark anything approved: there is no command for that, and the agent must never edit
   `approved` by hand. The page holds a secret that the server needs for an approval, so the
-  chat tools cannot approve. This is a strong signal, not a security boundary: an agent with
-  a shell could still read the page and send the approval itself. Never do that.
-- If the file does not load, `wait` and `export` say "approval unknown". Fix the file first.
+  chat tools cannot approve. This provides a strong approval signal. It cannot enforce a
+  security boundary because an agent with a shell could still read the page and send the
+  approval itself. Never do that.
+- If a target file cannot load, `wait` and `export` report "approval unknown". Fix the
+  file before relying on its approval state.
 - A storyboard also has a "board" item: its settings (tempo, size, offset, beat grid and
   style). Changing any of them removes the approval ("board changed").
-- Each item has a hash. When an item changes, the user's old verdict shows as outdated and
-  the approval is removed (`approvalCleared` says why). Ask the user to look and approve
-  again. A change to one shot does not touch the verdicts on the others.
+- Each item has a hash. If an item changes, its old verdict becomes outdated and cav
+  removes approval. `approvalCleared` records the reason. Ask the user to review and
+  approve again. Other shots keep their verdicts.
 - On a mood board, a clip and a YouTube or Vimeo video play on the item (the user presses the
-  play button; nothing loads before). The page shows your take-from-it line under each item.
+  play button; nothing loads before). The page shows the agent's take-from-it line under each item.
   In the chat view (`show_review`), a host may block the player: the link under the item
   always works, and a clip over 24 MB says to run `cav review moodboard.json`.
 - A mood board or brief review needs `moodboard.json` or `brief.json`; cav reads their items
