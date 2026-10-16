@@ -88,7 +88,7 @@ to run `cav config set-key` themselves. Keys must stay out of chat.
 
 | Job | Free | With a key |
 |---|---|---|
-| `image` (frames, stills) | sketch (a user-provided SVG per shot, rendered by Cavalry), greybox cards; mflux (Apple silicon), comfyui (a user-run server) | gemini, openai, openrouter, fal |
+| `image` (frames, stills) | sketch (an agent-written SVG per shot, rendered by Cavalry), greybox cards; mflux (Apple silicon), comfyui (a user-run server) | gemini, openai, openrouter, fal |
 | `image.alpha` (transparent PNG) | rembg (through uv): cuts out an image that an `image` service made | openai, recraft |
 | `image.vector` (SVG) | vtracer, potrace (if installed) | recraft |
 | `video` (moving animatic shots) | none (the animatic holds each frame) | veo |

@@ -103,5 +103,6 @@ the keys remain. `api.disconnectInput` can delete them. The verified case needs 
 
 In Cavalry 2.8, `api.getOutFrame` returns the first invisible frame. `setOutFrame` accepts
 the last visible frame. `cav seams` compares the first invisible frame with the frame
-before it. A layer set to out 9 ends at frame 10. `cav check` uses each storyboard shot's
+before it. A layer set to out 9 is visible through frame 9 and invisible at frame 10.
+`cav check` uses each storyboard shot's
 start frame as its boundary, so aligned shot starts follow the same rule.

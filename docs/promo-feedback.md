@@ -29,7 +29,7 @@ copies. The helper rejects unknown paths such as `shapeColor`.
 
 Native tests found that `getOutFrame` returns the first invisible frame and
 `setOutFrame` accepts the last visible frame. Seam detection uses the getter. A layer
-set to out 9 hands off at frame 10.
+set to out 9 is visible through frame 9 and invisible at frame 10.
 
 ## Practical bounds
 
