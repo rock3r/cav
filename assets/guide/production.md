@@ -183,10 +183,11 @@ cav board place                             # the frames as placeholder layers i
 
 ### Sketch frames
 
-When no image service works, `cav board frames` can render a shot from an SVG written
+When no image generator is available, `cav board frames` can render a shot from an SVG written
 by the agent. The SVG shows the shot's composition. The image order is gemini, openai,
 openrouter, fal, mflux, comfyui, sketch, greybox. cav selects a sketch after all
-generating services fail or are unavailable.
+generating services are unavailable during service selection. If a selected generator's
+request fails, cav returns that error without switching to a sketch.
 
 - Use sketches when no image key is available or when one shot needs exact control.
   Write one SVG per
