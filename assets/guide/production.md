@@ -601,7 +601,8 @@ cav review export renders/final.mp4         # every note
   W cycles through A/B wipe, difference image and onion-skin comparison modes.
 - Each note has a frame or range, text, drawings and a PNG with the drawings added to
   the reviewed frame. Inspect the PNG to see the reviewer's exact view.
-- `wait` exits with code 3 when its timeout passes without new notes. Run it again.
+- `wait` returns when the reviewer sends notes or approves a stage, including approval without notes.
+  It exits with code 3 if neither action occurs before the timeout. Run it again.
 - `cav review` needs to listen on 127.0.0.1. A sandbox that blocks local ports must run
   it outside.
 - The cavalry plugin for Claude Code and Codex adds a hook (`cav review hook`). When the
