@@ -1,7 +1,7 @@
 # macOS signing and distribution
 
-macOS release archives keep the existing names `cav_darwin_arm64.tar.gz` and
-`cav_darwin_amd64.tar.gz`. They now contain:
+macOS release archives use the names `cav_darwin_arm64.tar.gz` and
+`cav_darwin_amd64.tar.gz`. Each contains this app bundle:
 
 ```text
 cav-cli-<version>/Cav.app/
@@ -11,30 +11,30 @@ cav-cli-<version>/Cav.app/
   Contents/_CodeSignature/...
 ```
 
-The bundle ID is `dev.sebastiano.cav`. Terminal usage invokes
-`Cav.app/Contents/MacOS/cav` directly; no GUI launcher or JVM is included.
+The bundle ID is `dev.sebastiano.cav`. Terminal users run
+`Cav.app/Contents/MacOS/cav` directly. The bundle has no GUI launcher or JVM.
 
 ## Release path
 
-`tools/release.sh v<version>` requires a macOS signing host and signing/notary configuration
-before touching `dist`. `tools/package-macos.sh` Developer ID Application signs the binary
-and outer app with Hardened Runtime and secure timestamps, with no JVM/JIT entitlements.
-It submits a ditto app archive using App Store Connect API-key authentication, requires
-Apple's `Accepted` status, staples the app, and archives the whole tree with native tar.
-`tools/verify-macos-bundle.sh` extracts the final distribution without repairing modes,
-checks executable permissions, both release signatures/runtime/timestamps, the stapled
-ticket and Gatekeeper acceptance. Any failure fails the release. Checksums are computed
-only after final notarization, stapling and archive verification.
+`tools/release.sh v<version>` requires a macOS signing host and notary configuration
+before it changes `dist`. `tools/package-macos.sh` signs the binary and outer app with
+a Developer ID Application certificate, Hardened Runtime and secure timestamps. It
+adds no JVM/JIT entitlements. It submits a ditto app archive with App Store Connect
+API-key authentication. The script requires Apple's `Accepted` status, staples the app
+and archives the full tree with native tar. `tools/verify-macos-bundle.sh` extracts the
+final archive without changing file modes. It checks executable permissions, both
+signatures, runtime settings, timestamps, the stapled ticket and Gatekeeper acceptance.
+Any failed check stops the release. Checksums follow notarization, stapling and verification.
 
-Development is credential-free: normal `go build` and `tools/release.sh v<current-version>
---dev` need no Apple secrets. Development packaging does not invoke Apple signing tools;
-the Go linker may produce its normal local signature. These artifacts have no release
-acceptance claim and the macOS installer refuses them. There is no silent release fallback
-to ad-hoc signing, no quarantine removal and no private-credential discovery.
+Normal `go build` and `tools/release.sh v<current-version> --dev` require no Apple
+credentials. Development packaging does not call Apple signing tools, although the Go
+linker can add a local signature. These builds have no release acceptance claim, and
+the macOS installer refuses them. Release packaging never falls back to ad-hoc signing,
+removes quarantine or searches for private credentials.
 
 ## CI secrets
 
-Provision the following repository secrets outside the agent workflow:
+The maintainer provisions these repository secrets outside the agent workflow:
 
 | Secret | Purpose |
 |---|---|
@@ -46,38 +46,38 @@ Provision the following repository secrets outside the agent workflow:
 | `APPLE_NOTARY_API_KEY_ID` | API key ID. |
 | `APPLE_NOTARY_API_ISSUER` | API issuer UUID. |
 
-The reusable `macos-release-artifacts.yml` validates a semver version and resolves a commit
-reachable from the default branch before a privileged macOS job checks out that exact SHA.
-`tools/ci-macos-release.sh` imports the certificate into a temporary keychain and writes the
-API key under the ephemeral runner's temporary folder. The script trap and an always-run
-workflow fallback remove the certificate, key and temporary keychain. Do not enable shell
-tracing or print credential files. This CI path is restricted to ephemeral GitHub runners.
+The reusable `macos-release-artifacts.yml` validates the version and checks that the
+commit is reachable from the default branch. A privileged macOS job checks out that
+exact SHA. `tools/ci-macos-release.sh` imports the certificate into a temporary keychain
+and writes the API key in the ephemeral runner's temporary folder. A script trap and
+an always-run workflow step remove the certificate, key and keychain. Keep shell tracing
+off and do not print credential files. Use this CI path only on ephemeral GitHub runners.
 
-For a pre-tag smoke, dispatch `notarize-macos.yml` with a trusted default-branch commit and
-its manifest version. It calls the same release implementation and uploads archives and
-checksums for seven days. It never tags, publishes or deploys. Archives protect bundle
-permissions from upload-artifact's mode normalization. Before publishing separately, run
-`tools/verify-macos-bundle.sh` on each downloaded macOS archive and test terminal invocation
-on matching hardware. Foreign-architecture executables are inspected rather than run in CI.
+For a pre-tag check, run `notarize-macos.yml` with a trusted commit on the default branch
+and its manifest version. It uses the release code and keeps archives and checksums for
+seven days. It does not tag, publish or deploy. The archives preserve bundle permissions
+through artifact upload. Before publishing, run `tools/verify-macos-bundle.sh` on each
+downloaded macOS archive. Test terminal execution on matching hardware. CI inspects
+executables for other architectures without running them.
 
-Without provisioned credentials, real Developer ID signing, Apple's notary acceptance,
-stapled-ticket validation and Gatekeeper acceptance remain externally blocked. Mocked
-packaging tests verify orchestration and layout only; they are not Apple acceptance.
+Without the required credentials, the release cannot obtain Developer ID signatures,
+Apple notary acceptance, a validated staple or Gatekeeper acceptance. Mocked packaging
+tests check orchestration and layout only. They do not establish Apple acceptance.
 
 ## Install and update compatibility
 
-The installer verifies the downloaded checksum, signature, stapled ticket and Gatekeeper
-acceptance, copies the full app with ditto into a unique `CAV_BIN_DIR/.cav-bundles/install.*`
-folder, verifies that copy and atomically switches `CAV_BIN_DIR/cav` to a symlink pointing
-at its executable. `cav update` validates archive paths, uses native tar to retain bundle
-metadata, verifies the full extracted app, and switches the PATH link. Neither extracts
-just the executable. Old bundles are retained for manual rollback/cleanup. Linux and
-Windows keep their existing archive layout and replacement behavior.
+The installer checks the download checksum, signature, stapled ticket and Gatekeeper
+acceptance. It copies the full app with ditto into a unique
+`CAV_BIN_DIR/.cav-bundles/install.*` folder, verifies the copy and switches
+`CAV_BIN_DIR/cav` atomically to its executable. `cav update` checks archive paths,
+extracts with native tar to keep bundle metadata, verifies the app and switches the
+PATH link. Both keep the full bundle. Old bundles remain for manual rollback or cleanup.
+Linux and Windows retain their archive layouts and replacement behavior.
 
-Historical bare macOS installs can migrate by running the new installer or new cav update.
-Already-shipped old updater binaries extract only an executable, so use the **current
-installer once** when moving from those versions. A manually installed Cav.app outside the
-managed layout uses the installer with `CAV_BIN_DIR` to establish a PATH installation.
-New self-update refuses bare-binary downgrades. The installer permits a historical bare
-release only with an explicitly pinned `CAV_VERSION` and `CAV_ALLOW_LEGACY_MACOS=1`, and
-refuses to install it through a bundle symlink. Use a separate directory for that opt-in.
+Bare macOS installs can migrate with the current installer or updater. Older shipped
+updaters extract only an executable, so users of those versions must run the **current
+installer once**. For a Cav.app outside the managed layout, set `CAV_BIN_DIR` when running
+the installer to create a PATH entry. Current self-update refuses bare-binary downgrades.
+Installing a historical bare release requires a pinned `CAV_VERSION` and
+`CAV_ALLOW_LEGACY_MACOS=1`. The installer refuses that release through a bundle symlink.
+Use a separate directory for this explicit opt-in.

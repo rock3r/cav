@@ -1,6 +1,6 @@
 # Installing and updating `cav`
 
-Ask the user before you install anything.
+Ask the user before installing software.
 
 ## Install
 
@@ -16,10 +16,11 @@ Windows (PowerShell):
 irm https://raw.githubusercontent.com/rock3r/cav/main/install.ps1 | iex
 ```
 
-The installer puts `cav` in `~/.local/bin` (macOS) or `%LOCALAPPDATA%\cav\bin` (Windows), then
-runs `cav setup`. The same scripts are in this skill's `scripts/` folder.
+The installer places `cav` in `~/.local/bin` on macOS or `%LOCALAPPDATA%\cav\bin` on
+Windows. It then runs `cav setup`. Copies of the installer scripts are in this skill's
+`scripts/` folder.
 
-`cav setup` is safe to run again at any time. It:
+Rerunning `cav setup` performs these steps:
 
 1. creates the bridge token in `~/.cav/token`;
 2. installs `cav-bridge.js` into Cavalry's Scripts folder;
@@ -27,8 +28,8 @@ runs `cav setup`. The same scripts are in this skill's `scripts/` folder.
 4. builds the offline docs index (`cav docs update`);
 5. checks the running bridge.
 
-Then the user opens Cavalry and clicks **Scripts > cav-bridge** once per Cavalry session. The
-first time, Cavalry asks whether to trust the script; the user must click Yes.
+For each Cavalry session, the user opens **Scripts > cav-bridge**. On the first run,
+Cavalry asks whether to trust the script. The user must click Yes.
 
 ## Update
 
@@ -37,30 +38,30 @@ cav version --check     # is there a newer release? (cav doctor also says so)
 cav update              # shows the change and asks before installing
 ```
 
-After an update, `cav doctor` may say the running bridge is older than the installed one. Then
-the user closes the cav-bridge window in Cavalry and starts it again from the Scripts menu.
+After an update, `cav doctor` can report an older running bridge. The user must close
+its window in Cavalry and reopen it from the Scripts menu.
 
 ## A slow bridge
 
-`cav doctor` may say the bridge is "listening but not answering". Cavalry answers requests on
-its main thread, so a long script, a render or a dialog box makes it answer late. cav waits up
-to 30 s for each answer, and `cav job wait` keeps waiting for a job that is still running.
-Check whether Cavalry shows a dialog box, and ask the user to close it. In the evaluations this
-happened a few times without a visible cause (not explained yet; an 11-minute idle test did not
-reproduce it). Those historical retries did not provide command recovery. Use `cav operation status`
-and `cav operation resume` for new run/check/render operations; do not resubmit a build
-or render while the prior outcome is unknown.
+`cav doctor` can report "listening but not answering". Cavalry uses one main thread for
+scripts, renders and dialogs, so these can delay a response. cav waits up to 30 s for
+each answer. `cav job wait` continues waiting for a running job. If Cavalry shows a
+dialog, ask the user to close it. Evaluations saw some delays without a visible cause;
+an 11-minute idle test did not reproduce them. Historical retries did not provide
+command recovery. For current run, check and render operations, use
+`cav operation status` and `cav operation resume`. Wait until an unknown outcome is
+resolved before submitting another build or render.
 
 ## Agents in a sandbox
 
-If the agent's sandbox blocks 127.0.0.1, run `cav relay --spool <dir>` outside the sandbox and
-set `CAV_SPOOL=<dir>` for the agent. See `cav help relay`.
+If the agent's sandbox blocks 127.0.0.1, start `cav relay --spool <dir>` outside it.
+Set `CAV_SPOOL=<dir>` for the agent. See `cav help relay`.
 
 ## macOS bundle migration
 
-Current releases contain a Developer ID signed, notarized and stapled Cav.app. The current
-installer preserves the entire app under the bin folder's `.cav-bundles` directory and
-creates a `cav` symlink for terminal use. Current self-update preserves the bundle too.
-An already-installed old updater cannot preserve the new archive, so run the current
-installer once to migrate. Do not extract only Contents/MacOS/cav, remove quarantine,
-repair signatures or downgrade a release to ad-hoc signing.
+Current macOS releases contain a Developer ID signed, notarized and stapled Cav.app.
+The installer keeps the full app in `.cav-bundles` under the bin folder. It creates a
+`cav` symlink for terminal use. Current self-update also keeps the bundle. An older
+installed updater cannot preserve the new archive, so run the current installer once
+to migrate. Keep the full bundle and its security checks. Do not extract only
+`Contents/MacOS/cav`, remove quarantine, repair signatures or use ad-hoc signing.

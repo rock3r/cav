@@ -1,6 +1,9 @@
 # Cav for coding agents
 
-Build and render motion graphics in the Cavalry desktop app using the `cav` command-line tool. The plugin provides a skill that checks your setup, reads the CLI's guides, and drives scenes through the local cav-bridge script. Use it for logo stings, kinetic type, lower thirds, charts, UI walkthroughs, and animation synchronized to music.
+The `cav` command-line tool builds and renders motion graphics in the Cavalry desktop app.
+This plugin supplies a skill for setup, CLI guidance and scene work through the local
+cav-bridge script. It supports logo stings, kinetic type, lower thirds, charts, UI
+walkthroughs and motion timed to music.
 
 ## Requirements
 
@@ -8,20 +11,37 @@ Build and render motion graphics in the Cavalry desktop app using the `cav` comm
 - The `cav` CLI and ffmpeg for video and audio workflows.
 - Cavalry running with **Scripts > cav-bridge** open.
 
-The plugin does not bundle Cavalry, the CLI executable, or ffmpeg. The included skill asks before installing a missing CLI. Follow the [installation guide](https://github.com/rock3r/cav#install), run `cav doctor`, then ask your coding agent to create a new Cavalry scene. The CLI's `cav guide` explains the workflow, and `cav help <command>` documents each command.
+Install Cavalry, the `cav` CLI and ffmpeg separately. The skill asks before installing a
+missing CLI. Follow the [installation guide](https://github.com/rock3r/cav#install) and
+run `cav doctor`. Then ask the agent to make a new scene. `cav guide` explains the
+workflow, and `cav help <command>` explains individual commands.
 
 ## What runs and where data goes
 
-The agent runs `cav` shell commands. Scene inspection, JavaScript execution, and rendering use the bridge in your local Cavalry app, by default on `127.0.0.1:8723`. The CLI keeps bridge authentication and operation records under your local `~/.cav` directory. Rendered images and videos are written to your filesystem.
+The agent runs `cav` shell commands. The local Cavalry bridge handles scene inspection,
+JavaScript and rendering on `127.0.0.1:8723` by default. The CLI stores bridge credentials
+and operation records in `~/.cav`. Renders stay on the local filesystem.
 
-The plugin also starts a local MCP server, `cav mcp`, over stdin and stdout. Its `show_review` tool shows the `cav review` page for a render inside the chat, where you can play it and leave notes for the agent. Its `review_notes` tool gives the agent the notes you sent, with a snapshot of each. It reads only the videos the agent asks it to show, and writes the notes next to the video. It needs cav 1.2 or newer; with an older CLI the server does not start, and everything else works.
+The plugin starts `cav mcp` locally over stdin and stdout. `show_review` opens a render's
+review page in a supported chat. The user can play it and send notes. `review_notes`
+returns those notes and their snapshots to the agent. The server reads videos requested
+by the agent and stores notes beside each video. It requires cav 1.2 or newer. With an
+older CLI, the server fails to start. Other plugin functions remain available.
 
-Installation and updates fetch public CLI releases and checksums from GitHub. Setup can download public Cavalry documentation for offline search. This plugin includes no hosted MCP server or remote account integration. Your coding agent's normal model-provider and tool permissions still apply.
+Installation and updates download public releases and checksums from GitHub. Setup can
+download public Cavalry docs for offline search. The plugin has no hosted MCP service or
+remote account connection. The agent still uses its normal model and tool permissions.
 
 ## Using the skill
 
-Ask for a motion graphic in Cavalry. The skill starts with `cav doctor`, follows the embedded CLI guides, previews changes with contact sheets, and checks the scene before rendering. New work uses a disposable scene; replacing existing work requires explicit authorization. If a native operation times out, retain its operation ID and inspect or resume it rather than submitting the same work again.
+Ask the agent to make a motion graphic in Cavalry. The skill runs `cav doctor`, reads the
+CLI guides, inspects contact sheets and checks the scene before rendering. New work uses
+a disposable scene. Replacing existing work requires explicit authorization. If a native
+operation times out, keep its ID and inspect or resume it before submitting further work.
 
 ## Support and license
 
-Report issues at [GitHub Issues](https://github.com/rock3r/cav/issues). Cav collects no data; see the [privacy policy](privacy.md). The plugin and CLI are MIT licensed; see [LICENSE](LICENSE). Cavalry is made by Scene Group, now part of Canva. Cav is a community plugin and is not affiliated with Cavalry, Scene Group, or Canva.
+Report issues through [GitHub Issues](https://github.com/rock3r/cav/issues). See the
+[privacy policy](privacy.md) for data handling. The plugin and CLI use the MIT licence;
+see [LICENSE](LICENSE). Scene Group, now part of Canva, makes Cavalry. Cav is a community
+plugin without affiliation with those companies.

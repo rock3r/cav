@@ -1,39 +1,36 @@
 # cav architecture
 
-How the `cav` CLI, the Cavalry bridge, the helper library and the agent skill fit together,
-and how a request moves through them. For people who change this code.
+This document explains the CLI, Cavalry bridge, helper library and agent skill. It
+also traces a request through them for code contributors.
 
-Status: working on macOS with Cavalry 2.7.2 and 2.8.0. Windows code paths are written but
-not tested. Updated 2026-10-01.
+Status: Native work ran on macOS with Cavalry 2.7.2 and 2.8.0. The Windows native code
+paths were written; testing remains pending. Updated 2026-10-01.
 
 ## Summary
 
-An agent (or a person) drives a running Cavalry app from a shell. The `cav` CLI sends
-JavaScript to a small bridge script that runs inside Cavalry, waits for the result, and
-prints it. Everything else is built on that one path: renders, contact sheets, scene
-checks, beat grids and offline search.
+An agent or person calls `cav` from a shell. The CLI sends JavaScript to a bridge script
+inside the running Cavalry app. The bridge runs it and returns a result. Scene renders,
+contact sheets and checks use this path. Beat grids and offline search run in the CLI.
 
-We chose a CLI and an Agent Skill instead of an MCP server. Driving Cavalry always needs a
-desktop session with Cavalry open, so a shell is always available, and a CLI costs an agent
-no context until it asks for help. The CLI also teaches the workflow (`cav guide`) and
-enforces as much of it as it can (`cav check`, clear errors, "still running" instead of
-"failed"). The skill is only an entry point that sends the agent to `cav guide`. In the
-clean evaluation, the CLI alone did as well as the CLI with the old, longer skill, so the
-guidance now lives in the CLI, where every agent can reach it.
+The project uses a CLI for Cavalry scene work and a short agent skill for setup.
+Cavalry requires an open desktop session with shell access. Agents can read `cav guide`
+when they need workflow instructions. `cav check` reports scene findings, and command
+errors distinguish pending work from failure. The skill points agents to these CLI
+guides. In the clean evaluation, the CLI alone matched the CLI with the older long
+skill, so version 1.0 moved the detailed guidance into the CLI.
 
-There is one small MCP server, `cav mcp`, and it does not drive Cavalry. It shows the
-`cav review` page inside the chat as an MCP App (`internal/reviewmcp`). The chat draws the
-page in a sandboxed frame without network access. A script added to the page
-(`assets/review/mcp-app.js`) sends each of the page's requests through the host to an
-app-only tool, `review_request`. That tool runs the request through the same handler as
-`cav review` and returns the answer inline: JSON as text, and the video and snapshots as
-`data:` URLs. Only videos that the agent opened with `show_review` are reachable.
+`cav mcp` serves the `cav review` page as an MCP App through `internal/reviewmcp`.
+It does not submit scene work to Cavalry. The chat displays the page in a frame without
+network access. `assets/review/mcp-app.js` routes page requests through the host to
+the app-only `review_request` tool. That tool uses the `cav review` handler and returns
+JSON as text plus video and snapshots as `data:` URLs. It can reach only videos the
+agent opened with `show_review`.
 
-Main limits today:
+Current limits:
 
 - The bridge runs on Cavalry's single JavaScript thread. One slow script blocks every
-  other scene request. Status now reads existing state without queuing scene work,
-  but its HTTP read can still time out while a native call blocks the UI thread.
+  other scene request. Status now reads existing state without queuing scene work.
+  Its HTTP read can still time out while a native call blocks the UI thread.
 - Starting or restarting the bridge needs the Cavalry GUI (Scripts menu).
 - Windows is untested.
 
@@ -50,12 +47,12 @@ Main limits today:
 | Plugin packaging | `plugins/cavalry/*plugin.json`, `.claude-plugin/`, `.agents/plugins/` | JSON | Claude Code, Agent Plugins and Codex manifests and marketplace entries. |
 | Installers | `install.sh`, `install.ps1` | shell, PowerShell | Download a release, verify its checksum, run `cav setup`. |
 
-The Go binary embeds the bridge script, the helper library, the guides and the API reference
-(`assets/assets.go`). The complete signed Cav.app is required for macOS distribution; its executable embeds
-the runtime scripts and guides. Linux/Windows retain bare binary distribution.
+The Go binary embeds the bridge script, helpers, guides and API reference through
+`assets/assets.go`. macOS distribution requires the full signed Cav.app, whose
+executable contains those resources. Linux and Windows use bare binaries.
 
-The evaluation harness lives in `tools/evals/`. Its run data, fixtures, frozen snapshots
-and scratch scenes live in `.plans/evals/`, which is not committed. The README summarises
+The evaluation harness is in `tools/evals/`. It writes run data, fixtures, frozen
+snapshots and scratch scenes to uncommitted `.plans/evals/`. The README summarizes
 its method and results.
 
 ## Files on disk
@@ -81,14 +78,13 @@ its method and results.
 | `<name>.review.json`, `review/<name>/*.png` next to `brief.json`, `moodboard.json` or `storyboard.json` | `cav review` | The same for a review of stills. It also holds `kind`, the stage `approved` (with the hash of every item) and `approvalCleared` (why an approval was removed). |
 | `<Cavalry Scripts>/cav-bridge.js` | `cav setup` | The bridge script. macOS: `~/Library/Application Support/Cavalry/Scripts`. Windows: `%APPDATA%\Cavalry\Scripts`. |
 
-`CAV_HOME` moves `~/.cav`. `CAV_SCRIPTS_DIR`, `CAV_BRIDGE_HOST` and `CAV_BRIDGE_PORT` override
-the other defaults.
+`CAV_HOME` changes the `~/.cav` location. `CAV_SCRIPTS_DIR`, `CAV_BRIDGE_HOST` and
+`CAV_BRIDGE_PORT` override their respective defaults.
 
 ## How a job runs
 
-A job is a piece of JavaScript that runs inside Cavalry. `cav run`, `cav scene`, `cav tree`,
-`cav frame`, `cav sheet`, `cav check` and `cav render` all build a job and send it the same
-way.
+A job is JavaScript that runs in Cavalry. `cav run`, `cav scene`, `cav tree`, `cav frame`,
+`cav sheet`, `cav check` and `cav render` submit jobs through the same bridge path.
 
 ```mermaid
 sequenceDiagram
@@ -104,35 +100,33 @@ sequenceDiagram
     C->>C: print the value, or the error with its line
 ```
 
-The client reads the result from whichever comes first: the result file or the GET payload.
-It needs both because the GET payload holds only the latest job, and another client may
-have replaced it.
+The client accepts the first available result from the file or GET response. GET holds
+only the latest job, so another client can replace that response.
 
 ### Job states and exit codes
 
-`cav` never reports a long job as failed. It distinguishes these cases:
+`cav` reports long jobs by their current state. The exit codes distinguish these cases:
 
 | Situation | What the client sees | Exit code |
 |---|---|---|
 | The job finished | result with `ok: true` | 0 |
 | The script threw | result with `ok: false`, message, line | 1 |
 | Nobody listens on the port | connection refused | 2 |
-| Cavalry accepts the connection but does not answer in 30 s | "listening but not answering" | 2 |
+| Cavalry accepts the connection and fails to answer within 30 s | "listening but not answering" | 2 |
 | The wait budget expires without a result | operation/job id and pending/unknown native outcome | 3 |
 | A job wait sees connection refusal or an operation sees a changed session | bridge lost, unknown native outcome and retained artifacts | 4 |
 | A raw job wait sees no answer for 120 s | "bridge lost", unknown native outcome | 4 |
 | `cav job wait` on an id that is not queued, running or stored | "unknown job" after 5 s | 1 |
 
-After 10 s without an answer during a job, `cav` prints "Cavalry is busy (not answering)"
-and keeps waiting. Cavalry cannot answer HTTP while a native call blocks its main thread,
-for example while it deletes hundreds of layers.
+After 10 s without a response, `cav` prints "Cavalry is busy (not answering)" and
+continues waiting. A native call that holds Cavalry's main thread blocks HTTP responses.
+Deleting hundreds of layers can do this.
 
 ### Inside the bridge
 
-The bridge is one UI script (`Scripts > cav-bridge`). It uses Cavalry's `api.WebServer`.
-The WebServer's own callback polls about once per second, so the bridge also runs an
-`api.Timer` every 50 ms to pick up requests faster. A small job takes about 60 ms end to
-end (measured on an M-series Mac).
+The bridge runs as one Cavalry UI script under `Scripts > cav-bridge`. It uses
+`api.WebServer`, whose callback polls about once per second. An `api.Timer` checks for
+requests every 50 ms. A small job took about 60 ms end to end on an M-series Mac.
 
 For each request the bridge:
 
@@ -145,43 +139,39 @@ For each request the bridge:
    code runs in global scope;
 5. removes the per-job environment, writes the result file and publishes the result.
 
-The error wrapper exists because errors thrown by Cavalry's native functions carry no stack.
-The wrapper rethrows them as JavaScript errors that name the call and its arguments, so the
-CLI can print the failing line of the user's script.
+Cavalry native errors have no stack. The bridge wraps them in JavaScript errors with
+the call and arguments, allowing the CLI to report the script line.
 
 ### Isolation from other scripts
 
-Since 0.4.0 the bridge keeps all its state inside one function. It adds nothing global while
-idle: the `api` wrapper and the `cav` helpers exist only while a cav job runs.
+Since 0.4.0, the bridge keeps its state inside one function. When idle, it leaves no
+global `api` wrapper or `cav` helpers. Those exist only during a cav job.
 `assets/bridge/test/isolation.test.js` loads the bridge in a sandboxed context and fails if it
 defines a global name, leaves `api` changed after a job, or lets job code read its token.
 
-This is a precaution, not the fix for an observed bug. We first believed that all UI scripts
-share one global scope and that cav-bridge clashed with the cavalry-mcp bridge, because
-cavalry-mcp requests came back in cav-bridge's format. The real cause was a port forwarder
-that an eval agent had started (see [evaluation.md](evaluation.md)). On Cavalry 2.8.0 we
-checked that a cav job cannot see the cavalry-mcp bridge's top-level names, so each UI script
-has its own global scope there. We did not check Cavalry 2.7.2.
+The isolation check is precautionary. Evaluation first attributed mixed bridge results
+to shared UI-script globals. A port forwarder started by an evaluation agent caused
+them instead. See [evaluation.md](evaluation.md). On Cavalry 2.8.0, a cav job could
+not read the cavalry-mcp bridge's top-level names. UI scripts had separate global
+scopes in that check. Cavalry 2.7.2 was not checked.
 
-Two bridges still must not share a token: each bridge runs any request that carries its
-token, whatever port it came in on.
+The two bridges must use different tokens. Each accepts a request carrying its own
+token regardless of the request's original port.
 
-Job code runs in the bridge's global scope. A job can leave values on `globalThis`, and
-they survive until the bridge restarts. This is deliberate: scripts use it to pass ids
-between runs.
+Job code runs in the bridge's global scope. Values saved on `globalThis` persist until
+the bridge restarts. Scripts use this to pass IDs between runs.
 
 ## The helper library
 
-`cav-helpers.js` defines the global `cav` inside one function. `cav` embeds the file and
-sends it as the job's `preload`. The bridge evaluates it once per bridge session and again
-when the version changes. The version is the semver in the file plus the first 10 hex digits
-of its SHA-256, so any edit reloads it.
+`cav-helpers.js` defines global `cav` inside one function. The CLI embeds the file and
+sends it as a job `preload`. The bridge evaluates it once per session and again when its
+version changes. That version combines the file's semantic version with the first 10
+hex digits of its SHA-256. An edit therefore reloads the helpers.
 
-Lines that start with `//@` form the reference that `cav helpers` prints. Keep them next to
-the code they describe.
+`cav helpers` builds its reference from `//@` lines. Keep each line beside the code
+it describes.
 
-Design rules the helpers follow, each learned from a silent failure in Cavalry 2.7.2 (the
-full list is in `cav guide traps`):
+The helpers handle these Cavalry 2.7.2 failures. `cav guide traps` has the full list:
 
 - New layers are created with the selection cleared, because `api.create` nests a new layer
   next to the current selection.
@@ -191,25 +181,23 @@ full list is in `cav guide traps`):
 - A single number for a two-value attribute is expanded to both values; Cavalry would set
   `(0, 0)`.
 - Reading a value at another frame (`valueAt`) avoids moving the playhead when it can. A
-  playhead move re-evaluates the whole scene. If the attribute has no keys, or the frame is
-  before its first key or after its last, the value is read directly (from the keyframe node
-  in the second case).
+  playhead move re-evaluates the whole scene. If the attribute has no keys, cav reads the
+  value directly. It also reads directly before the first key and after the last key,
+  using the keyframe node in the latter case.
 
 ## Flows
 
 ### Long jobs and `cav job wait`
 
-`cav run --timeout 10m` waits up to ten minutes, then exits with code 3 and the job id. The
-native call may keep running inside Cavalry; timeout does not prove it is alive or complete.
-`cav operation resume <id>` continues a tracked command. `cav job wait <id>` waits only
-for one job. Because results are
-kept for a day, `cav job wait` also works for a job that has already finished and been
-printed.
+`cav run --timeout 10m` waits ten minutes at most, then returns code 3 and a job ID.
+The native call can continue in Cavalry. Timeout does not establish whether it finished.
+`cav operation resume <id>` continues a tracked command. `cav job wait <id>` waits for
+one job and can read completed results retained for one day.
 
 ### Sandboxed agents: spool and relay
 
-Some agent sandboxes allow no connection to `127.0.0.1` and allow writes only in their own
-folder. For those, `cav` has a spool mode.
+Some agent sandboxes block `127.0.0.1` and writes outside the work folder. Spool mode
+supports these agents.
 
 ```mermaid
 flowchart LR
@@ -220,12 +208,12 @@ flowchart LR
     A -- "prints the output, exits with the same code" --> U["agent"]
 ```
 
-Spool mode is on when `CAV_SPOOL` is set, or when a `.cav-spool` file exists in the current
-folder or a parent. The file holds the spool path, absolute or relative to the file.
+`CAV_SPOOL` enables spool mode. A `.cav-spool` file in the current folder or a parent
+also enables it. The file contains a path relative to itself or an absolute path.
 
-In spool mode `cav` forwards whole command lines, not only jobs, so commands that also read
-files or run ffmpeg (`cav render`, `cav beats`) work the same. The relay runs each command in
-the agent's working folder.
+In spool mode, cav forwards full command lines. Commands that read files or run ffmpeg,
+such as `cav render` and `cav beats`, can therefore use the relay. It runs each command
+from the agent's working folder.
 
 - Some commands never go through the relay because they need nothing from outside:
   `help`, `version`, `helpers`, `guide`, `api`, `types`, `relay`.
@@ -233,76 +221,76 @@ the agent's working folder.
 - Each request runs on its own goroutine, so one slow command (a long `cav job wait`)
   cannot hold up the others. Requests are renamed before they run, so two workers never
   take the same one.
-- `--restricted` stubs out the process-launching APIs during relayed jobs. This catches
-  accidents, not attacks: any job can use every scripting API, including file access.
+- `--restricted` stubs out the process-launching APIs during relayed jobs. This prevents
+  accidental process launches. Any job can still use every scripting API, including file
+  access, so `--restricted` cannot defend against attacks.
 
-The evaluation harness uses this mode to run agents inside Pioneer's sandbox.
+The evaluation harness uses spool mode for agents in Pioneer's sandbox.
 
 ### Rendering a video
 
-`cav render` uses a render-queue item named `cav render`, created on first use, with the
-`renderMP4` generator. It points the item at the requested output path and frame range and
-renders it. Then it counts the video packets with `ffprobe` and prints a warning if the
-count differs from the frame range. With `--audio`, ffmpeg copies the video stream and adds the audio as
-AAC at 192 kb/s, trimmed to the video length.
+`cav render` creates a render-queue item named `cav render` on first use. It assigns
+the `renderMP4` generator, output path and frame range. After rendering, ffprobe counts
+video packets and warns if the count differs from the requested range. With `--audio`,
+ffmpeg copies video and adds AAC audio at 192 kb/s, trimmed to video length.
 
-A new render-queue item can inherit the output folder of another project. `cav render`
-always sets the path itself for that reason.
+New render-queue items can inherit another project's output folder. `cav render` sets
+the path explicitly.
 
 ### Contact sheets and frames
 
-`cav frame` renders PNG frames through the same job path. `cav sheet` renders several frames
-at a reduced scale and tiles them into one PNG (`internal/sheet`). Each tile is labelled
-below the picture, never on it, with the frame number, the time and, with `--bpm`, the beat
-number. The labels use a small built-in bitmap font, so no font files are needed.
+`cav frame` renders PNGs through the shared job path. `cav sheet` renders frames at
+reduced scale and arranges them in one PNG through `internal/sheet`. Labels below each
+tile give frame, time and optional `--bpm` beat number. A built-in bitmap font removes
+the need for external font files.
 
 `cav onion` renders 2 to 24 frames and blends them into one image (`internal/sheet/onion.go`).
-The "still" picture under the ghosts is, per pixel, the first frame's colour when the first
-and last frames agree there; otherwise the flat background colour if any frame shows it
-there; otherwise the median frame. This keeps an object that eases in and then holds
+For each pixel, the "still" picture uses the first frame's colour when the first and last
+frames agree. Otherwise it uses the flat background colour if any frame shows it there.
+If neither condition applies, it uses the median frame. This keeps an object that eases in and then holds
 for most frames counted as moving. Pixels that differ from the still picture are drawn per
 frame, oldest first, fainter and tinted blue to orange; the last frame is drawn solid,
 untinted and outlined in white. It also reports, for each pair of neighbouring frames, the
 share of pixels that changed by more than 24 of 255 in any channel, and the box around them.
 
-Forge Dynamics and particles simulate only when frames render in order, so a step-1 range
-(`0-59:1`) is the only correct way to preview them.
+Forge Dynamics and particles require frames rendered in order. Use a step-1 range such
+as `0-59:1` to preview their simulation.
 
 ### `cav check`
 
-`cav check` first runs the bounded structural pass in `assets/diagnostics/structure.js`.
+`cav check` starts with the limited structural pass in `assets/diagnostics/structure.js`.
 It reads metadata/connections, warns on per-copy JavaScript (including duplicated source
 layers), nested Duplicators, fan-out and simulations, and provides supported static copy
 estimates. It makes no frame changes, bounding-box calls or renders. `--quick` stops there.
 
-Default visual checking bounds layers, animated attributes/keyframes and frame evaluations.
-Every caught inspection error and omitted check appears in failures/skipped coverage; the
-original playhead is restored in finally. Simulations skip jumping visual checks. Blank
-head/tail duration is deliberately outside this bounded pass. Historical visual rules were
-tuned on saved evaluation scenes; that evidence does not validate this new sampling policy.
+Default visual checks limit layers, animated attributes, keys and frame evaluations.
+Reports list inspection errors and skipped checks. A `finally` block restores the
+playhead. Simulations skip checks that jump between frames. This pass does not measure
+blank starts or ends. Older visual rules were tuned on saved evaluation scenes; that
+evidence does not validate this sampling policy.
 
-Optional profiling runs a small frame set in one chronological job. Simulations use only
-consecutive initial frames. It writes partial progress between native calls, measures
-setFrame and optional PNG API calls separately, and restores the original playhead on
-normal/recoverable completion. The first sample's cache state is unknown. No layer is
-mutated for attribution. See [diagnostic semantics](recovery.md).
+Optional profiling measures a small frame set in one chronological job. Simulations
+use consecutive initial frames. The job writes progress between native calls and
+measures setFrame and optional PNG API calls separately. It restores the playhead after
+normal or recoverable completion. The first sample's cache state is unknown, and no
+layer changes for attribution. See [diagnostic semantics](recovery.md).
 
 ### Beats
 
-`cav beats` decodes audio with ffmpeg and finds the tempo, beats and downbeats
-(`internal/beats`). It works on spectral flux plus a low-band energy curve. It estimates the
-tempo by autocorrelation, with a prior around 120 BPM and a check for half and double tempo.
-It tracks the beats with dynamic programming, then fits a steady grid. Downbeats come from
-low-band energy. The output lists each beat as a time and as a frame at `--fps`.
+`cav beats` decodes audio with ffmpeg. `internal/beats` uses spectral flux and low-band
+energy to estimate tempo, beats and downbeats. Autocorrelation uses a prior near 120 BPM
+and checks half and double tempo. Dynamic programming tracks beats before the command
+fits a steady grid. Low-band energy identifies downbeats. Output gives each beat's time
+and frame at `--fps`.
 
-Tempo detection can land on half or double the real tempo. `--bpm` limits the search to ±8 %
-of a known value.
+Tempo detection can choose half or twice the actual tempo. `--bpm` limits the search
+to ±8 % of a known value.
 
-With an audio file, `cav beats` also describes the track (`internal/beats/profile.go`). A
-second short-time Fourier transform (2048-sample window, 256-sample hop at 22 050 Hz) gives
-96 log-spaced bands from 40 Hz to 11 kHz, RMS loudness, three coarse bands (below 150 Hz,
-150 Hz to 2 kHz, above 2 kHz) and an onset curve per coarse band, each scaled on its own
-so that hi-hats do not outrank kicks and stabs.
+With audio, `internal/beats/profile.go` also describes musical changes. Its second
+short-time Fourier transform uses a 2048-sample window and 256-sample hop at 22 050 Hz.
+It produces 96 log-spaced bands from 40 Hz to 11 kHz, RMS loudness and three coarse
+bands: below 150 Hz, 150 Hz to 2 kHz and above 2 kHz. Each coarse band has its own
+scaled onset curve, so high-frequency hats do not dominate kicks and stabs.
 
 - Sections: one feature vector per beat (loudness, the three bands and 8 spectral bands,
   each scaled to unit spread). Novelty after Foote (2000) compares the 8 beats before each
@@ -315,36 +303,33 @@ so that hi-hats do not outrank kicks and stabs.
   before it.
 - Accents: the strongest onset peaks, at least 100 ms apart, at most 1.5 per second.
 
-Checked on the launch video's track, whose layout is written down in `launch-video/plan.md`:
-the drop at 4 s, the stabs at 46 s, the one-beat pause at 51.5 s, the hit at 52 s and the
-final chord at 56 s all appear as events. The section boundaries are less exact: the hit at
-52 s is not a boundary.
+The launch track check used the layout in `launch-video/plan.md`. It found the drop at
+4 s and stabs at 46 s. It also found a one-beat pause at 51.5 s, a hit at 52 s,
+and the final chord at 56 s. Section boundaries were less exact. The 52 s hit was not a boundary.
 
-`cav spectrogram` draws the profile (`internal/beats/picture.go`). `cav sync` decodes a
-rendered video at 160x90 in grey and measures the mean change between neighbouring frames
-(`internal/beats/video.go`). A cut is one frame that changes 4 times more than its
-neighbours. A peak is the top of a bump that rises clearly above the valleys around it and
-above the 3 frames before it: the fastest frame of a move. A stop is a fall to near rest
-straight from full speed. Each hit is measured against the nearest detected beat or half way
-between two detected beats, so a track that drifts in tempo is judged against its real beats;
-within about 35 ms counts as on the grid.
+`cav spectrogram` draws this profile in `internal/beats/picture.go`. `cav sync` decodes
+video to 160x90 greyscale frames and measures mean frame changes in
+`internal/beats/video.go`. A cut changes four times more than nearby frames. A peak
+marks the fastest frame of a move above surrounding slower frames and the prior three.
+A stop drops from full speed to near rest. cav compares each hit to the nearest detected
+beat or midpoint. This follows drifting tempo. A difference within about 35 ms counts
+as on the grid.
 
 ### Production commands
 
-`config`, `review`, `plan`, `board`, `gen`, `sfx`, `ref`, `credits`, `listen`, `music` and `score`
-never talk to the bridge. They are plain Go around ffmpeg, HTTPS and uv:
+`config`, `review`, `plan`, `board`, `gen`, `sfx`, `ref`, `credits`, `listen`, `music` and
+`score` run without the bridge. Their Go code uses ffmpeg, HTTPS and uv:
 
-- `internal/services` holds the catalog of services, the order per job, key resolution
+- `internal/services` stores the service catalog, order per job and key resolution
   (environment, macOS keychain or Windows Credential Manager, `op read`, OAuth) and one free health call per service.
   `services.Pick` returns the first service in the job's order that is usable now, without a
   network call, and lists the ones it skipped and why.
-- `internal/review` is the review server. The page is one embedded HTML file with no
-  dependencies. It plays an all-intra proxy, so a seek decodes one frame, and it reads the
-  frame on screen from `requestVideoFrameCallback`. The page burns each drawing into a
-  canvas copy of the exact frame and posts it as the note's snapshot. `review.json` is
-  re-read and written atomically on every change, so the server and `cav review resolve`
-  can both edit it. The server answers only `127.0.0.1`/`localhost` hosts and same-origin
-  JSON writes.
+- `internal/review` serves one embedded HTML page without dependencies. Its all-intra
+  proxy lets a seek decode one frame. `requestVideoFrameCallback` identifies the displayed
+  frame. The page draws marks into a canvas copy and sends that image as the note snapshot.
+  Each change rereads and atomically writes `review.json`, allowing both server edits and
+  `cav review resolve`. The server accepts only `127.0.0.1`/`localhost` hosts and
+  same-origin JSON writes.
   `internal/brief` owns `brief.json`: the fields and their order, plain-English checks
   (problems, missing required fields, notes) and the text of each field. `cav brief`,
   `cav board init`, `cav scene new` and the review loader all read the file through it. The
@@ -354,42 +339,42 @@ never talk to the bridge. They are plain Go around ffmpeg, HTTPS and uv:
   the target's `schema` (or its file name) and `Items` loads the items of a brief, mood
   board or storyboard. Each item has a sha256 over its own content, such as a shot's JSON
   and the bytes of its frame. A note and a verdict keep the hash of the item they were
-  given on. `Reconcile` removes the stage approval when an item changed, was added or
-  removed, or something blocks again; the server runs it before every read and write, so
-  there is no background loop. The image of an item is served only when it is a regular,
-  non-link image file inside the target's folder (a mood board clip, by `/api/item/{id}/clip`,
-  with the same checks), and the video routes answer 404. The
+  given on. `Reconcile` removes stage approval when an item changes, is added or removed,
+  or becomes blocked. The server runs it before every read and write; it needs no background
+  loop. The server serves an item image only if it is a regular file inside the target folder,
+  with no link. It applies the same checks to mood board clips at `/api/item/{id}/clip`.
+  The video routes answer 404. The
   approval is written by the page's `POST /api/approve` and by nothing else.
-- `cav plan` reads the flow in effect (`internal/flow`) and checks each stage. `flow.Check`
+- `cav plan` reads the active flow through `internal/flow` and checks each stage. `flow.Check`
   looks for an output in the project folder: a file, a folder that holds a file, or a `*`
-  pattern, without the review files. `review.ReadStatus` reads a review file the way `cav
-  review export` does, but in memory: it runs `Reconcile` on the loaded copy and never saves
-  it, so a plan never removes an approval from the file and takes no lock. Only
+  pattern, without the review files. `review.ReadStatus` reads a review file in memory,
+  as `cav review export` does. It runs `Reconcile` on the loaded copy without saving it.
+  A plan therefore never removes an approval from the file and takes no lock. Only
   `cav review` and the review page write review files.
-- `internal/reviewmcp` is `cav mcp`, built on the official Go MCP SDK. It serves the same
+- `internal/reviewmcp` implements `cav mcp` with the official Go MCP SDK. It serves the same
   page with `assets/review/mcp-app.js` added, and answers the page's requests in-process
   through the `internal/review` handler. It makes its own smaller proxy (640 pixels wide,
   in `~/.cav/cache/review-preview`), because the chat receives the whole file inline.
-- `internal/sources` and `internal/library` search media libraries, download, and keep the
+- `internal/sources` and `internal/library` search media libraries, download files and keep the
   manifest; licence terms are normalised to SPDX-like ids with commercial, share-alike and
   no-derivatives flags.
-- `internal/imagegen`, `internal/music` and `internal/listen` are thin clients for the
+- `internal/imagegen`, `internal/music` and `internal/listen` call the
   image, music and audio-model APIs. Their tests check request shapes against the vendor
-  documentation, not the live services.
-- `internal/pyrun` runs the embedded Python helpers (`assets/python`) with `uv run
-  --no-project --with ...`, so each helper gets Python 3.12 and its packages in uv's cache
-  and nothing is installed globally. `score_takes.py` runs Audiobox Aesthetics and CLAP;
-  `render_music.py` plays a written score with numpy synthesis and pedalboard (effects,
-  VST3/AU hosting, file I/O), then masters it with pyloudnorm and its own lookahead limiter.
-  mflux runs through `uvx` the same way. ComfyUI, ACE-Step and YuE2 are HTTP servers the
-  user runs; cav submits a job and asks for its result until it is done, because none of
-  them pushes. YuE2 has no server of its own: `tools/yue2-server/yue2_server.py` is a
-  standard-library Python server that runs in the YuE2 checkout's environment, keeps one
-  pipeline loaded, and speaks a subset of YuE2-Turbo's job API with an `instrumental`
-  extension (plan a score, move the vocal notes to the Ins voice with the YuE2
-  repository's instrumental helper, generate again). A job with lyrics and no
+  documentation. Live services have not been checked.
+- `internal/pyrun` runs the embedded Python helpers (`assets/python`) with
+  `uv run --no-project --with ...`. Each helper gets Python 3.12 and its packages in uv's cache.
+  Nothing is installed globally. `score_takes.py` runs Audiobox Aesthetics and CLAP;
+  `render_music.py` plays a written score with numpy synthesis and pedalboard.
+  Pedalboard handles effects, VST3/AU hosting and file I/O. The helper then masters the score
+  with pyloudnorm and its own lookahead limiter. mflux runs through `uvx` the same way.
+  The user runs ComfyUI, ACE-Step and YuE2 as HTTP servers. cav submits jobs and polls
+  for results because those servers do not push them. YuE2 has no server of its own.
+  `tools/yue2-server/yue2_server.py` runs in the YuE2 checkout's environment with one
+  pipeline loaded. This standard-library Python server speaks a subset of YuE2-Turbo's
+  job API with an `instrumental` extension. The extension plans a score, moves vocal notes
+  to the Ins voice with YuE2's instrumental helper, and generates again. A job with lyrics and no
   `instrumental` runs YuE2 as it is and sings them. Its `POST /v1/covers` runs the
-  helper's SheetSage2 transcription in a separate Python, then generates from the melody.
+  helper's SheetSage2 transcription in a separate Python process, then generates from the melody.
   Its tests use a fake pipeline and a fake transcriber.
   YuE2-Turbo has no extensions and refuses unknown fields, so for Turbo cav does the same
   steps itself: `internal/music/yue2abc.go` is a Go port of the helper's ABC parser,
@@ -397,14 +382,14 @@ never talk to the bridge. They are plain Go around ffmpeg, HTTPS and uv:
   (or, for a cover, transcribes it), cav converts and cuts it, and a second job generates
   from it as `abc`. Tests compare the port with the Python output in
   `internal/music/testdata/yue2`, and run the client against a fake Turbo server. cav picks the path by the `extensions` list in `/health/ready`.
-- `internal/score` writes REAPER projects (`.rpp`, plain text) and renders them with
+- `internal/score` writes REAPER projects (`.rpp`, plain text) and renders them using
   `reaper -renderproject`.
-- `internal/board` turns a storyboard into a board sheet, an animatic (ffmpeg concat with one
+- `internal/board` converts a storyboard into a board sheet, an animatic (ffmpeg concat with one
   still per shot) and mood boards.
-- `internal/moodboard` owns `moodboard.json`: `Sync` keeps the items in line with the folder
-  and the manifest (ids and takes stay; gone files are marked, dropped items stay dropped),
-  `ParseVideoURL` and `PlayerURL` turn a YouTube or Vimeo link into a checked id and the one
-  player address the page may embed, and `ContactSheet` makes the ffmpeg frames of a clip. It
+- `internal/moodboard` owns `moodboard.json`. `Sync` keeps items in line with the folder
+  and manifest. Ids and takes stay; gone files are marked, and dropped items stay dropped.
+  `ParseVideoURL` and `PlayerURL` turn a YouTube or Vimeo link into a checked id and an
+  embeddable player address. `ContactSheet` makes the ffmpeg frames of a clip. It
   has no network code, so `internal/review` stays offline. `internal/sources/oembed.go` asks
   the sites for a title and a thumbnail (only from their image hosts); cav never downloads a
   web video.
@@ -412,7 +397,7 @@ never talk to the bridge. They are plain Go around ffmpeg, HTTPS and uv:
 ### Offline search
 
 - `cav api` searches the scripting API: names and signatures from cavalry-types (MIT), plus
-  our own notes on traps (`tools/api-notes.json`). `tools/build_apiref.py` rebuilds
+  project notes on traps (`tools/api-notes.json`). `tools/build_apiref.py` rebuilds
   `assets/apiref/api.json`.
 - `cav types` lists the layer type ids that `api.create` accepts (274 types, 24 marked
   experimental).
@@ -420,20 +405,20 @@ never talk to the bridge. They are plain Go around ffmpeg, HTTPS and uv:
   shipped. `cav docs update` downloads about 520 pages from the public sitemap to the user's
   own cache and builds the index there.
 
-Both searches use BM25 over tokens with camelCase splitting and light stemming
-(`internal/search`).
+Both searches use BM25 with camelCase token splitting and light stemming in
+`internal/search`.
 
 ## Setup, update and versions
 
-- `cav setup` is safe to run again. It creates the token, installs or updates the bridge
+- `cav setup` can run again. It creates the token, installs or updates the bridge
   script, checks Cavalry and ffmpeg, builds the docs index and checks the running bridge.
   `cav doctor` runs the same checks without changing anything.
 - Each request and each bridge payload carries a protocol number (1 today). The bridge
   refuses a request with another protocol, and `cav` then exits with code 2 and says how to
   fix it. `cav doctor` fails on a mismatch. A bridge from before 1.0 sends no protocol; it
   speaks protocol 1, which has not changed since 0.1.
-- An older running bridge with the same protocol is a warning, not a failure. Restarting the
-  bridge window brings the new version.
+- `cav doctor` warns about an older running bridge with the same protocol. Restart its
+  window to load the new version.
 - `cav update` downloads a GitHub release, verifies it against the release's
   `checksums.txt`, preserves and verifies the whole signed macOS bundle (or replaces the
   Linux/Windows binary), and runs `cav setup`. It asks first unless `--yes` is
@@ -454,13 +439,13 @@ Both searches use BM25 over tokens with camelCase splitting and light stemming
 | `cav run assets/helpers/test/live-native.js` | 14 checks of native-feature helpers inside Cavalry. |
 | `claude plugin validate . --strict` | Claude Code plugin and marketplace manifests. |
 
-The live tests delete every layer in the active comp. Run them only after
-`cav scene new --force` in a scene you do not need.
+Live tests delete all layers in the active comp. Run them after
+`cav scene new --force` in a disposable scene.
 
 ## Known problems
 
 - One slow script blocks the bridge for everyone. The CLI reports this honestly ("busy",
-  "still running"), but cannot run two jobs at once.
+  "still running"). The bridge cannot run two jobs at once.
 - The Spring behaviour had no visible effect when connected from a script. `cav guide`
   recommends `spring`/`outBack` easing instead.
 - `cav check` does not catch every layout fault. A panel's content built outside the panel's
@@ -469,22 +454,22 @@ The live tests delete every layer in the active comp. Run them only after
 
 ## Durable operations
 
-`internal/operation` stores private atomic command checkpoints. `render`, `check` and `run`
-are operation-aware; other commands retain raw job semantics. Dispatch records the original
-command and working directory, then applies a total context deadline. Internal JavaScript
-calls checkpoint a prepared job and uncertain submission intent before POST. Completed
-results are cached in the operation, independently of the bridge's one-day result cache.
-Replaying a command consumes these jobs in order; changed code is rejected. No uncertain
-job is re-submitted. Successful output is printed only after its completion checkpoint.
+`internal/operation` stores private, atomic command checkpoints. `render`, `check` and
+`run` track operations; other commands keep raw-job behavior. Dispatch records the
+command and working directory and sets a total deadline. Internal JavaScript calls
+record prepared jobs and submission intent before POST. Operations store completed
+results independently of the bridge's one-day cache. Resume consumes recorded jobs in
+order and rejects changed code. It does not resubmit uncertain jobs. cav prints success
+only after saving the completion checkpoint.
 
-A kernel file lock serializes clients sharing CAV_HOME. Pending native jobs gate new
-operations even after their CLI exits; unknown/stale records require explicit reconciliation
-and abandonment. Read-only status observes atomic snapshots and existing GET/result files.
-New bridges provide optional bridgeSession identity and completed-ID deduplication while
-remaining compatible with protocol 1; old bridges require manual session confirmation.
+A kernel lock serializes clients sharing `CAV_HOME`. Pending native jobs block new
+operations after the CLI exits. Unknown or stale records require explicit reconciliation
+and abandonment. Read-only status uses atomic snapshots and existing GET or result files.
+New bridges add optional bridgeSession identity and completed-ID deduplication under
+protocol 1. Older bridges require manual session confirmation.
 
-Rendering stages video/mux beside the destination and atomically publishes by hard link
-without overwriting existing files. ffmpeg and ffprobe honor the remaining CLI context.
-Complete muxes and cached bridge work survive replay. Native blocking work can continue
-past the deadline; no cancellation or heartbeat claims to interrupt it. See
+Rendering stages video and mux files beside the destination. It publishes by hard link
+without overwriting existing files. ffmpeg and ffprobe use the remaining CLI deadline.
+Complete mux files and cached bridge jobs survive resume. Native calls can continue
+past a deadline because cancellation and heartbeats cannot interrupt them. See
 [recovery](recovery.md) and [macOS release packaging](NOTARIZATION.md) for limits.

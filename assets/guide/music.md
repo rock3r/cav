@@ -8,40 +8,40 @@ With a track:
 cav beats music.wav --fps 60 -o build/grid.json
 ```
 
-It prints the BPM, the frame of every beat, and the downbeats (beat 1 of each 4/4 bar). Steady
-tracks are snapped to an exact grid. If the BPM looks like half or double the tempo you hear
-described, run it again with `--bpm <expected>`.
+`cav beats` prints beats per minute (BPM), each beat's frame and each downbeat. A downbeat
+is beat 1 of a 4/4 bar. The command fits steady tracks to an exact grid. If the result
+is half or twice the expected tempo, run it again with `--bpm <expected>`.
 
-Without a track (you or the user choose the tempo):
+Without a track, choose a tempo with the user:
 
 ```bash
 cav beats --bpm 120 --seconds 16 --fps 60
 ```
 
-Useful numbers at 60 fps: 120 BPM = 30 frames per beat, 128 BPM = 28.1, 100 BPM = 36,
-90 BPM = 40. A 4/4 bar is 4 beats.
+At 60 fps, 120 BPM gives 30 frames per beat; 128 gives 28.1; 100 gives 36; and 90 gives
+40. A 4/4 bar has four beats.
 
-With a track, `cav beats` also prints the shape of the music:
+For an audio track, `cav beats` also reports these features:
 
-- **sections**: where the music changes (an intro, a drop, a break), with the bar, the
-  loudness and the change from the section before. Plan one scene per section.
-- **events**: `rise` (a beat at least 6 dB louder than the two before it: a drop or a hit),
-  `fall` (a sudden drop-out) and `silence` (a gap of 0.15 s or more).
-- **accents**: the strongest hits, each with its band (`low` kick and bass, `mid` snare, stabs
-  and voice, `high` hats) and its place on the grid. Strong low or mid accents off the grid
-  are syncopations that deserve a hit of their own.
-- **barEnergy**: loudness per bar from 0 (quietest bar) to 1 (loudest), in the JSON.
+- **sections** mark changes such as an intro, drop or break. Each entry gives the bar,
+  loudness and change from the prior section. Plan one scene per section.
+- **events** include `rise`, a beat at least 6 dB louder than the prior two beats;
+  `fall`, a sudden decrease; and `silence`, a gap of at least 0.15 s.
+- **accents** identify strong hits, their timing and their frequency band. `low` covers
+  kick and bass, `mid` covers snare, stabs and voice, and `high` covers hats. Give strong
+  low or mid accents between grid beats their own visual hit when appropriate.
+- **barEnergy** gives each bar's loudness from 0 to 1 in the JSON.
 
 ## 2. Look at the track
 
-Use a spectrogram to inspect the track's frequencies and timing:
+Use `cav spectrogram` to inspect frequency and timing:
 
 ```bash
 cav spectrogram music.wav --fps 60                  # renders/spectrogram.png
 cav spectrogram music.wav --fps 60 --from 40 --to 54  # zoom into 14 seconds
 ```
 
-Open the image. Everything shares one time axis in seconds and frames:
+Open the image. Its lanes share a time axis in seconds and frames:
 
 | Lane | What it shows | How to read it |
 |---|---|---|
@@ -49,9 +49,8 @@ Open the image. Everything shares one time axis in seconds and frames:
 | db | Loudness. Red shading = silence, green triangle = rise, red triangle = fall. | Plan big moves where the curve jumps, and holds where it dips. |
 | low, mid, hi | Onsets per band. White dots = the strongest accents. | The low lane is the kick pattern, mid the snares and stabs, hi the hats. |
 
-Describe what you see to the user in musical words ("a riser from bar 15 that lands on bar
-19, a one-beat pause before bar 27"), and say that it comes from the picture, not from
-listening.
+Describe visible events in musical terms, such as "a riser from bar 15 to bar 19" and
+"a one-beat pause before bar 27". Tell the user that the description comes from the image.
 
 ## 3. Use it in scripts
 
@@ -62,7 +61,8 @@ b.bar(2)     // frame of the first beat of the third bar
 b.frames     // frames per beat (can be fractional; helpers round)
 ```
 
-Or read the file: `var g = JSON.parse(api.readFromFile('/abs/path/build/grid.json'))`, then
+Scripts can also read the file with
+`var g = JSON.parse(api.readFromFile('/abs/path/build/grid.json'))`. Then use
 `g.beatFrames[n]` and `g.downbeatFrames[n]`.
 
 ## 4. Map the music to the picture
@@ -79,22 +79,22 @@ Or read the file: `var g = JSON.parse(api.readFromFile('/abs/path/build/grid.jso
 | Riser in the spectrogram | Build with it (zoom, scale up, tighten), and release where it lands |
 | Strong low/mid accent off the grid | A hit of its own: a punch or a cut on that frame |
 
-- A move that "hits" the beat must **end** on the beat frame. Start it earlier: a 12-frame
-  `outBack` pop that should land on frame 120 starts at 108. Flashes and cuts start exactly on the beat.
-- Build every section from the grid, never from hand-typed frame numbers.
-- Keep a steady visual rhythm: if you punch on beats 2 and 4 in bar 1, keep that pattern.
+- A move that matches a beat must **end** on that beat frame. Start a 12-frame `outBack`
+  pop at frame 108 to land on frame 120. Start flashes and cuts on the beat.
+- Use grid positions to time sections. The grid provides the frame numbers.
+- Keep repeated accents consistent. For example, repeat punches on beats 2 and 4 in each bar.
 
 ## 5. Continuous movement with the music
 
-For a pulse that follows the music all the time (a glow that breathes with the bass, bars
-that bounce), let Cavalry read the sound instead of placing keys:
+For continuous movement that follows the music, connect Cavalry's Sound behaviour.
+This can drive a bass-linked glow or moving bars without individual keys:
 
 ```js
 // scale.y between 1 (quiet) and 1.4 (loudest), from the kick and bass only
 cav.sound('/abs/path/music.wav', logo, 'scale.y', { min: 1, max: 1.4, low: 20, high: 150, smooth: 2 })
 ```
 
-Key the big hits to the grid as usual; use `cav.sound` for texture under them, not instead of them.
+Place major hits on the grid. Use `cav.sound` for continuous movement between them.
 
 ## 6. Check
 
@@ -104,13 +104,12 @@ cav render -o renders/final.mp4 --audio music.wav
 cav sync renders/final.mp4                # renders/sync.png and a report
 ```
 
-`cav sync` finds the moments the rendered picture changes sharply (cuts, the fastest frame of
-a pop or slam, moves that land) and measures each one against the beat grid in frames. It also
-lists strong musical moments (sections, rises, silences, big accents) with no visual hit. Its
-picture adds a "pic" lane under the spectrogram view: green marks are hits on the grid, red
-marks are off it. Fix red marks you did not mean, and decide for each unanswered moment
-whether it needs a hit. The grid can be a frame or two off on long tracks, so do not chase
-±1-frame offsets.
+`cav sync` finds sharp visual changes in the render, including cuts and the fastest frame
+of a move. It measures each change against the beat grid in frames. It also lists strong
+musical events without a visual hit. The picture adds a "pic" lane below the spectrogram.
+Green marks are on the grid; red marks are off it. Check unintended red marks and decide
+whether each unmatched musical event needs a visual hit. Long tracks can have a grid error
+of one or two frames, so do not adjust every ±1-frame difference.
 
-You still cannot hear the result. Tell the user which frames the hits are on, so they can
-check. If you generate music yourself, say that no one has listened to it yet.
+The CLI does not play audio for the agent. Give the user the hit frames for a listening
+check. If the agent generated the music, state whether a person has listened to it.

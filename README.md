@@ -1,9 +1,9 @@
 # Cav
 
-Make motion graphics in [Cavalry](https://cavalry.studio), the 2D motion design app, from a
-terminal. You, or a coding agent working for you, write short scripts. `cav` runs them inside
-the Cavalry window that is open on your desktop, shows you contact sheets, checks the result
-for common mistakes, and renders the video, with music if you want.
+`cav` builds motion graphics in [Cavalry](https://cavalry.studio) from a terminal.
+A person or coding agent writes JavaScript files, and `cav` runs them in the open
+Cavalry app. It makes contact sheets, checks common mistakes and renders video with
+optional music.
 
 | Part | What it is |
 |---|---|
@@ -11,10 +11,9 @@ for common mistakes, and renders the video, with music if you want.
 | cav-bridge | A small Cavalry script that `cav` talks to. `cav setup` installs it. |
 | `cavalry` skill | A short entry point for coding agents. It checks the setup and sends the agent to `cav guide`. Packaged as a Claude Code, Codex and Antigravity plugin. |
 
-Cav drives Cavalry through the CLI, not an MCP server. Cavalry always runs on a desktop, so
-a shell is always there, and a command-line tool costs an agent no context until it asks for
-help. The one MCP server, `cav mcp`, only shows the review page inside the chat (see
-[Review in the chat](docs/user-guide.md#review-in-the-chat)).
+The CLI sends scene work to Cavalry on the desktop. Agents can call commands from a
+shell and request guidance when needed. `cav mcp` has a separate role: it displays
+the review page in supported chats. See [Review in the chat](docs/user-guide.md#review-in-the-chat).
 
 ## Requirements
 
@@ -37,10 +36,10 @@ On Windows, in PowerShell:
 irm https://raw.githubusercontent.com/rock3r/cav/main/install.ps1 | iex
 ```
 
-The installer checks the download against the release checksums, then runs `cav setup`.
+The installer checks the download against release checksums and runs `cav setup`.
 
-**2. Start the bridge.** In Cavalry, click **Scripts > cav-bridge** and keep its small window
-open. Do this once each time you start Cavalry. Then check everything:
+**2. Start the bridge.** In Cavalry, click **Scripts > cav-bridge** and keep its window
+open. Repeat this after each Cavalry restart. Then check the setup:
 
 ```bash
 cav doctor
@@ -53,8 +52,8 @@ cav doctor
 /plugin install cavalry@cav
 ```
 
-For `cav review`, Claude Code can also show the open review notes above the prompt and start
-a turn when the reviewer sends notes: `/plugin install cav-review@cav`.
+The optional `/plugin install cav-review@cav` plugin shows open review notes above the
+Claude Code prompt. It can start a turn when the reviewer sends notes.
 
 In Codex:
 
@@ -72,17 +71,16 @@ In the Antigravity CLI, from a clone of this repository:
 agy plugin install ./plugins/cavalry
 ```
 
-The plugin gives Antigravity the skill, the `cav mcp` server and the review hook. Only the
-Antigravity CLI runs plugin hooks: the Antigravity app and IDE load the skill and the
-server, but not the hook. See
+The plugin gives Antigravity the skill, `cav mcp` and a review hook. The Antigravity
+CLI runs plugin hooks. The app and IDE load the skill and server without the hook. See
 [the user guide](docs/user-guide.md#using-cav-with-a-coding-agent).
 
 Other agents: copy `plugins/cavalry/skills/cavalry` into the agent's skills folder.
 
-**Agents in a sandbox.** Some agent sandboxes block connections to `127.0.0.1` or writes
-outside the project. `cav doctor` then reports `blocked: a sandbox`. Either allow `cav` to
-reach `127.0.0.1:8723`, or run `cav relay` outside the sandbox and let `cav` work through a
-folder: see [Agents in a sandbox](docs/user-guide.md#agents-in-a-sandbox).
+**Agents in a sandbox.** Some sandboxes block `127.0.0.1` or writes outside the project.
+`cav doctor` then reports `blocked: a sandbox`. Allow access to `127.0.0.1:8723` or run
+`cav relay` outside the sandbox. The relay forwards commands through a folder. See
+[Agents in a sandbox](docs/user-guide.md#agents-in-a-sandbox).
 
 ## Try it
 
@@ -95,20 +93,20 @@ cav check            # find problems a viewer would notice
 cav render -o out/title.mp4
 ```
 
-The [user guide](docs/user-guide.md) walks through a first animation, music sync and
+The [user guide](docs/user-guide.md) covers a first animation, music timing and
 troubleshooting.
 
 ## What it looks like
 
-Look at music you cannot hear: `cav spectrogram` draws bars, sections and accents.
+`cav spectrogram` draws musical bars, sections and accents for visual inspection.
 
 ![cav spectrogram](docs/images/spectrogram.png)
 
-Plan shots on the beat: `cav board sheet` shows the storyboard.
+`cav board sheet` shows storyboard shots planned against beats.
 
 ![cav board sheet](docs/images/board.png)
 
-Describe a symptom, get the fix: `cav guide --search "keys dropped"`.
+`cav guide --search "keys dropped"` finds guidance for a reported symptom.
 
 ![cav guide --search](docs/images/guide-search.png)
 
@@ -117,8 +115,8 @@ Describe a symptom, get the fix: `cav guide --search "keys dropped"`.
 | Command | What it does |
 |---|---|
 | `cav setup` / `cav doctor` | Install or check everything: token, bridge script, Cavalry, ffmpeg, docs, running bridge |
-| `cav guide [topic]` | How to work: building a scene, the production flow (or your own `flow.md`), design recipes, music sync, traps, native features, production, software showcase videos |
-| `cav guide --search <words>` | The best guide sections for a symptom, when you do not know the topic (offline) |
+| `cav guide [topic]` | How to work: building a scene, the production flow (or a custom `flow.md`), design recipes, music sync, traps, native features, production, software showcase videos |
+| `cav guide --search <words>` | The best guide sections for a symptom when its topic is unknown (offline) |
 | `cav status` | Existing bridge state; no scene work is queued |
 | `cav scene new\|comp\|open\|save` | New scene (refuses to discard unsaved work), change the comp, open, save |
 | `cav run <file.js>... \| -e <code>` | Run JavaScript in Cavalry with the helper library loaded; prints the return value |
@@ -135,7 +133,7 @@ Describe a symptom, get the fix: `cav guide --search "keys dropped"`.
 | `cav review [video.mp4 \| brief.json \| moodboard.json \| storyboard.json]` | A review page: step frames or look at items, draw, comment, approve a stage of stills, then send the notes to the agent (`wait`, `export`, `resolve`) |
 | `cav mcp` | An MCP server (stdio) that shows the review page (video or stills) inside the chat, as an MCP App |
 | `cav brief init\|show` | Write and check `brief.json`, the brief agreed with the user; `cav board init` and `cav scene new` take size, fps and length from it |
-| `cav plan` | Show each stage of the production flow (or your own `flow.md`): done, waiting for approval, missing or unknown. It also names the next step. It only reads |
+| `cav plan` | Show each stage of the production flow (or a custom `flow.md`): done, waiting for approval, missing or unknown. It also names the next step. It only reads |
 | `cav board init\|frames\|sheet\|animatic\|mood` | Storyboard timed in beats, frames per shot, a board image, an animatic on the music, mood boards |
 | `cav gen image\|vector` | Generate stills, transparent PNGs and SVG; trace a PNG to SVG |
 | `cav ref` / `cav sfx search\|get\|gen\|index` | Find reference images, sounds and music under free licences; generate sound effects |
@@ -147,13 +145,12 @@ Describe a symptom, get the fix: `cav guide --search "keys dropped"`.
 | `cav relay --spool <dir>` | Forward commands for agents whose sandbox blocks `cav` |
 | `cav version [--check]` / `cav update` | Versions, and updates that ask before they install |
 
-The production commands work without API keys (greybox frames, Openverse, Wikimedia,
-written scores, local models through uv, ComfyUI, ACE-Step and YuE2 servers) and use better
-services when you add keys. `cav guide production` explains
-them.
+Production commands have paths without API keys: greybox frames, Openverse, Wikimedia,
+written scores, local uv models, and user-run ComfyUI, ACE-Step and YuE2 servers.
+Configured keys add other services. `cav guide production` explains the service order.
 
-Every command accepts `--json`. Exit codes: 0 ok, 1 error, 2 bridge not reachable, 3 job still
-running, 4 bridge lost.
+Every command accepts `--json`. Exit code 0 means success; 1 means error; 2 means the
+bridge is unreachable; 3 means work remains pending; and 4 means bridge loss.
 
 ## Update
 
@@ -161,15 +158,14 @@ running, 4 bridge lost.
 cav update
 ```
 
-It shows the new release, asks, checks the download, and runs `cav setup`. If `cav doctor`
-then says the running bridge is older, close the cav-bridge window in Cavalry and start it
-again. Update the plugin with `/plugin marketplace update cav` in Claude Code.
+`cav update` shows the release and asks before installing. It checks the download and
+runs `cav setup`. If `cav doctor` reports an older running bridge, restart its Cavalry
+window. Update the Claude Code plugin with `/plugin marketplace update cav`.
 
 ## How well it works
 
-We gave the same 11 motion design briefs to an agent with a mid-size model (GLM-5.3 Flash) in
-three ways, and compared the results with automatic checks and a blind judge (measured on
-Cavalry 2.8.0):
+An agent using GLM-5.3 Flash completed the same 11 motion briefs under three tool
+conditions. Automatic checks and a blind judge compared the Cavalry 2.8.0 results:
 
 | Agent used | Tasks passed | Mean time | Mean tokens |
 |---|---|---|---|
@@ -177,10 +173,10 @@ Cavalry 2.8.0):
 | `cav` only | 8 of 11 | 1,025 s | 0.98 M |
 | the upstream cavalry-mcp server | 3 of 11 | 1,604 s | 3.22 M |
 
-`cav` did most of the work: with or without the skill, the agent passed far more tasks with a
-third of the tokens. The skill did not add a measurable gain, so 1.0 moved its guidance into
-`cav guide`, where every agent can read it. The method, the full tables and the problems we
-found are in [the evaluation](docs/evaluation.md).
+The CLI and CLI-plus-skill conditions each passed 8 of 11 tasks. The cavalry-mcp condition
+passed 3 of 11 and used more tokens. This sample found no measured gain from the old
+long skill. Version 1.0 moved its guidance into `cav guide`. See
+[the evaluation](docs/evaluation.md) for methods, full results and limits.
 
 ## What was tested
 
@@ -196,26 +192,27 @@ found are in [the evaluation](docs/evaluation.md).
 
 - [User guide](docs/user-guide.md): install, the first animation, music, agents, troubleshooting.
 - [Architecture](docs/architecture.md): how the parts fit together, for people who change the code.
-- [Evaluation](docs/evaluation.md): how we measure it, and the results.
+- [Evaluation](docs/evaluation.md): Explains the measurement methods and reports the results.
 - [Changelog](CHANGELOG.md) and [releasing](RELEASING.md).
 
 ## Recovery, diagnostics and signed macOS bundles
 
-`scene open`, `frame`, `sheet`, `render`, `check` and `run` return an operation ID. After a timeout, use
-`cav operation status <id>` and `cav operation resume <id> --timeout 90m` instead of
-retrying the command. `cav check --quick --json` avoids playhead changes, bounds and renders;
-`--profile` adds a small measured frame set. Quick inspection follows referenced pre-comps
-without switching the active comp; findings include their composition paths. Select later
-frames with `--profile-frames 840,1560,1908`. Simulations require chronological PNG warm-up;
-explicitly allow those extra frames with `--max-warmup 2000` and an appropriate timeout. Failures and skipped coverage are explicit.
-A between-sample profile budget limit remains skipped coverage, including when no sample
-finishes; it is not an API failure.
+`scene open`, `frame`, `sheet`, `render`, `check` and `run` return operation IDs. After
+a timeout, inspect `cav operation status <id>` and continue with
+`cav operation resume <id> --timeout 90m`. Do not submit the original command again.
+`cav check --quick --json` avoids playhead changes, bounds and rendering. `--profile`
+measures a small frame set. Quick checks follow referenced pre-comps without switching
+the active comp and include comp paths in findings. Select later frames with
+`--profile-frames 840,1560,1908`. Simulations need chronological PNG warm-up. Allow
+extra frames with `--max-warmup 2000` and enough time. Reports identify failures and
+skipped work. A profile that reaches its budget between samples records skipped
+coverage, even if no sample finishes. It does not report an API failure for that case.
 See [operation recovery](docs/recovery.md) for states, concurrency and remaining limits.
 
-macOS releases preserve a signed, notarized and stapled `Cav.app`; the installer exposes
-its executable on PATH through a symlink. Users of an already-shipped older updater should
-run the current installer once to migrate. Development builds stay credential-free; real
-release builds require signing. See [notarization](docs/NOTARIZATION.md).
+macOS releases keep a signed, notarized and stapled `Cav.app`. The installer adds its
+executable to PATH through a symlink. Users with an older shipped updater need the
+current installer once to migrate. Development builds need no credentials. Release
+builds require signing. See [notarization](docs/NOTARIZATION.md).
 
 ## Development
 
@@ -229,12 +226,12 @@ claude plugin validate . --strict
 
 ## Credits
 
-- [cavalry-mcp](https://github.com/m18h/cavalry-mcp) by Michael Essandoh (MIT): the bridge
-  script is derived from its bridge, and the token handshake, API reference and docs search
-  ideas come from it. See `NOTICE`.
+- [cavalry-mcp](https://github.com/m18h/cavalry-mcp) by Michael Essandoh (MIT): This project
+  derives its bridge script from that bridge. The token handshake, API reference and docs
+  search also follow its ideas. See `NOTICE`.
 - [cavalry-types](https://github.com/scenery-io/cavalry-types) by Remco Janssen (MIT): API names
   and signatures.
 - Cavalry is made by Scene Group (now part of Canva). Cav is a community plugin and is not affiliated with Cavalry, Scene Group, or Canva.
-  The Cavalry docs are not included; `cav docs update` downloads them to your own computer.
+  The Cavalry docs are not included; `cav docs update` downloads them to the local computer.
 
 Licence: MIT.

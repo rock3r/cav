@@ -1,8 +1,8 @@
 # Launch-video feedback implementation
 
-All eight feedback areas now have an implementation or a verified existing behavior.
-The feedback came from Cavalry 2.8 and PR #1 at 7232fd4. It described observations and
-suggestions; the implementations below retain bounded checks and explicit recovery.
+The project addressed all eight feedback areas through new code or checked existing
+behavior. The feedback came from Cavalry 2.8 and PR #1 at 7232fd4. The table separates
+each implementation from the check that supports it.
 
 | Feedback | Implemented behavior | Verification |
 | --- | --- | --- |
@@ -17,38 +17,37 @@ suggestions; the implementations below retain bounded checks and explicit recove
 
 ## Corrected native observations
 
-Two successive `cav.key` calls on `position.x` preserved all four frames, 0, 10, 20 and 30,
-in Cavalry 2.8. The helper submits keys without disconnecting the input. An automated
-regression verifies both calls. No append/merge option is required for this case.
-Inspect intervening setters and connections before diagnosing an attribute-specific issue.
+In Cavalry 2.8, two successive `cav.key` calls on `position.x` kept keys at frames 0,
+10, 20 and 30. The helper does not disconnect the input, and a regression check covers
+both calls. This case needs no append or merge option. Inspect setters and connections
+between calls before diagnosing another attribute.
 
-An isolated native 2D Duplicator used scalar `shapeRotation`, despite the earlier report
-that all full rotation required a vector. Forcing a vector left its copies upright. The
-helper follows the native type, handles scalar/vector rotation, and converts source-fill
-colours. A rendered fixture visibly rotated the red/green copies. Unknown paths such as
-`shapeColor` are rejected instead of creating a useless connection.
+An isolated native 2D Duplicator used scalar `shapeRotation`. Vector output left the
+copies upright. The helper reads the native type, handles scalar and vector rotation,
+and converts source-fill colours. A rendered fixture showed rotating red and green
+copies. The helper rejects unknown paths such as `shapeColor`.
 
-Native testing also established that `getOutFrame` returns the first invisible frame,
-while `setOutFrame` accepts the inclusive last-visible frame. Seam candidates use the
-getter directly. A layer set to out 9 therefore hands off at frame 10, not frame 11.
+Native tests found that `getOutFrame` returns the first invisible frame and
+`setOutFrame` accepts the last visible frame. Seam detection uses the getter. A layer
+set to out 9 hands off at frame 10.
 
 ## Practical bounds
 
-- Seam differences are review signals. The command does not infer creative intent or
-  map boundaries through reference time remapping. Inspect referenced comps separately.
-- Metadata truncation/failures and omitted boundaries are explicit. Risk warnings do
-  not attribute measured render time to a node.
-- Font axes come from ordered installed OpenType `fvar`/`name` tables. Native names/order
-  must match; unknown/ambiguous metadata fails instead of guessing numeric indices.
-  Discovery has a 10000-entry cap and exposes no maps after an incomplete scan.
-- New chunks replay simulations from comp start, within `--max-warmup`; validated output
-  is reused but simulation evaluation can still be expensive. At most 1000 chunks.
-- Ordinary resume never resubmits uncertain work. Explicit chunk restart requires
+- Seam differences identify frames to review. The command cannot infer creative intent
+  or map boundaries through reference time remapping. Inspect referenced comps separately.
+- Reports identify truncated metadata, failures and omitted boundaries. Risk warnings
+  do not assign measured render time to a node.
+- Font axes come from ordered installed OpenType `fvar` and `name` tables. Native names
+  and order must match. Unknown or ambiguous metadata causes failure. Discovery stops
+  at 10000 entries and gives no axis maps after an incomplete scan.
+- New chunks replay simulations from composition start within `--max-warmup`. cav reuses
+  validated output. Simulation evaluation can still be costly. The limit is 1000 chunks.
+- Ordinary resume does not resubmit uncertain work. An explicit chunk restart requires
   acknowledged reconciliation, unchanged inputs and a different idle bridge session.
-- Comp switching can mark Cavalry's scene unsaved. Chunk rendering requires an explicit
-  save. The native tests use disposable scenes and restore the owner's saved launch scene.
+- Switching compositions can mark the scene unsaved. Save it before chunk rendering.
+  Native tests used disposable scenes and restored the owner's saved launch scene.
 
 Font metadata references: [OpenType fvar](https://learn.microsoft.com/en-us/typography/opentype/spec/fvar)
 and [OpenType name](https://learn.microsoft.com/en-us/typography/opentype/spec/name).
-Native evidence is retained locally under `validation-1.1/remaining/`. Automated fixtures
-run in CI on Linux and macOS; native Cavalry tests were run on macOS with Cavalry 2.8.
+Native evidence remains under `validation-1.1/remaining/`. CI runs automated fixtures
+on Linux and macOS. The native Cavalry tests ran on macOS with Cavalry 2.8.

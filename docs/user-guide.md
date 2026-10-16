@@ -1,13 +1,13 @@
 # cav user guide
 
-`cav` lets you, or a coding agent working for you, build and render motion graphics in
-[Cavalry](https://cavalry.studio) from a terminal. You write short JavaScript files; `cav` runs
-them inside the Cavalry app that is open on your desktop, shows you contact sheets of the
-result, checks it for common mistakes, and renders the final video.
+`cav` builds and renders motion graphics in [Cavalry](https://cavalry.studio) from a
+terminal. A person or coding agent writes JavaScript files. `cav` runs them in the open
+Cavalry app, makes contact sheets, checks common mistakes and renders video.
 
-You need macOS (tested) or Windows (install and offline commands tested; driving Cavalry not tested yet), Cavalry 2.4 or newer (tested on 2.7.2 and 2.8.0),
-and ffmpeg. Some features, such as 2.5D cameras, physics and particles, need a Cavalry Pro
-licence.
+Running `cav` requires macOS or Windows, Cavalry 2.4 or newer, and ffmpeg. The project
+tested native scene work on macOS with Cavalry 2.7.2 and 2.8.0. Windows installation and
+offline commands were tested. Windows native scene work remains untested. 2.5D cameras,
+physics and particles require Cavalry Pro.
 
 ## Install
 
@@ -23,21 +23,21 @@ On Windows, in PowerShell:
 irm https://raw.githubusercontent.com/rock3r/cav/main/install.ps1 | iex
 ```
 
-On macOS the installer preserves the full signed Cav.app under `~/.local/bin/.cav-bundles`
-and exposes its executable with the `~/.local/bin/cav` symlink. See
+On macOS, the installer keeps the signed Cav.app in `~/.local/bin/.cav-bundles` and
+links `~/.local/bin/cav` to its executable. See
 [macOS distribution](NOTARIZATION.md) for migration from old updaters.
 
-The installer puts `cav` in `~/.local/bin` (Windows: `%LOCALAPPDATA%\cav\bin`), checks the
-download against the release checksums, and runs `cav setup`. Setup creates a secret token
-in `~/.cav/token`, copies the bridge script into Cavalry's Scripts folder, and checks that
-Cavalry and ffmpeg are installed. Running it again is safe.
+The installer places `cav` in `~/.local/bin` on macOS or `%LOCALAPPDATA%\cav\bin`
+on Windows. It checks release checksums and runs `cav setup`. Setup creates the secret
+token in `~/.cav/token`, installs the bridge script and checks Cavalry and ffmpeg.
+`cav setup` can be run again.
 
 If ffmpeg is missing, install it with `brew install ffmpeg` (macOS) or
 `winget install Gyan.FFmpeg` (Windows).
 
-**2. Start the bridge.** Open Cavalry and click **Scripts > cav-bridge**. A small window
-appears. Keep it open while you use `cav`. The first time, Cavalry asks whether you trust
-the script. You need to start the bridge again each time you restart Cavalry.
+**2. Start the bridge.** Open Cavalry and click **Scripts > cav-bridge**. Keep the bridge
+window open while using `cav`. Cavalry asks whether to trust the script on its first run.
+Start the bridge again after each Cavalry restart.
 
 **3. Check everything.**
 
@@ -45,16 +45,15 @@ the script. You need to start the bridge again each time you restart Cavalry.
 cav doctor
 ```
 
-Every line should say `ok`. A line marked `FAIL` has a `fix:` line under it.
+Each successful check says `ok`. A `FAIL` line includes a `fix:` instruction.
 
-**4. Optional: build the docs index.** `cav docs update` downloads the Cavalry documentation
-(about 520 pages) to your computer, so `cav docs <words>` can search it offline. Setup does
-this for you unless you ran it with `--no-docs`.
+**4. Optional: build the docs index.** `cav docs update` downloads about 520 Cavalry
+documentation pages for offline `cav docs <words>` searches. Setup does this unless
+it received `--no-docs`.
 
 ## Your first animation
 
-Make a new scene. `cav` refuses to replace a scene with unsaved changes, so it never throws
-away your work.
+Create a scene. `cav` refuses to replace unsaved scene changes.
 
 ```bash
 cav scene new --width 1920 --height 1080 --fps 60 --seconds 4
@@ -77,7 +76,7 @@ cav.fadeOut(bar, beat.beat(7), 12)
 return { title: title, bar: bar }
 ```
 
-Run it, look at it, check it, render it:
+Run the script, inspect frames, check the scene and render it:
 
 ```bash
 cav run title.js          # prints the returned layer ids
@@ -87,15 +86,15 @@ cav scene save out/title.cv
 cav render -o out/title.mp4
 ```
 
-For this short example, `cav check` still reports that nothing moves in about half of the
-piece. Treat its fixes as suggestions: here, a slow drift on the underline would answer it.
+For this example, `cav check` reports no movement during about half the piece. A slow
+underline movement could address that finding if it fits the design.
 
-Open `renders/sheet.png` after every change. It is the quickest way to see a missing layer,
-a wrong position or a wrong colour.
+Open `renders/sheet.png` after every change. Check for missing layers, wrong positions
+and wrong colours.
 
 ## How scripts work
 
-Your code runs inside a function in Cavalry, so `return` sends a value back to the terminal.
+Each script runs inside a Cavalry function. `return` sends a value to the terminal.
 Two libraries are available:
 
 - `api` is Cavalry's own scripting API. `cav api <words>` searches it offline, for example
@@ -103,7 +102,7 @@ Two libraries are available:
 - `cav` is the helper library. `cav helpers` prints all of it; `cav helpers slideIn` prints
   one entry.
 
-Four rules prevent most surprises:
+Follow these four rules:
 
 - `(0, 0)` is the centre of the comp, and `+y` points **up**. The top edge is `cav.comp().top`.
 - Frames are whole numbers, opacity is 0 to 100, scale is a multiplier (1 = 100 %), rotation
@@ -111,19 +110,19 @@ Four rules prevent most surprises:
 - Variables do not survive between `cav run` calls. Look layers up again with
   `cav.find('name')`, or store ids on `globalThis`.
 - Prefer the helpers to raw `api` calls. They avoid several Cavalry behaviours that fail
-  silently, such as colour keys given as hex strings or keys on `rotation` instead of
-  `rotation.z`.
+  silently, such as colour keys given as hex strings or keys on `rotation`. Use
+  `rotation.z` for rotation keys.
 
-A long script can outlive the CLI's wait budget. `scene open`, `frame`, `sheet`, `run`, `render` and `check` print an
-operation ID. Inspect and resume the complete command without submitting it again:
+A long script can exceed the CLI wait budget. `scene open`, `frame`, `sheet`, `run`,
+`render` and `check` print operation IDs. Inspect and resume the same operation:
 
 ```sh
 cav operation status <operation-id> --json
 cav operation resume <operation-id> --timeout 30m --json
 ```
 
-`cav job wait <job-id>` still waits for one raw job. Waiting for preparatory metadata does
-not resume a render. Keep the original scene and inputs unchanged during recovery. See
+`cav job wait <job-id>` waits for one raw job. Waiting for preparation metadata does
+not continue a render. Keep the scene and inputs unchanged during recovery. See
 [operation recovery](recovery.md) for unknown outcomes, partial checks and stale records.
 
 ## Everyday commands
@@ -150,15 +149,15 @@ Every command accepts `--json` for machine-readable output.
 
 ## Syncing to music
 
-`cav beats` finds the tempo, the beats and the downbeats (the first beat of each bar) of a
-track, and prints them as frame numbers:
+`cav beats` finds tempo, beats and downbeats in a track. A downbeat is the first beat
+of a bar. The command prints their frame numbers:
 
 ```bash
 cav beats music.wav --fps 60 -o grid.json
 ```
 
-Put cuts and big hits on downbeats and smaller accents on the other beats. Then check that
-the hits land where you meant them:
+Place cuts and major hits on downbeats, and smaller accents on other beats. Inspect
+the timed frames:
 
 ```bash
 cav sheet 0-960:36 --bpm 100
@@ -166,39 +165,37 @@ cav sheet 0-960:36 --bpm 100
 
 With `--bpm`, each tile shows its beat number.
 
-Detection sometimes picks half or double the real tempo. If the BPM looks wrong, run it
-again with `--bpm <what you expect>`. For a track without a file, `cav beats --bpm 120
---seconds 16` makes an exact grid.
+Detection can return half or twice the expected tempo. If it does, run again with
+`--bpm <what you expect>`. Without an audio file,
+`cav beats --bpm 120 --seconds 16` creates an exact grid.
 
 With a file, `cav beats` also lists the sections of the track (where the music changes), sudden
 rises and falls in loudness, silences, and the strongest accents with their frequency band.
 
-Two more commands help an agent that cannot hear the music:
+These commands give an agent visual and measured audio information:
 
 ```bash
 cav spectrogram music.wav --fps 60            # renders/spectrogram.png
 cav sync renders/final.mp4                    # renders/sync.png and a report
 ```
 
-`cav spectrogram` draws the track as one image: a spectrogram with bar lines and section
-lines, a loudness curve, and the onsets of the low, mid and high bands. `cav sync` reads a
-rendered video, finds its cuts and visual hits, and measures each one against the beats in
-frames. It also lists the strong musical moments that no visual hit answers. Its picture
-adds the visual change per frame under the spectrogram view.
+`cav spectrogram` draws frequencies, bars, sections, loudness and low, mid and high
+onsets on one time axis. `cav sync` finds cuts and visual hits in a rendered video.
+It measures each against beats in frames and lists strong musical events without a
+visual hit. The sync image adds per-frame visual change below the spectrogram.
 
-For movement that follows the music all the time, the `cav.sound` helper connects Cavalry's
-own Sound behaviour to an attribute: `cav.sound('/abs/music.wav', layer, 'scale.y', {min: 1,
-max: 1.4, low: 20, high: 150})`.
+For continuous music-driven movement, `cav.sound` connects Cavalry's Sound behaviour
+to an attribute: `cav.sound('/abs/music.wav', layer, 'scale.y', {min: 1, max: 1.4, low: 20, high: 150})`.
 
 ## Planning, assets, music and review
 
-These commands work before and after the Cavalry scene, and none of them needs the bridge,
-except `cav board place`, which adds the storyboard to the open scene.
-`cav guide production` is the full walkthrough; this is the short version.
+Planning, asset, music and review commands work without the Cavalry bridge.
+`cav board place` needs it to add storyboard frames to the open scene. Read
+`cav guide production` for full command details.
 
-**Services and keys.** Each job (frames, transparent assets, SVG, reference images, sound
-search, music, and the critique of a track) has an order of services. cav uses the first one
-it can use now, so everything works without keys and gets better with them:
+**Services and keys.** Each job type has a service order: frames, transparent assets,
+SVG, references, sound search, music and audio critique. cav chooses the first available
+service. Every job type also has a path without keys:
 
 ```bash
 cav config                                          # the order per job, and key sources
@@ -207,9 +204,9 @@ cav config check                                    # one free call per service
 cav config check --live                             # plus one small paid call each
 ```
 
-A key source is `env:NAME`, `keychain:service/account`, `op://vault/item/field`
-(1Password, read with `op read` when needed) or `oauth` (`cav config login freesound`). cav
-never prints or stores a key.
+Keys can come from `env:NAME`, `keychain:service/account`,
+`op://vault/item/field` (read with `op read`) or `oauth` through
+`cav config login freesound`. cav does not print or store key values.
 
 On macOS, `keychain:service/account` reads a generic password from the login keychain. On
 Windows, it reads a generic credential from Credential Manager. The target name is the
@@ -220,13 +217,13 @@ cmdkey /generic:cav /user:openai /pass
 cav config set-key openai keychain:cav/openai
 ```
 
-cav reports a missing entry and a refused read in the same way on both systems. Keychain
-sources do not work on Linux.
+cav reports missing entries and refused reads on macOS and Windows. Linux does not
+support these keychain sources.
 
-**Licences.** `cav credits licence nc-ok` or `cav credits licence commercial` tells cav what
-the project may use. Everything cav downloads or generates is recorded in
-`.cav/manifest.json`. `cav credits` prints the credit lines and `cav credits check` lists
-licence problems; `cav check` reports them too.
+**Licences.** Set the project's allowed use with `cav credits licence nc-ok` or
+`cav credits licence commercial`. cav records downloaded and generated assets in
+`.cav/manifest.json`. `cav credits` prints credit lines. `cav credits check` and
+`cav check` report licence problems.
 
 **Storyboard and animatic.**
 
@@ -242,73 +239,76 @@ cav board animatic --audio music.wav             # renders/animatic.mp4, cut on 
 cav board place                                  # frames as placeholder layers (needs the bridge)
 ```
 
-**Assets.** `cav gen image "<prompt>"` makes a still; `--alpha` a transparent PNG, `--vector`
-an SVG. `cav gen vector logo.png` traces a PNG. On an Apple silicon Mac, mflux runs an open
-model (FLUX.2 klein 4B) without a key. Its first run downloads about 16 GB, so cav uses it
-by default only after you run `--service mflux` once; then it comes after the keyed
-services. A ComfyUI server runs a workflow you choose (`cav config endpoint comfyui`).
+**Assets.** `cav gen image "<prompt>"` makes a still. `--alpha` requests a transparent
+PNG, and `--vector` requests an SVG. `cav gen vector logo.png` traces a PNG. On Apple
+silicon, mflux runs FLUX.2 klein 4B without a key. Its first run downloads about 16 GB.
+After a first `--service mflux` run, cav includes it after keyed services by default.
+`cav config endpoint comfyui` connects a user-run ComfyUI workflow.
 
-**Music and sound.** `cav sfx search whoosh` finds free sounds, `cav sfx get <ref>` downloads
-one with its credit, `cav sfx index <folder>` adds a library you own (for example a Sonniss
-GDC bundle), and `cav sfx gen "<prompt>"` generates one. With a key, `cav music gen` makes
-takes whose sections follow the storyboard's shots; an ACE-Step 1.5 server you run does the
-same without a key. A YuE2 server you run also works without a key, but it uses only the
-storyboard's length and tempo, not its shots. YuE2 runs through a small server in `tools/yue2-server`, on an
-Apple silicon Mac or an NVIDIA GPU, or through YuE2-Turbo on the same machines (fastest on a large NVIDIA GPU with vLLM); a 60-second take took 71 s on an RTX 3080 Ti and about
-8 minutes on an M1 Max. Its takes count as non-commercial unless you are an
-individual creator (see `cav guide production`). `--ref <track>` makes variations of a
-track you already have: Stable Audio and ACE-Step get the audio, YuE2 makes an
-instrumental cover of its melody (transcribed by SheetSage2 on the server), and Lyria and
-ElevenLabs get a description of it in words. A cover plays someone else's song, so cav
-records the track with the take and `cav credits` lists it. The takes are instrumental
-unless you give `--lyrics song.txt` with `[Verse]` and `[Chorus]` tags: then YuE2 or
-ACE-Step sing them, and the other services refuse. With YuE2, the lyrics set the length of
-the song, and with `--ref` YuE2 sings them to the melody of the track.
-`cav music render score.json` plays a score written as notes on a beat
-grid, with built-in synths and drums, samples or VST3/AU instruments, and masters it.
-`cav listen <track> --board storyboard.json` reports length, tempo, loudness, the cuts
-against the downbeats, a picture and a written critique. The critique needs a Gemini key,
-or Qwen3-Omni through OpenRouter:
+**Music and sound.** `cav sfx search whoosh` finds free sounds.
+`cav sfx get <ref>` downloads one with its credit, and `cav sfx index <folder>` adds a
+user-owned library. `cav sfx gen "<prompt>"` generates a sound effect.
+
+With a key, `cav music gen` makes takes based on storyboard shots. A user-run ACE-Step
+1.5 server can do this without a key. A user-run YuE2 server uses the storyboard's
+length and tempo. It does not follow the shots. YuE2 runs through `tools/yue2-server`
+or YuE2-Turbo on Apple silicon or an NVIDIA GPU. Turbo is fastest on a large NVIDIA
+GPU with vLLM. In one test, a 60-second take took 71 s on an RTX 3080 Ti.
+It took about 8 minutes on an M1 Max. cav records YuE2 takes as non-commercial; individual creators
+have an extra permission under YuE2's terms. See `cav guide production`.
+
+`--ref <track>` uses an existing track. Stable Audio and ACE-Step receive its audio.
+YuE2 makes an instrumental cover from a melody that SheetSage2 transcribes on the server.
+Lyria and ElevenLabs receive a text description. cav records cover sources with each take,
+and `cav credits` lists them. Takes are instrumental unless `--lyrics song.txt` supplies
+sections such as `[Verse]` and `[Chorus]`. YuE2 and ACE-Step can sing them; other
+services refuse the option. YuE2 uses lyrics to set song length and can sing them to
+the `--ref` melody.
+
+`cav music render score.json` plays and masters a written beat-grid score. It supports
+built-in synths, drums, samples and VST3/AU instruments.
+`cav listen <track> --board storyboard.json` reports length, tempo, loudness, cut timing,
+an image and a written critique. The critique needs a Gemini key or Qwen3-Omni through
+OpenRouter:
 `cav config endpoint qwen-omni https://openrouter.ai/api/v1 qwen/qwen3.8-omni-flash`, then
-`cav config set-key qwen-omni <source>` with your OpenRouter key (qwen-omni does not use
+`cav config set-key qwen-omni <source>` with an OpenRouter key (qwen-omni does not use
 the openrouter key on its own).
-`--score` adds local quality scores; several tracks are compared side by side. `cav score`
-writes a REAPER project to finish the music by ear.
+`--score` adds local quality scores. `cav listen` can compare several tracks in one
+report. `cav score` creates a REAPER project for listening and final edits.
 
-**Review.** `cav review renders/final.mp4` serves a page on http://127.0.0.1:8790. Step
-frames with the arrow keys, shuttle with J/K/L, set a range with I and O, draw on the frame,
-and add notes. "Send to agent" hands the open notes to an agent waiting in
-`cav review wait`. Notes live in `renders/final.review.json`, each with a snapshot of the
-frame and the drawing. A re-render to the same file reloads the page; W compares it with
-the earlier render (wipe, difference) or shows an onion skin.
+**Review.** `cav review renders/final.mp4` serves a page at http://127.0.0.1:8790.
+Use arrow keys for frame steps, J/K/L for shuttle and I/O for ranges. Draw on frames
+and add notes. "Send to agent" delivers open notes to `cav review wait`. Notes and
+marked snapshots live in `renders/final.review.json` and its review folder. Rendering
+to the same video path reloads the page. W cycles through wipe, difference and
+onion-skin comparisons with the earlier render.
 
-**Brief.** `cav brief init` writes `brief.json`: title, goal, audience, tone, length, tempo,
-format, deliverables, things it must show or avoid, music and references. The agent fills it
-in with you. `cav brief show` checks it and lists what is still empty. `cav board init` and
-`cav scene new` take size, fps and length from it when it exists, and print what they took.
-A flag always wins. Pass `--no-brief` to ignore the file.
+**Brief.** `cav brief init` creates `brief.json` with title, goal, audience, tone,
+length, tempo, format, deliverables, required and avoided content, music and references.
+The agent completes it with the user. `cav brief show` lists problems and empty fields.
+`cav board init` and `cav scene new` read size, fps and length from the brief and report
+the values used. A command flag overrides the brief. `--no-brief` ignores it.
 
-`cav review` also reviews stills, so that you can approve each stage before slow or paid
-work starts: `cav review storyboard.json` (or `brief.json`, `moodboard.json`). A mood board page plays
-clips and YouTube and Vimeo videos, and shows the agent's "take from it" line under each. The page
-shows a grid of items: the shots of a storyboard, the references of a mood board, or the
-fields of a brief. Give each item a verdict (a storyboard or brief: Approve or Redo; a
-mood board: Keep, More like this or Drop). Click an item to draw on it and write a note.
-The "Approve" button is on only when no item is marked Redo or Drop and no note is open.
-Approval is written to `storyboard.review.json`. If an item changes after that (new
-words, or a new frame), its old verdict shows as outdated and the approval is removed, so
-you approve again. The agent cannot approve for you. `cav review wait` returns when you
-approve, and `cav review export storyboard.json` shows whether the stage is approved.
+`cav review` also supports `brief.json`, `moodboard.json` and `storyboard.json` before
+slow or paid work. Mood board items can play clips and YouTube or Vimeo videos. The
+agent's "take from it" line appears below each item. The grid contains brief fields,
+mood board references or storyboard shots. Set Approve or Redo for brief and storyboard
+items. Set Keep, More like this or Drop for mood board items. Open an item to draw or
+write a note. The Approve button works when no item is Redo or Drop and no note is open.
+Approval is stored in the stage's review JSON. Changing an item makes its old verdict
+outdated and removes approval. The user must review it again; the agent cannot approve
+for them. `cav review wait` returns on approval, and
+`cav review export storyboard.json` reports the approval state.
 
 ### Review in the chat
 
-`cav mcp` is a small MCP server that shows the same review page inside the chat, as an
-[MCP App](https://modelcontextprotocol.io/extensions/apps). It runs over stdin and stdout,
-so the agent starts it. The `cavalry` plugin registers it in Claude Code, Codex and Antigravity, so
-with the plugin installed there is nothing to do. It needs cav 1.2 or newer: with an older CLI
-the server fails to start, and the rest of the plugin works as before.
+`cav mcp` serves the review page inside supported chats as an
+[MCP App](https://modelcontextprotocol.io/extensions/apps). It uses stdin and stdout.
+The `cavalry` plugin registers it in Claude Code, Codex and Antigravity. It requires
+cav 1.2 or newer. With an older CLI, the server does not start. Other plugin features
+still work.
 
-Without the plugin, register it once. Do not do both, or the agent sees the tools twice.
+Without the plugin, register the server once. Duplicate registration shows its tools twice.
 
 In Claude Code:
 
@@ -322,7 +322,7 @@ In Codex:
 codex mcp add cav -- cav mcp
 ```
 
-This writes the following to `~/.codex/config.toml`, which you can also add by hand:
+This writes the following to `~/.codex/config.toml`. The same configuration can be added by hand:
 
 ```toml
 [mcp_servers.cav]
@@ -343,56 +343,51 @@ path to `cav`, because the app may not search `~/.local/bin`:
 }
 ```
 
-Keep the other keys in the file as they are. In this chat the server does not start in
-your project folder, so give the agent the full path of the video.
+Keep other configuration keys. In Claude desktop chat, the server may start outside
+the project folder. Give the agent the video's full path.
 
-Then ask the agent to show the review of a render. It calls the `show_review` tool, and a
-chat that supports MCP Apps draws the page. You can play the render, step frames, draw,
-add notes and press "Send to agent", as in the browser. The notes go to the same
-`<video>.review.json`, so `cav review wait`, `export`, `resolve` and the review hook work
-the same. When the chat supports it, "Send to agent" also puts a message in the chat that
-tells the agent to read the notes. The Claude desktop app shows it in the message box with
-a caution, for you to send.
+Ask the agent to show a render's review. It calls `show_review`. A chat with MCP Apps
+displays the page, where the user can play, step, draw, write notes and press
+"Send to agent". Notes go to the same `<video>.review.json` used by `cav review wait`,
+`export`, `resolve` and the review hook. Supported chats also prepare a message telling
+the agent to read notes. Claude desktop puts that message in its input box with a
+caution; the user sends it.
 
-The agent reads the notes with the server's second tool, `review_notes`. It returns the
-sent notes with a snapshot image of each, and marks the send received, as
-`cav review wait` does. A chat without a shell, such as the Claude desktop app's chat,
-needs this tool, because it cannot run `cav review wait`.
+The agent can call `review_notes` to receive sent notes and their snapshots. The tool
+marks the send received, as `cav review wait` does. Chats without shell access need
+this tool because they cannot run `cav review wait`.
 
-The chat frame is small and has no network access. So the page plays a preview copy: at
-most 640 pixels wide, at a lower quality, cached in `~/.cav/cache/review-preview`. The
-server sends it inline, up to 24 MB. A longer render does not fit: review it in the
-browser. Use the chat for a quick look and a few notes, and `cav review` for
-frame-by-frame review. The A/B compare works only with earlier renders that were also
-shown in the chat.
+The chat frame has no network access. The server therefore sends a lower-quality preview
+inline, at most 640 pixels wide and 24 MB. It caches the preview in
+`~/.cav/cache/review-preview`. Review longer renders in the browser. Use the chat for
+short checks and notes, and `cav review` for detailed frame review. A/B comparison in
+chat works only with earlier renders also shown there.
 
-Not every chat draws MCP Apps. In October 2026, the chat of the Claude desktop app drew the
-page, and its Code tab ran the tool but did not draw the page. Chats that do not draw it still give the agent the list
-of open notes, both as text and in the structured result. The server resolves a relative
-video path against the folder the agent started it in.
+Some chats do not display MCP Apps. In October 2026, Claude desktop chat displayed
+the page. Its Code tab ran the tool without displaying it. In that case, the
+agent still receives open notes as text and structured data. The server resolves a
+relative video path from its starting folder.
 
-We have not checked whether Antigravity draws MCP Apps. If it does not, `show_review` still
-gives the agent the open notes and the video path as text. The tool result does not contain
-a page address. To see the page, run `cav review` with the video path in a shell: it serves
-the full review page in the browser. In Antigravity, the tools of the plugin's server have
-the prefix `cavalry_cav`. The skill does not depend on the tool names.
+Antigravity's MCP App display remains untested. If it cannot display the page,
+`show_review` still returns open notes and the video path as text. It does not return
+a page URL. Run `cav review` with the video path in a shell for the browser page.
+Antigravity prefixes these tools with `cavalry_cav`. The skill does not depend on
+those tool names.
 
 ## Using cav with a coding agent
 
-`cav guide` prints the scene guide (`cav guide flow` has the production stages), the traps, and recipes for motion design (entrances,
-impacts, kinetic type, transitions, beat sync), so any agent with a shell can learn `cav` from
-`cav` itself. The `cavalry` skill is a short entry point: it tells the agent when to use
-`cav`, how to check the setup, and to read `cav guide`. When something fails silently,
-`cav guide --search <symptom>` prints the matching sections of every guide (at most about
-4 KB), so the agent does not need to know which guide covers it.
+`cav guide` prints the scene guide. `cav guide flow` prints production stages. Other
+topics cover traps, entrances, impacts, type, transitions and beat timing. The
+`cavalry` skill tells the agent when to use cav, how to check setup and where to read
+the guides. For a silent failure, `cav guide --search <symptom>` returns matching
+sections across guides, capped at about 4 KB.
 
 ### Your own flow
 
-The production flow is the list of stages that `cav guide flow` prints: brief, mood board,
-storyboard, music and animatic, build. To use other stages, write a `flow.md` file. cav uses
-the first file it finds: `flow.md` in the project folder, then `~/.cav/flow.md`, then the
-standard flow built into cav. A flow file replaces the standard flow completely. Each stage
-starts with a line `## name`. These lines have a meaning:
+`cav guide flow` prints the active stages. The standard flow contains brief, mood board,
+storyboard, music and animatic, and build. A project `flow.md` can replace them. cav
+checks the project file first, then `~/.cav/flow.md`, then its built-in standard flow.
+A flow file replaces all standard stages. Each stage starts with `## name`:
 
 ```markdown
 ## style frames
@@ -404,31 +399,31 @@ use: cav gen image
 
 - `outputs:` lists the files the stage writes, separated by commas. A path is relative to the
   project. `*` matches inside one folder. A path that ends in `/` is a folder.
-- `review: yes` or `review: no` says if you approve the stage in `cav review`. The approval
-  belongs to the first output, which must then be one `.json` file.
+- `review: yes` or `review: no` says whether the user approves the stage in `cav review`.
+  The approval belongs to the first output, which must then be one `.json` file.
 - `use:` is a note for the agent, for example the commands to use. cav prints it and never
   runs it.
 
-Lines inside code blocks or `<!-- -->` comments are ignored, so you can comment out a stage.
-All other text is for the agent. If the file has a mistake, `cav guide flow` prints the file
-anyway and warns on stderr with the line number. To start from the standard flow, copy it:
-it is the file `assets/flow/standard.md` in the cav source, and `cav guide flow` prints it.
+cav ignores lines inside code blocks and `<!-- -->` comments. Other text gives the agent
+instructions. If a flow file has an error, `cav guide flow` still prints it and warns
+on stderr with the line number. To adapt the standard flow, copy
+`assets/flow/standard.md` from the source. `cav guide flow` also prints that file.
 
-`cav plan` shows where the project stands in the flow. It checks each stage against the files
-in the current folder and shows one state per stage:
+`cav plan` checks each stage against the current project's files and reports one state:
 
-- `done`: the outputs exist and, if the stage has a review, you approved them.
-- `review`: the outputs exist but are not approved. The line names shots marked redo and open
-  notes, and says when an edit removed your approval.
+- `done`: the outputs exist and, if the stage has a review, the user approved them.
+- `review`: the outputs exist and lack approval. The line names shots marked redo and open
+  notes, and says when an edit removed the user's approval.
 - `check`: cav cannot tell. The review file does not load, or the flow asks for a review that
-  cannot hold an approval (for example a video, a folder or a pattern as the first output).
+  cannot hold an approval. Examples include a video, folder or pattern as the first output.
 - `notes`: a stage without a review has open notes.
 - `todo`: an output is missing.
-- `skipped`: nothing exists, but a later stage already has output.
+- `skipped`: no output exists for this stage although a later stage already has output.
 - `unknown`: the stage has no `outputs:` line, so cav cannot check it. It is never `done`.
 
-The last line is the next step. `cav plan --json` gives the same facts as data. The command
-only reads. It writes no file, uses no paid service, and does not stop any other command.
+The last line names the next step. `cav plan --json` returns the same facts as data.
+The command only reads local state. It writes no file, uses no paid service and blocks
+no other command.
 
 Install the skill in Claude Code:
 
@@ -455,9 +450,9 @@ agy plugin install ./cav/plugins/cavalry
 ```
 
 Check the plugin with `agy plugin validate ./cav/plugins/cavalry`. It reports one skill, one
-MCP server and one hook. We have not yet tested `agy plugin install` with the repository
-URL. The plugin is in a subfolder, and Antigravity does not document how it reads another
-marketplace.
+MCP server and one hook. The project has not yet tested `agy plugin install` with the
+repository URL. The plugin is in a subfolder, and Antigravity does not document how it
+reads another marketplace.
 
 `agy plugin install` installs the plugin for the CLI only, in
 `~/.gemini/antigravity-cli/plugins/`. The Antigravity app and the Antigravity IDE read plugins
@@ -469,7 +464,7 @@ mkdir -p ~/.gemini/config/plugins
 cp -R ./cav/plugins/cavalry ~/.gemini/config/plugins/cavalry
 ```
 
-The plugin gives Antigravity three things:
+The Antigravity plugin contains three parts:
 
 - the `cavalry` skill;
 - the `cav mcp` server (from `mcp_config.json`), with the `show_review` and `review_notes`
@@ -480,24 +475,24 @@ The plugin gives Antigravity three things:
   read the notes. The hook needs a `cav` that knows `cav review hook --host antigravity`.
   With an older `cav`, the hook does nothing.
 
-Limits:
+Antigravity limits:
 
 - Only the Antigravity CLI runs plugin hooks. The Antigravity app and the Antigravity IDE run
   only the hooks in a workspace or global `hooks.json`, so there the review hook does not run.
   Use `cav review wait`, or the `review_notes` tool when the plugin is installed for the app
   or IDE as shown above.
-- We have checked the plugin only with `agy plugin validate`. We have not yet tested it end
-  to end in Antigravity.
+- The plugin has been checked only with `agy plugin validate`. An end-to-end test in
+  Antigravity remains pending.
 
-For other agents, copy `plugins/cavalry/skills/cavalry` into the agent's skills folder.
+For another agent, copy `plugins/cavalry/skills/cavalry` into its skills folder.
 
-In our tests, a mid-size model did as well with the CLI alone as with the CLI and the old,
-longer skill. That is why the skill is now short. See the README for the measured results.
+In tests, a mid-size model did as well with the CLI alone as with the CLI and the old,
+longer skill. The measured results in the README explain the shorter skill.
 
 ### Agents in a sandbox
 
-Some agent sandboxes block connections to `127.0.0.1` and allow writes only inside the
-project folder. `cav` can work through a folder instead:
+Some agent sandboxes block `127.0.0.1` and writes outside the project. `cav` can use a
+shared folder and relay:
 
 1. Outside the sandbox, start a relay on a folder the agent can write:
 
@@ -508,10 +503,10 @@ project folder. `cav` can work through a folder instead:
 2. Inside the project, create a file named `.cav-spool` that contains that path, or set
    `CAV_SPOOL=/path/to/project/.cav/spool` for the agent.
 
-The agent then uses `cav` normally. Each command is written to the folder, and the relay
-runs it outside the sandbox and writes the output back. Add `--restricted` to the relay to
-block scripts from starting other programs. This catches mistakes; it is not a security
-boundary, because scripts can still read and write files through Cavalry's API.
+The agent then runs normal `cav` commands. Each command goes into the folder. The relay
+runs it outside the sandbox and returns the output. `--restricted` blocks scripts from
+starting other programs. It helps prevent mistakes. Scripts still have Cavalry API file
+access, so this restriction cannot enforce a security boundary.
 
 ## Troubleshooting
 
@@ -519,7 +514,7 @@ boundary, because scripts can still read and write files through Cavalry's API.
 |---|---|---|
 | `FAIL bridge  not running on 127.0.0.1:8723` | The bridge script is not open in Cavalry. | In Cavalry: **Scripts > cav-bridge**. Keep its window open. |
 | `listening ... but not answering` | Cavalry is busy with a long script or render, or a dialog box is open. | Wait for the job, or close the dialog in Cavalry, then try again. |
-| `running v1.0.0; v1.1.0 is installed` | You updated `cav` but Cavalry still runs the old bridge. It still works. | Close the cav-bridge window and start it again from the Scripts menu. |
+| `running v1.0.0; v1.1.0 is installed` | The `cav` CLI was updated. Cavalry still runs the old bridge, which still works. | Close the cav-bridge window and start it again from the Scripts menu. |
 | `cav and cav-bridge do not match` or `speaks protocol` | The running bridge and `cav` use different request formats. `cav` will not send jobs. | Run `cav setup`, then close the cav-bridge window and start it again from the Scripts menu. |
 | Exit code 3, pending/unknown | The job took longer than `--timeout`. | `cav operation status <id>`, then `cav operation resume <id>`. Do not retry the original command. |
 | Exit code 4, bridge lost/session changed | The original result is unresolved. | Stop automatic waiting, preserve partial output, and inspect the operation. File growth is not completion; reconcile before a new render. |
@@ -529,11 +524,11 @@ boundary, because scripts can still read and write files through Cavalry's API.
 | Text at the wrong position after a slide | Text is centred on its `x` by default. | Pass `align: 'left'` when `x` is the left edge. |
 | Physics or particles do not move in a sheet | They simulate only when frames render in order. | Use a step-1 range: `cav sheet 0-59:1`. |
 | `blocked: a sandbox` | An agent's sandbox stops `cav` from reaching `127.0.0.1` or writing `~/.cav`. | Allow `cav` to reach `127.0.0.1:8723` and write `~/.cav`, or use a relay (see "Agents in a sandbox"). |
-| `waiting for cav relay` | The agent is in spool mode but no relay is running. | Start `cav relay --spool <folder>` outside the sandbox. |
-| `cav rect` or `cav text` is an unknown command | Helpers are used inside scripts, not in the terminal. | Write the call in a `.js` file and run it with `cav run`. |
+| `waiting for cav relay` | The agent is in spool mode and the relay is missing. | Start `cav relay --spool <folder>` outside the sandbox. |
+| `cav rect` or `cav text` is an unknown command | Helpers run inside scripts. The terminal does not expose them as commands. | Write the call in a `.js` file and run it with `cav run`. |
 
-If you run a script from Cavalry's own JavaScript Editor at the same time as `cav`, both
-share Cavalry's single script thread. Long scripts from either side delay the other.
+The Cavalry JavaScript Editor and `cav` share one script thread. A long script from
+either tool delays the other.
 
 ## Updating
 
@@ -542,27 +537,27 @@ cav version --check       # tells you whether a newer release exists, changes no
 cav update                # shows the release, asks, installs, then runs cav setup
 ```
 
-`cav doctor` also tells you, and the agent, when a newer release exists: its `update` line
-is a warning with the fix `cav update`. It asks GitHub at most once an hour (also once an hour after
-a failed check) and keeps the answer in `~/.cav/update-check.json`. A failed check never
-makes `cav doctor` fail. Set `CAV_NO_UPDATE_CHECK=1` to turn it off.
+`cav doctor` reports new releases on its `update` line with the fix `cav update`.
+It checks GitHub at most once an hour, including after failed checks. It stores the
+answer in `~/.cav/update-check.json`. A failed update check does not fail `cav doctor`.
+Set `CAV_NO_UPDATE_CHECK=1` to disable it.
 
-`cav` never updates itself without asking. After an update, restart the cav-bridge window in
-Cavalry if `cav doctor` says the running bridge is older. Update the Claude Code plugin with
+`cav` asks before updating. If `cav doctor` reports an older running bridge after an
+update, restart its Cavalry window. Update the Claude Code plugin with
 `/plugin marketplace update cav`. To update the Antigravity plugin, pull the latest changes in
-your clone, then run `agy plugin install ./cav/plugins/cavalry` again. If you copied the plugin
-for the Antigravity app or IDE, replace that copy too: delete
+the local clone, then run `agy plugin install ./cav/plugins/cavalry` again. If the plugin
+was copied for the Antigravity app or IDE, replace that copy too: delete
 `~/.gemini/config/plugins/cavalry` (or `.agents/plugins/cavalry`) and copy the folder again.
 
 ## Uninstalling
 
 1. Delete the `cav` binary: `~/.local/bin/cav` on macOS, `%LOCALAPPDATA%\cav\bin\cav.exe` on
-   Windows (or the folder you chose with `CAV_BIN_DIR`).
+   Windows (or the folder configured with `CAV_BIN_DIR`).
 2. Delete `~/.cav` (the token, job results and docs cache).
 3. Delete `cav-bridge.js` from Cavalry's Scripts folder: macOS
    `~/Library/Application Support/Cavalry/Scripts`, Windows `%APPDATA%\Cavalry\Scripts`.
 4. In Claude Code, remove the plugin with `/plugin uninstall cavalry@cav`. In the Antigravity
-   CLI, run `agy plugin uninstall cavalry`. If you copied the plugin for the Antigravity app or
+   CLI, run `agy plugin uninstall cavalry`. If the plugin was copied for the Antigravity app or
    IDE, also delete `~/.gemini/config/plugins/cavalry` or `.agents/plugins/cavalry` in the
    workspace.
 
@@ -591,23 +586,24 @@ Environment variables:
 | `CAV_NO_KEYS` | Any value makes every key missing: cav reads no environment variable, keychain entry or 1Password item, and uses only free services. |
 | `CAV_NO_UPDATE_CHECK` | Any value stops `cav doctor` from asking GitHub for a newer release. |
 
-Use `cav check --quick --json` for cheap structural performance warnings. Add `--profile`
-for measured sampling, or `--profile-render` to time low-resolution PNG calls too. Default
-checks are bounded; inspect `failures`, `skipped`, `complete` and `clean` before treating a
-scene as reviewed. Blank heads/tails still need a sheet review. When a finding is a known trap (a missing font,
-a layer hidden by stacking order, a redeclared SkSL input, a simulation), `cav check` also
-prints the guide section that explains it, so you do not have to look it up.
+Use `cav check --quick --json` for structural performance warnings. Add `--profile`
+for sampled measurements or `--profile-render` for low-resolution PNG timings.
+Default checks have limits. Read `failures`, `skipped`, `complete` and `clean` before
+calling a scene reviewed. Inspect a sheet for blank starts and ends. For known traps,
+such as missing fonts or SkSL input declarations, `cav check` prints the relevant guide
+section.
 
-Quick structural checks include referenced pre-comps and report their composition paths.
-For slow later regions, use `cav check --profile-frames 840,1560,1908 --max-warmup 2000
---timeout 30m --json`. Simulation targets automatically render at 10 percent after
-chronological warm-up from the comp start. Warm-up cost is separate from sample timings;
-the extra-frame allowance defaults to 600. Keep default profiling for a small initial
-sample, and use repeated measurements before claiming a performance improvement.
+Quick structural checks include referenced pre-comps and their composition paths.
+For later frames, use
+`cav check --profile-frames 840,1560,1908 --max-warmup 2000 --timeout 30m --json`.
+Simulation targets render at 10 percent after chronological warm-up from comp start.
+Reports separate warm-up cost from sample timings. The extra-frame allowance defaults
+to 600. Begin with the small default sample and repeat measurements before claiming
+a performance improvement.
 
-Docs search prefers the longest complete page title at the start of a query. For example,
-`cav docs "Look At duplicator"` prioritizes Look At sections, then ranks sections by their
-relevance to the query. API search keeps its function-name ranking.
+Docs search gives priority to the longest full page title at the query start. For
+example, `cav docs "Look At duplicator"` ranks Look At sections first, then uses
+query relevance. API search still ranks function names.
 
 
 ## Long scenes and launch-video checks
@@ -621,40 +617,40 @@ cav render --save --chunk-frames 600 --audio track.wav -o out/final.mp4
 cav seams --video out/final.mp4 --allow-cuts 600,1200
 ```
 
-`scene info` reports scene layer/comp nodes and key counts. `countsComplete` says whether
-its bounded metadata scan finished. Key-volume and shader warnings are risks to measure,
-not evidence that a particular node caused a slow render.
+`scene info` reports layer nodes, comp nodes and key counts. `countsComplete` reports
+whether its limited scan finished. Key-volume and shader warnings identify risks for
+measurement. They do not establish which node slowed a render.
 
-`--comp` on frame, sheet, frames, check and seams accepts a node ID or a unique comp name.
-It restores the selected comp's playhead and the original comp/playhead on success or
-native failure. Duplicate names fail. Switching comps can mark the scene unsaved in
-Cavalry; save explicitly before chunk rendering.
+For frame, sheet, frames, check and seams, `--comp` accepts a node ID or unique comp
+name. The command restores the selected comp's playhead and the original comp and
+playhead after success or native failure. Duplicate names cause an error. Comp switching
+can mark a scene unsaved, so save before chunk rendering.
 
-`frames` sorts requests, renders intervening frames from comp start and keeps every Nth
-requested frame. Its default budget is 10000 evaluations and at most 1000 retained PNGs.
-Unretained frames overwrite a single warm-up PNG. Increase `--max-evaluated` deliberately
-for longer previews. Ordinary sparse `frame` and `sheet` calls still skip intervening frames.
+`frames` sorts requested frames and evaluates intervening frames from comp start. It
+keeps every Nth requested frame. By default, it allows 10000 evaluations and at most
+1000 saved PNGs. Other frames reuse one warm-up PNG. Increase `--max-evaluated` when
+a longer preview needs it. Sparse `frame` and `sheet` calls skip intervening frames.
 
-`seams` compares f-1/f at in/out and opacity-key boundaries. A full-comp finished video
-preserves rendered simulation state; its frame zero must correspond to comp start.
-Native simulation sampling evaluates chronologically. Changed-pixel fractions and boxes
-are review signals, not proof of bugs. Intended cuts stay visible with `review:false`.
-Metadata omissions and the boundary cap are reported. Inspect referenced sections with
-`--comp`; reference time remapping is not inferred. Pixel boxes refer to sampled images.
+`seams` compares frames f-1 and f at layer in/out and opacity-key boundaries. A
+finished full-comp video keeps simulation state; its frame zero must match comp start.
+Native simulation sampling evaluates frames in order. Changed-pixel fractions and
+boxes identify boundaries to review. Intended cuts remain visible with `review:false`.
+Reports show omitted metadata and boundary limits. Use `--comp` for referenced sections.
+The command cannot infer reference time remapping. Pixel boxes refer to sampled images.
 
-Chunk rendering needs a saved named scene, ffmpeg and ffprobe. Every new chunk replays
-from comp start, bounded by `--max-warmup`. Completed segments pass frame-count/hash
-checks before concatenation, audio muxing and final publication. The source file is hashed
-again before each chunk. Staging stays beside the final destination as recovery evidence.
+Chunk rendering requires a saved named scene, ffmpeg and ffprobe. Each new chunk
+replays from comp start within `--max-warmup`. cav checks completed segments by frame
+count and hash before joining them, adding audio and publishing. It hashes the source
+scene again before every chunk. Staging remains beside the destination for recovery.
 
-After a timeout, use ordinary `operation resume ID`; do not start another render. If
-Cavalry or the bridge has restarted, first inspect the old outcome and reopen the same
-saved scene. Then use `operation resume ID --restart-chunk --acknowledge-unknown-outcome`.
-This requires a different idle bridge session. It retains uncertain job/artifact evidence,
-reuses validated segments and gives reconciled chunk work a fresh ID. It never cancels
-or automatically resubmits native work. At most 1000 chunks are allowed.
+After a timeout, run `operation resume ID` on the same render. If Cavalry or its bridge
+restarted, inspect the prior outcome and reopen the saved scene. Then run
+`operation resume ID --restart-chunk --acknowledge-unknown-outcome`. This requires a
+different idle bridge session. cav keeps evidence from uncertain jobs, reuses checked
+segments and assigns a new ID to reconciled chunk work. It does not cancel or
+automatically resubmit native work. The limit is 1000 chunks.
 
-See `cav helpers` and `cav guide native` for guarded SkSL, pre-comp, real font-axis,
-two-key and typed per-copy drivers, connected Look At, and explicit above/below helpers.
-`cav version` checks the installed bridge file offline; `cav status` adds warnings about
-the running bridge from its existing probe.
+`cav helpers` and `cav guide native` explain guarded SkSL, pre-comps, font axes,
+two-key drivers, typed per-copy drivers, connected Look At and stack-order helpers.
+`cav version` checks the installed bridge file offline. `cav status` reports warnings
+from its probe of the running bridge.
