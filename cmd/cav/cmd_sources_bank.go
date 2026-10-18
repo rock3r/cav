@@ -86,8 +86,12 @@ func ensureBank(ctx context.Context) (string, error) {
 	if err != nil || len(top) != 1 {
 		return "", fmt.Errorf("extract the earshot source: unexpected layout")
 	}
-	os.RemoveAll(dir) // a partial earlier attempt
+	// The target only ever appears through this rename, so it is never partial. If the
+	// rename fails because a concurrent install finished first, that install is fine.
 	if err := os.Rename(filepath.Join(tmp, top[0].Name()), dir); err != nil {
+		if bankReady() {
+			return dir, nil
+		}
 		return "", err
 	}
 	return dir, nil

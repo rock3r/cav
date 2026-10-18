@@ -346,6 +346,12 @@ func sourcesGet(a *app, cmd, kind, defaultDir, root string, args []string) error
 		if *original {
 			return usageErr("--original is for downloads; a bank sound is rendered (try --seconds N)")
 		}
+		if *seconds < 0 {
+			return usageErr("--seconds must be positive")
+		}
+		if *seed < -1 {
+			return usageErr("--seed must be zero or more")
+		}
 		e, bankNotes, err = bankGet(ctx, id, *out, *seconds, *seed)
 	default:
 		c, lerr := services.Load()
