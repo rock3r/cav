@@ -248,12 +248,26 @@ func bankGet(ctx context.Context, id, dir string, seconds float64, seed int) (li
 	}
 	name := strings.NewReplacer("/", "-", " ", "-").Replace(id)
 	out := filepath.Join(dir, name+".wav")
+	// Reserve the take name with an exclusive create, so a concurrent get cannot pick
+	// the same path; the renderer then overwrites the placeholder.
+	var guard *os.File
 	for i := 2; ; i++ {
-		if _, err := os.Stat(out); os.IsNotExist(err) {
+		guard, err = os.OpenFile(out, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+		if err == nil {
 			break
+		}
+		if !os.IsExist(err) {
+			return library.Entry{}, nil, err
 		}
 		out = filepath.Join(dir, fmt.Sprintf("%s-%d.wav", name, i))
 	}
+	guard.Close()
+	keep := false
+	defer func() {
+		if !keep {
+			os.Remove(out)
+		}
+	}()
 	durArg, seedArg := "-", "-"
 	if seconds > 0 {
 		durArg = fmt.Sprintf("%g", seconds)
@@ -286,7 +300,7 @@ func bankGet(ctx context.Context, id, dir string, seconds float64, seed int) (li
 	if err := jsonUnmarshal(stdout, &r); err != nil {
 		return library.Entry{}, nil, fmt.Errorf("unexpected bank render output: %w", err)
 	}
-	if _, err := os.Stat(out); err != nil {
+	if info, err := os.Stat(out); err != nil || info.Size() == 0 { // the placeholder is empty
 		return library.Entry{}, nil, fmt.Errorf("the renderer did not write %s", out)
 	}
 	sum, _ := fileSHA(out)
@@ -309,5 +323,6 @@ func bankGet(ctx context.Context, id, dir string, seconds float64, seed int) (li
 	for _, w := range r.Checks.Warnings {
 		notes = append(notes, "the bank's own audit flags this take: "+w)
 	}
+	keep = true
 	return e, notes, nil
 }
