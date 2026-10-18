@@ -180,6 +180,9 @@ func sourcesSearch(a *app, cmd, kind, root string, args []string) error {
 	if *bySound && kind != "audio" {
 		return usageErr("--by-sound is for cav sfx search")
 	}
+	if *bySound && *service != "" && *service != "local" {
+		return usageErr("--by-sound ranks the local libraries; drop --service or use --service local")
+	}
 	if len(pos) == 0 {
 		return usageErr("give some words to search for")
 	}
@@ -1000,13 +1003,21 @@ func searchLocalBySound(ctx context.Context, q sources.Query) ([]sources.Result,
 		paths[i] = f.path
 		termsByPath[f.path] = f.terms
 	}
-	ranked, err := rankBySound(ctx, q.Text, paths)
+	ranked, skipped, err := rankBySound(ctx, q.Text, paths)
 	if err != nil {
 		fallback, ferr := searchLocal(q)
 		if ferr != nil {
 			return nil, "by sound: " + err.Error() + "; the file-name search failed too: " + ferr.Error()
 		}
 		return fallback, "by sound unavailable (" + err.Error() + "); matched file names instead"
+	}
+	if len(skipped) > 0 {
+		shown := skipped
+		if len(shown) > 5 {
+			shown = append(shown[:5:5], "…")
+		}
+		note = strings.TrimSpace(note + "; " + fmt.Sprintf("by sound: skipped %d file(s) earshot could not read (%s)",
+			len(skipped), strings.Join(shown, ", ")))
 	}
 	var out []sources.Result
 	for _, r := range ranked {
@@ -1025,25 +1036,27 @@ func searchLocalBySound(ctx context.Context, q sources.Query) ([]sources.Result,
 }
 
 // rankBySound runs the embedded helper through uv: earshot embeds the query and every
-// file with CLAP and returns them sorted by the calibrated match, best first.
-func rankBySound(ctx context.Context, query string, paths []string) ([]soundRank, error) {
+// file with CLAP and returns them sorted by the calibrated match, best first. skipped
+// names the files earshot could not read.
+func rankBySound(ctx context.Context, query string, paths []string) ([]soundRank, []string, error) {
 	script, err := assets.Python.ReadFile("python/sfx_rank.py")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	fmt.Fprintln(os.Stderr, "ranking local sounds by what they sound like (the first run downloads about 1.4 GB of models)…")
 	args := append([]string{filepath.Join(config.CacheDir(), "earshot"), query}, paths...)
 	out, err := pyrun.Run(ctx, filepath.Join(config.CacheDir(), "python"), "sfx_rank.py", script, []string{earshotSpec}, args, nil)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	var r struct {
 		Results []soundRank `json:"results"`
+		Skipped []string    `json:"skipped"`
 	}
 	if err := jsonUnmarshal(out, &r); err != nil {
-		return nil, fmt.Errorf("unexpected ranker output: %w", err)
+		return nil, nil, fmt.Errorf("unexpected ranker output: %w", err)
 	}
-	return r.Results, nil
+	return r.Results, r.Skipped, nil
 }
 
 func getLocal(path, dir string) (library.Entry, error) {

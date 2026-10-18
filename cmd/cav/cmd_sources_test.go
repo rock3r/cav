@@ -118,6 +118,42 @@ printf '{"results":[{"path":"%s","z":3.1,"cosine":0.33,"verdict":"strong","sound
 	}
 }
 
+// --by-sound ranks the local libraries only; with another service it would silently run
+// a file-name search, so it is an error instead.
+func TestSfxSearchBySoundRejectsNonLocalServices(t *testing.T) {
+	t.Setenv("CAV_HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+	err := cmdSources(&app{}, "sfx", "audio", "sfx", []string{"search", "--service", "bank", "--by-sound", "whoosh"})
+	if err == nil || !strings.Contains(err.Error(), "--by-sound ranks the local libraries") {
+		t.Fatalf("want the --by-sound/--service error, got %v", err)
+	}
+}
+
+// Files earshot cannot read come back as a note, not silence.
+func TestSfxSearchBySoundReportsSkippedFiles(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake uv is a shell script")
+	}
+	t.Setenv("CAV_HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+	indexSoundLibrary(t, "rec_a.wav", "rec_b.wav")
+	fakeUVOnPath(t, `#!/bin/sh
+f1=""
+for a in "$@"; do
+  case "$a" in
+    *.wav) if [ -z "$f1" ]; then f1="$a"; fi ;;
+  esac
+done
+printf '{"results":[{"path":"%s","z":3.1,"cosine":0.33,"verdict":"strong","soundsMostLike":"a triangle hit","nearSilent":false}],"skipped":["rec_b.wav"]}' "$f1"
+`)
+
+	data := searchJSON(t, "--service", "local", "--by-sound", "a glass ting")
+	notes := notesOf(t, data)
+	if len(notes) != 1 || !strings.Contains(notes[0], "skipped 1 file(s)") || !strings.Contains(notes[0], "rec_b.wav") {
+		t.Fatalf("want the skipped-file note, got %v", notes)
+	}
+}
+
 // A broken sound-libraries.json is reported like the file-name search reports it, not
 // swallowed into an empty result.
 func TestSfxSearchBySoundReportsABrokenLibraryList(t *testing.T) {
