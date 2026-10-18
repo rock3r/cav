@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -202,6 +203,43 @@ func TestBankGetFlagValidation(t *testing.T) {
 	if err := cmdSources(&app{}, "sfx", "audio", "sfx", []string{"get", "--seconds", "2", "openverse:x"}); err == nil ||
 		!strings.Contains(err.Error(), "--seconds and --seed are for bank sounds") {
 		t.Fatalf("want the --seconds error, got %v", err)
+	}
+}
+
+// --json reports the audit notes too, not only stderr.
+func TestBankGetReportsAuditNotesInJSON(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake uv is a shell script")
+	}
+	t.Setenv("CAV_HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+	makeBankReady(t)
+	fakeUVOnPath(t, `#!/bin/sh
+out=""
+for a in "$@"; do
+  case "$a" in
+    *.wav) out="$a" ;;
+  esac
+done
+printf 'RIFFfake' > "$out"
+printf '{"seconds": 0.5, "checks": {"ok": false, "warnings": ["ring: metallic comb ring in the tail"], "notes": []}, "source": null}'
+`)
+
+	a := &app{json: true}
+	var err error
+	out := captureStdout(t, func() {
+		err = cmdSources(a, "sfx", "audio", "sfx", []string{"get", "bank:whoosh_fast/crisp"})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var data map[string]any
+	if e := json.Unmarshal([]byte(out), &data); e != nil {
+		t.Fatalf("not JSON: %v\n%s", e, out)
+	}
+	notes, _ := data["notes"].([]any)
+	if len(notes) != 1 || !strings.Contains(notes[0].(string), "audit") {
+		t.Fatalf("want the audit note in the JSON, got %v", data["notes"])
 	}
 }
 

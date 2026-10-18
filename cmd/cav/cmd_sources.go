@@ -367,13 +367,10 @@ func sourcesGet(a *app, cmd, kind, defaultDir, root string, args []string) error
 	if err != nil {
 		return fail(exitError, err.Error(), "")
 	}
-	for _, n := range bankNotes {
-		fmt.Fprintln(os.Stderr, "note: "+n)
-	}
-	return recordAndReport(a, root, e)
+	return recordAndReport(a, root, e, bankNotes)
 }
 
-func recordAndReport(a *app, root string, e library.Entry) error {
+func recordAndReport(a *app, root string, e library.Entry, notes []string) error {
 	if err := library.Update(root, func(m *library.Manifest) error {
 		e = m.Put(root, e)
 		return nil
@@ -382,7 +379,10 @@ func recordAndReport(a *app, root string, e library.Entry) error {
 	}
 	p, _ := library.LoadProject(root)
 	probs := library.Check(root, &library.Manifest{Assets: []library.Entry{e}}, p)
-	a.emit(map[string]any{"asset": e, "manifest": library.ManifestPath(root), "problems": probs}, func() {
+	a.emit(map[string]any{"asset": e, "manifest": library.ManifestPath(root), "problems": probs, "notes": notes}, func() {
+		for _, n := range notes {
+			fmt.Fprintln(os.Stderr, "note: "+n)
+		}
 		fmt.Printf("saved %s\n  licence: %s", e.Path, library.LicenceName(e.Licence))
 		if e.Preview {
 			fmt.Print(" (preview file)")
@@ -441,7 +441,7 @@ func sourcesAdd(a *app, kind, root, defaultDir string, args []string) error {
 	if e.Attribution == "" && e.AttributionRequired {
 		e.Attribution = library.DefaultAttribution(e)
 	}
-	if err := recordAndReport(a, root, e); err != nil {
+	if err := recordAndReport(a, root, e, nil); err != nil {
 		return err
 	}
 	if kind == "image" && (*take != "" || *by != "") {
@@ -628,7 +628,7 @@ func sfxGen(a *app, root, dir string, args []string) error {
 	}
 	sum, _ := fileSHA(path)
 	return recordAndReport(a, root, library.Entry{Path: path, Kind: "audio", Title: prompt, Source: tr.Provider, Licence: "generated",
-		CommercialOK: true, RetrievedAt: time.Now().UTC(), SHA256: sum, Generated: &library.Generated{Provider: tr.Provider, Model: tr.Model, Prompt: prompt}})
+		CommercialOK: true, RetrievedAt: time.Now().UTC(), SHA256: sum, Generated: &library.Generated{Provider: tr.Provider, Model: tr.Model, Prompt: prompt}}, nil)
 }
 
 func refArena(a *app, root, dir string, args []string) error {
@@ -1044,7 +1044,21 @@ func rankBySound(ctx context.Context, query string, paths []string) ([]soundRank
 		return nil, nil, err
 	}
 	fmt.Fprintln(os.Stderr, "ranking local sounds by what they sound like (the first run downloads about 1.4 GB of models)…")
-	args := append([]string{filepath.Join(config.CacheDir(), "earshot"), query}, paths...)
+	list, err := os.CreateTemp("", "cav-sfx-paths")
+	if err != nil {
+		return nil, nil, err
+	}
+	defer os.Remove(list.Name())
+	for _, p := range paths {
+		if _, err := fmt.Fprintln(list, p); err != nil {
+			list.Close()
+			return nil, nil, err
+		}
+	}
+	if err := list.Close(); err != nil {
+		return nil, nil, err
+	}
+	args := []string{filepath.Join(config.CacheDir(), "earshot"), query, list.Name()}
 	out, err := pyrun.Run(ctx, filepath.Join(config.CacheDir(), "python"), "sfx_rank.py", script, []string{earshotSpec}, args, nil)
 	if err != nil {
 		return nil, nil, err

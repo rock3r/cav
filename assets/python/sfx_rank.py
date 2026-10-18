@@ -1,6 +1,7 @@
 # Ranks local sound files against a description with earshot's CLAP model, for
 # cav sfx search --by-sound. Run by cav through `uv run`, never directly.
-#   args: <earshot home> <query> <file> [<file> ...]
+#   args: <earshot home> <query> <paths file> — one path per line (a library of a
+#   thousand paths would overflow the OS command-line limit)
 # Prints one JSON object:
 #   {"results": [{"path", "z", "cosine", "verdict", "soundsMostLike", "nearSilent"}],
 #    "skipped": [<basename> ...]}
@@ -15,7 +16,9 @@ os.environ["EARSHOT_HOME"] = sys.argv[1]  # earshot reads it when it is first im
 
 
 def main():
-    query, paths = sys.argv[2], sys.argv[3:]
+    query = sys.argv[2]
+    with open(sys.argv[3]) as f:
+        paths = [line.rstrip("\n") for line in f if line.strip()]
     from earshot.search import rank
 
     r = rank(paths, query)

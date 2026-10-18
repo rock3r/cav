@@ -86,14 +86,17 @@ func TestSfxSearchBySoundRanksLocalFiles(t *testing.T) {
 	t.Setenv("CAV_HOME", t.TempDir())
 	t.Chdir(t.TempDir())
 	indexSoundLibrary(t, "rec_a.wav", "rec_b.wav")
-	// The fake uv answers with the second file first: rec_b is the better match.
+	// The fake uv answers with the second file first: rec_b is the better match. The
+	// paths come in a file (the last argument), one per line.
 	fakeUVOnPath(t, `#!/bin/sh
+last=""
+for a in "$@"; do last="$a"; done
 f1=""; f2=""
-for a in "$@"; do
-  case "$a" in
-    *.wav) if [ -z "$f1" ]; then f1="$a"; elif [ -z "$f2" ]; then f2="$a"; fi ;;
+while IFS= read -r p; do
+  case "$p" in
+    *.wav) if [ -z "$f1" ]; then f1="$p"; elif [ -z "$f2" ]; then f2="$p"; fi ;;
   esac
-done
+done < "$last"
 printf '{"results":[{"path":"%s","z":3.1,"cosine":0.33,"verdict":"strong","soundsMostLike":"a triangle hit (z +3.2)","nearSilent":false},{"path":"%s","z":-0.7,"cosine":-0.09,"verdict":"no match","soundsMostLike":"a punchy kick drum pattern (z +4.7)","nearSilent":false}],"skipped":[]}' "$f2" "$f1"
 `)
 
@@ -138,12 +141,14 @@ func TestSfxSearchBySoundReportsSkippedFiles(t *testing.T) {
 	t.Chdir(t.TempDir())
 	indexSoundLibrary(t, "rec_a.wav", "rec_b.wav")
 	fakeUVOnPath(t, `#!/bin/sh
+last=""
+for a in "$@"; do last="$a"; done
 f1=""
-for a in "$@"; do
-  case "$a" in
-    *.wav) if [ -z "$f1" ]; then f1="$a"; fi ;;
+while IFS= read -r p; do
+  case "$p" in
+    *.wav) if [ -z "$f1" ]; then f1="$p"; fi ;;
   esac
-done
+done < "$last"
 printf '{"results":[{"path":"%s","z":3.1,"cosine":0.33,"verdict":"strong","soundsMostLike":"a triangle hit","nearSilent":false}],"skipped":["rec_b.wav"]}' "$f1"
 `)
 
