@@ -331,6 +331,9 @@ func sourcesGet(a *app, cmd, kind, defaultDir, root string, args []string) error
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 	defer cancel()
+	if service != "bank" && (*seconds > 0 || *seed >= 0) {
+		return usageErr("--seconds and --seed are for bank sounds")
+	}
 	var e library.Entry
 	var bankNotes []string
 	switch service {
@@ -345,9 +348,6 @@ func sourcesGet(a *app, cmd, kind, defaultDir, root string, args []string) error
 		}
 		e, bankNotes, err = bankGet(ctx, id, *out, *seconds, *seed)
 	default:
-		if *seconds > 0 || *seed >= 0 {
-			return usageErr("--seconds and --seed are for bank sounds")
-		}
 		c, lerr := services.Load()
 		if lerr != nil {
 			return lerr

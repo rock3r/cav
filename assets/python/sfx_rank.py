@@ -17,7 +17,7 @@ os.environ["EARSHOT_HOME"] = sys.argv[1]  # earshot reads it when it is first im
 
 def main():
     query = sys.argv[2]
-    with open(sys.argv[3]) as f:
+    with open(sys.argv[3], encoding="utf-8") as f:
         paths = [line.rstrip("\n") for line in f if line.strip()]
     from earshot.search import rank
 

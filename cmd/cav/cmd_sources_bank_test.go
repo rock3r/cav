@@ -204,6 +204,10 @@ func TestBankGetFlagValidation(t *testing.T) {
 		!strings.Contains(err.Error(), "--seconds and --seed are for bank sounds") {
 		t.Fatalf("want the --seconds error, got %v", err)
 	}
+	if err := cmdSources(&app{}, "sfx", "audio", "sfx", []string{"get", "--seed", "3", "local:/x.wav"}); err == nil ||
+		!strings.Contains(err.Error(), "--seconds and --seed are for bank sounds") {
+		t.Fatalf("want the --seed error for a local ref, got %v", err)
+	}
 }
 
 // --json reports the audit notes too, not only stderr.
