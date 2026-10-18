@@ -10,9 +10,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rock3r/cav/assets"
+	"github.com/rock3r/cav/internal/config"
 	"github.com/rock3r/cav/internal/library"
 	"github.com/rock3r/cav/internal/moodboard"
 	"github.com/rock3r/cav/internal/music"
+	"github.com/rock3r/cav/internal/pyrun"
 	"github.com/rock3r/cav/internal/services"
 	"github.com/rock3r/cav/internal/sources"
 )
@@ -20,7 +23,7 @@ import (
 func init() {
 	register(command{
 		name:    "sfx",
-		args:    "search <words> [--service S] [--licence any|commercial|nc-ok] [--max-seconds N] [--limit N] | get <service:id> [-o sfx/] [--original] | gen \"<prompt>\" [--seconds 2] [--loop] | add <file> --licence ID [--author A] [--source S] [--url U] | index <folder> [--licence ID] | libraries",
+		args:    "search <words> [--service S] [--licence any|commercial|nc-ok] [--max-seconds N] [--limit N] [--by-sound] | get <service:id> [-o sfx/] [--original] [--seconds N] [--seed N] | gen \"<prompt>\" [--seconds 2] [--loop] | add <file> --licence ID [--author A] [--source S] [--url U] | index <folder> [--licence ID] | libraries",
 		summary: "Find sound effects and music under free licences, download them, and record their credits.",
 		run:     func(a *app, args []string) error { return cmdSources(a, "sfx", "audio", "sfx", args) },
 	})
@@ -36,6 +39,25 @@ cav sfx get <ref> [-o sfx/] [--original]
 cav sfx index ~/Sounds/Sonniss-GDC-2026 [--licence Sonniss-GDC]
     adds a folder you downloaded (for example a Sonniss GDC bundle: royalty-free, no credit
     needed) to the local search. Files stay where they are until you get one.
+    The local search matches the file names; --by-sound instead ranks the local files by
+    what they sound like, so a bundle whose names say nothing (rec_0042.wav) is still
+    searchable. It runs earshot's CLAP model locally through uv: the first run downloads
+    about 1.4 GB of models into the cav cache, then it works offline and reuses them
+    (new or changed files are the only ones read). Each hit gets a calibrated verdict:
+    strong means the right kind of sound about 98% of the time (earshot's held-out
+    measurement). Without uv, or if earshot fails, the search falls back to file names
+    and says so.
+cav sfx search whoosh --service bank
+    searches the earshot sound bank: 201 short sounds for motion graphics (clicks,
+    whooshes, hits, risers, glitches, UI ticks), rendered locally by code — no key, no
+    upload, no 1.4 GB models. The first use downloads the pinned earshot source (about
+    4 MB, through uv); after that the bank joins every plain search. The forge sounds
+    are code-synthesized and ship under earshot's MIT licence; the fit/* sounds are
+    recipes fitted to CC0 recordings (their source is recorded with the take).
+cav sfx get bank:whoosh_fast/crisp [-o sfx/] [--seconds 1.5] [--seed 7]
+    renders the sound into a WAV: --seconds an exact length, --seed a different take of
+    it. Every render passes earshot's own model-free audit; its warnings come through as
+    notes. Render a take per shot and they stay consistent.
 cav sfx gen "deep whoosh into a soft impact" --seconds 1.5 [--loop]
     generates a sound with ElevenLabs (needs its key), into sfx/, recorded as generated.
 cav sfx add <file> --licence CC-BY-4.0 --author "..." [--source ...] [--url ...]
@@ -150,9 +172,16 @@ func sourcesSearch(a *app, cmd, kind, root string, args []string) error {
 	licence := fs.String("licence", "", "any, commercial or nc-ok (default: the project setting)")
 	maxSec := fs.Float64("max-seconds", 0, "longest sound to show")
 	limit := fs.Int("limit", 12, "how many results")
+	bySound := fs.Bool("by-sound", false, "audio only: rank local library files by what they sound like (earshot's CLAP model through uv; the first run downloads about 1.4 GB of models)")
 	pos, err := parseFlags(fs, args)
 	if err != nil {
 		return err
+	}
+	if *bySound && kind != "audio" {
+		return usageErr("--by-sound is for cav sfx search")
+	}
+	if *bySound && *service != "" && *service != "local" {
+		return usageErr("--by-sound ranks the local libraries; drop --service or use --service local")
 	}
 	if len(pos) == 0 {
 		return usageErr("give some words to search for")
@@ -164,20 +193,48 @@ func sourcesSearch(a *app, cmd, kind, root string, args []string) error {
 		return usageErr("--licence must be any, commercial or nc-ok")
 	}
 	q := sources.Query{Text: strings.Join(pos, " "), Kind: kind, Limit: *limit, Licence: *licence, MaxSeconds: *maxSec}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	// Ranking new sounds costs about a second of CPU each the first time (the embeddings
+	// are then cached), so a by-sound search gets the same budget as comparing takes.
+	timeout := 2 * time.Minute
+	if *bySound {
+		timeout = 30 * time.Minute
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	var results []sources.Result
 	var notes []string
 	if kind == "audio" && (*service == "" || *service == "local") {
-		local, err := searchLocal(q)
-		if err != nil {
+		if *bySound {
+			local, note := searchLocalBySound(ctx, q)
+			if note != "" {
+				notes = append(notes, note)
+			}
+			results = append(results, local...)
+		} else if local, err := searchLocal(q); err != nil {
 			notes = append(notes, "local libraries: "+err.Error())
+		} else {
+			results = append(results, local...)
 		}
-		results = append(results, local...)
 	}
 	used := ""
-	if *service != "local" {
+	if kind == "audio" && *service == "bank" {
+		// An explicit --service bank pays the one-time setup and its error is fatal.
+		bs, err := searchBank(ctx, q)
+		if err != nil {
+			return fail(exitError, err.Error(), "the bank renders locally through uv; without it, cav sfx search finds free sounds")
+		}
+		results = append(results, bs...)
+		used = "the sound bank"
+	} else if kind == "audio" && *service == "" && bankReady() {
+		// After the first explicit use the bank joins every search, like mflux.
+		if bs, err := searchBank(ctx, q); err != nil {
+			notes = append(notes, "sound bank: "+err.Error())
+		} else {
+			results = append(results, bs...)
+		}
+	}
+	if *service != "local" && (*service != "bank" || kind != "audio") {
 		c, err := services.Load()
 		if err != nil {
 			return err
@@ -207,7 +264,7 @@ func sourcesSearch(a *app, cmd, kind, root string, args []string) error {
 	if len(results) > *limit {
 		results = results[:*limit]
 	}
-	a.emit(map[string]any{"service": used, "licenceFilter": *licence, "results": results, "notes": notes}, func() {
+	a.emit(map[string]any{"service": used, "licenceFilter": *licence, "bySound": *bySound, "results": results, "notes": notes}, func() {
 		for _, n := range notes {
 			fmt.Fprintln(os.Stderr, "note: "+n)
 		}
@@ -219,10 +276,15 @@ func sourcesSearch(a *app, cmd, kind, root string, args []string) error {
 		if used != "" {
 			from = append(from, used)
 		}
+		seen := map[string]bool{}
+		if used == "the sound bank" {
+			seen["bank"] = true // already named; do not list it twice
+		}
 		for _, r := range results {
-			if r.Service == "local" {
-				from = append(from, "local libraries")
-				break
+			where := map[string]string{"local": "local libraries", "bank": "the sound bank"}[r.Service]
+			if where != "" && !seen[r.Service] {
+				from = append(from, where)
+				seen[r.Service] = true
 			}
 		}
 		fmt.Printf("%d results from %s (licence filter: %s)\n", len(results), strings.Join(from, " and "), *licence)
@@ -238,6 +300,9 @@ func sourcesSearch(a *app, cmd, kind, root string, args []string) error {
 				mark = " [non-commercial]"
 			}
 			fmt.Printf("%-48s %-9s %-14s %s%s\n", r.Ref(), extra, r.Licence, clip(r.Title, 50), mark)
+			if r.Sound != nil {
+				fmt.Printf("%-48s by sound: %s, z %+.1f; most like %s\n", "", r.Sound.Verdict, r.Sound.Z, clip(r.Sound.SoundsLike, 50))
+			}
 			if r.Author != "" {
 				fmt.Printf("%-48s by %s\n", "", clip(r.Author, 60))
 			}
@@ -251,6 +316,8 @@ func sourcesGet(a *app, cmd, kind, defaultDir, root string, args []string) error
 	fs := flag.NewFlagSet(cmd+" get", flag.ContinueOnError)
 	out := fs.String("o", defaultDir, "folder to save into")
 	original := fs.Bool("original", false, "download the original file instead of the preview")
+	seconds := fs.Float64("seconds", 0, "bank only: render this length in seconds")
+	seed := fs.Int("seed", -1, "bank only: the take's seed (default: the bank's delivered take)")
 	pos, err := parseFlags(fs, args)
 	if err != nil {
 		return err
@@ -260,14 +327,33 @@ func sourcesGet(a *app, cmd, kind, defaultDir, root string, args []string) error
 	}
 	service, id, ok := strings.Cut(pos[0], ":")
 	if !ok {
-		return usageErr("a ref looks like openverse:<id> or freesound:<id> (from cav %s search)", cmd)
+		return usageErr("a ref looks like openverse:<id>, freesound:<id> or bank:<id> (from cav %s search)", cmd)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 	defer cancel()
+	if service != "bank" && (*seconds > 0 || *seed >= 0) {
+		return usageErr("--seconds and --seed are for bank sounds")
+	}
 	var e library.Entry
-	if service == "local" {
+	var bankNotes []string
+	switch service {
+	case "local":
 		e, err = getLocal(id, *out)
-	} else {
+	case "bank":
+		if kind != "audio" {
+			return usageErr("the bank holds sounds: cav sfx get %s", pos[0])
+		}
+		if *original {
+			return usageErr("--original is for downloads; a bank sound is rendered (try --seconds N)")
+		}
+		if *seconds < 0 {
+			return usageErr("--seconds must be positive")
+		}
+		if *seed < -1 {
+			return usageErr("--seed must be zero or more")
+		}
+		e, bankNotes, err = bankGet(ctx, id, *out, *seconds, *seed)
+	default:
 		c, lerr := services.Load()
 		if lerr != nil {
 			return lerr
@@ -287,10 +373,10 @@ func sourcesGet(a *app, cmd, kind, defaultDir, root string, args []string) error
 	if err != nil {
 		return fail(exitError, err.Error(), "")
 	}
-	return recordAndReport(a, root, e)
+	return recordAndReport(a, root, e, bankNotes)
 }
 
-func recordAndReport(a *app, root string, e library.Entry) error {
+func recordAndReport(a *app, root string, e library.Entry, notes []string) error {
 	if err := library.Update(root, func(m *library.Manifest) error {
 		e = m.Put(root, e)
 		return nil
@@ -299,7 +385,10 @@ func recordAndReport(a *app, root string, e library.Entry) error {
 	}
 	p, _ := library.LoadProject(root)
 	probs := library.Check(root, &library.Manifest{Assets: []library.Entry{e}}, p)
-	a.emit(map[string]any{"asset": e, "manifest": library.ManifestPath(root), "problems": probs}, func() {
+	a.emit(map[string]any{"asset": e, "manifest": library.ManifestPath(root), "problems": probs, "notes": notes}, func() {
+		for _, n := range notes {
+			fmt.Fprintln(os.Stderr, "note: "+n)
+		}
 		fmt.Printf("saved %s\n  licence: %s", e.Path, library.LicenceName(e.Licence))
 		if e.Preview {
 			fmt.Print(" (preview file)")
@@ -358,7 +447,7 @@ func sourcesAdd(a *app, kind, root, defaultDir string, args []string) error {
 	if e.Attribution == "" && e.AttributionRequired {
 		e.Attribution = library.DefaultAttribution(e)
 	}
-	if err := recordAndReport(a, root, e); err != nil {
+	if err := recordAndReport(a, root, e, nil); err != nil {
 		return err
 	}
 	if kind == "image" && (*take != "" || *by != "") {
@@ -545,7 +634,7 @@ func sfxGen(a *app, root, dir string, args []string) error {
 	}
 	sum, _ := fileSHA(path)
 	return recordAndReport(a, root, library.Entry{Path: path, Kind: "audio", Title: prompt, Source: tr.Provider, Licence: "generated",
-		CommercialOK: true, RetrievedAt: time.Now().UTC(), SHA256: sum, Generated: &library.Generated{Provider: tr.Provider, Model: tr.Model, Prompt: prompt}})
+		CommercialOK: true, RetrievedAt: time.Now().UTC(), SHA256: sum, Generated: &library.Generated{Provider: tr.Provider, Model: tr.Model, Prompt: prompt}}, nil)
 }
 
 func refArena(a *app, root, dir string, args []string) error {
@@ -850,6 +939,144 @@ func searchLocal(q sources.Query) ([]sources.Result, error) {
 		}
 	}
 	return out, nil
+}
+
+// earshotCommit pins earshot 0.3.0 (https://github.com/Leonxlnx/earshot). Code under the
+// MIT licence; its models download once from their authors under their own licences (CLAP
+// Apache-2.0, the AudioSet tagger BSD-3-Clause) into the cav cache, and every later run
+// works offline. Nothing is uploaded: the audio never leaves the machine.
+const earshotCommit = "925ebe56a1b755e5d354ab642bb8f344440cfa9c"
+
+// earshotSpec installs the pinned earshot with its dependencies (torch included) through
+// uv, for the CLAP model that cav sfx search --by-sound runs.
+const earshotSpec = "earshot @ git+https://github.com/Leonxlnx/earshot@" + earshotCommit
+
+// maxBySoundFiles bounds how many library files one by-sound search reads. A new file
+// costs about a second of CPU; its embedding is then cached, so later searches pay only
+// for new or changed files.
+const maxBySoundFiles = 1000
+
+type soundRank struct {
+	Path       string  `json:"path"`
+	Z          float64 `json:"z"`
+	Cosine     float64 `json:"cosine"`
+	Verdict    string  `json:"verdict"`
+	SoundsLike string  `json:"soundsMostLike"`
+	NearSilent bool    `json:"nearSilent"`
+}
+
+// searchLocalBySound ranks the local library files by how well they match the query's
+// sound (earshot's CLAP model, locally through uv), best first. The note is empty unless
+// the search was capped or the ranking did not run and the file-name search answered
+// instead.
+func searchLocalBySound(ctx context.Context, q sources.Query) ([]sources.Result, string) {
+	libs, err := loadLibraries()
+	if err != nil {
+		return nil, "local libraries: " + err.Error()
+	}
+	if len(libs) == 0 {
+		return nil, ""
+	}
+	type soundFile struct {
+		path  string
+		terms library.Terms
+	}
+	var files []soundFile
+	total := 0
+	for _, l := range libs {
+		terms := termsFor(l.Licence)
+		if !terms.Allowed(q.Licence) {
+			continue
+		}
+		walkAudio(l.Path, func(p string) bool {
+			total++
+			if len(files) < maxBySoundFiles {
+				files = append(files, soundFile{p, terms})
+			}
+			return true
+		})
+	}
+	if len(files) == 0 {
+		return nil, ""
+	}
+	note := ""
+	if total > len(files) {
+		note = fmt.Sprintf("by sound: ranked the first %d of %d local files (the cap)", len(files), total)
+	}
+	paths := make([]string, len(files))
+	termsByPath := make(map[string]library.Terms, len(files))
+	for i, f := range files {
+		paths[i] = f.path
+		termsByPath[f.path] = f.terms
+	}
+	ranked, skipped, err := rankBySound(ctx, q.Text, paths)
+	if err != nil {
+		fallback, ferr := searchLocal(q)
+		if ferr != nil {
+			return nil, "by sound: " + err.Error() + "; the file-name search failed too: " + ferr.Error()
+		}
+		return fallback, "by sound unavailable (" + err.Error() + "); matched file names instead"
+	}
+	if len(skipped) > 0 {
+		shown := skipped
+		if len(shown) > 5 {
+			shown = append(shown[:5:5], "…")
+		}
+		note = strings.TrimSpace(note + "; " + fmt.Sprintf("by sound: skipped %d file(s) earshot could not read (%s)",
+			len(skipped), strings.Join(shown, ", ")))
+	}
+	var out []sources.Result
+	for _, r := range ranked {
+		terms, ok := termsByPath[r.Path]
+		if !ok {
+			continue
+		}
+		out = append(out, sources.Result{Service: "local", ID: r.Path, Kind: "audio", Title: filepath.Base(r.Path),
+			Page: r.Path, Original: r.Path, Terms: terms, Licence: terms.ID,
+			Sound: &sources.SoundMatch{Z: r.Z, Cosine: r.Cosine, Verdict: r.Verdict, SoundsLike: r.SoundsLike}})
+		if len(out) >= q.Limit {
+			break
+		}
+	}
+	return out, note
+}
+
+// rankBySound runs the embedded helper through uv: earshot embeds the query and every
+// file with CLAP and returns them sorted by the calibrated match, best first. skipped
+// names the files earshot could not read.
+func rankBySound(ctx context.Context, query string, paths []string) ([]soundRank, []string, error) {
+	script, err := assets.Python.ReadFile("python/sfx_rank.py")
+	if err != nil {
+		return nil, nil, err
+	}
+	fmt.Fprintln(os.Stderr, "ranking local sounds by what they sound like (the first run downloads about 1.4 GB of models)…")
+	list, err := os.CreateTemp("", "cav-sfx-paths")
+	if err != nil {
+		return nil, nil, err
+	}
+	defer os.Remove(list.Name())
+	for _, p := range paths {
+		if _, err := fmt.Fprintln(list, p); err != nil {
+			list.Close()
+			return nil, nil, err
+		}
+	}
+	if err := list.Close(); err != nil {
+		return nil, nil, err
+	}
+	args := []string{filepath.Join(config.CacheDir(), "earshot"), query, list.Name()}
+	out, err := pyrun.Run(ctx, filepath.Join(config.CacheDir(), "python"), "sfx_rank.py", script, []string{earshotSpec}, args, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	var r struct {
+		Results []soundRank `json:"results"`
+		Skipped []string    `json:"skipped"`
+	}
+	if err := jsonUnmarshal(out, &r); err != nil {
+		return nil, nil, fmt.Errorf("unexpected ranker output: %w", err)
+	}
+	return r.Results, r.Skipped, nil
 }
 
 func getLocal(path, dir string) (library.Entry, error) {

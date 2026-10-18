@@ -1,5 +1,33 @@
 # Changelog
 
+## Unreleased
+
+- `cav sfx search --by-sound` ranks the indexed local libraries by what the files sound
+  like, not by their names, so a bundle whose names say nothing (rec_0042.wav) is still
+  searchable.
+  - It runs earshot's CLAP model (https://github.com/Leonxlnx/earshot, pinned to v0.3.0)
+    locally through uv. The first run downloads about 1.4 GB of models into the cav cache;
+    after that it works offline and only new or changed files are read again. Nothing is
+    uploaded.
+  - Each local hit carries a calibrated verdict in `sound` (strong / plausible / weak /
+    no match, with the z score and what the file sounds most like).
+  - At most 1000 files are ranked per search; the note says when a library was capped.
+  - Without uv, or if earshot fails, the search falls back to matching file names and the
+    note says so.
+- `cav sfx search --service bank` searches the sound bank that earshot 0.3.0 ships: 201
+  short sounds for motion graphics (clicks, whooshes, impacts, risers, ...) that render
+  locally with numpy and scipy only — no models, no network, about half a second. The
+  first use downloads the earshot source (about 4 MB, pinned commit) into the cav cache;
+  after that the bank joins every plain `cav sfx search`.
+  - `cav sfx get bank:<id>` renders a fresh take as WAV, with `--seconds` for an exact
+    length and `--seed` for another take of the same sound; a seed always gives the same
+    take. Every take passes earshot's audit (silence, clicks, clipping, ...); a take that
+    does not is delivered with a note saying why.
+  - The synthesized ("forge") sounds carry the MIT licence; the ones fitted from a
+    recording ("fit") carry CC0-1.0 with the author and the source link in the manifest.
+- `cav sfx search` no longer fails against openverse: anonymous requests cap page_size at
+  20 and cav asked for more, so a plain search always ended in HTTP 401.
+
 ## 1.8.0
 
 - `cav brief init -o dir/brief.json` creates the missing folder instead of failing.
