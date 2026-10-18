@@ -249,6 +249,17 @@ After a first `--service mflux` run, cav includes it after keyed services by def
 `cav sfx get <ref>` downloads one with its credit, and `cav sfx index <folder>` adds a
 user-owned library. `cav sfx gen "<prompt>"` generates a sound effect.
 
+The local library search matches file names. `cav sfx search --by-sound` ranks the local
+files by what they sound like instead. It runs earshot's CLAP model locally through uv;
+the first run downloads about 1.4 GB of models, and after that it works offline.
+`cav sfx search --service bank` searches the sound bank that earshot ships: 201 short
+synthesized sounds for motion graphics. They render locally in about half a second with
+no models and no network; the first use downloads 4 MB of earshot source. After that
+first use the bank joins every plain search. `cav sfx get bank:<id>` renders a take.
+`--seconds 1.5` sets an exact length, and `--seed 7` gives another take of the same
+sound. The manifest records the licence: MIT for the synthesized sounds, and CC0 with
+the author and link for the ones fitted from a recording.
+
 With a key, `cav music gen` makes takes based on storyboard shots. A user-run ACE-Step
 1.5 server can do this without a key. A user-run YuE2 server uses the storyboard's
 length and tempo. It does not follow the shots. YuE2 runs through `tools/yue2-server`

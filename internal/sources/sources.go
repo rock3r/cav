@@ -22,6 +22,17 @@ import (
 	"github.com/rock3r/cav/internal/services"
 )
 
+// SoundMatch is how well a local file matches the search words by what it sounds like
+// (cav sfx search --by-sound, earshot's CLAP model). Z is calibrated against earshot's
+// vocabulary of sound descriptions: Verdict strong means a library search finds the right
+// kind of sound about 98% of the time (earshot's held-out measurement).
+type SoundMatch struct {
+	Z          float64 `json:"z"`
+	Cosine     float64 `json:"cosine"`
+	Verdict    string  `json:"verdict"` // strong, plausible, weak, no match
+	SoundsLike string  `json:"soundsLike,omitempty"`
+}
+
 // Result is one search hit.
 type Result struct {
 	Service     string        `json:"service"`
@@ -40,6 +51,7 @@ type Result struct {
 	Width       int           `json:"width,omitempty"`
 	Height      int           `json:"height,omitempty"`
 	Tags        []string      `json:"tags,omitempty"`
+	Sound       *SoundMatch   `json:"sound,omitempty"`
 	// track is a URL the source asks apps to call when the file is used (Unsplash).
 	track string
 }

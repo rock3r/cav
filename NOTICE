@@ -30,6 +30,18 @@ This project builds on ideas and code from other projects.
    The SemiBold Latin subset is embedded in assets/review/index.html for the
    review page's column heads and frame numbers.
 
+5. earshot — https://github.com/Leonxlnx/earshot
+   Copyright (c) 2026 Leon Lin. MIT licence.
+   Not built into cav and not redistributed: `cav sfx search --by-sound` asks uv to
+   install it (pinned to the v0.3.0 commit) into uv's own cache, and runs it on the
+   user's computer. Its models are downloaded from their authors under their own
+   licences: CLAP (laion/larger_clap_general) Apache-2.0 and the AudioSet tagger
+   (MIT/ast-finetuned-audioset-10-10-0.4593) BSD-3-Clause.
+   `cav sfx search --service bank` downloads the earshot source archive (about 4 MB,
+   same pinned commit) into the cav cache and renders the sounds its bank describes on
+   the user's computer. The synthesized sounds ship under the same MIT licence; the ones
+   fitted from a recording credit their CC0 source (author and link) in the manifest.
+
 Cavalry is a product of Scene Group Limited (now part of Canva). This project
 is not affiliated with or endorsed by Scene Group or Canva. The Cavalry
 documentation is not redistributed: `cav docs update` downloads it to the
