@@ -66,7 +66,7 @@ func ovPath(kind string) string {
 }
 
 func openverseSearch(ctx context.Context, _ *services.Config, _ string, qq Query) ([]Result, error) {
-	u := fmt.Sprintf("https://api.openverse.org/v1/%s/?q=%s&page_size=%d&mature=false", ovPath(qq.Kind), q(qq.Text), min(qq.Limit*2, 50))
+	u := fmt.Sprintf("https://api.openverse.org/v1/%s/?q=%s&page_size=%d&mature=false", ovPath(qq.Kind), q(qq.Text), min(qq.Limit*2, 20)) // anonymous page_size caps at 20
 	if qq.Licence == "commercial" {
 		u += "&license_type=commercial"
 	}
