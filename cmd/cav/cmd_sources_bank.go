@@ -204,6 +204,9 @@ func searchBank(ctx context.Context, q sources.Query) ([]sources.Result, error) 
 		if !ok {
 			continue
 		}
+		if q.MaxSeconds > 0 && s.DurS > q.MaxSeconds {
+			continue
+		}
 		terms := bankTerms
 		author := ""
 		if s.Source != nil {

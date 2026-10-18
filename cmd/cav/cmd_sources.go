@@ -231,7 +231,7 @@ func sourcesSearch(a *app, cmd, kind, root string, args []string) error {
 			results = append(results, bs...)
 		}
 	}
-	if *service != "local" && *service != "bank" {
+	if *service != "local" && (*service != "bank" || kind != "audio") {
 		c, err := services.Load()
 		if err != nil {
 			return err
@@ -962,7 +962,10 @@ type soundRank struct {
 // instead.
 func searchLocalBySound(ctx context.Context, q sources.Query) ([]sources.Result, string) {
 	libs, err := loadLibraries()
-	if err != nil || len(libs) == 0 {
+	if err != nil {
+		return nil, "local libraries: " + err.Error()
+	}
+	if len(libs) == 0 {
 		return nil, ""
 	}
 	type soundFile struct {

@@ -118,6 +118,22 @@ printf '{"results":[{"path":"%s","z":3.1,"cosine":0.33,"verdict":"strong","sound
 	}
 }
 
+// A broken sound-libraries.json is reported like the file-name search reports it, not
+// swallowed into an empty result.
+func TestSfxSearchBySoundReportsABrokenLibraryList(t *testing.T) {
+	t.Setenv("CAV_HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+	if err := os.WriteFile(librariesPath(), []byte("{oops"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	data := searchJSON(t, "--service", "local", "--by-sound", "anything")
+	notes := notesOf(t, data)
+	if len(notes) != 1 || !strings.Contains(notes[0], "local libraries:") {
+		t.Fatalf("want the broken-list note, got %v", notes)
+	}
+}
+
 // The by-sound search reads at most maxBySoundFiles files and says when it stopped early.
 func TestSfxSearchBySoundCapsTheLibrary(t *testing.T) {
 	if runtime.GOOS == "windows" {

@@ -125,6 +125,26 @@ func TestBankStaysOutOfPlainSearchUntilReady(t *testing.T) {
 	}
 }
 
+// --max-seconds filters bank sounds like it filters the remote services.
+func TestBankSearchHonoursMaxSeconds(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake uv is a shell script")
+	}
+	t.Setenv("CAV_HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+	makeBankReady(t)
+	fakeUVBankList(t)
+
+	data := searchJSON(t, "--service", "bank", "--max-seconds", "1", "a")
+	var ids []string
+	for _, r := range data["results"].([]any) {
+		ids = append(ids, r.(map[string]any)["id"].(string))
+	}
+	if len(ids) != 2 || ids[0] != "pro_impact/deep" || ids[1] != "whoosh_fast/crisp" {
+		t.Fatalf("want the two sounds under a second, got %v", ids)
+	}
+}
+
 // bankGet renders through the helper, never replaces an existing take, records the fit
 // source, and surfaces the audit's warnings.
 func TestBankGetRendersAndRecords(t *testing.T) {
@@ -182,6 +202,17 @@ func TestBankGetFlagValidation(t *testing.T) {
 	if err := cmdSources(&app{}, "sfx", "audio", "sfx", []string{"get", "--seconds", "2", "openverse:x"}); err == nil ||
 		!strings.Contains(err.Error(), "--seconds and --seed are for bank sounds") {
 		t.Fatalf("want the --seconds error, got %v", err)
+	}
+}
+
+// The bank holds sounds only: cav ref search --service bank is an error, not an empty
+// success.
+func TestRefSearchRejectsTheBank(t *testing.T) {
+	t.Setenv("CAV_HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+	err := cmdSources(&app{}, "ref", "image", "ref", []string{"search", "--service", "bank", "neon"})
+	if err == nil || !strings.Contains(err.Error(), `unknown service "bank"`) {
+		t.Fatalf("want the unknown-service error, got %v", err)
 	}
 }
 
