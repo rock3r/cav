@@ -70,7 +70,11 @@ func ensureBank(ctx context.Context) (string, error) {
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("download the earshot source: %s", resp.Status)
 	}
-	tmp, err := os.MkdirTemp("", "cav-earshot")
+	if err := os.MkdirAll(filepath.Dir(dir), 0o755); err != nil {
+		return "", err
+	}
+	// Stage beside the target: os.Rename cannot cross filesystems.
+	tmp, err := os.MkdirTemp(filepath.Dir(dir), ".cav-earshot")
 	if err != nil {
 		return "", err
 	}
@@ -81,9 +85,6 @@ func ensureBank(ctx context.Context) (string, error) {
 	top, err := os.ReadDir(tmp)
 	if err != nil || len(top) != 1 {
 		return "", fmt.Errorf("extract the earshot source: unexpected layout")
-	}
-	if err := os.MkdirAll(filepath.Dir(dir), 0o755); err != nil {
-		return "", err
 	}
 	os.RemoveAll(dir) // a partial earlier attempt
 	if err := os.Rename(filepath.Join(tmp, top[0].Name()), dir); err != nil {
