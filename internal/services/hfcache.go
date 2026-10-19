@@ -112,3 +112,66 @@ func mfluxReady(c *Config) error {
 	}
 	return fmt.Errorf("the %s weights are not downloaded yet (%s): run cav gen image --service mflux once", model, size)
 }
+
+// SA3DefaultModel is the Stable Audio 3 model cav runs when the config names none.
+const SA3DefaultModel = "sm-music"
+
+// sa3Files maps the SA3 models cav knows to the weight files a run needs in the
+// stabilityai/stable-audio-3-optimized repository (its weights manifest, read on
+// 2026-10-18): the model's DiT and decoder, plus the shared T5Gemma text encoder. The
+// size is the whole first download, T5Gemma included.
+var sa3Files = map[string]struct {
+	DiT     string
+	Decoder string
+	Size    string
+}{
+	"sm-sfx":   {DiT: "MLX/dit_sm-sfx_f16.npz", Decoder: "MLX/same_s_decoder_f32.npz", Size: "about 1.9 GB"},
+	"sm-music": {DiT: "MLX/dit_sm-music_f16.npz", Decoder: "MLX/same_s_decoder_f32.npz", Size: "about 1.9 GB"},
+	"medium":   {DiT: "MLX/dit_medium_f16.npz", Decoder: "MLX/same_l_decoder_f32.npz", Size: "about 6.5 GB"},
+}
+
+// SA3Weights says whether the weights of a Stable Audio 3 model are in the Hugging Face
+// cache, and how large the first download is. known is false for a model cav has no
+// repository for.
+func SA3Weights(model string) (cached, known bool, size string) {
+	m, ok := sa3Files[model]
+	if !ok {
+		return false, false, "several GB"
+	}
+	snaps := filepath.Join(HFHubCache(), "models--stabilityai--stable-audio-3-optimized", "snapshots")
+	entries, err := os.ReadDir(snaps)
+	if err != nil {
+		return false, true, m.Size
+	}
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		// os.Stat follows the snapshot's links to the blobs, so a half-downloaded file
+		// (a link whose blob is missing) does not count.
+		complete := true
+		for _, f := range []string{m.DiT, m.Decoder, "MLX/t5gemma_f16.npz"} {
+			if _, err := os.Stat(filepath.Join(snaps, e.Name(), f)); err != nil {
+				complete = false
+				break
+			}
+		}
+		if complete {
+			return true, true, m.Size
+		}
+	}
+	return false, true, m.Size
+}
+
+// sa3Ready reports whether sa3 can run without its large first download.
+func sa3Ready(c *Config) error {
+	model := SA3DefaultModel
+	if c != nil && c.Models["sa3"] != "" {
+		model = c.Models["sa3"]
+	}
+	cached, known, size := SA3Weights(model)
+	if cached || !known {
+		return nil
+	}
+	return fmt.Errorf("the sa3 %s weights are not downloaded yet (%s): run cav music gen --service sa3 once", model, size)
+}

@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- `cav music gen --service sa3` and `cav sfx gen --service sa3` make music and sound
+  effects locally with Stable Audio 3 (https://github.com/Stability-AI/stable-audio-3,
+  pinned commit, MIT-licensed MLX runtime) on Apple silicon: no key, nothing uploaded.
+  - The first run downloads the model weights (about 1.9 GB; `medium` is about 6.5 GB and
+    runs to 6:20 — `cav config model sa3 medium`) into the shared Hugging Face cache;
+    after that every run works offline and sa3 joins the default music order, so a plain
+    `cav music gen`, or a plain `cav sfx gen` with no ElevenLabs key, uses it.
+  - Takes are an exact `--seconds` long, get the model's TrackType prompt prefix, and the
+    manifest records the seed, so a take can be made again. `cav sfx gen` gains `--seed`.
+  - With `--ref`, sa3 restyles the track as init audio (σmax = 1 − `--keep`), and a
+    variation's length defaults to the reference's own.
+  - Takes are recorded under the Stability AI Community License: commercial use is free
+    below $1M annual revenue; the manifest note says so.
 - `cav sfx search --by-sound` ranks the indexed local libraries by what the files sound
   like, not by their names, so a bundle whose names say nothing (rec_0042.wav) is still
   searchable.

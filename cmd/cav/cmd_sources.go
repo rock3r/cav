@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -16,6 +17,7 @@ import (
 	"github.com/rock3r/cav/internal/moodboard"
 	"github.com/rock3r/cav/internal/music"
 	"github.com/rock3r/cav/internal/pyrun"
+	"github.com/rock3r/cav/internal/sa3"
 	"github.com/rock3r/cav/internal/services"
 	"github.com/rock3r/cav/internal/sources"
 )
@@ -60,6 +62,13 @@ cav sfx get bank:whoosh_fast/crisp [-o sfx/] [--seconds 1.5] [--seed 7]
     notes. Render a take per shot and they stay consistent.
 cav sfx gen "deep whoosh into a soft impact" --seconds 1.5 [--loop]
     generates a sound with ElevenLabs (needs its key), into sfx/, recorded as generated.
+cav sfx gen "heavy wooden door slam in a stone hallway" --service sa3 [--seconds 3] [--seed 7]
+    generates it locally with Stable Audio 3 (sm-sfx, open weights) instead: no key, nothing
+    uploaded, on Apple silicon through uv. The first run fetches the pinned runtime and
+    downloads about 1.9 GB of models into the Hugging Face cache; later runs are offline and
+    take a few seconds. --seed gives a reproducible take. The take is recorded with the
+    Stability AI Community License (free commercial use below $1M annual revenue). Without an
+    ElevenLabs key, a plain cav sfx gen falls back to sa3 once its model is downloaded.
 cav sfx add <file> --licence CC-BY-4.0 --author "..." [--source ...] [--url ...]
     records a file you found by hand.
 The licence filter defaults to the project setting (cav credits licence nc-ok|commercial):
@@ -600,8 +609,10 @@ func refAddVideo(a *app, root, dir, link, take, by, title string) error {
 
 func sfxGen(a *app, root, dir string, args []string) error {
 	fs := flag.NewFlagSet("sfx gen", flag.ContinueOnError)
-	seconds := fs.Float64("seconds", 0, "length, 0.5-30 (default: the model decides)")
-	loop := fs.Bool("loop", false, "make it loop smoothly")
+	seconds := fs.Float64("seconds", 0, "length in seconds (elevenlabs: 0.5-30, sa3: up to 120; default: the model decides)")
+	loop := fs.Bool("loop", false, "make it loop smoothly (elevenlabs only)")
+	service := fs.String("service", "", "elevenlabs (default) or sa3 (locally on Apple silicon, no key)")
+	seed := fs.Int64("seed", -1, "sa3 only: the take's seed (default: a random one)")
 	out := fs.String("o", dir, "folder")
 	pos, err := parseFlags(fs, args)
 	if err != nil {
@@ -610,7 +621,19 @@ func sfxGen(a *app, root, dir string, args []string) error {
 	if len(pos) == 0 {
 		return usageErr("describe the sound: cav sfx gen \"glassy riser into a hit\"")
 	}
+	if *seed < -1 {
+		return usageErr("--seed must be zero or more")
+	}
 	prompt := strings.Join(pos, " ")
+	if *service == "sa3" {
+		return sfxGenSA3(a, root, *out, prompt, *seconds, *loop, *seed)
+	}
+	if *service != "" && *service != "elevenlabs" {
+		return usageErr("--service is elevenlabs or sa3")
+	}
+	if *seed >= 0 {
+		return usageErr("--seed is for sa3 (elevenlabs takes none)")
+	}
 	c, err := services.Load()
 	if err != nil {
 		return err
@@ -619,7 +642,16 @@ func sfxGen(a *app, root, dir string, args []string) error {
 	defer cancel()
 	ch, err := services.Pick(ctx, c, "sfx", "elevenlabs")
 	if err != nil {
-		return fail(exitError, err.Error(), "sound generation needs an ElevenLabs key (cav config); cav sfx search finds free sounds")
+		// Without an ElevenLabs key, a Stable Audio 3 setup the user already paid for
+		// (its weights are cached) takes over, like mflux joins the image order. Pick
+		// flattens its skips to strings, so the key question is asked again directly.
+		var ke *services.KeyError
+		_, keyErr := services.Resolve(ctx, "elevenlabs", c.KeySource("elevenlabs"))
+		if errors.As(keyErr, &ke) && ke.Missing && sa3.Available() && services.Catalog["sa3"].Ready(c) == nil {
+			fmt.Fprintln(os.Stderr, "note: no ElevenLabs key, so the sound is made locally with Stable Audio 3")
+			return sfxGenSA3(a, root, *out, prompt, *seconds, *loop, *seed)
+		}
+		return fail(exitError, err.Error(), "sound generation needs an ElevenLabs key (cav config), or a local model: cav sfx gen --service sa3; cav sfx search finds free sounds")
 	}
 	tr, err := music.SoundEffect(ctx, ch.Key, prompt, *seconds, *loop)
 	if err != nil {
@@ -628,13 +660,49 @@ func sfxGen(a *app, root, dir string, args []string) error {
 	if err := os.MkdirAll(*out, 0o755); err != nil {
 		return err
 	}
-	path := filepath.Join(*out, safeSlug(prompt)+tr.Ext)
-	if err := os.WriteFile(path, tr.Data, 0o644); err != nil {
+	path, err := writeFreeData(filepath.Join(*out, safeSlug(prompt)), tr.Ext, tr.Data)
+	if err != nil {
 		return err
 	}
 	sum, _ := fileSHA(path)
 	return recordAndReport(a, root, library.Entry{Path: path, Kind: "audio", Title: prompt, Source: tr.Provider, Licence: "generated",
 		CommercialOK: true, RetrievedAt: time.Now().UTC(), SHA256: sum, Generated: &library.Generated{Provider: tr.Provider, Model: tr.Model, Prompt: prompt}}, nil)
+}
+
+// sfxGenSA3 makes a sound effect locally with Stable Audio 3's sm-sfx model. The first
+// run fetches the pinned runtime (a few MB) and downloads the weights (about 1.9 GB).
+func sfxGenSA3(a *app, root, dir, prompt string, seconds float64, loop bool, seed int64) error {
+	if loop {
+		return usageErr("--loop is an ElevenLabs feature; sa3 cannot loop a sound")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+	res, err := sa3.Generate(ctx, sa3.Request{Kind: sa3.SFX, Prompt: prompt, Seconds: seconds, Seed: seed})
+	if err != nil {
+		return fail(exitError, err.Error(), "cav sfx search --service bank renders keyless sounds with no model download")
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	path, err := writeFreeData(filepath.Join(dir, safeSlug(prompt)), ".wav", res.Data)
+	if err != nil {
+		return err
+	}
+	note := ""
+	if gain, err := addHeadroom(ctx, path); err == nil && gain != 0 {
+		note = fmt.Sprintf("the true peak was above %g dBTP, so cav lowered the level by %.1f dB", headroomPeak, -gain)
+	}
+	sum, _ := fileSHA(path)
+	e := library.Entry{Path: path, Kind: "audio", Title: prompt, Source: "sa3",
+		RetrievedAt: time.Now().UTC(), SHA256: sum,
+		Generated: &library.Generated{Provider: "sa3", Model: res.Model, Prompt: prompt, Seed: &res.Seed}}
+	library.GeneratedTerms("sa3").Apply(&e)
+	var notes []string
+	if note != "" {
+		notes = append(notes, note)
+	}
+	notes = append(notes, res.Notes...)
+	return recordAndReport(a, root, e, notes)
 }
 
 func refArena(a *app, root, dir string, args []string) error {

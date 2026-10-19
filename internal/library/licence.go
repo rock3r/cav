@@ -115,11 +115,23 @@ var YuE2Terms = Terms{ID: "YuE2-model-licence", URL: "https://github.com/multimo
 	Note: "made with YuE2, whose weights are CC BY-NC 4.0: an individual creator or musician may use and sell the music, " +
 		"but a company needs a commercial licence from the YuE2 authors (ryuanab@connect.ust.hk)"}
 
+// SA3Terms are the terms of a take made with Stable Audio 3's weights, under the
+// Stability AI Community License (https://stability.ai/license, read on 2026-10-18):
+// the user owns the outputs, and commercial use is free below $1M in annual revenue;
+// at or above that the organisation needs Stability's Enterprise licence. cav cannot
+// know a user's revenue, so every take carries the note.
+var SA3Terms = Terms{ID: "Stability-Community", URL: "https://stability.ai/license", CommercialOK: true,
+	Note: "made with Stable Audio 3 weights under the Stability AI Community License: commercial use is free below $1M annual revenue; at or above it needs Stability's Enterprise licence"}
+
 // GeneratedTerms are the terms cav records for a take or image from a generation service:
-// YuE2's model licence for yue2, and "generated" (commercial use allowed) for the others.
+// YuE2's model licence for yue2, the Stability AI Community License for sa3, and
+// "generated" (commercial use allowed) for the others.
 func GeneratedTerms(provider string) Terms {
-	if provider == "yue2" {
+	switch provider {
+	case "yue2":
 		return YuE2Terms
+	case "sa3":
+		return SA3Terms
 	}
 	return Terms{ID: "generated", CommercialOK: true}
 }
@@ -161,6 +173,8 @@ func LicenceName(id string) string {
 		return "Unsplash License"
 	case id == YuE2Terms.ID:
 		return "YuE2 model licence"
+	case id == SA3Terms.ID:
+		return "Stability AI Community License"
 	}
 	return id
 }

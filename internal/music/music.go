@@ -1,6 +1,7 @@
 // Package music generates tracks with an API: ElevenLabs Music (with a composition plan
 // whose sections follow the storyboard's shots), Stable Audio, Lyria through the Gemini API,
-// or an ACE-Step 1.5 or YuE2 server the user runs.
+// an ACE-Step 1.5 or YuE2 server the user runs, or Stable Audio 3 locally on Apple silicon
+// (sa3, through uv).
 //
 // Tracks are instrumental unless the request has lyrics (Request.Lyrics). Only the
 // services the user runs sing them: ACE-Step and YuE2 (see SingsLyrics). The others get
@@ -37,6 +38,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/rock3r/cav/internal/sa3"
 	"github.com/rock3r/cav/internal/services"
 )
 
@@ -80,7 +82,7 @@ func MaxLyrics(service string) int {
 
 // SendsAudio reports whether the service takes a reference track as audio.
 func SendsAudio(service string) bool {
-	return service == "stability" || service == "acestep" || service == "yue2"
+	return service == "stability" || service == "acestep" || service == "yue2" || service == "sa3"
 }
 
 // Track is the result.
@@ -125,8 +127,51 @@ func Generate(ctx context.Context, c *services.Config, ch *services.Choice, r Re
 		return lyria(ctx, c, ch.Key, r)
 	case "yue2":
 		return yue2(ctx, c, ch.Key, r)
+	case "sa3":
+		return sa3gen(ctx, c, r)
 	}
 	return nil, fmt.Errorf("%s does not make music", ch.Service)
+}
+
+// structureSuffix describes the section plan in one prompt sentence ("Structure: intro
+// at 0s (soft pads); drop at 8s"), for the services that take a single prompt.
+func structureSuffix(sections []Section) string {
+	if len(sections) == 0 {
+		return ""
+	}
+	var parts []string
+	at := 0.0
+	for _, s := range sections {
+		part := fmt.Sprintf("%s at %.0fs", s.Name, at)
+		if len(s.Styles) > 0 {
+			// A section with no styles got "()" until #11 showed it in a real request.
+			part += " (" + strings.Join(s.Styles, ", ") + ")"
+		}
+		parts = append(parts, part)
+		at += s.Seconds
+	}
+	return ". Structure: " + strings.Join(parts, "; ")
+}
+
+// sa3gen runs Stable Audio 3 locally (see the sa3 package). Its prompt gets the model's
+// TrackType prefix from the sa3 package; here it only gets the section plan.
+func sa3gen(ctx context.Context, c *services.Config, r Request) (*Track, error) {
+	model := r.Model
+	if model == "" {
+		model = c.Models["sa3"]
+	}
+	var noise float64
+	if r.Ref != "" {
+		// σmax mirrors Stable Audio's strength: 0 keeps the reference, 1 ignores it. A
+		// very low σmax returns nearly the input, which is a take of nothing new.
+		noise = math.Max(0.05, 1-math.Max(0, math.Min(1, r.Keep)))
+	}
+	res, err := sa3.Generate(ctx, sa3.Request{Kind: sa3.Music, Prompt: r.Prompt + structureSuffix(r.Sections),
+		Seconds: r.Seconds, Model: model, Seed: -1, InitAudio: r.Ref, InitNoise: noise})
+	if err != nil {
+		return nil, err
+	}
+	return &Track{Data: res.Data, Ext: ".wav", Provider: "sa3", Model: res.Model, Seed: &res.Seed, Notes: res.Notes}, nil
 }
 
 func elevenlabs(ctx context.Context, c *services.Config, key string, r Request) (*Track, error) {
@@ -213,22 +258,7 @@ func stability(ctx context.Context, c *services.Config, key string, r Request) (
 	if model == "" {
 		model = "stable-audio-2.5"
 	}
-	prompt := r.Prompt
-	if len(r.Sections) > 0 {
-		// Stable Audio takes one prompt: describe the sections in order.
-		var parts []string
-		at := 0.0
-		for _, s := range r.Sections {
-			part := fmt.Sprintf("%s at %.0fs", s.Name, at)
-			if len(s.Styles) > 0 {
-				// A section with no styles got "()" until #11 showed it in a real request.
-				part += " (" + strings.Join(s.Styles, ", ") + ")"
-			}
-			parts = append(parts, part)
-			at += s.Seconds
-		}
-		prompt += ". Structure: " + strings.Join(parts, "; ")
-	}
+	prompt := r.Prompt + structureSuffix(r.Sections)
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
 	w.WriteField("prompt", prompt+". Instrumental, no vocals.")

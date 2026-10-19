@@ -289,6 +289,7 @@ takes per reference. Services use a reference in different ways:
 | Service | What it gets | Result |
 |---|---|---|
 | Stable Audio | the audio (audio-to-audio) | a variation that keeps the reference's structure; `--keep` (0-1, default 0.4) sets how much |
+| sa3 (local Stable Audio 3) | the audio as init audio, noised to σmax = 1 − `--keep` | a variation of the reference, trimmed or padded to `--seconds` (default: the reference's own length); Apple silicon, no key |
 | ACE-Step | the audio, as a style reference | a new track with the reference's sound |
 | YuE2 | the audio, for a cover: SheetSage2 on the server transcribes its melody | an instrumental cover: the reference's melody on an instrument, in the prompt's style |
 | Lyria, ElevenLabs | a description of the audio, written by the audio model ("ears" job) | a new track written from the description in a similar style; variation of the source audio is unavailable |
@@ -307,6 +308,7 @@ observations from that sample.
 
 | Service | Length | Storyboard plan | Reference track | Watch out for |
 |---|---|---|---|---|
+| sa3 (local Stable Audio 3) | exact: the take is trimmed to `--seconds`; the small models run to 120 s, `medium` to 380 s | sections go into the prompt after the model's TrackType prefix | sent as audio as init audio; `--keep` 0.4 becomes σmax 0.6 | Apple silicon only; the first run downloads 1.9 GB (`medium`: 6.5 GB); instrumentals only; takes are under the Stability AI Community License (free commercial use below $1M revenue); a 10 s take took about 2 s on an M-series Mac once loaded |
 | Stable Audio | exact (matched the storyboard) | sections go into the prompt; with `--ref`, the reference's arc wins over the plan | sent as audio: MP3 or WAV, 6-190 s (cav converts and cuts) | the reference's arc takes precedence over the storyboard's; a reference with a quiet intro gives a take with no early hit |
 | Lyria | a prompt hint only (3 s too long) | one `[m:ss - m:ss]` line per shot; the drop landed on its cut | described in words | sends MP3 unless asked for WAV; cav asks, and the WAV came as 24-bit 48 kHz |
 | ElevenLabs | not kept (7 s too long with music_v1) | composition plan; section names are the shot ids only | described in words | music needs a paid plan (HTTP 402 on free); an API key can have its own credit cap below the plan's (HTTP 401 "exceeds your API key quota"); moderation refuses a plan or prompt that names a brand, product or artist |
