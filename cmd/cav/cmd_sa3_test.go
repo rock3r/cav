@@ -27,13 +27,20 @@ func makeSA3Runtime(t *testing.T) {
 // counts as set up.
 func makeSA3Weights(t *testing.T) {
 	t.Helper()
+	makeSA3WeightsOnly(t, "dit_sm-sfx_f16.npz", "dit_sm-music_f16.npz", "same_s_decoder_f32.npz",
+		"same_s_encoder_f32.npz", "t5gemma_f16.npz")
+}
+
+// makeSA3WeightsOnly fakes a cache holding just the named files.
+func makeSA3WeightsOnly(t *testing.T, files ...string) {
+	t.Helper()
 	cache := t.TempDir()
 	t.Setenv("HF_HUB_CACHE", cache)
 	snap := filepath.Join(cache, "models--stabilityai--stable-audio-3-optimized", "snapshots", "rev1", "MLX")
 	if err := os.MkdirAll(snap, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	for _, f := range []string{"dit_sm-sfx_f16.npz", "dit_sm-music_f16.npz", "same_s_decoder_f32.npz", "t5gemma_f16.npz"} {
+	for _, f := range files {
 		os.WriteFile(filepath.Join(snap, f), []byte("w"), 0o644)
 	}
 }
@@ -136,6 +143,31 @@ func TestSFXGenWithoutAKeyPointsAtSA3(t *testing.T) {
 	err := cmdSources(&app{}, "sfx", "audio", "sfx", []string{"gen", "beep"})
 	var ce *cliError
 	if !errors.As(err, &ce) || !strings.Contains(ce.hint, "cav sfx gen --service sa3") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+// The keyless fallback runs sm-sfx, so a cached music model alone must not trigger it:
+// it would start a 1.6 GB download the user did not ask for.
+func TestSFXGenDoesNotFallBackWhenOnlyTheMusicModelIsCached(t *testing.T) {
+	setupSA3(t)
+	makeSA3WeightsOnly(t, "dit_sm-music_f16.npz", "same_s_decoder_f32.npz", "t5gemma_f16.npz")
+	t.Setenv("CAV_NO_KEYS", "1")
+	err := cmdSources(&app{}, "sfx", "audio", "sfx", []string{"gen", "beep"})
+	var ce *cliError
+	if !errors.As(err, &ce) || !strings.Contains(ce.hint, "cav sfx gen --service sa3") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+// A --model names the model sa3 must be ready with: with only the small model cached,
+// --model medium cannot join the order (it would otherwise start a 4.9 GB download).
+func TestMusicGenModelMustBeCachedForSA3(t *testing.T) {
+	setupSA3(t)
+	makeSA3Weights(t)
+	t.Setenv("CAV_NO_KEYS", "1")
+	err := cmdMusic(&app{}, []string{"gen", "chill beat", "--seconds", "5", "--model", "medium"})
+	if err == nil || !strings.Contains(err.Error(), "sa3 medium") {
 		t.Fatalf("got %v", err)
 	}
 }

@@ -44,19 +44,17 @@ const (
 	PrefixMusic = "TrackType: Music, VocalType: Instrumental, "
 )
 
-// model describes one SA3 DiT bundle: the decoder it pairs with, the longest take it
-// makes well (the small models drift past about two minutes; medium runs to about 6:20),
-// and the size of its first download, the shared T5Gemma encoder included.
+// model describes one SA3 DiT bundle: the decoder it pairs with and the longest take it
+// makes well (the small models drift past about two minutes; medium runs to about 6:20).
 type model struct {
 	decoder string
 	maxSec  float64
-	size    string
 }
 
 var models = map[string]model{
-	"sm-sfx":   {"same-s", 120, "about 1.9 GB"},
-	"sm-music": {"same-s", 120, "about 1.9 GB"},
-	"medium":   {"same-l", 380, "about 6.5 GB"},
+	"sm-sfx":   {"same-s", 120},
+	"sm-music": {"same-s", 120},
+	"medium":   {"same-l", 380},
 }
 
 // DefaultModel is the model a kind runs when the request names none.
@@ -179,6 +177,11 @@ func Generate(ctx context.Context, r Request) (*Result, error) {
 	if cached, known, size := services.SA3Weights(name); known && !cached {
 		fmt.Fprintf(os.Stderr, "note: the first run downloads the %s weights (%s) into %s; this can take a long time\n",
 			name, size, services.HFHubCache())
+	}
+	if r.InitAudio != "" {
+		if cached, size := services.SA3RefEncoder(name); !cached {
+			fmt.Fprintf(os.Stderr, "note: this first --ref run also downloads the codec encoder (%s); after it, variations work offline\n", size)
+		}
 	}
 	tmp, err := os.MkdirTemp("", "cav-sa3")
 	if err != nil {

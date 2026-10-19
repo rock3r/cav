@@ -130,7 +130,9 @@ func fakeSA3Cache(t *testing.T, cache, missing string) {
 		"MLX/dit_sm-music_f16.npz",
 		"MLX/dit_medium_f16.npz",
 		"MLX/same_s_decoder_f32.npz",
+		"MLX/same_s_encoder_f32.npz",
 		"MLX/same_l_decoder_f32.npz",
+		"MLX/same_l_encoder_f32.npz",
 		"MLX/t5gemma_f16.npz",
 	}
 	for i, f := range files {
@@ -159,7 +161,7 @@ func TestSA3WeightsInTheCache(t *testing.T) {
 	}
 	os.RemoveAll(cache)
 	fakeSA3Cache(t, cache, "")
-	if cached, _, size := SA3Weights("sm-music"); !cached || size != "about 1.9 GB" {
+	if cached, _, size := SA3Weights("sm-music"); !cached || size != "about 1.6 GB" {
 		t.Fatalf("complete snapshot: cached %v size %s", cached, size)
 	}
 	if cached, _, _ := SA3Weights("medium"); !cached {
@@ -167,6 +169,28 @@ func TestSA3WeightsInTheCache(t *testing.T) {
 	}
 	if _, known, _ := SA3Weights("huge"); known {
 		t.Fatal("cav has no repository for huge")
+	}
+}
+
+// The codec encoder a --ref run needs is tracked on its own: a text-to-audio first run
+// leaves it missing while the base weights count as cached.
+func TestSA3RefEncoderIsTrackedSeparately(t *testing.T) {
+	cache := t.TempDir()
+	t.Setenv("HF_HUB_CACHE", cache)
+	fakeSA3Cache(t, cache, "MLX/same_s_encoder_f32.npz")
+	if cached, _, _ := SA3Weights("sm-music"); !cached {
+		t.Fatal("the base weights are complete without the encoder")
+	}
+	if cached, size := SA3RefEncoder("sm-music"); cached || size != "about 205 MB" {
+		t.Fatalf("missing encoder: cached %v size %s", cached, size)
+	}
+	os.RemoveAll(cache)
+	fakeSA3Cache(t, cache, "")
+	if cached, _ := SA3RefEncoder("sm-music"); !cached {
+		t.Fatal("complete snapshot: encoder not found")
+	}
+	if cached, size := SA3RefEncoder("medium"); !cached || size != "about 1.6 GB" {
+		t.Fatalf("medium encoder: cached %v size %s", cached, size)
 	}
 }
 
@@ -184,7 +208,7 @@ func TestPickUsesSA3OnlyWhenItsModelIsCached(t *testing.T) {
 	// With no keys, no servers and no weights, no music service works.
 	if _, err := Pick(context.Background(), c, "music", ""); err == nil {
 		t.Fatal("no weights: sa3 should not be picked")
-	} else if !strings.Contains(err.Error(), "sa3: the sa3 sm-music weights are not downloaded yet (about 1.9 GB)") {
+	} else if !strings.Contains(err.Error(), "sa3: the sa3 sm-music weights are not downloaded yet (about 1.6 GB)") {
 		t.Fatalf("skip reason missing: %v", err)
 	}
 	// An explicit --service sa3 runs anyway: the first run is the download.
@@ -201,5 +225,13 @@ func TestPickUsesSA3OnlyWhenItsModelIsCached(t *testing.T) {
 	fakeSA3Cache(t, cache, "MLX/same_l_decoder_f32.npz")
 	if _, err := Pick(context.Background(), c, "music", ""); err == nil || !strings.Contains(err.Error(), "sa3 medium") {
 		t.Fatalf("the configured model is not cached: %v", err)
+	}
+	// A command's --model does the same through WithModel: the requested model is the
+	// one that must be cached.
+	if _, err := Pick(context.Background(), (&Config{}).WithModel("sa3", "medium"), "music", ""); err == nil || !strings.Contains(err.Error(), "sa3 medium") {
+		t.Fatalf("--model medium is not cached: %v", err)
+	}
+	if ch, err := Pick(context.Background(), (&Config{}).WithModel("sa3", "sm-music"), "music", ""); err != nil || ch.Service != "sa3" {
+		t.Fatalf("--model sm-music is cached: %+v %v", ch, err)
 	}
 }

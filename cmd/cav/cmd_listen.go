@@ -87,7 +87,7 @@ cav music gen "warm synthwave, confident, builds to a drop" --board storyboard.j
     ACE-Step uses it as a style reference. sa3 is Stable Audio 3 running locally on Apple
     silicon through uv (no key, nothing uploaded; --model medium for the larger model):
     a take is exactly --seconds long, and without --seconds a variation is as long as its
-    reference. The first run downloads about 1.9 GB of weights. YuE2 makes an instrumental
+    reference. The first run downloads about 1.6 GB of weights; the first --ref run adds the codec encoder, about 205 MB once. YuE2 makes an instrumental
     cover: SheetSage2 on the YuE2 server transcribes
     the track's melody, and YuE2 plays it on an instrument in the prompt's style, for the
     length of the track (--seconds cuts it). Lyria and ElevenLabs cannot take it, so the
@@ -464,7 +464,12 @@ func cmdMusic(a *app, args []string) error {
 		return fail(exitError, *service+" makes only instrumentals, so it cannot sing --lyrics",
 			"use a service that sings: --service yue2 or --service acestep (a server you run; cav config)")
 	}
-	ch, err := services.Pick(ctx, c, "music", *service)
+	pickConfig := c
+	if *model != "" {
+		// --model goes to whichever service wins, so sa3 must be ready with that model.
+		pickConfig = c.WithModel("sa3", *model)
+	}
+	ch, err := services.Pick(ctx, pickConfig, "music", *service)
 	if err != nil {
 		if lyrics != "" {
 			return fail(exitError, err.Error(), "--lyrics needs a server that sings: cav config endpoint yue2 <url> (or acestep), see cav guide production")

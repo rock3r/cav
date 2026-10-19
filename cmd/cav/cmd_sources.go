@@ -65,7 +65,7 @@ cav sfx gen "deep whoosh into a soft impact" --seconds 1.5 [--loop]
 cav sfx gen "heavy wooden door slam in a stone hallway" --service sa3 [--seconds 3] [--seed 7]
     generates it locally with Stable Audio 3 (sm-sfx, open weights) instead: no key, nothing
     uploaded, on Apple silicon through uv. The first run fetches the pinned runtime and
-    downloads about 1.9 GB of models into the Hugging Face cache; later runs are offline and
+    downloads about 1.6 GB of models into the Hugging Face cache; later runs are offline and
     take a few seconds. --seed gives a reproducible take. The take is recorded with the
     Stability AI Community License (free commercial use below $1M annual revenue). Without an
     ElevenLabs key, a plain cav sfx gen falls back to sa3 once its model is downloaded.
@@ -645,9 +645,12 @@ func sfxGen(a *app, root, dir string, args []string) error {
 		// Without an ElevenLabs key, a Stable Audio 3 setup the user already paid for
 		// (its weights are cached) takes over, like mflux joins the image order. Pick
 		// flattens its skips to strings, so the key question is asked again directly.
+		// The fallback runs sm-sfx, so the sm-sfx weights are the ones that must be
+		// cached: a downloaded music model alone is not readiness here.
 		var ke *services.KeyError
 		_, keyErr := services.Resolve(ctx, "elevenlabs", c.KeySource("elevenlabs"))
-		if errors.As(keyErr, &ke) && ke.Missing && sa3.Available() && services.Catalog["sa3"].Ready(c) == nil {
+		sfxCached, _, _ := services.SA3Weights(sa3.DefaultModel(sa3.SFX))
+		if errors.As(keyErr, &ke) && ke.Missing && sa3.Available() && sfxCached {
 			fmt.Fprintln(os.Stderr, "note: no ElevenLabs key, so the sound is made locally with Stable Audio 3")
 			return sfxGenSA3(a, root, *out, prompt, *seconds, *loop, *seed)
 		}
@@ -670,7 +673,7 @@ func sfxGen(a *app, root, dir string, args []string) error {
 }
 
 // sfxGenSA3 makes a sound effect locally with Stable Audio 3's sm-sfx model. The first
-// run fetches the pinned runtime (a few MB) and downloads the weights (about 1.9 GB).
+// run fetches the pinned runtime (a few MB) and downloads the weights (about 1.6 GB).
 func sfxGenSA3(a *app, root, dir, prompt string, seconds float64, loop bool, seed int64) error {
 	if loop {
 		return usageErr("--loop is an ElevenLabs feature; sa3 cannot loop a sound")
