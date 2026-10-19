@@ -67,7 +67,8 @@ The numbers and the picture are measurements; the critique is a model's opinion.
 cav music gen "warm synthwave, confident, builds to a drop" --board storyboard.json --takes 2
     makes takes in music/, recorded in .cav/manifest.json. With --board, each shot
     becomes a section of the same length (ElevenLabs composition plan; Lyria gets one
-    timed "[m:ss - m:ss]" line per shot; Stable Audio gets the structure in its prompt),
+    timed "[m:ss - m:ss]" line per shot; Stable Audio and sa3 get the structure in their
+    prompt),
     so changes in the music fall on the shot cuts. Without
     --board, --seconds sets the length. YuE2 has no length setting: cav, or its YuE2 server,
     cuts the planned score at a phrase near that length, and cav says how long the take is.
@@ -81,9 +82,13 @@ cav music gen "warm synthwave, confident, builds to a drop" --board storyboard.j
     all the lyrics and ignores --seconds: cav cannot cut a song without cutting a
     line, so write fewer or shorter sections for a shorter song.
 --ref (repeatable) makes variations of a reference track: --takes takes for each one.
-    Stable Audio and ACE-Step get the track itself. Stable Audio keeps its structure
-    (--keep, 0-1, how much of it to keep; default 0.4); ACE-Step uses it as a style
-    reference. YuE2 makes an instrumental cover: SheetSage2 on the YuE2 server transcribes
+    Stable Audio, Stable Audio 3 and ACE-Step get the track itself. Stable Audio keeps its
+    structure (--keep, 0-1, how much of it to keep; default 0.4, same for sa3);
+    ACE-Step uses it as a style reference. sa3 is Stable Audio 3 running locally on Apple
+    silicon through uv (no key, nothing uploaded; --model medium for the larger model):
+    a take is exactly --seconds long, and without --seconds a variation is as long as its
+    reference. The first run downloads about 1.6 GB of weights; the first --ref run adds the codec encoder, about 205 MB once. YuE2 makes an instrumental
+    cover: SheetSage2 on the YuE2 server transcribes
     the track's melody, and YuE2 plays it on an instrument in the prompt's style, for the
     length of the track (--seconds cuts it). Lyria and ElevenLabs cannot take it, so the
     audio model (the "ears" job) describes its style in words and cav adds that to the
@@ -98,9 +103,13 @@ clip; --raw-level keeps what the service sent.
 What each service does differently (lengths, plans, moderation, credits): cav guide
 production, "Music services".
 Then compare the takes: cav listen music/<take>.mp3 --board storyboard.json --brief "...".
-Needs a key for the "music" job (cav config). Check the service's terms for your use:
+Needs a key for the "music" job (cav config), or no key at all with --service sa3 (Stable
+Audio 3 locally on Apple silicon; once its model is downloaded it also joins the default
+order). Check the service's terms for your use:
 ElevenLabs self-serve plans, for example, exclude film, TV and games. YuE2's weights
 are CC BY-NC 4.0: an individual creator may sell the music, a company needs a licence.
+sa3's weights are under the Stability AI Community License: free commercial use below
+$1M annual revenue.
 
 cav music render score.json [-o music/score.wav] [--stems]
     renders a written score locally, with no key: notes and hits on a beat grid, played
@@ -455,12 +464,17 @@ func cmdMusic(a *app, args []string) error {
 		return fail(exitError, *service+" makes only instrumentals, so it cannot sing --lyrics",
 			"use a service that sings: --service yue2 or --service acestep (a server you run; cav config)")
 	}
-	ch, err := services.Pick(ctx, c, "music", *service)
+	pickConfig := c
+	if *model != "" {
+		// --model goes to whichever service wins, so sa3 must be ready with that model.
+		pickConfig = c.WithModel("sa3", *model)
+	}
+	ch, err := services.Pick(ctx, pickConfig, "music", *service)
 	if err != nil {
 		if lyrics != "" {
 			return fail(exitError, err.Error(), "--lyrics needs a server that sings: cav config endpoint yue2 <url> (or acestep), see cav guide production")
 		}
-		return fail(exitError, err.Error(), "add an ElevenLabs, Stability or Gemini (Lyria) key (cav config); or use cav sfx search to find music")
+		return fail(exitError, err.Error(), "add an ElevenLabs, Stability or Gemini (Lyria) key (cav config), or run a local model: --service sa3 (Apple silicon) or an acestep/yue2 server; or use cav sfx search to find music")
 	}
 	if lyrics != "" && !music.SingsLyrics(ch.Service) {
 		return fail(exitError, ch.Service+" makes only instrumentals, so it cannot sing --lyrics",
@@ -515,6 +529,13 @@ func cmdMusic(a *app, args []string) error {
 				}
 				j.Mode, j.Note = "sent", note
 				j.req.Ref, j.req.Keep = send, *keep
+				if ch.Service == "sa3" && !secondsSet && *boardFile == "" {
+					// sa3 trims or zero-pads the reference to --seconds, so a variation's
+					// length defaults to the reference's own, not the 30 s default.
+					if d, err := audioSeconds(ctx, r); err == nil {
+						j.req.Seconds = d
+					}
+				}
 				if ch.Service == "yue2" {
 					j.Mode = "cover"
 					if !secondsSet && *boardFile == "" {

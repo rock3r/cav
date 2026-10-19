@@ -247,7 +247,10 @@ After a first `--service mflux` run, cav includes it after keyed services by def
 
 **Music and sound.** `cav sfx search whoosh` finds free sounds.
 `cav sfx get <ref>` downloads one with its credit, and `cav sfx index <folder>` adds a
-user-owned library. `cav sfx gen "<prompt>"` generates a sound effect.
+user-owned library. `cav sfx gen "<prompt>"` generates a sound effect with an ElevenLabs
+key. On Apple silicon, `--service sa3` makes it locally with Stable Audio 3 instead: no
+key, nothing uploaded, the first run downloads about 1.6 GB of models. Once those are
+downloaded, a plain `cav sfx gen` without a key uses sa3 rather than failing.
 
 The local library search matches file names. `cav sfx search --by-sound` ranks the local
 files by what they sound like instead. It runs earshot's CLAP model locally through uv;
@@ -260,7 +263,15 @@ first use the bank joins every plain search. `cav sfx get bank:<id>` renders a t
 sound. The manifest records the licence: MIT for the synthesized sounds, and CC0 with
 the author and link for the ones fitted from a recording.
 
-With a key, `cav music gen` makes takes based on storyboard shots. A user-run ACE-Step
+With a key, `cav music gen` makes takes based on storyboard shots. On Apple silicon,
+`--service sa3` makes them locally with Stable Audio 3: no key, nothing uploaded, an
+exact `--seconds` length, and a random seed per take that the manifest records. The
+first run downloads about 1.6 GB of models (the `medium` model, about 4.9 GB, runs to
+6:20; `cav config model sa3 medium`), and the first --ref run adds the codec encoder
+(about 205 MB, or 1.6 GB for `medium`); after that sa3 joins the default order, so a
+plain `cav music gen` works with no key at all. Takes are under the Stability AI
+Community License: free commercial use below $1M annual revenue, recorded in the
+manifest. A user-run ACE-Step
 1.5 server can do this without a key. A user-run YuE2 server uses the storyboard's
 length and tempo. It does not follow the shots. YuE2 runs through `tools/yue2-server`
 or YuE2-Turbo on Apple silicon or an NVIDIA GPU. Turbo is fastest on a large NVIDIA

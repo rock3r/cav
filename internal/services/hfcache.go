@@ -112,3 +112,86 @@ func mfluxReady(c *Config) error {
 	}
 	return fmt.Errorf("the %s weights are not downloaded yet (%s): run cav gen image --service mflux once", model, size)
 }
+
+// SA3DefaultModel is the Stable Audio 3 model cav runs when the config names none.
+const SA3DefaultModel = "sm-music"
+
+// sa3Files maps the SA3 models cav knows to the weight files a run needs in the
+// stabilityai/stable-audio-3-optimized repository (its weights manifest, read on
+// 2026-10-18): the model's DiT and decoder, plus the shared T5Gemma text encoder. A
+// --ref run (init audio) also needs the codec's encoder, which the runtime downloads on
+// demand; SA3RefEncoder tracks it. The size is the first text-to-audio download,
+// T5Gemma included; the encoder's size is separate.
+var sa3Files = map[string]struct {
+	DiT         string
+	Decoder     string
+	Encoder     string
+	Size        string
+	EncoderSize string
+}{
+	"sm-sfx":   {DiT: "MLX/dit_sm-sfx_f16.npz", Decoder: "MLX/same_s_decoder_f32.npz", Encoder: "MLX/same_s_encoder_f32.npz", Size: "about 1.6 GB", EncoderSize: "about 205 MB"},
+	"sm-music": {DiT: "MLX/dit_sm-music_f16.npz", Decoder: "MLX/same_s_decoder_f32.npz", Encoder: "MLX/same_s_encoder_f32.npz", Size: "about 1.6 GB", EncoderSize: "about 205 MB"},
+	"medium":   {DiT: "MLX/dit_medium_f16.npz", Decoder: "MLX/same_l_decoder_f32.npz", Encoder: "MLX/same_l_encoder_f32.npz", Size: "about 4.9 GB", EncoderSize: "about 1.6 GB"},
+}
+
+// SA3Weights says whether the weights of a Stable Audio 3 model are in the Hugging Face
+// cache, and how large the first download is. known is false for a model cav has no
+// repository for.
+func SA3Weights(model string) (cached, known bool, size string) {
+	m, ok := sa3Files[model]
+	if !ok {
+		return false, false, "several GB"
+	}
+	return sa3SnapshotHas(m.DiT, m.Decoder, "MLX/t5gemma_f16.npz"), true, m.Size
+}
+
+// SA3RefEncoder says whether the codec encoder a --ref (init audio) run of a Stable
+// Audio 3 model needs is in the cache, and how large its one-time download is. The
+// runtime fetches it on demand, so a text-to-audio first run leaves it missing.
+func SA3RefEncoder(model string) (cached bool, size string) {
+	m, ok := sa3Files[model]
+	if !ok {
+		return false, "several hundred MB"
+	}
+	return sa3SnapshotHas(m.Encoder), m.EncoderSize
+}
+
+// sa3SnapshotHas reports whether one snapshot of the stable-audio-3-optimized
+// repository holds all the named files. os.Stat follows the snapshot's links to the
+// blobs, so a half-downloaded file (a link whose blob is missing) does not count.
+func sa3SnapshotHas(files ...string) bool {
+	snaps := filepath.Join(HFHubCache(), "models--stabilityai--stable-audio-3-optimized", "snapshots")
+	entries, err := os.ReadDir(snaps)
+	if err != nil {
+		return false
+	}
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		complete := true
+		for _, f := range files {
+			if _, err := os.Stat(filepath.Join(snaps, e.Name(), f)); err != nil {
+				complete = false
+				break
+			}
+		}
+		if complete {
+			return true
+		}
+	}
+	return false
+}
+
+// sa3Ready reports whether sa3 can run without its large first download.
+func sa3Ready(c *Config) error {
+	model := SA3DefaultModel
+	if c != nil && c.Models["sa3"] != "" {
+		model = c.Models["sa3"]
+	}
+	cached, known, size := SA3Weights(model)
+	if cached || !known {
+		return nil
+	}
+	return fmt.Errorf("the sa3 %s weights are not downloaded yet (%s): run cav music gen --service sa3 once", model, size)
+}

@@ -286,6 +286,9 @@ var Catalog = map[string]*Def{
 	"mflux": {Title: "mflux: FLUX.2 klein and other open models on Apple silicon, through uv (first run downloads the model)", Kind: KindLocal,
 		Jobs: []string{"image"}, Binary: "uv", OnlyOn: "darwin/arm64", Signup: "Apple silicon Mac and uv: https://docs.astral.sh/uv/",
 		Ready: mfluxReady},
+	"sa3": {Title: "Stable Audio 3 open models on Apple silicon, through uv (music and sound effects; the first run downloads the model, 1.6 GB or more)", Kind: KindLocal,
+		Jobs: []string{"music"}, Binary: "uv", OnlyOn: "darwin/arm64", Signup: "Apple silicon Mac and uv: https://docs.astral.sh/uv/",
+		Ready: sa3Ready},
 	"comfyui": {Title: "ComfyUI server you run, with an API-format workflow you choose", Kind: KindEndpoint,
 		Jobs: []string{"image"},
 		Check: func(ctx context.Context, c *Config, _ string) (string, error) {
