@@ -5,6 +5,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -119,5 +120,51 @@ func TestLocalTracersRunTheExpectedCommands(t *testing.T) {
 
 	if _, err := Vectorize(context.Background(), &services.Choice{Service: "greybox"}, in); err == nil {
 		t.Error("greybox traced an image")
+	}
+}
+
+// Ideogram's vectorizer is asynchronous, and the SVG URL refuses a download that
+// does not carry the API key. A bare GET is the bug this guards.
+func TestIdeogramVectorizePollsAndSendsTheKey(t *testing.T) {
+	var polls int
+	serve(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Api-Key") != "ideo-key" {
+			t.Errorf("%s %s: Api-Key %q", r.Method, r.URL.Path, r.Header.Get("Api-Key"))
+		}
+		switch {
+		case r.Method == "POST" && r.URL.Path == "/v2/svg/vectorize/ideogram-vector-1":
+			if err := r.ParseMultipartForm(1 << 20); err != nil {
+				t.Fatal(err)
+			}
+			if r.FormValue("mode") != "detailed" || r.FormValue("private") != "true" {
+				t.Errorf("form mode=%q private=%q", r.FormValue("mode"), r.FormValue("private"))
+			}
+			if len(r.MultipartForm.File["image"]) != 1 {
+				t.Errorf("image parts: %d", len(r.MultipartForm.File["image"]))
+			}
+			w.Write([]byte(`{"generation_id":"gen-1"}`))
+		case r.Method == "GET" && r.URL.Path == "/v2/generations/gen-1":
+			polls++
+			if polls == 1 {
+				w.Write([]byte(`{"generation_id":"gen-1","status":"pending","created":"2026-10-24T00:00:00Z"}`))
+				return
+			}
+			w.Write([]byte(`{"generation_id":"gen-1","status":"completed","created":"2026-10-24T00:00:00Z","data":[{"object_type":"svg.generation","mime_type":"image/svg+xml","url":"https://ideogram.ai/api/images/ephemeral/logo.svg","width":64,"height":64}]}`))
+		case r.Method == "GET" && r.URL.Path == "/api/images/ephemeral/logo.svg":
+			w.Header().Set("Content-Type", "image/svg+xml")
+			w.Write([]byte(`<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0"/></svg>`))
+		default:
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+		}
+	})
+	img, err := Vectorize(context.Background(), &services.Choice{Service: "ideogram", Key: "ideo-key"}, writeSquare(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if img.Provider != "ideogram" || img.Model != "ideogram-vector-1" || img.MIME != "image/svg+xml" || !strings.Contains(string(img.Data), "<path") {
+		t.Fatalf("%+v", img)
+	}
+	if polls < 2 {
+		t.Fatalf("polls: %d", polls)
 	}
 }
