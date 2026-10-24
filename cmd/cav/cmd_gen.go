@@ -36,6 +36,8 @@ cav gen image "a paper-cut mountain range at dusk" -o assets/mountains.png
     --ref (repeatable) sends reference images for a consistent look.
 cav gen vector logo.png -o logo.svg
     traces a PNG into an SVG: recraft with a key, otherwise vtracer or potrace if installed.
+    --service ideogram keeps gradients (a logo or a mascot); it costs about $0.10 and is
+    not used unless named.
 cav gen cutout photo.jpg -o fox.png
     makes the background of an image transparent: recraft with a key, otherwise rembg
     (BiRefNet, local through uv; the first run downloads the model, about 1 GB).
@@ -129,7 +131,7 @@ func genImage(a *app, args []string) error {
 			return err
 		}
 		im = &imagegen.Image{Data: data, MIME: "image/png", Provider: "greybox"}
-	case "vtracer", "potrace":
+	case "vtracer", "potrace", "ideogram":
 		return fail(exitError, ch.Service+" traces images but cannot make one from words", "make a PNG first, then: cav gen vector <png>")
 	case "rembg":
 		// rembg only cuts out: the image service makes the image, then rembg removes its
@@ -172,7 +174,7 @@ func genImage(a *app, args []string) error {
 func genVector(a *app, args []string) error {
 	fs := flag.NewFlagSet("gen vector", flag.ContinueOnError)
 	out := fs.String("o", "", "output SVG (default: next to the input)")
-	service := fs.String("service", "", "recraft, vtracer or potrace")
+	service := fs.String("service", "", "recraft, vtracer, potrace or ideogram")
 	pos, err := parseFlags(fs, args)
 	if err != nil {
 		return err
@@ -200,9 +202,9 @@ func genVector(a *app, args []string) error {
 	defer cancel()
 	ch, err := services.Pick(ctx, c, "image.vector", *service)
 	if err != nil {
-		return fail(exitError, err.Error(), "install vtracer (cargo install vtracer) or potrace (brew install potrace), or add a Recraft key")
+		return fail(exitError, err.Error(), "install vtracer (cargo install vtracer) or potrace (brew install potrace), or add a Recraft or Ideogram key")
 	}
-	if ch.Service != "recraft" && ch.Service != "vtracer" && ch.Service != "potrace" {
+	if ch.Service != "recraft" && ch.Service != "vtracer" && ch.Service != "potrace" && ch.Service != "ideogram" {
 		return fail(exitError, ch.Service+" does not trace images", "")
 	}
 	im, err := imagegen.Vectorize(ctx, ch, pos[0])

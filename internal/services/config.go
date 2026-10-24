@@ -64,9 +64,12 @@ var JobHelp = map[string]string{
 // wrote and renders it through Cavalry; cav board frames falls back to greybox for shots with
 // no SVG.
 var DefaultOrder = map[string][]string{
-	"image":        {"gemini", "openai", "openrouter", "fal", "mflux", "comfyui", "sketch", "greybox"},
-	"image.alpha":  {"openai", "recraft", "rembg"},
-	"image.vector": {"recraft", "vtracer", "potrace"},
+	"image":       {"gemini", "openai", "openrouter", "fal", "mflux", "comfyui", "sketch", "greybox"},
+	"image.alpha": {"openai", "recraft", "rembg"},
+	// ideogram traces well, and it costs $0.10 where recraft costs $0.01 and the local
+	// tracers cost nothing, so a key does not put it ahead of them. Name it with
+	// --service ideogram.
+	"image.vector": {"recraft", "vtracer", "potrace", "ideogram"},
 	"video":        {"veo"},
 	"music":        {"elevenlabs", "stability", "lyria", "acestep", "yue2", "sa3"},
 	"sfx":          {"freesound", "openverse"},

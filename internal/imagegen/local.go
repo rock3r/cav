@@ -8,20 +8,25 @@ import (
 	"image/color"
 	"image/draw"
 	"image/png"
+	"mime/multipart"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/rock3r/cav/internal/services"
 	"github.com/rock3r/cav/internal/sheet"
 )
 
 // Vectorize traces a raster image into SVG with the chosen service: recraft (API),
-// vtracer (colour, local) or potrace (one colour, local, through ffmpeg for the bitmap).
+// ideogram (API; keeps gradients), vtracer (colour, local) or potrace (one colour,
+// local, through ffmpeg for the bitmap).
 func vectorize(ctx context.Context, ch *services.Choice, in string) (*Image, error) {
 	switch ch.Service {
+	case "ideogram":
+		return ideogramVectorize(ctx, ch.Key, in)
 	case "recraft":
 		data, err := os.ReadFile(in)
 		if err != nil {
@@ -58,6 +63,85 @@ func vectorize(ctx context.Context, ch *services.Choice, in string) (*Image, err
 		return &Image{Data: data, MIME: "image/svg+xml", Provider: "potrace"}, err
 	}
 	return nil, fmt.Errorf("%s does not trace images", ch.Service)
+}
+
+// ideogramVectorize sends the raster to Ideogram Vector and downloads the SVG.
+// The download URL refuses a request that does not carry the API key.
+func ideogramVectorize(ctx context.Context, key, in string) (*Image, error) {
+	data, err := os.ReadFile(in)
+	if err != nil {
+		return nil, err
+	}
+	var buf bytes.Buffer
+	w := multipart.NewWriter(&buf)
+	fw, err := services.FormFile(w, "image", filepath.Base(in), data)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := fw.Write(data); err != nil {
+		return nil, err
+	}
+	// default keeps more of a gradient than simple. Grouping is not available.
+	if err := w.WriteField("mode", "default"); err != nil {
+		return nil, err
+	}
+	if err := w.WriteField("private", "true"); err != nil {
+		return nil, err
+	}
+	if err := w.Close(); err != nil {
+		return nil, err
+	}
+	h := map[string]string{"Api-Key": key, "Content-Type": w.FormDataContentType()}
+	var submitted struct {
+		GenerationID string `json:"generation_id"`
+	}
+	if err := services.Do(ctx, "POST", "https://api.ideogram.ai/v2/svg/vectorize/ideogram-vector-1", h, buf.Bytes(), &submitted); err != nil {
+		return nil, err
+	}
+	if submitted.GenerationID == "" {
+		return nil, fmt.Errorf("ideogram returned no generation id")
+	}
+	pollURL := "https://api.ideogram.ai/v1/generations/" + submitted.GenerationID
+	var done struct {
+		Status        string `json:"status"`
+		FailureReason string `json:"failure_reason"`
+		Data          []struct {
+			URL      string `json:"url"`
+			MIMEType string `json:"mime_type"`
+		} `json:"data"`
+	}
+	for {
+		if err := services.Do(ctx, "GET", pollURL, map[string]string{"Api-Key": key}, nil, &done); err != nil {
+			return nil, err
+		}
+		switch done.Status {
+		case "completed":
+			if len(done.Data) == 0 || done.Data[0].URL == "" {
+				return nil, fmt.Errorf("ideogram finished without an SVG")
+			}
+			svg, ctype, err := services.DoRaw(ctx, "GET", done.Data[0].URL, map[string]string{"Api-Key": key}, nil)
+			if err != nil {
+				return nil, fmt.Errorf("fetching the SVG: %w", err)
+			}
+			if ctype == "" || !strings.Contains(ctype, "svg") {
+				ctype = "image/svg+xml"
+			}
+			return &Image{Data: svg, MIME: ctype, Provider: "ideogram", Model: "ideogram-vector-1"}, nil
+		case "failed":
+			if done.FailureReason == "" {
+				done.FailureReason = "the trace failed"
+			}
+			return nil, fmt.Errorf("ideogram: %s", done.FailureReason)
+		case "pending", "":
+		default:
+			return nil, fmt.Errorf("ideogram: unexpected status %q", done.Status)
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(2 * time.Second):
+		}
+	}
 }
 
 // Card is a greybox storyboard frame: plain shapes and the shot's words, nothing to

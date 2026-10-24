@@ -1,10 +1,14 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
+	"image/png"
+	"mime/multipart"
 	"net/url"
 	"runtime"
 	"slices"
@@ -128,6 +132,40 @@ var Catalog = map[string]*Def{
 			}
 			if r.Data.Limit != nil {
 				return fmt.Sprintf("key accepted, %.2f credit left", *r.Data.Limit), nil
+			}
+			return "key accepted", nil
+		}},
+	"ideogram": {Title: "Ideogram Vector (trace a raster to SVG; keeps gradients, $0.10 a trace)", Kind: KindKey,
+		Jobs: []string{"image.vector"}, EnvVars: []string{"IDEOGRAM_API_KEY"},
+		Signup: "https://ideogram.ai/manage-api",
+		Check: func(ctx context.Context, _ *Config, key string) (string, error) {
+			// A dry run is validated and priced, and nothing is generated or billed.
+			// The published answer is only a generation id, so a 200 is the check.
+			var buf bytes.Buffer
+			w := multipart.NewWriter(&buf)
+			png := tinyPNG()
+			fw, err := FormFile(w, "image", "dot.png", png)
+			if err != nil {
+				return "", err
+			}
+			if _, err := fw.Write(png); err != nil {
+				return "", err
+			}
+			if err := w.WriteField("mode", "simple"); err != nil {
+				return "", err
+			}
+			if err := w.Close(); err != nil {
+				return "", err
+			}
+			var r struct {
+				GenerationID string `json:"generation_id"`
+			}
+			if err := Do(ctx, "POST", "https://api.ideogram.ai/v2/svg/vectorize/ideogram-vector-1?dry_run=true",
+				map[string]string{"Api-Key": key, "Content-Type": w.FormDataContentType()}, buf.Bytes(), &r); err != nil {
+				return "", err
+			}
+			if r.GenerationID == "" {
+				return "", fmt.Errorf("ideogram accepted the key but returned no generation id")
 			}
 			return "key accepted", nil
 		}},
@@ -612,6 +650,14 @@ func Pick(ctx context.Context, c *Config, job string, only string) (*Choice, err
 		msg += ":\n  " + strings.Join(ch.Skipped, "\n  ")
 	}
 	return nil, errors.New(msg)
+}
+
+// tinyPNG is a 1x1 PNG for the Ideogram key check. A dry run validates the upload
+// and bills nothing.
+func tinyPNG() []byte {
+	var b bytes.Buffer
+	_ = png.Encode(&b, image.NewNRGBA(image.Rect(0, 0, 1, 1)))
+	return b.Bytes()
 }
 
 func contains(s []string, v string) bool {
