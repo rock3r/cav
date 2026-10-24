@@ -36,8 +36,8 @@ cav gen image "a paper-cut mountain range at dusk" -o assets/mountains.png
     --ref (repeatable) sends reference images for a consistent look.
 cav gen vector logo.png -o logo.svg
     traces a PNG into an SVG: recraft with a key, otherwise vtracer or potrace if installed.
-    --service ideogram keeps gradients (a logo or a mascot); it costs about $0.10 and is
-    not used unless named.
+    --service ideogram keeps gradients (a logo or a mascot). It costs about $0.10, so
+    it stays behind recraft and the free tracers.
 cav gen cutout photo.jpg -o fox.png
     makes the background of an image transparent: recraft with a key, otherwise rembg
     (BiRefNet, local through uv; the first run downloads the model, about 1 GB).

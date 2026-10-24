@@ -4,8 +4,9 @@
 
 - `cav gen vector --service ideogram` traces a raster to SVG with Ideogram Vector
   (`IDEOGRAM_API_KEY`). It keeps gradients, which suits a logo or a mascot, and costs
-  about $0.10. It is last in the `image.vector` order, so a key does not select it:
-  name it with `--service ideogram`. The SVG download needs the same API key.
+  about $0.10. It is last in the `image.vector` order, after recraft and the free
+  tracers, so name it with `--service ideogram` when you want it. The SVG download
+  needs the same API key.
   `cav config check ideogram` proves the key with a dry run, which is not billed.
 - `cav music gen --service sa3` and `cav sfx gen --service sa3` make music and sound
   effects locally with Stable Audio 3 (https://github.com/Stability-AI/stable-audio-3,

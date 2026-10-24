@@ -223,8 +223,9 @@ Keys can come from `env:NAME`, `keychain:service/account`,
 | `music` | `cav music gen` | elevenlabs, stability, lyria, acestep, yue2, sa3 |
 | `ears` | `cav listen` | gemini, qwen-omni |
 
-ideogram is last in `image.vector` on purpose. A key does not select it. Name it
-with `cav gen vector <image> --service ideogram`. `cav sfx gen` is not the `sfx`
+ideogram is last in `image.vector` on purpose. The free tracers and recraft come
+first, so it runs only when those cannot, or when you name it with
+`cav gen vector <image> --service ideogram`. `cav sfx gen` is not the `sfx`
 search order: it uses elevenlabs, then sa3 once that model is downloaded.
 `cav sfx search --service bank` and `--by-sound` are extra search modes, not
 services in this order. arena is not in the `ref` order; `cav ref arena` imports
@@ -237,7 +238,7 @@ an Are.na channel, and a token is only for a private channel.
 | openrouter | `OPENROUTER_API_KEY` | Still images through one key for many models. |
 | fal | `FAL_KEY` or `FAL_API_KEY` | Still images: FLUX.2, Seedream, Ideogram, Grok Imagine and more. `cav config model fal <model-id>` picks one. |
 | recraft | `RECRAFT_API_TOKEN` or `RECRAFT_API_KEY` | A native SVG from a prompt, a trace of a raster, and background removal. A trace costs $0.01. |
-| ideogram | `IDEOGRAM_API_KEY` | Traces a raster to SVG and keeps gradients, which suits a logo or a mascot. About $0.10. Not used unless named. |
+| ideogram | `IDEOGRAM_API_KEY` | Traces a raster to SVG and keeps gradients, which suits a logo or a mascot. About $0.10. Last in the order, so the free tracers and recraft come first. |
 | veo | the gemini key | A moving shot for the animatic, from a storyboard frame. |
 | lyria | the gemini key | Music (Lyria 3.5). |
 | elevenlabs | `ELEVENLABS_API_KEY` or `XI_API_KEY` | Music that follows the shots, and generated sound effects. Music needs a paid plan. |
@@ -293,9 +294,9 @@ cav board place                                  # frames as placeholder layers 
 
 **Assets.** `cav gen image "<prompt>"` makes a still. `--alpha` requests a transparent
 PNG, and `--vector` requests an SVG. `cav gen vector logo.png` traces a PNG:
-recraft when it has a key, otherwise vtracer or potrace. `cav gen vector logo.png
---service ideogram` keeps gradients in a logo or a mascot. It costs about $0.10 and
-is not used unless you name it. On Apple
+recraft when it has a key, otherwise vtracer or potrace, otherwise ideogram when
+it has a key. `cav gen vector logo.png --service ideogram` keeps gradients in a
+logo or a mascot. It costs about $0.10, so it stays last. On Apple
 silicon, mflux runs FLUX.2 klein 4B without a key. Its first run downloads about 16 GB.
 After a first `--service mflux` run, cav includes it after keyed services by default.
 `cav config endpoint comfyui` connects a user-run ComfyUI workflow.
