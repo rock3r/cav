@@ -151,6 +151,7 @@ var Catalog = map[string]*Def{
 			if _, err := fw.Write(png); err != nil {
 				return "", err
 			}
+			// simple is one of the documented modes (simple, detailed, auto).
 			if err := w.WriteField("mode", "simple"); err != nil {
 				return "", err
 			}

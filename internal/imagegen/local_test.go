@@ -136,14 +136,14 @@ func TestIdeogramVectorizePollsAndSendsTheKey(t *testing.T) {
 			if err := r.ParseMultipartForm(1 << 20); err != nil {
 				t.Fatal(err)
 			}
-			if r.FormValue("mode") != "default" || r.FormValue("private") != "true" {
+			if r.FormValue("mode") != "detailed" || r.FormValue("private") != "true" {
 				t.Errorf("form mode=%q private=%q", r.FormValue("mode"), r.FormValue("private"))
 			}
 			if len(r.MultipartForm.File["image"]) != 1 {
 				t.Errorf("image parts: %d", len(r.MultipartForm.File["image"]))
 			}
 			w.Write([]byte(`{"generation_id":"gen-1"}`))
-		case r.Method == "GET" && r.URL.Path == "/v1/generations/gen-1":
+		case r.Method == "GET" && r.URL.Path == "/v2/generations/gen-1":
 			polls++
 			if polls == 1 {
 				w.Write([]byte(`{"generation_id":"gen-1","status":"pending","created":"2026-10-24T00:00:00Z"}`))

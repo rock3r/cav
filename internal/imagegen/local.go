@@ -81,8 +81,9 @@ func ideogramVectorize(ctx context.Context, key, in string) (*Image, error) {
 	if _, err := fw.Write(data); err != nil {
 		return nil, err
 	}
-	// default keeps more of a gradient than simple. Grouping is not available.
-	if err := w.WriteField("mode", "default"); err != nil {
+	// detailed keeps fine detail; simple uses fewer shapes; auto picks. The docs
+	// dropped the old "default" name.
+	if err := w.WriteField("mode", "detailed"); err != nil {
 		return nil, err
 	}
 	if err := w.WriteField("private", "true"); err != nil {
@@ -101,7 +102,7 @@ func ideogramVectorize(ctx context.Context, key, in string) (*Image, error) {
 	if submitted.GenerationID == "" {
 		return nil, fmt.Errorf("ideogram returned no generation id")
 	}
-	pollURL := "https://api.ideogram.ai/v1/generations/" + submitted.GenerationID
+	pollURL := "https://api.ideogram.ai/v2/generations/" + submitted.GenerationID
 	var done struct {
 		Status        string `json:"status"`
 		FailureReason string `json:"failure_reason"`
