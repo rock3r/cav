@@ -140,7 +140,7 @@ var Catalog = map[string]*Def{
 		Signup: "https://ideogram.ai/manage-api",
 		Check: func(ctx context.Context, _ *Config, key string) (string, error) {
 			// A dry run is validated and priced, and nothing is generated or billed.
-			// The published answer is only a generation id, so a 200 is the check.
+			// Its answer is a price quote, not a generation, so a 200 is the check.
 			var buf bytes.Buffer
 			w := multipart.NewWriter(&buf)
 			png := tinyPNG()
@@ -157,15 +157,9 @@ var Catalog = map[string]*Def{
 			if err := w.Close(); err != nil {
 				return "", err
 			}
-			var r struct {
-				GenerationID string `json:"generation_id"`
-			}
-			if err := Do(ctx, "POST", "https://api.ideogram.ai/v2/svg/vectorize/ideogram-vector-1?dry_run=true",
-				map[string]string{"Api-Key": key, "Content-Type": w.FormDataContentType()}, buf.Bytes(), &r); err != nil {
+			if _, _, err := DoRaw(ctx, "POST", "https://api.ideogram.ai/v2/svg/vectorize/ideogram-vector-1?dry_run=true",
+				map[string]string{"Api-Key": key, "Content-Type": w.FormDataContentType()}, buf.Bytes()); err != nil {
 				return "", err
-			}
-			if r.GenerationID == "" {
-				return "", fmt.Errorf("ideogram accepted the key but returned no generation id")
 			}
 			return "key accepted", nil
 		}},

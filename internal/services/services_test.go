@@ -326,6 +326,38 @@ func TestChecksReadRealAnswers(t *testing.T) {
 	}
 }
 
+// A dry run returns a price quote, not a generation id. Requiring one would fail a valid key.
+func TestIdeogramCheckAcceptsADryRun(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Original-Host")+r.URL.RequestURI() != "api.ideogram.ai/v2/svg/vectorize/ideogram-vector-1?dry_run=true" {
+			t.Errorf("unexpected %s %s%s", r.Method, r.Header.Get("X-Original-Host"), r.URL.RequestURI())
+			w.WriteHeader(404)
+			return
+		}
+		if r.Header.Get("Api-Key") != "test-key" {
+			t.Errorf("Api-Key %q", r.Header.Get("Api-Key"))
+		}
+		if err := r.ParseMultipartForm(1 << 20); err != nil {
+			t.Fatal(err)
+		}
+		if len(r.MultipartForm.File["image"]) != 1 {
+			t.Errorf("image parts: %d", len(r.MultipartForm.File["image"]))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"price_usd":0.1}`))
+	}))
+	defer srv.Close()
+	u, _ := url.Parse(srv.URL)
+	old := HTTPClient
+	HTTPClient = &http.Client{Transport: redirect{u}}
+	defer func() { HTTPClient = old }()
+	t.Setenv("IDEOGRAM_API_KEY", "test-key")
+	st := Probe(context.Background(), &Config{}, "ideogram")
+	if st.State != "ok" || st.Detail != "key accepted" {
+		t.Fatalf("%+v", st)
+	}
+}
+
 // The bytes decide a file part's type; the name only helps when they are not recognised.
 func TestFormFileTrustsTheBytes(t *testing.T) {
 	jpeg := []byte("\xff\xd8\xff\xe0\x00\x10JFIF\x00")
