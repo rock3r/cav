@@ -66,9 +66,10 @@ var JobHelp = map[string]string{
 var DefaultOrder = map[string][]string{
 	"image":       {"gemini", "openai", "openrouter", "fal", "mflux", "comfyui", "sketch", "greybox"},
 	"image.alpha": {"openai", "recraft", "rembg"},
-	// ideogram traces well, and it costs $0.10 where recraft costs $0.01 and the local
-	// tracers cost nothing, so it stays behind them. Name it with --service ideogram.
-	"image.vector": {"recraft", "vtracer", "potrace", "ideogram"},
+	// ideogram and quiverai stay behind recraft and the free tracers. recraft costs
+	// $0.01 and the local tracers cost nothing; these two cost more, and a vectorization
+	// redraws the picture rather than tracing it. Name them with --service.
+	"image.vector": {"recraft", "vtracer", "potrace", "ideogram", "quiverai"},
 	"video":        {"veo"},
 	"music":        {"elevenlabs", "stability", "lyria", "acestep", "yue2", "sa3"},
 	"sfx":          {"freesound", "openverse"},

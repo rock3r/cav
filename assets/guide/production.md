@@ -90,7 +90,7 @@ to run `cav config set-key` themselves. Keys must stay out of chat.
 |---|---|---|
 | `image` (frames, stills) | sketch (an agent-written SVG per shot, rendered by Cavalry), greybox cards; mflux (Apple silicon), comfyui (a user-run server) | gemini, openai, openrouter, fal |
 | `image.alpha` (transparent PNG) | rembg (through uv): cuts out an image that an `image` service made | openai, recraft |
-| `image.vector` (SVG) | vtracer, potrace (if installed) | recraft; ideogram only with `--service ideogram` |
+| `image.vector` (SVG) | vtracer, potrace (if installed) | recraft; ideogram and quiverai only with `--service` |
 | `video` (moving animatic shots) | none (the animatic holds each frame) | veo |
 | `ref` (reference images) | openverse, wikimedia | pexels, unsplash |
 | `sfx` (sound search) | openverse, indexed folders | freesound |
@@ -245,6 +245,7 @@ cav gen image "flat logo mark, a fox head" --alpha -o assets/fox.png     # trans
 cav gen image "line icon of a rocket" --vector -o assets/rocket.svg       # SVG
 cav gen vector assets/fox.png -o assets/fox.svg                          # trace a PNG
 cav gen vector assets/badge.png --service ideogram -o assets/badge.svg   # keeps a gradient; about $0.10
+cav gen image "flat ink logo, an orange curve" --vector --service quiverai -o assets/mark.svg
 cav gen cutout photo.png -o assets/fox.png                               # remove a background
 ```
 

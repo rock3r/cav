@@ -60,6 +60,7 @@ var DefaultModels = map[string]string{
 	"openrouter": "google/gemini-2.5-flash-image",
 	"fal":        "fal-ai/flux-2",
 	"recraft":    "recraftv4_1",
+	"quiverai":   "arrow-2",
 	"mflux":      services.MfluxDefaultModel,
 }
 
@@ -95,6 +96,8 @@ func generate(ctx context.Context, c *services.Config, ch *services.Choice, r Re
 			m = "recraftv3_vector"
 		}
 		im, err = recraft(ctx, ch.Key, m, r)
+	case "quiverai":
+		im, err = quiver(ctx, ch.Key, m, r)
 	case "mflux":
 		im, err = mflux(ctx, m, r)
 	case "comfyui":

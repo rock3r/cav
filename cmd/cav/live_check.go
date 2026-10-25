@@ -92,7 +92,7 @@ func liveJob(service string) string {
 	if service == "elevenlabs" {
 		return "sfx"
 	}
-	if service == "recraft" || service == "ideogram" {
+	if service == "recraft" || service == "ideogram" || service == "quiverai" {
 		return "image.vector"
 	}
 	return "image"

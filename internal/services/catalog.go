@@ -135,6 +135,29 @@ var Catalog = map[string]*Def{
 			}
 			return "key accepted", nil
 		}},
+	"quiverai": {Title: "QuiverAI Arrow (SVG from a prompt, or a redraw of a raster; opt-in)", Kind: KindKey,
+		Jobs: []string{"image", "image.vector"}, EnvVars: []string{"QUIVERAI_API_KEY"},
+		Signup: "https://platform.quiver.ai/api-keys",
+		Check: func(ctx context.Context, _ *Config, key string) (string, error) {
+			var r struct {
+				Data []struct {
+					ID string `json:"id"`
+				} `json:"data"`
+			}
+			if err := Do(ctx, "GET", "https://api.quiver.ai/v1/models", bearer(key), nil, &r); err != nil {
+				return "", err
+			}
+			var ids []string
+			for _, m := range r.Data {
+				if m.ID != "" {
+					ids = append(ids, m.ID)
+				}
+			}
+			if len(ids) == 0 {
+				return "key accepted, no models listed", nil
+			}
+			return "key accepted: " + strings.Join(ids, ", "), nil
+		}},
 	"ideogram": {Title: "Ideogram Vector (trace a raster to SVG; keeps gradients, $0.10 a trace)", Kind: KindKey,
 		Jobs: []string{"image.vector"}, EnvVars: []string{"IDEOGRAM_API_KEY"},
 		Signup: "https://ideogram.ai/manage-api",

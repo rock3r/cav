@@ -36,8 +36,9 @@ cav gen image "a paper-cut mountain range at dusk" -o assets/mountains.png
     --ref (repeatable) sends reference images for a consistent look.
 cav gen vector logo.png -o logo.svg
     traces a PNG into an SVG: recraft with a key, otherwise vtracer or potrace if installed.
-    --service ideogram keeps gradients (a logo or a mascot). It costs about $0.10, so
-    it stays behind recraft and the free tracers.
+    --service ideogram keeps gradients (a logo or a mascot). It costs about $0.10.
+    --service quiverai redraws the picture as shapes. It is not a faithful trace.
+    Both stay behind recraft and the free tracers.
 cav gen cutout photo.jpg -o fox.png
     makes the background of an image transparent: recraft with a key, otherwise rembg
     (BiRefNet, local through uv; the first run downloads the model, about 1 GB).
@@ -174,7 +175,7 @@ func genImage(a *app, args []string) error {
 func genVector(a *app, args []string) error {
 	fs := flag.NewFlagSet("gen vector", flag.ContinueOnError)
 	out := fs.String("o", "", "output SVG (default: next to the input)")
-	service := fs.String("service", "", "recraft, vtracer, potrace or ideogram")
+	service := fs.String("service", "", "recraft, vtracer, potrace, ideogram or quiverai")
 	pos, err := parseFlags(fs, args)
 	if err != nil {
 		return err
@@ -202,9 +203,9 @@ func genVector(a *app, args []string) error {
 	defer cancel()
 	ch, err := services.Pick(ctx, c, "image.vector", *service)
 	if err != nil {
-		return fail(exitError, err.Error(), "install vtracer (cargo install vtracer) or potrace (brew install potrace), or add a Recraft or Ideogram key")
+		return fail(exitError, err.Error(), "install vtracer (cargo install vtracer) or potrace (brew install potrace), or add a Recraft, Ideogram or QuiverAI key")
 	}
-	if ch.Service != "recraft" && ch.Service != "vtracer" && ch.Service != "potrace" && ch.Service != "ideogram" {
+	if ch.Service != "recraft" && ch.Service != "vtracer" && ch.Service != "potrace" && ch.Service != "ideogram" && ch.Service != "quiverai" {
 		return fail(exitError, ch.Service+" does not trace images", "")
 	}
 	im, err := imagegen.Vectorize(ctx, ch, pos[0])
