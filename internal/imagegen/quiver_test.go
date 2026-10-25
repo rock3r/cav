@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"math"
 	"net/http"
 	"strings"
 	"testing"
@@ -24,7 +25,7 @@ func TestQuiverGeneratesAnSVG(t *testing.T) {
 			t.Errorf("body model/temperature/n: %v %v %v", body["model"], body["temperature"], body["n"])
 		}
 		vb := body["attributes"].(map[string]any)["viewBox"].(map[string]any)
-		if vb["width"] != float64(1024) || vb["height"] != float64(1024) {
+		if vb["width"] != float64(1080) || vb["height"] != float64(1080) {
 			t.Errorf("1:1 viewBox: %v", vb)
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -37,6 +38,14 @@ func TestQuiverGeneratesAnSVG(t *testing.T) {
 	}
 	if im.Provider != "quiverai" || im.Model != "arrow-2" || im.MIME != "image/svg+xml" || !strings.Contains(string(im.Data), "<circle") {
 		t.Fatalf("%+v %s", im, im.Data)
+	}
+}
+
+func TestQuiverViewBoxKeepsAPortraitRatio(t *testing.T) {
+	got := quiverViewBox("2:3")
+	w, h := got["width"].(float64), got["height"].(float64)
+	if w >= h || math.Abs(w/h-2.0/3) > 0.01 {
+		t.Fatalf("2:3 became %v, a portrait request must stay portrait", got)
 	}
 }
 

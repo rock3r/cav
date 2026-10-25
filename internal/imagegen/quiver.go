@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"math"
 	"os"
 	"strings"
 
@@ -80,23 +81,16 @@ func quiverSVG(ctx context.Context, key, endpoint string, body map[string]any, m
 	return &Image{Data: []byte(ans.Data[0].SVG), MIME: mime, Provider: "quiverai", Model: model}, nil
 }
 
-// quiverViewBox is a canvas in the requested ratio, so a generated logo lands at a
-// size Cavalry can import 1:1.
+// quiverViewBox is a canvas in the requested ratio, about 1080 px on the short
+// side, so a generated logo lands at a size Cavalry can import 1:1. An unreadable
+// ratio falls back to 16:9, the same default the rest of image generation uses.
 func quiverViewBox(aspect string) map[string]any {
-	w, h := 1920.0, 1080.0
-	switch aspect {
-	case "1:1":
-		w, h = 1024, 1024
-	case "9:16":
-		w, h = 1080, 1920
-	case "4:3":
-		w, h = 1440, 1080
-	case "3:4":
-		w, h = 1080, 1440
-	case "4:5":
-		w, h = 1080, 1350
-	case "21:9":
-		w, h = 2520, 1080
+	ar := ratio(aspect)
+	h := 1080.0
+	w := h * ar
+	if w > 2520 {
+		w = 2520
+		h = w / ar
 	}
-	return map[string]any{"minX": 0, "minY": 0, "width": w, "height": h}
+	return map[string]any{"minX": 0, "minY": 0, "width": math.Round(w), "height": math.Round(h)}
 }
