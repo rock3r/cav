@@ -216,16 +216,17 @@ Keys can come from `env:NAME`, `keychain:service/account`,
 |---|---|---|
 | `image` | `cav gen image`, `cav board frames` | gemini, openai, openrouter, fal, mflux, comfyui, sketch, greybox |
 | `image.alpha` | `cav gen image --alpha`, `cav gen cutout` | openai, recraft, rembg |
-| `image.vector` | `cav gen image --vector`, `cav gen vector` | recraft, vtracer, potrace, ideogram |
+| `image.vector` | `cav gen image --vector`, `cav gen vector` | recraft, vtracer, potrace, ideogram, quiverai |
 | `video` | `cav board animatic` moving shots | veo |
 | `ref` | `cav ref search`, `cav ref get` | pexels, unsplash, openverse, wikimedia |
 | `sfx` | `cav sfx search`, `cav sfx get` | freesound, openverse |
 | `music` | `cav music gen` | elevenlabs, stability, lyria, acestep, yue2, sa3 |
 | `ears` | `cav listen` | gemini, qwen-omni |
 
-ideogram is last in `image.vector` on purpose. The free tracers and recraft come
-first, so it runs only when those cannot, or when you name it with
-`cav gen vector <image> --service ideogram`. `cav sfx gen` is not the `sfx`
+ideogram and quiverai are last in `image.vector` on purpose. The free tracers and
+recraft come first, so those two run only when the others cannot, or when you name
+one with `--service`. `cav gen image --vector --service quiverai` makes an SVG from
+a prompt; a plain `cav gen image` never picks it. `cav sfx gen` is not the `sfx`
 search order: it uses elevenlabs, then sa3 once that model is downloaded.
 `cav sfx search --service bank` and `--by-sound` are extra search modes, not
 services in this order. arena is not in the `ref` order; `cav ref arena` imports
@@ -233,12 +234,13 @@ an Are.na channel, and a token is only for a private channel.
 
 | Service | Needs | What it does |
 |---|---|---|
-| gemini | `GEMINI_API_KEY` or `GOOGLE_API_KEY` | Still images (Nano Banana), and a written critique of a track. |
-| openai | `OPENAI_API_KEY` | Still images, including a transparent PNG and text in the image. |
-| openrouter | `OPENROUTER_API_KEY` | Still images through one key for many models. |
-| fal | `FAL_KEY` or `FAL_API_KEY` | Still images: FLUX.2, Seedream, Ideogram, Grok Imagine and more. `cav config model fal <model-id>` picks one. |
-| recraft | `RECRAFT_API_TOKEN` or `RECRAFT_API_KEY` | A native SVG from a prompt, a trace of a raster, and background removal. A trace costs $0.01. |
+| gemini | `GEMINI_API_KEY` or `GOOGLE_API_KEY` | Still images (Nano Banana), and a written critique of a track. Text in the image is unreliable. About $0.04 a still. |
+| openai | `OPENAI_API_KEY` | Still images, including a transparent PNG. The best of these at text in the image. About $0.01–0.05. |
+| openrouter | `OPENROUTER_API_KEY` | Still images through one key for many models. Quality follows the model you pick. About $0.04. |
+| fal | `FAL_KEY` or `FAL_API_KEY` | Still images: FLUX.2, Seedream, Ideogram (`fal-ai/ideogram/v3`, good with text), Grok Imagine and more. `cav config model fal <model-id>` picks one. Raster, not SVG. About $0.01–0.03. |
+| recraft | `RECRAFT_API_TOKEN` or `RECRAFT_API_KEY` | A native SVG from a prompt, a geometric trace of a raster, and background removal. A trace costs $0.01 and keeps the picture. |
 | ideogram | `IDEOGRAM_API_KEY` | Traces a raster to SVG and keeps gradients, which suits a logo or a mascot. About $0.10. Last in the order, so the free tracers and recraft come first. |
+| quiverai | `QUIVERAI_API_KEY` | An editable SVG from a prompt (Arrow 2), or a redraw of a raster. Opt-in: name it with `--service quiverai`. A small generation is about $0.05–0.07; a dense one can be $0.20 or more, billed by token from a prepaid balance. Words come back as paths, not as editable text. A vectorization reconstructs the picture and can change a small mark, so it is not a faithful trace. Paid output is yours to use commercially. QuiverAI may store requests and use them for training. |
 | veo | the gemini key | A moving shot for the animatic, from a storyboard frame. |
 | lyria | the gemini key | Music (Lyria 3.5). |
 | elevenlabs | `ELEVENLABS_API_KEY` or `XI_API_KEY` | Music that follows the shots, and generated sound effects. Music needs a paid plan. |
@@ -249,8 +251,8 @@ an Are.na channel, and a token is only for a private channel.
 | mflux | Apple silicon and uv | Still images locally with FLUX.2 klein. No key. The first run downloads about 16 GB. |
 | comfyui | a server you run | Still images from a ComfyUI workflow you choose. |
 | rembg | uv | Cuts the background out of an image locally (BiRefNet). The first run downloads about 1 GB. |
-| vtracer | the `vtracer` program | Traces a PNG to a colour SVG, locally. `cargo install vtracer`. |
-| potrace | the `potrace` program | Traces a PNG to a one-colour SVG, locally. `brew install potrace`. |
+| vtracer | the `vtracer` program | Traces a PNG to a colour SVG, locally and for free. A faithful trace, not a redraw. `cargo install vtracer`. |
+| potrace | the `potrace` program | Traces a PNG to a one-colour SVG, locally and for free. `brew install potrace`. |
 | sketch | Cavalry open | A storyboard frame from an SVG you write, rendered by Cavalry. |
 | greybox | nothing | A grey card with the prompt, when no image service can run. |
 | pexels | `PEXELS_API_KEY` | Stock photos and video for a mood board. |
@@ -294,9 +296,12 @@ cav board place                                  # frames as placeholder layers 
 
 **Assets.** `cav gen image "<prompt>"` makes a still. `--alpha` requests a transparent
 PNG, and `--vector` requests an SVG. `cav gen vector logo.png` traces a PNG:
-recraft when it has a key, otherwise vtracer or potrace, otherwise ideogram when
-it has a key. `cav gen vector logo.png --service ideogram` keeps gradients in a
-logo or a mascot. It costs about $0.10, so it stays last. On Apple
+recraft when it has a key, otherwise vtracer or potrace, otherwise ideogram, then
+quiverai, when those have a key. `cav gen vector logo.png --service ideogram` keeps
+gradients in a logo or a mascot. It costs about $0.10.
+`cav gen image "a flat logo" --vector --service quiverai` writes the SVG from the
+prompt, and `cav gen vector logo.png --service quiverai` redraws a raster as shapes.
+Neither is a faithful trace, and neither puts words in editable text. On Apple
 silicon, mflux runs FLUX.2 klein 4B without a key. Its first run downloads about 16 GB.
 After a first `--service mflux` run, cav includes it after keyed services by default.
 `cav config endpoint comfyui` connects a user-run ComfyUI workflow.

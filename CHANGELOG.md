@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- `cav gen image --vector --service quiverai` and `cav gen vector --service quiverai`
+  make an SVG with QuiverAI Arrow (`QUIVERAI_API_KEY`, default model `arrow-2`).
+  A prompt becomes editable shapes; a raster is redrawn, not traced, so a small mark
+  can change. Words come back as paths, not as `<text>`. It is last in the
+  `image.vector` order, after recraft, the free tracers and ideogram, and a plain
+  `cav gen image` never picks it. A small call is about $0.05–0.07 from a prepaid
+  balance; a dense SVG can cost more. Paid output is commercially usable. QuiverAI
+  may store requests and use them for training.
 - `cav gen vector --service ideogram` traces a raster to SVG with Ideogram Vector
   (`IDEOGRAM_API_KEY`). It keeps gradients, which suits a logo or a mascot, and costs
   about $0.10. It is last in the `image.vector` order, after recraft and the free

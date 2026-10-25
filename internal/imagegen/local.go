@@ -21,10 +21,12 @@ import (
 )
 
 // Vectorize traces a raster image into SVG with the chosen service: recraft (API),
-// ideogram (API; keeps gradients), vtracer (colour, local) or potrace (one colour,
-// local, through ffmpeg for the bitmap).
+// ideogram (API; keeps gradients), quiverai (API; a redraw, not a trace), vtracer
+// (colour, local) or potrace (one colour, local, through ffmpeg for the bitmap).
 func vectorize(ctx context.Context, ch *services.Choice, in string) (*Image, error) {
 	switch ch.Service {
+	case "quiverai":
+		return quiverVectorize(ctx, ch.Key, "", in)
 	case "ideogram":
 		return ideogramVectorize(ctx, ch.Key, in)
 	case "recraft":
